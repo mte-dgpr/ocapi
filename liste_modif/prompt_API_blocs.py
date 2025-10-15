@@ -24,6 +24,10 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import time
+from dotenv import load_dotenv
+import os
+
+load_dotenv()  # Charge les données du .env
 
 # === Configuration API PIAG ===
 # URL de l'API PIAG en environnement de préproduction
@@ -31,7 +35,7 @@ API_URL = "https://preprod.api.piag.e2.rie.gouv.fr/v1/chat/completions"
 
 # Clé d'authentification pour l'API PIAG
 # ⚠️ IMPORTANT : Cette clé doit être renseignée
-API_KEY = "sk-fv5dSV6Ku0C1zLqKn4MjyQ"
+API_KEY = os.getenv("PIAG_API_KEY")
 
 # Nom du modèle
 MODEL_NAME = "mte-api-piag-mistral-medium-latest"
@@ -77,39 +81,7 @@ HEADERS = {
 #             if div.get_text(strip=True)
 #         ]
 
-def extract_dsr_alinea_blocks(filepath):
-    """
-    Extrait tous les blocs de contenu juridique marqués avec la classe CSS 'dsr-alinea'.
 
-    Args:
-        filepath (str): Chemin vers le fichier HTML à analyser
-
-    Returns:
-        list[str]: Liste des contenus textuels extraits de chaque bloc dsr-alinea
-
-    Processus d'extraction :
-        1. Ouvre et parse le fichier HTML avec BeautifulSoup
-        2. Recherche tous les éléments <div class="arretify-operation">
-        3. Extrait le texte de chaque élément en préservant la structure
-        4. Filtre les blocs vides ou ne contenant que des espaces
-
-    Format HTML attendu :
-        <div class="dsr-alinea">
-            Contenu de l'alinéa juridique (article, paragraphe, etc.)
-        </div>
-
-    Note technique :
-        La classe 'dsr-alinea' est une convention utilisée dans les documents
-        juridiques gouvernementaux pour identifier les unités de contenu structuré.
-    """
-    with open(filepath, "r", encoding="utf-8") as f:
-        soup = BeautifulSoup(f, "html.parser")
-        divs = soup.find_all("div", class_="arretify-operation")
-        return [
-            div.get_text(separator=" ", strip=True)
-            for div in divs
-            if div.get_text(strip=True)
-        ]
 
 def extract_text_blocks(filepath, max_chars=12000):
     """
@@ -139,7 +111,6 @@ def extract_text_blocks(filepath, max_chars=12000):
         return blocks
     
 
-    
 
 def ask_llm_for_operation(text_arrete):
     """
@@ -253,7 +224,7 @@ if __name__ == "__main__":
     Point d'entrée principal du script de détection de modifications .
 
     """
-    dossier_html = "C:\\Users\\marie.tcheng\\Documents\\consolidation\\identifier_modifs\\exempleshtml" 
+    dossier_html = "C:\\Users\\marie.tcheng\\Documents\\consolidation\\bench-ocapi\\exempleshtml" 
 
     resultat = process_html_directory(dossier_html)
 
