@@ -296,6 +296,7 @@ def process_html_directory(folder_path, cfg):
         if filename.endswith(".html"):
             full_path = os.path.join(folder_path, filename)
             print(f" Traitement de : {filename}")
+            start_time = time.time() 
 
             # 1) on récupère le HTML simplifié + img_map
             analysis_html, img_map = extract_arrete_text(full_path)
@@ -310,6 +311,7 @@ def process_html_directory(folder_path, cfg):
 
             print("#---------Arrêté traité.-------------#")
             print(f"{len(results)} modifications détectées.")
+            
             i = 0
             # 3) pour chaque modif, on transforme markers -> fragment HTML et on nettoie les champs
             for item in results:
@@ -332,6 +334,8 @@ def process_html_directory(folder_path, cfg):
                 # item.pop("new_content_ref", None)
 
                 all_results.append(item)
+            elapsed = time.time() - start_time
+            print(f"Temps total pour '{filename}' : {elapsed:.2f} s")
             print(f"{i} modifications transformées avec succès !")
             time.sleep(1)  # légère pause si utile
 

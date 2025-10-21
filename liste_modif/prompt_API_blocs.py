@@ -396,7 +396,8 @@ def process_html_directory(folder_path, cfg):
         if filename.endswith(".html"):
             full_path = os.path.join(folder_path, filename)
             print(f" Traitement de : {filename}")
-
+            start_time = time.time()
+            
             # extraire la liste de blocs
             blocks = extract_arrete_text(full_path)
             total_len = sum(len(b.get("html","")) for b in blocks)
@@ -417,6 +418,7 @@ def process_html_directory(folder_path, cfg):
                     img_map[key] = src
 
             file_results = []
+            api_nonempty = 0
             # pour chaque bloc, envoyer séparément au LLM
             for blk in blocks:
                 blk_html = blk.get("html", "")
@@ -425,6 +427,8 @@ def process_html_directory(folder_path, cfg):
 
                 try:
                     results = ask_llm_for_operation(blk_html, cfg)
+                    if results: 
+                        api_nonempty+=1
                 except Exception:
                     results = []
 
@@ -447,11 +451,12 @@ def process_html_directory(folder_path, cfg):
                     file_results.append(item)
 
                 time.sleep(1)
-
+      
+            elapsed = time.time() - start_time
+            print(f"{len(file_results)} modifications détectées dans '{filename}' en {elapsed:.2f} s avec {api_nonempty} appels non vides.")
+            print(f"Temps total pour '{filename}' : {elapsed:.2f} s")
             print("#---------Arrêté traité.-------------#")
-            print(f"{len(file_results)} modifications détectées.")
             all_results.extend(file_results)
-
             time.sleep(1)
 
     return all_results

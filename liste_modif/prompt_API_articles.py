@@ -360,11 +360,13 @@ def process_html_directory(folder_path, cfg):
         if filename.endswith(".html"):
             full_path = os.path.join(folder_path, filename)
             print(f" Traitement de : {filename}")
+            start_time = time.time()
 
             # extraire la liste d'articles (article par article)
             articles = extract_arrete_text(full_path)
             total_len = sum(len(a.get("html","")) for a in articles)
             print(f"Taille cumulée des articles extraits : {total_len} caractères")
+            print(f"Nombre d'appels : {len(articles)}")
 
             # reconstruire img_map à partir du fichier original (nécessaire pour _rehydrate_images)
             html_raw = Path(full_path).read_text(encoding="utf-8")
@@ -381,6 +383,7 @@ def process_html_directory(folder_path, cfg):
                     img_map[key] = src
 
             file_results = []
+            api_nonempty = 0        # nombre d'appels dont la réponse contient au moins 1 opération
             # pour chaque article/fragment, envoyer séparément au LLM
             for art in articles:
                 art_html = art.get("html", "")
@@ -389,6 +392,8 @@ def process_html_directory(folder_path, cfg):
 
                 try:
                     results = ask_llm_for_operation(art_html, cfg)
+                    if results:
+                       api_nonempty += 1
                 except Exception:
                     results = []
 
@@ -412,8 +417,9 @@ def process_html_directory(folder_path, cfg):
 
                 time.sleep(1)
 
+            elapsed = time.time() - start_time
+            print(f"{len(file_results)} modifications détectées dans '{filename}' en {elapsed:.2f} s avec {api_nonempty} appels non vides.")
             print("#---------Arrêté traité.-------------#")
-            print(f"{len(file_results)} modifications détectées.")
             all_results.extend(file_results)
 
             time.sleep(1)
