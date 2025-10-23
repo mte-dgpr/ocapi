@@ -55,7 +55,7 @@ def config_API(modele):
    
     return model, key, apiurl
 
-# === Gestion Fichiers HTML - input ===
+# === Gestion Fichiers HTML - réduction et division par blocs  ===
 
 def normalize_html_minify(soup: BeautifulSoup) -> str:
     """
@@ -72,7 +72,7 @@ def normalize_html_minify(soup: BeautifulSoup) -> str:
 
     return html.strip()
 
-def extract_arrete_text(filepath):
+def extract_arrete_blocs(filepath):
     """
     Découpe l'arrêté en "blocs" destinés à être envoyés séparément au LLM.
     - Si des <section> significatives sont présentes, on les utilise comme unités.
@@ -192,6 +192,7 @@ def extract_arrete_text(filepath):
 
     return blocks
 
+# === Extraction du nouveau contenu ===
 
 def _find_marker(haystack: str, marker: str) -> int:
     """
@@ -335,52 +336,45 @@ def ask_llm_for_operation(analysis_html: str, cfg) -> list:
         "Content-Type": "application/json",
     }
 
-    # Payload de la requête API -- indique le modèle, le prompt et les paramètres
-    payload = {
-        "model": MODEL_NAME,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0,
-        "n": 1
-    }
+    if (MODEL_NAME == "mte-api-piag-mistral-medium-latest"):
+        # Payload de la requête API -- indique le modèle, le prompt et les paramètres
+        payload = {
+            "model": MODEL_NAME,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+            "n": 1
+        }
+    if (MODEL_NAME in ["gpt-5", "gpt-5-mini"]):
+        payload = {
+            "model": MODEL_NAME,
+            "messages": [{"role": "user", "content": prompt}],
+            "verbosity": "low",
+            "reasoning_effort": "minimal",
+            "n": 1
+        }
 
     try:
-        r = requests.post(API_URL, headers=HEADERS, json=payload, timeout=(15, 60))
-    except Exception as e:
-        print("[debug] erreur réseau lors de requests.post :", e)
-        return []
+         # Appel à l'API PIAG avec gestion des erreurs HTTP 
+        r = requests.post(API_URL, headers=HEADERS, json=payload, timeout=(40, 120))
+        r.raise_for_status()
 
-    # debug : afficher statut / réponse courte si erreur
-    if r.status_code >= 400:
-        print(f"[debug] API returned status {r.status_code}")
-        print("[debug] response body:", r.text[:2000])
-        return []
-
-    try:
+        # Extraction du contenu de la réponse du modèle
         data = r.json()
-    except Exception as e:
-        print("[debug] impossible de décoder la réponse JSON :", e)
-        print("[debug] corps brut :", r.text[:2000])
-        return []
+        raw = data["choices"][0]["message"]["content"]
+        
+        # Chercher le premier grand tableau JSON dans la réponse
+        m = re.search(r"\[[\s\S]*\]", raw)
+        if not m:
+            return []
 
-    # extraction du contenu
-    raw = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-    if not raw:
-        print("[debug] réponse du modèle vide ou format inattendu")
-        return []
-
-    m = re.search(r"\[[\s\S]*\]", raw)
-    if not m:
-        print("[debug] aucun tableau JSON trouvé dans la réponse du modèle (preview) :", raw[:500])
-        return []
-
-    try:
+        # Parser le tableau JSON
         ops = json.loads(m.group())
-    except Exception as e:
-        print("[debug] erreur parsing JSON extrait :", e)
-        print("[debug] JSON brut extrait :", m.group()[:1000])
-        return []
+        # S'assurer qu'on renvoie bien une liste
+        return ops if isinstance(ops, list) else []
 
-    return ops if isinstance(ops, list) else []
+    except Exception as e:
+        print(" Erreur de parsing JSON ou d'appel API :", e)
+        return []
 
 def process_html_directory(folder_path, cfg):
     """
@@ -399,7 +393,7 @@ def process_html_directory(folder_path, cfg):
             start_time = time.time()
             
             # extraire la liste de blocs
-            blocks = extract_arrete_text(full_path)
+            blocks = extract_arrete_blocs(full_path)
             total_len = sum(len(b.get("html","")) for b in blocks)
             print(f"Taille cumulée des blocs extraits : {total_len} caractères (en {len(blocks)} blocs)")
 
@@ -454,16 +448,16 @@ def process_html_directory(folder_path, cfg):
       
             elapsed = time.time() - start_time
             print(f"{len(file_results)} modifications détectées dans '{filename}' en {elapsed:.2f} s avec {api_nonempty} appels non vides.")
-            print(f"Temps total pour '{filename}' : {elapsed:.2f} s")
             print("#---------Arrêté traité.-------------#")
             all_results.extend(file_results)
             time.sleep(1)
 
     return all_results
+
 # === Point d'entrée principal ===
 if __name__ == "__main__":
 
-    dossier_html = "C:\\Users\\marie.tcheng\\Documents\\consolidation\\bench-ocapi\\exempleshtml"
+    dossier_html = "C:\\Users\\marie.tcheng\\Documents\\consolidation\\bench-ocapi\\exempleshtml\\ex8"
 
     modele = input("Modèle à utiliser (laisser vide pour défaut Mistral / GPT5 / GPT5mini) : ")
     cfg = config_API(modele)

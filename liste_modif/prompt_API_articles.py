@@ -308,43 +308,29 @@ def ask_llm_for_operation(analysis_html: str, cfg) -> list:
     }
 
     try:
-        r = requests.post(API_URL, headers=HEADERS, json=payload, timeout=(15, 60))
-    except Exception as e:
-        print("[debug] erreur réseau lors de requests.post :", e)
-        return []
+         # Appel à l'API PIAG avec gestion des erreurs HTTP 
+        r = requests.post(API_URL, headers=HEADERS, json=payload, timeout=(15, 120))
+        r.raise_for_status()
 
-    # debug : afficher statut / réponse courte si erreur
-    if r.status_code >= 400:
-        print(f"[debug] API returned status {r.status_code}")
-        print("[debug] response body:", r.text[:2000])
-        return []
-
-    try:
+        # Extraction du contenu de la réponse du modèle
         data = r.json()
-    except Exception as e:
-        print("[debug] impossible de décoder la réponse JSON :", e)
-        print("[debug] corps brut :", r.text[:2000])
-        return []
+        raw = data["choices"][0]["message"]["content"]
+        
+        # Chercher le premier grand tableau JSON dans la réponse
+        m = re.search(r"\[[\s\S]*\]", raw)
+        if not m:
+            return []
 
-    # extraction du contenu
-    raw = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-    if not raw:
-        print("[debug] réponse du modèle vide ou format inattendu")
-        return []
-
-    m = re.search(r"\[[\s\S]*\]", raw)
-    if not m:
-        print("[debug] aucun tableau JSON trouvé dans la réponse du modèle (preview) :", raw[:500])
-        return []
-
-    try:
+        # Parser le tableau JSON
         ops = json.loads(m.group())
+        # S'assurer qu'on renvoie bien une liste
+        return ops if isinstance(ops, list) else []
+
     except Exception as e:
-        print("[debug] erreur parsing JSON extrait :", e)
-        print("[debug] JSON brut extrait :", m.group()[:1000])
+        print(" Erreur de parsing JSON ou d'appel API :", e)
         return []
 
-    return ops if isinstance(ops, list) else []
+
 
 def process_html_directory(folder_path, cfg):
     """

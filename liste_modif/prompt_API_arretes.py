@@ -93,10 +93,12 @@ def extract_arrete_text(filepath):
             img["src"] = key
 
     arrete_text = normalize_html_minify(soup)
+    analysis_dir: str = "analysis_html"
+    out_dir = Path(analysis_dir); out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / (Path(filepath).stem + ".analysis.html")
+    out_path.write_text(arrete_text, encoding="utf-8")
 
     return arrete_text, img_map
-
-#== Extraction du fragment HTML à insérer - output ===
 
 def _find_marker(haystack: str, marker: str) -> int:
     """
@@ -228,12 +230,12 @@ def ask_llm_for_operation(analysis_html: str, cfg) -> list:
     "target_article": "article concerné de l'arrêté",
     "target_element": "élément précis de l'article si spécifié"
     "new_content_ref": {{
-    "start_marker": string,   // 80 à 100 caractères EXACTS du début du nouveau contenu. pas plus. 
-    "end_marker": string,     // 80 à 100 caractères EXACTS de la fin du nouveau contenu. pas plus. 
+    "start_marker": string,   // 30 à 60 token EXACTS du début du nouveau contenu. pas plus. 
+    "end_marker": string,     // 30 à 60 token EXACTS de la fin du nouveau contenu. pas plus. 
     }}
     "source_article" : "référence article source, sans le titre"
     }}
-    Les indices et contextes DOIVENT correspondre exactement au HTML-LITE fourni. Réponds UNIQUEMENT avec une liste d'éléments JSON. Pas d'explications, pas d'interprétation.
+    Les markers DOIVENT correspondre exactement au HTML-LITE fourni. Réponds UNIQUEMENT avec une liste d'éléments JSON. Pas d'explications, pas d'interprétation.
     """ 
     # En-têtes HTTP requis pour l'authentification et le format des données
     HEADERS = {
@@ -241,52 +243,51 @@ def ask_llm_for_operation(analysis_html: str, cfg) -> list:
         "Content-Type": "application/json",
     }
 
-    # Payload de la requête API -- indique le modèle, le prompt et les paramètres
-    payload = {
-        "model": MODEL_NAME,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0,
-        "n": 1
-    }
+    if (MODEL_NAME == "mte-api-piag-mistral-medium-latest"):
+        # Payload de la requête API -- indique le modèle, le prompt et les paramètres
+        payload = {
+            "model": MODEL_NAME,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+            "n": 1
+        }
+    if (MODEL_NAME in ["gpt-5", "gpt-5-mini"]):
+        payload = {
+            "model": MODEL_NAME,
+            "messages": [{"role": "user", "content": prompt}],
+            "verbosity": "low",
+            "reasoning_effort": "minimal",
+            "n": 1
+        }
 
     try:
-        r = requests.post(API_URL, headers=HEADERS, json=payload, timeout=(15, 60))
-    except Exception as e:
-        print("[debug] erreur réseau lors de requests.post :", e)
-        return []
-
-    # debug : afficher statut / réponse courte si erreur
-    if r.status_code >= 400:
-        print(f"[debug] API returned status {r.status_code}")
-        print("[debug] response body:", r.text[:2000])
-        return []
-
-    try:
+         # Appel à l'API avec gestion des erreurs HTTP 
+        r = requests.post(API_URL, headers=HEADERS, json=payload, timeout=(40, 180))
+        r.raise_for_status()
+        # Extraction du contenu de la réponse du modèle
         data = r.json()
-    except Exception as e:
-        print("[debug] impossible de décoder la réponse JSON :", e)
-        print("[debug] corps brut :", r.text[:2000])
-        return []
+        # Affiche la réponse brute pour les modèles GPT (preview)
+       # try:
+        #    if str(MODEL_NAME).lower().startswith("gpt"):
+         #       print("Réponse brute GPT (preview):\n", json.dumps(data, ensure_ascii=False)[:5000])
+        #except Exception:
+         #   pass
+        raw = data["choices"][0]["message"]["content"]
+        
+        # Chercher le premier grand tableau JSON dans la réponse
+        m = re.search(r"\[[\s\S]*\]", raw)
+        if not m:
+            return []
 
-    # extraction du contenu
-    raw = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-    if not raw:
-        print("[debug] réponse du modèle vide ou format inattendu")
-        return []
-
-    m = re.search(r"\[[\s\S]*\]", raw)
-    if not m:
-        print("[debug] aucun tableau JSON trouvé dans la réponse du modèle (preview) :", raw[:500])
-        return []
-
-    try:
+        # Parser le tableau JSON
         ops = json.loads(m.group())
+        # S'assurer qu'on renvoie bien une liste
+        return ops if isinstance(ops, list) else []
+
     except Exception as e:
-        print("[debug] erreur parsing JSON extrait :", e)
-        print("[debug] JSON brut extrait :", m.group()[:1000])
+        print(" Erreur de parsing JSON ou d'appel API :", e)
         return []
 
-    return ops if isinstance(ops, list) else []
 
 
 def process_html_directory(folder_path, cfg):
@@ -344,7 +345,7 @@ def process_html_directory(folder_path, cfg):
 # === Point d'entrée principal ===
 if __name__ == "__main__":
 
-    dossier_html = "C:\\Users\\marie.tcheng\\Documents\\consolidation\\bench-ocapi\\exempleshtml"
+    dossier_html = "C:\\Users\\marie.tcheng\\Documents\\consolidation\\bench-ocapi\\exempleshtml\\ex8"
 
     modele = input("Modèle à utiliser (laisser vide pour défaut Mistral / GPT5 / GPT5mini) : ")
     cfg = config_API(modele)
