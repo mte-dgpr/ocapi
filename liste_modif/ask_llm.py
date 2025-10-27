@@ -56,6 +56,7 @@ def ask_llm_for_operation(analysis_html: str, cfg) -> list:
     }}
     Les markers DOIVENT correspondre exactement au HTML-LITE fourni. Réponds UNIQUEMENT avec une liste d'éléments JSON. Pas d'explications, pas d'interprétation. Si tu n'en trouves pas (ce qui est possible), envoie une liste vide. 
     """ 
+    prompt2 = "Hello"
     # En-têtes HTTP requis pour l'authentification et le format des données
     HEADERS = {
         "Authorization": f"Bearer {API_KEY}",

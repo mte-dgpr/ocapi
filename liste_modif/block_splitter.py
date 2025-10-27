@@ -60,7 +60,7 @@ def extract_arrete_blocs(filepath: str, target_per_block: int = 80000, max_block
     # Si tout tient en 1 bloc, renvoyer l'intégralité fusionnée
     if n_blocks == 1:
         joined = "".join(c for c in candidates)
-        return joined
+        return [joined]
 
     # Fusion progressive des candidats pour obtenir environ n_blocks blocs
     blocks = []

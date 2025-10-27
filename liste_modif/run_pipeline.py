@@ -32,7 +32,7 @@ def process_folder(folder_path: str, modele: str = "", out_dir: str = "out_json"
         img_map = build_img_map_from_html(html_raw)
         all_ops = []
         t0 = time.time()
-        for i in len(blocks):
+        for i in range(len(blocks)):
             ops = ask_llm_for_operation(blocks[i], cfg)
             for op in ops:
                 op["source_file"] = fname
