@@ -65,7 +65,7 @@ def extract_arrete_blocs(filepath: str, target_per_block: int = 80000, max_block
     # Fusion progressive des candidats pour obtenir environ n_blocks blocs
     blocks = []
     current_html = ""
-    current_is_annex = False
+
     for i, cand in enumerate(candidates):
         current_html += cand
         # Condition pour clore un bloc :

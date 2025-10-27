@@ -1,5 +1,22 @@
 import os, json, re, time, requests
 from typing import Tuple
+from dotenv import load_dotenv
+import os
+from pathlib import Path
+
+# charger explicitement le .env à la racine du projet (un niveau au-dessus de liste_modif)
+project_root = Path(__file__).resolve().parents[1]
+env_path = project_root / ".env"
+print("DEBUG: load .env from:", env_path)
+if env_path.exists():
+    load_dotenv(env_path)
+else:
+    # fallback : essayer find_dotenv si .env n'est pas à l'emplacement attendu
+    from dotenv import find_dotenv
+    p = find_dotenv()
+    print("DEBUG: find_dotenv returned:", p)
+    if p:
+        load_dotenv(p)
 
 def config_API(modele: str) -> Tuple[str,str,str]:
     """

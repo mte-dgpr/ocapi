@@ -48,7 +48,7 @@ def save_blocks(input_html: Path, out_dir: Path):
 def main():
     p = argparse.ArgumentParser(description="Test block_splitter: sauvegarde les blocs HTML en fichiers séparés.")
     p.add_argument("input_dir", nargs="?", help="Dossier contenant les fichiers .html à tester", default=r"C:\Users\marie.tcheng\Documents\consolidation\bench-ocapi\exempleshtml")
-    p.add_argument("--out", "-o", help="Dossier de sortie", default=r"C:\Users\marie.tcheng\Documents\consolidation\bench-ocapi\test-block-splitter")
+    p.add_argument("--out", "-o", help="Dossier de sortie", default=r"C:\Users\marie.tcheng\Documents\consolidation\bench-ocapi\liste_modif\test-block-splitter")
     args = p.parse_args()
 
     input_dir = Path(args.input_dir)
