@@ -9,6 +9,7 @@ Choisir le modèle via --model ou la variable DEFAULT_MODEL
 #TODO comprendre choix du modele 
 #TODO modifier les opérations pour prendre en compte les changements de titre ou deplacement d'article. 
 #TODO réécrire le prompt????
+#TODO envoyer la structure ? 
 
 import argparse
 import json

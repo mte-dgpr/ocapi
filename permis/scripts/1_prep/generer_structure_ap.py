@@ -1,0 +1,232 @@
+"""
+Générer la structure des arrêtés (étape 1).
+
+- Parcours les fichiers HTML dans le dossier d'entrée.
+- Pour chaque AP utile (filtré par catalogue_ap.json) extrait un arbre de sections
+  (sections arretify). Pour chaque nœud on conserve :
+    uid, display_num, titre (data-title), type (data-type),
+    html (inner jusqu'à la 1re sous-section), html_full (section complète),
+    text (texte direct), children (liste récursive).
+- Écrit un fichier JSON par arrêté dans data/<id>/arretes_structure/<doc_id>.json
+- Met à jour catalogue_ap.json en ajoutant structure_path et structure_generated_at.
+
+Usage:
+  python generer_structure_AP.py --input ".\permis\data\0005804239\arretes_bruts"
+"""
+from pathlib import Path
+from typing import Optional, List, Dict, Any
+from bs4 import BeautifulSoup, Tag
+import re
+import json
+import uuid
+from datetime import datetime, timezone
+
+PROJECT_PERMIS = Path(__file__).resolve().parents[2]
+DEFAULT_INPUT = PROJECT_PERMIS / "data" / "0005804239" / "arretes_bruts"
+JOURNAUX_DIR = PROJECT_PERMIS / "data" / "0005804239" / "journaux"
+JOURNAUX_DIR.mkdir(parents=True, exist_ok=True)
+
+# dossier de sorties : un JSON par arrêté
+STRUCTURES_DIR = PROJECT_PERMIS / "data" / "0005804239" / "arretes_structure"
+STRUCTURES_DIR.mkdir(parents=True, exist_ok=True)
+
+_date_re = re.compile(r"(\d{4}-\d{2}-\d{2})", flags=re.IGNORECASE)
+_article_num_re = re.compile(r"\barticle\.?\s*[:\-]?\s*(\d+[A-Za-z0-9\-]*)", flags=re.IGNORECASE)
+
+
+def _read_json(path: Path) -> Optional[Any]:
+    """Lire un JSON depuis path, retourner None en cas d'erreur."""
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _write_json(path: Path, obj: Any):
+    """Écrire un objet JSON sur le disque (encodage UTF-8)."""
+    path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def is_utile(file: Path) -> bool:
+    """
+    Vérifie si le fichier doit être traité.
+    - Si catalogue_ap.json contient une entrée pour ce fichier avec category == "inutile" -> False.
+    - Si le catalogue est absent ou l'entrée introuvable -> True (par défaut utile).
+    """
+    catalogue_path = JOURNAUX_DIR / "catalogue_ap.json"
+    data = _read_json(catalogue_path)
+    if not isinstance(data, list):
+        return True
+    for it in data:
+        if not isinstance(it, dict):
+            continue
+        if it.get("file") == file.name:
+            return it.get("category") != "inutile"
+    return True
+
+
+def _annotate_catalogue_with_structure(file_name: str, structure_relpath: str, generated_at_iso: str):
+    """
+    Met à jour (ou crée) une entrée dans catalogue_ap.json pour indiquer où se trouve
+    le fichier de structure et quand il a été généré.
+    - structure_relpath : chemin relatif depuis JOURNAUX_DIR (ex: "arretes_structure/<doc_id>.json")
+    - generated_at_iso : timestamp ISO UTC
+    """
+    catalogue_path = JOURNAUX_DIR / "catalogue_ap.json"
+    data = _read_json(catalogue_path)
+    if not isinstance(data, list):
+        data = []
+
+    found = False
+    for it in data:
+        if isinstance(it, dict) and it.get("file") == file_name:
+            it["structure_path"] = structure_relpath
+            it["structure_generated_at"] = generated_at_iso
+            found = True
+            break
+    if not found:
+        # entrée minimale si absent
+        data.append({
+            "file": file_name,
+            "category": "unknown",
+            "structure_path": structure_relpath,
+            "structure_generated_at": generated_at_iso,
+            "notes": []
+        })
+    try:
+        _write_json(catalogue_path, data)
+    except Exception as e:
+        print(f"Erreur écriture catalogue {catalogue_path}: {e}")
+
+
+def extract_articles_from_html(text: str, doc_id: str) -> List[Dict[str, Any]]:
+    """
+    Construire l'arbre de sections pour un HTML d'arrêté.
+    - Cherche les <section class="arretify-section"> de plus haut niveau.
+    - Pour chaque section, crée un noeud contenant metadata + inner HTML (jusque 1re sous-section)
+      et children (sous-sections directes).
+    - Retourne la liste de nœuds racines.
+    """
+    def _clean(s: Optional[str]) -> Optional[str]:
+        if not s:
+            return None
+        return re.sub(r"\s+", " ", s).strip()
+
+    soup = BeautifulSoup(text, "html.parser")
+
+    def make_node(sec: Tag) -> Dict[str, Any]:
+        data_number = _clean(sec.get("data-number") or "")
+        data_title = _clean(sec.get("data-title") or "")
+        data_type = _clean(sec.get("data-type") or "")
+        display = data_number or None
+
+        # HTML complet de la section
+        html_full = str(sec)
+
+        # inner_html : contenu jusqu'à la première sous-section arretify (évite duplication)
+        inner_parts = []
+        for c in sec.contents:
+            if isinstance(c, Tag) and c.name == "section" and ("arretify-section" in (c.get("class") or [])):
+                break
+            inner_parts.append(str(c))
+        inner_html = "".join(inner_parts).strip()
+        inner_text = _clean(BeautifulSoup(inner_html, "html.parser").get_text(" ", strip=True))
+
+        uid = f"{doc_id}::{uuid.uuid4().hex[:8]}"
+
+        # construire enfants directs (recursive=False)
+        children = []
+        for child_sec in sec.find_all("section", class_=lambda c: c and "arretify-section" in c, recursive=False):
+            children.append(make_node(child_sec))
+
+        return {
+            "uid": uid,
+            "display_num": display,
+            "titre": data_title,
+            "type": data_type,
+            "html": inner_html,      # inner HTML jusqu'à la 1re sous-section
+            "html_full": html_full,  # HTML complet de la section
+            "text": inner_text,
+            "doc_id": doc_id,
+            "status": "active",
+            "trace": [],
+            "children": children
+        }
+
+    # trouver sections racines (celles sans parent arretify-section)
+    top_secs = []
+    for s in soup.find_all("section", class_=lambda c: c and "arretify-section" in c):
+        if s.find_parent("section", class_=lambda c: c and "arretify-section" in c) is None:
+            top_secs.append(s)
+    if not top_secs:
+        top_secs = soup.find_all("section", class_=lambda c: c and "arretify-section" in c)
+
+    tree = [make_node(s) for s in top_secs]
+    return tree
+
+
+def run(input_dir: Optional[Path] = None):
+    """
+    Parcours les fichiers HTML du dossier input, génère un JSON de structure par arrêté
+    et met à jour le catalogue (structure_path + structure_generated_at).
+    """
+    if input_dir is None:
+        input_dir = DEFAULT_INPUT
+
+    files = sorted(Path(input_dir).glob("*.html"))
+    processed = 0
+    skipped = 0
+    errors = 0
+
+    for f in files:
+        if not is_utile(f):
+            print(f"Skip inutile AP: {f.name}")
+            skipped += 1
+            continue
+
+        try:
+            txt = f.read_text(encoding="utf-8")
+        except Exception as e:
+            print(f"Erreur lecture {f.name}: {e}")
+            errors += 1
+            continue
+
+        doc_id = f.stem
+        try:
+            articles = extract_articles_from_html(txt, doc_id)
+        except Exception as e:
+            print(f"Erreur parsing {f.name}: {e}")
+            errors += 1
+            continue
+
+        # document final : ne contient plus is_base_candidate (inutile ici)
+        doc = {
+            "file": f.name,
+            "doc_id": doc_id,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "n_articles": len(articles),
+            "articles": articles,
+            "notes": []
+        }
+
+        out_file = STRUCTURES_DIR / f"{doc_id}.json"
+        try:
+            out_file.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+            # annotation simple dans le catalogue : chemin relatif depuis JOURNAUX_DIR
+            rel_path = str(Path("arretes_structure") / f"{doc_id}.json")
+            gen_at = doc["generated_at"]
+            _annotate_catalogue_with_structure(f.name, rel_path, gen_at)
+            processed += 1
+        except Exception as e:
+            print(f"Erreur écriture {out_file}: {e}")
+            errors += 1
+
+    print(f"Done. processed={processed} skipped={skipped} errors={errors} total={len(files)}")
+
+
+if __name__ == "__main__":
+    import argparse
+    p = argparse.ArgumentParser(description="Générer structure par AP (écrit un JSON par arrêté)")
+    p.add_argument("--input", "-i", help="dossier input .html (arretes_bruts)")
+    args = p.parse_args()
+    run(input_dir=Path(args.input) if args.input else None)

@@ -11,3 +11,9 @@ Ordre minimal des étapes :
 5) Générer sorties (HTML, rapport)
 
 Voir scripts/* pour les fichiers et les TODOs.
+
+
+
+
+TODO globaux 
+TODO plus tard: adapter tous les fichiers pour ne remplir le bon numéro d'icpe une seule fois. 

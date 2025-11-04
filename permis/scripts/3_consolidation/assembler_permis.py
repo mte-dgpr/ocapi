@@ -1,5 +1,5 @@
 # TODO: prendre la liste finale d'articles (status actif) et construire un HTML cohérent
-# TODO: insérer traces si demandé (optionnel, annexes)
+# TODO: insérer traces 
 # TODO: écrire HTML final dans data/permis_consolides/<base>_consolidated.html
 
 def run():

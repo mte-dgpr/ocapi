@@ -5,6 +5,8 @@ Ce fichier doit
 - écrire par AP un fichier JSON dans data/arretes_blocs/<nom>.blocks.json 
 Format attendu : liste de dicts {"index":i, "html": "..."} (normaliser la sortie si besoin). Le HTML est minifié. 
 """
+#TODO reflechir a si on découpe les arretes bruts ou la structure.....
+
 
 import json
 import math

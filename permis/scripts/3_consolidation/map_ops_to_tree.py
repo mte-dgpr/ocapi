@@ -1,0 +1,1 @@
+"""faire le lien entre les opérations et les structures. """

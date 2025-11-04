@@ -10,9 +10,9 @@ But :
 """
 
 
-#TODO a revoir. notamment quand on aura modifié les opérations. (plus tard)
-#TODO remplacer les "a_revoir" tq des que ya autre chose qu'un abroge et pas de texte, a revoir, des qu'un texte mais respecte pas les marker, a rveoir. 
-#TODO c quoi le statut c quoi l'ordre
+#TODO 2 remplacer les "a_revoir" tq des que ya autre chose qu'un abroge et pas de texte, a revoir, des qu'un texte mais respecte pas les marker, a rveoir. 
+#TODO 1 c quoi le statut c quoi l'ordre 
+#TODO plus tard: modification des operations.
 
 
 from pathlib import Path
