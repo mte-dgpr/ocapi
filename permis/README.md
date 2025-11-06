@@ -17,3 +17,4 @@ Voir scripts/* pour les fichiers et les TODOs.
 
 TODO globaux 
 TODO plus tard: adapter tous les fichiers pour ne remplir le bon numéro d'icpe une seule fois. 
+dans arretify; detecter les "PRESCRIPTIONS ANNEXEES après une signature comme annexe"

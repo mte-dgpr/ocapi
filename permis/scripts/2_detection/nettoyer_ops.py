@@ -7,12 +7,17 @@ But :
     -> supprimer champs temporaires
 - marquer op["status"]="a_revoir" si extraction échoue (contexte ajouté)
 - écrire résultats finaux dans data/operations_nettoyees/<source>.clean.json
+
+à lancer comme un module "python -m permis.scripts.2_detection.nettoyer_ops  " je comprends pas pk mais bon
 """
 
 
-#TODO 2 remplacer les "a_revoir" tq des que ya autre chose qu'un abroge et pas de texte, a revoir, des qu'un texte mais respecte pas les marker, a rveoir. 
-#TODO 1 c quoi le statut c quoi l'ordre 
-#TODO plus tard: modification des operations.
+
+#TODO corriger l'article source lors de l'extraction de contenu. 
+#TODO: 
+#TODO plus tard: remplacer les "a_revoir" tq des que ya autre chose qu'un abroge et pas de texte, a revoir, des qu'un texte mais respecte pas les marker, a revoir. 
+#TODO plus tard: modification des operations. (modif des titres etc)
+
 
 
 from pathlib import Path
@@ -157,14 +162,12 @@ def _normalize_operation(op: Dict[str, Any], default_src: str) -> Dict[str, Any]
             op["block_index"] = int(bi)
     except Exception:
         op["block_index"] = None
-    # order / ordre
-    op.setdefault("ordre", op.get("ordre") or op.get("order") or op.get("rank") or 0)
     # ensure source_article key exists
     op.setdefault("source_article", op.get("source_article") or op.get("article") or None)
     return op
 
 def _cleanup_temp_fields(op: Dict[str, Any]):
-    for k in ("new_content_ref", "new_content_html_preview", "raw_llm_text", "preview"):
+    for k in ("block_index","new_content_ref", "new_content_html_preview", "raw_llm_text", "preview"):
         if k in op:
             op.pop(k, None)
 
@@ -174,12 +177,6 @@ def process_one_brut(path: Path):
         return
     
     ops_list = data.get("operations", [])
-    # si les opérations n'ont pas de champ 'ordre', on utilise la position dans la liste
-    for _i, raw in enumerate(ops_list):
-        if isinstance(raw, dict):
-            # ne pas écraser un ordre déjà fourni par le LLM
-            if raw.get("ordre") is None and raw.get("order") is None and raw.get("rank") is None:
-                raw["ordre"] = _i
     meta = {k: v for k, v in data.items() if k != "operations"}
 
     source_file = meta.get("source_file") or path.stem.replace(".ops", "") + ".html"
@@ -199,12 +196,7 @@ def process_one_brut(path: Path):
             end_marker = new_ref.get("end_marker") or new_ref.get("end")
         # determine HTML context: block html preferred
         html_context = None
-        if op.get("block_html"): # checker comment ça marche ça 
-            html_context = op.get("block_html")
-        elif isinstance(blocks_map, dict) and op.get("block_index") in blocks_map:
-            html_context = blocks_map.get(op.get("block_index"))
-        elif raw_html_full := _read_raw_html(source_file):
-            html_context = raw_html_full
+        html_context = blocks_map.get(op.get("block_index"))
 
         # try extraction when needed
         op["status"] = op.get("status") or "ok"
@@ -253,13 +245,18 @@ def process_one_brut(path: Path):
     out_path = OUT_DIR / f"{out_name}.clean.json"
     out_obj = {
         "source_file": source_file,
-        "n_ops_in": len(ops_list),
-        "n_ops_out": len(cleaned_ops),
         "processed_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "operations": cleaned_ops
     }
     out_path.write_text(json.dumps(out_obj, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Wrote cleaned operations: {out_path} ({len(cleaned_ops)} ops)")
+    # appeler le mapping si module présent
+    try:
+        from .map_ops_to_tree import map_ops_file
+        map_ops_file(out_path)
+    except Exception:
+            print("marche pas")
+            pass
 
 def run(input_dir: Optional[Path] = None):
     """

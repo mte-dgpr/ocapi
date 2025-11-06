@@ -13,6 +13,9 @@ Générer la structure des arrêtés (étape 1).
 Usage:
   python generer_structure_AP.py --input ".\permis\data\0005804239\arretes_bruts"
 """
+
+#TODO : MEGA IMPORTANT : si table of contents notamment pour autorisation, faire matcher structure avec table of contents. 
+
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from bs4 import BeautifulSoup, Tag
@@ -114,14 +117,14 @@ def extract_articles_from_html(text: str, doc_id: str) -> List[Dict[str, Any]]:
 
     soup = BeautifulSoup(text, "html.parser")
 
-    def make_node(sec: Tag) -> Dict[str, Any]:
+    def make_node(sec: Tag, parent_uid: Optional[str] = None) -> Dict[str, Any]:
         data_number = _clean(sec.get("data-number") or "")
         data_title = _clean(sec.get("data-title") or "")
         data_type = _clean(sec.get("data-type") or "")
         display = data_number or None
 
-        # HTML complet de la section
-        html_full = str(sec)
+        # HTML complet de la section : pas sauvegardé... redondant non ? 
+        # html_full = str(sec)
 
         # inner_html : contenu jusqu'à la première sous-section arretify (évite duplication)
         inner_parts = []
@@ -134,10 +137,10 @@ def extract_articles_from_html(text: str, doc_id: str) -> List[Dict[str, Any]]:
 
         uid = f"{doc_id}::{uuid.uuid4().hex[:8]}"
 
-        # construire enfants directs (recursive=False)
+        # construire enfants directs
         children = []
         for child_sec in sec.find_all("section", class_=lambda c: c and "arretify-section" in c, recursive=False):
-            children.append(make_node(child_sec))
+            children.append(make_node(child_sec, parent_uid=uid))
 
         return {
             "uid": uid,
@@ -145,11 +148,12 @@ def extract_articles_from_html(text: str, doc_id: str) -> List[Dict[str, Any]]:
             "titre": data_title,
             "type": data_type,
             "html": inner_html,      # inner HTML jusqu'à la 1re sous-section
-            "html_full": html_full,  # HTML complet de la section
             "text": inner_text,
             "doc_id": doc_id,
+            "parent_uid": parent_uid,   # <- lien vers le parent
+            "changes": [],              # <- liste d'opérations appliquées à ce nœud
             "status": "active",
-            "trace": [],
+            "trace": [],                # (optionnel) courts événements locaux
             "children": children
         }
 
@@ -162,6 +166,24 @@ def extract_articles_from_html(text: str, doc_id: str) -> List[Dict[str, Any]]:
         top_secs = soup.find_all("section", class_=lambda c: c and "arretify-section" in c)
 
     tree = [make_node(s) for s in top_secs]
+
+    # construire index plat pour ce doc : data-number -> uid, uid -> parent_uid, uid -> titre/type
+    index = {"by_number": {}, "by_uid": {}}
+    def walk_and_index(node):
+        num = node.get("display_num")
+        uid = node["uid"]
+        index["by_uid"][uid] = {"parent_uid": node.get("parent_uid"), "titre": node.get("titre"), "type": node.get("type")}
+        if num:
+            index["by_number"][str(num)] = uid
+        for c in node.get("children", []):
+            walk_and_index(c)
+    for root in tree:
+        walk_and_index(root)
+
+    # écrire index à côté du fichier structure
+    index_path = STRUCTURES_DIR / f"{doc_id}.index.json"
+    _write_json(index_path, index)
+
     return tree
 
 

@@ -18,9 +18,9 @@ règles initiales : mots-clés + heuristiques simples (titre, entête); produire
 sortie : data/journaux/catalogue_ap.json avec meta {file, date, category, confidence, notes}
 
 """
-#TODO: garder metadonnees avec date de l'arrêté.... pas classifié du coup 
+#TODO: adapter avec les nouveaux format de titre
 #TODO pour l'instant auto = le premier. 
-#TODO si mise en demeure dan sle titre.... alors on le marque comme inutile. 
+
 """
 Pré-traitement très simple des arrêtés :
 - extrait la date depuis le nom de fichier AAAA-MM-JJ_...
