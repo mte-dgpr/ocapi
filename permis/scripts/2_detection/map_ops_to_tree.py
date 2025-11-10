@@ -16,6 +16,10 @@ OUT_DIR = PROJECT_ROOT / "permis" / "data" / "0005804239" / "operations_mapped"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 #TODO simplifier le fichier ops. 
+#TODO si on a target_arrete = "contenu entier", il faut savoir le traiter. 
+#TODO à modifier : enft si on a contenu entier mais que c'est un ADD, alors on met juste à la fin.... on va pas modifier tout quoi 
+# à voir comment gérer. mettre en annexe surement. 
+#TODO : ""target_article": "articles 4.2.4 et 4.2.5" : gérer quand on modifie plusieurs articles. 
 
 
 _MONTHS = {
@@ -149,6 +153,18 @@ def _resolve_arrete_ref_to_docid(ref: Optional[str]) -> Optional[str]:
         return _find_docid_by_date(date_iso)
     return None
 
+def _is_entire_doc_ref(s: Optional[str]) -> bool:
+    """
+    Détecte si la référence cible signifie 'tout l'arrêté' / 'contenu entier'.
+    Accepté : 'contenu entier', 'entier', 'tout l'arrêté', 'arrêté entier', 'whole', 'whole document', 'all'
+    """
+    if not s:
+        return False
+    t = str(s).strip().lower()
+    if t == "contenu entier":
+        return True
+    return False
+
 def map_ops_object(ops_obj: Dict[str, Any]) -> Dict[str, Any]:
     """
     Pour chaque op on ajoute source_uid/target_uid/map_status/mapping_notes.
@@ -177,9 +193,32 @@ def map_ops_object(ops_obj: Dict[str, Any]) -> Dict[str, Any]:
                 tgt_file_for_lookup = src_file
 
         tgt_ref = op.get("target_article") or op.get("target") or op.get("target_ref")
-        tgt_uid, reason_t = resolve_article_to_uid(tgt_file_for_lookup, tgt_ref)
-        op["target_uid"] = tgt_uid
-        op.setdefault("mapping_notes", []).append({"field": "target", "ref": tgt_ref, "reason": reason_t, "target_file_used": tgt_file_for_lookup})
+
+        # gestion cas 'tout l'arrêté' -> mapper sur un uid document-niveau
+        if _is_entire_doc_ref(tgt_ref):
+            # déterminer doc_id utilisé pour lookup (stem si filename ou resolved_docid)
+            doc_candidate = None
+            if resolved_docid:
+                doc_candidate = resolved_docid
+            elif isinstance(tgt_file_for_lookup, str) and re.match(r"\d{4}-\d{2}-\d{2}", str(tgt_file_for_lookup)):
+                doc_candidate = Path(tgt_file_for_lookup).stem
+            elif isinstance(tgt_file_for_lookup, str) and tgt_file_for_lookup.strip():
+                doc_candidate = Path(tgt_file_for_lookup).stem
+            elif isinstance(src_file, str):
+                doc_candidate = Path(src_file).stem
+            if doc_candidate:
+                tgt_uid = f"{doc_candidate}::__whole__"
+                reason_t = "whole_document"
+            else:
+                tgt_uid = None
+                reason_t = "whole_document_no_doc"
+            op["target_uid"] = tgt_uid
+            op.setdefault("mapping_notes", []).append({"field": "target", "ref": tgt_ref, "reason": reason_t, "target_file_used": tgt_file_for_lookup})
+        else:
+            # comportement précédent : résolution classique par article
+            tgt_uid, reason_t = resolve_article_to_uid(tgt_file_for_lookup, tgt_ref)
+            op["target_uid"] = tgt_uid
+            op.setdefault("mapping_notes", []).append({"field": "target", "ref": tgt_ref, "reason": reason_t, "target_file_used": tgt_file_for_lookup})
 
         # final status
         if (op.get("source_uid") or op.get("target_uid")):

@@ -1,5 +1,5 @@
 """
-Ce fichier doit 
+Ce fichier doit
 - lire data/arretes_bruts/*.html
 - diviser chaque arrêté qui n'est pas marqué comme inutile en blocs pour préparer envoie LLM.
 - écrire par AP un fichier JSON dans data/arretes_blocs/<nom>.blocks.json 
@@ -62,6 +62,7 @@ def _collect_candidates_from_body(soup: BeautifulSoup) -> List[str]:
         candidates = [full]
     return candidates
 
+
 def split_blocs(filepath: Union[str, Path], target_per_block: int = 70000, max_blocks: int = 5) -> List[Dict]:
     """
     Lit un fichier HTML d'arrêté et renvoie une liste de blocs (dicts {"index","html"}).
@@ -101,7 +102,7 @@ def split_blocs(filepath: Union[str, Path], target_per_block: int = 70000, max_b
                         expanded.extend(parts)
                         continue
         expanded.append(cand)
-    candidates = expanded 
+    candidates = expanded
 
     total_len = sum(len(c) for c in candidates)
     n_blocks = min(max_blocks, max(1, math.ceil(total_len / target_per_block))) if total_len > 0 else 1
