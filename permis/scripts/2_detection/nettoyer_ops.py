@@ -11,48 +11,47 @@ But :
 à lancer comme un module "python -m permis.scripts.2_detection.nettoyer_ops  " je comprends pas pk mais bon
 """
 
-
-
-#TODO corriger l'article source lors de l'extraction de contenu. 
-#TODO: 
-#TODO plus tard: remplacer les "a_revoir" tq des que ya autre chose qu'un abroge et pas de texte, a revoir, des qu'un texte mais respecte pas les marker, a revoir. 
-#TODO plus tard: modification des operations. (modif des titres etc)
-
+# TODO corriger l'article source lors de l'extraction de contenu.
+# TODO plus tard: remplacer les "a_revoir" tq des que ya autre chose qu'un abroge et pas de texte, a revoir
+# TODO plus tard :des qu'un texte mais respecte pas les marker, a revoir.
+# TODO plus tard: modification des operations. (modif des titres etc)
 
 
 from pathlib import Path
 import json
-import os
 import re
 import time
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 
 from bs4 import BeautifulSoup
-import re, html
+import html
+
 
 def _find_marker(haystack: str, marker: str) -> int:
-    """
-    
-    """
-    if not marker: return -1
+    """ """
+    if not marker:
+        return -1
     i = haystack.find(marker)
-    if i != -1: return i
+    if i != -1:
+        return i
     n = html.unescape(marker)
     pattern = re.sub(r"\s+", r"\\s+", re.escape(n))
     m = re.search(pattern, haystack, flags=re.IGNORECASE | re.DOTALL)
     return m.start() if m else -1
 
+
 def _pick_section_html_for_source(analysis_html: str, source_article: Optional[str]) -> str:
     if not source_article:
         return analysis_html
-    m = re.search(r'(\d+(?:\.\d+)*)', source_article)
+    m = re.search(r"(\d+(?:\.\d+)*)", source_article)
     wanted = m.group(1) if m else source_article.strip()
     soup = BeautifulSoup(analysis_html, "html.parser")
     for sec in soup.find_all("section"):
         title_text = " ".join(sec.get_text(" ", strip=True).split())
-        if re.search(rf'\b{re.escape(wanted)}\b', title_text, flags=re.IGNORECASE):
+        if re.search(rf"\b{re.escape(wanted)}\b", title_text, flags=re.IGNORECASE):
             return str(sec)
     return analysis_html
+
 
 def _rehydrate_images(fragment_html: str, img_map: dict) -> str:
     if not img_map:
@@ -64,7 +63,14 @@ def _rehydrate_images(fragment_html: str, img_map: dict) -> str:
             img["src"] = img_map[src]
     return str(soup)
 
-def remplacer_new_content(analysis_html: str, img_map: dict, source_article: Optional[str], start_marker: Optional[str], end_marker: Optional[str]) -> Optional[str]:
+
+def remplacer_new_content(
+    analysis_html: str,
+    img_map: dict,
+    source_article: Optional[str],
+    start_marker: Optional[str],
+    end_marker: Optional[str],
+) -> Optional[str]:
     if not start_marker:
         return None
     scope_html = _pick_section_html_for_source(analysis_html, source_article)
@@ -90,16 +96,20 @@ def remplacer_new_content(analysis_html: str, img_map: dict, source_article: Opt
             if _find_marker(tag_html, start_marker) != -1:
                 return _rehydrate_images(tag_html, img_map).strip()
     window = 2000
-    fragment = working_html[start_idx:start_idx + window]
+    fragment = working_html[start_idx : start_idx + window]
     return _rehydrate_images(fragment, img_map).strip() if fragment else None
+
 
 # --- utilitaires pour ce script ---
 PROJECT_ROOT = Path(__file__).resolve().parents[3]  # bench-ocapi
 BRUTES_DIR = PROJECT_ROOT / "permis" / "data" / "0005804239" / "operations_brutes"
-BLOCKS_DIR = PROJECT_ROOT / "permis" / "data" / "0005804239" /"arretes_blocs"
-RAW_HTML_DIR = PROJECT_ROOT / "permis" / "data" / "0005804239" / "arretes_bruts" #TODO normalement pas besoin? pk ? 
+BLOCKS_DIR = PROJECT_ROOT / "permis" / "data" / "0005804239" / "arretes_blocs"
+RAW_HTML_DIR = (
+    PROJECT_ROOT / "permis" / "data" / "0005804239" / "arretes_bruts"
+)  # TODO normalement pas besoin? pk ?
 OUT_DIR = PROJECT_ROOT / "permis" / "data" / "0005804239" / "operations_nettoyees"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+
 
 def _read_json(path: Path) -> Any:
     try:
@@ -107,6 +117,7 @@ def _read_json(path: Path) -> Any:
     except Exception as e:
         print(f"ERR read json {path}: {e}")
         return None
+
 
 def _load_blocks_for_source(source_file: str) -> Dict[int, str]:
     """
@@ -129,6 +140,7 @@ def _load_blocks_for_source(source_file: str) -> Dict[int, str]:
             blocks[int(idx)] = html
     return blocks
 
+
 # --- nouveau : charger le mapping image tokens -> url original ---
 def _load_imgmap_for_source(source_file: str) -> Dict[str, str]:
     """
@@ -146,6 +158,7 @@ def _load_imgmap_for_source(source_file: str) -> Dict[str, str]:
         return data
     return {}
 
+
 def _normalize_operation(op: Dict[str, Any], default_src: str) -> Dict[str, Any]:
     """
     Normaliser noms de champs basiques et ajouter métadatas attendues.
@@ -153,8 +166,9 @@ def _normalize_operation(op: Dict[str, Any], default_src: str) -> Dict[str, Any]
     """
     # type / modification_type
     op = dict(op)  # copy
-    op.setdefault("modification_type", op.get("type") or op.get("action") or op.get("modification_type"))
-    op.setdefault("source_file", op.get("source_file") or default_src)
+    op.setdefault(
+        "modification_type", op.get("type") or op.get("action") or op.get("modification_type")
+    )
     # block index coercion
     bi = op.get("block_index", op.get("block"))
     try:
@@ -166,16 +180,24 @@ def _normalize_operation(op: Dict[str, Any], default_src: str) -> Dict[str, Any]
     op.setdefault("source_article", op.get("source_article") or op.get("article") or None)
     return op
 
+
 def _cleanup_temp_fields(op: Dict[str, Any]):
-    for k in ("block_index","new_content_ref", "new_content_html_preview", "raw_llm_text", "preview"):
+    for k in (
+        "block_index",
+        "new_content_ref",
+        "new_content_html_preview",
+        "raw_llm_text",
+        "preview",
+    ):
         if k in op:
             op.pop(k, None)
+
 
 def process_one_brut(path: Path):
     data = _read_json(path)
     if data is None:
         return
-    
+
     ops_list = data.get("operations", [])
     meta = {k: v for k, v in data.items() if k != "operations"}
 
@@ -186,7 +208,9 @@ def process_one_brut(path: Path):
 
     cleaned_ops = []
     for raw_op in ops_list:
-        op = _normalize_operation(raw_op if isinstance(raw_op, dict) else {}, source_file) #maybe a suppr
+        op = _normalize_operation(
+            raw_op if isinstance(raw_op, dict) else {}, source_file
+        )  # maybe a suppr
         # extraction step if new_content_ref present
         new_ref = op.get("new_content_ref") or {}
         start_marker = None
@@ -207,14 +231,18 @@ def process_one_brut(path: Path):
                 img_map = img_map_global or {}
                 new_html = None
                 if html_context:
-                    new_html = remplacer_new_content(html_context, img_map, op.get("source_article"), start_marker, end_marker)
+                    new_html = remplacer_new_content(
+                        html_context, img_map, op.get("source_article"), start_marker, end_marker
+                    )
                 if new_html:
                     op["new_content_html"] = new_html
                     op["status"] = "ok"
                 else:
                     op["new_content_html"] = None
                     op["status"] = "a_revoir"
-                    op.setdefault("notes", []).append("extraction_failed: markers not found or ambiguous")
+                    op.setdefault("notes", []).append(
+                        "extraction_failed: markers not found or ambiguous"
+                    )
             except Exception as e:
                 op["new_content_html"] = None
                 op["status"] = "a_revoir"
@@ -244,19 +272,19 @@ def process_one_brut(path: Path):
     out_name = path.stem
     out_path = OUT_DIR / f"{out_name}.clean.json"
     out_obj = {
-        "source_file": source_file,
         "processed_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "operations": cleaned_ops
+        "operations": cleaned_ops,
     }
     out_path.write_text(json.dumps(out_obj, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Wrote cleaned operations: {out_path} ({len(cleaned_ops)} ops)")
     # appeler le mapping si module présent
     try:
         from .map_ops_to_tree import map_ops_file
+
         map_ops_file(out_path)
     except Exception:
-            print("marche pas")
-            pass
+        print("Executer comme un module")
+
 
 def run(input_dir: Optional[Path] = None):
     """
@@ -274,11 +302,15 @@ def run(input_dir: Optional[Path] = None):
         except Exception as e:
             print("Erreur processing", f.name, e)
 
+
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description="Nettoyer et enrichir operations brutes (extraction des markers)")
-    p.add_argument("--input", "-i", help="dossier operations_brutes (par defaut data/operations_brutes)")
+
+    p = argparse.ArgumentParser(
+        description="Nettoyer et enrichir operations brutes (extraction des markers)"
+    )
+    p.add_argument(
+        "--input", "-i", help="dossier operations_brutes (par defaut data/operations_brutes)"
+    )
     args = p.parse_args()
     run(input_dir=Path(args.input) if args.input else None)
-
-

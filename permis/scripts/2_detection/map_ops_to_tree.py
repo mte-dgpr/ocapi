@@ -5,6 +5,7 @@ générés par generer_structure_AP (fichiers .index.json dans arrete_structure/
 Amélioration : si target_arrete contient une date (ISO ou forme "08 décembre 2009"),
 on retrouve automatiquement l'arrêté correspondant dans arrete_structures.
 """
+
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 import json
@@ -15,18 +16,33 @@ STRUCTURES_DIR = PROJECT_ROOT / "permis" / "data" / "0005804239" / "arretes_stru
 OUT_DIR = PROJECT_ROOT / "permis" / "data" / "0005804239" / "operations_mapped"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-#TODO simplifier le fichier ops. 
-#TODO si on a target_arrete = "contenu entier", il faut savoir le traiter. 
-#TODO à modifier : enft si on a contenu entier mais que c'est un ADD, alors on met juste à la fin.... on va pas modifier tout quoi 
-# à voir comment gérer. mettre en annexe surement. 
-#TODO : ""target_article": "articles 4.2.4 et 4.2.5" : gérer quand on modifie plusieurs articles. 
+# TODO simplifier le fichier ops.
+# TODO si on a target_arrete = "contenu entier", il faut savoir le traiter.
+# TODO à modifier : enft si on a contenu entier mais que c'est un ADD, alors on met juste à la fin.... on va pas modifier tout quoi
+# à voir comment gérer. mettre en annexe surement.
+# TODO : ""target_article": "articles 4.2.4 et 4.2.5" : gérer quand on modifie plusieurs articles.
+
+# TODO : parsing dans arretify pr les dates !!!
 
 
 _MONTHS = {
-    "janvier": "01", "fevrier": "02", "février": "02", "mars": "03", "avril": "04",
-    "mai": "05", "juin": "06", "juillet": "07", "aout": "08", "août": "08",
-    "septembre": "09", "octobre": "10", "novembre": "11", "decembre": "12", "décembre": "12"
+    "janvier": "01",
+    "fevrier": "02",
+    "février": "02",
+    "mars": "03",
+    "avril": "04",
+    "mai": "05",
+    "juin": "06",
+    "juillet": "07",
+    "aout": "08",
+    "août": "08",
+    "septembre": "09",
+    "octobre": "10",
+    "novembre": "11",
+    "decembre": "12",
+    "décembre": "12",
 }
+
 
 def _read_json(p: Path):
     try:
@@ -34,8 +50,10 @@ def _read_json(p: Path):
     except Exception:
         return None
 
+
 def _write_json(p: Path, obj: Any):
     p.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+
 
 def _normalize_str(s: Optional[str]) -> str:
     if not s:
@@ -43,6 +61,7 @@ def _normalize_str(s: Optional[str]) -> str:
     t = re.sub(r"\s+", " ", s).strip().lower()
     t = re.sub(r"[^\w\s\-\.]", "", t)  # keep words, digits, dash, dot
     return t
+
 
 def load_index_for_file(arrete_filename: str) -> Optional[Dict[str, Any]]:
     """
@@ -53,6 +72,7 @@ def load_index_for_file(arrete_filename: str) -> Optional[Dict[str, Any]]:
     doc_id = Path(arrete_filename).stem
     idx_path = STRUCTURES_DIR / f"{doc_id}.index.json"
     return _read_json(idx_path) if idx_path.exists() else None
+
 
 def _parse_date_from_text(s: str) -> Optional[str]:
     """
@@ -76,6 +96,7 @@ def _parse_date_from_text(s: str) -> Optional[str]:
             return f"{year:04d}-{month}-{day:02d}"
     return None
 
+
 def _find_docid_by_date(date_iso: str) -> Optional[str]:
     """
     Cherche un doc_id dans STRUCTURES_DIR dont le doc_id commence par date_iso.
@@ -89,12 +110,15 @@ def _find_docid_by_date(date_iso: str) -> Optional[str]:
         name = p.name
         if not name.endswith(".index.json"):
             continue
-        doc_id = name[:-len(".index.json")]
+        doc_id = name[: -len(".index.json")]
         if doc_id.startswith(date_iso):
             return doc_id
     return None
 
-def resolve_article_to_uid(arrete_filename: str, article_ref: Optional[str]) -> Tuple[Optional[str], str]:
+
+def resolve_article_to_uid(
+    arrete_filename: str, article_ref: Optional[str]
+) -> Tuple[Optional[str], str]:
     """
     Tente de résoudre article_ref (data-number, forme 'article 1' ou titre partiel) vers uid.
     Retourne (uid_or_none, reason).
@@ -133,6 +157,7 @@ def resolve_article_to_uid(arrete_filename: str, article_ref: Optional[str]) -> 
 
     return None, "not_found"
 
+
 def _resolve_arrete_ref_to_docid(ref: Optional[str]) -> Optional[str]:
     """
     Si ref contient une date, retourne le doc_id correspondant dans STRUCTURES_DIR.
@@ -153,6 +178,7 @@ def _resolve_arrete_ref_to_docid(ref: Optional[str]) -> Optional[str]:
         return _find_docid_by_date(date_iso)
     return None
 
+
 def _is_entire_doc_ref(s: Optional[str]) -> bool:
     """
     Détecte si la référence cible signifie 'tout l'arrêté' / 'contenu entier'.
@@ -165,26 +191,41 @@ def _is_entire_doc_ref(s: Optional[str]) -> bool:
         return True
     return False
 
-def map_ops_object(ops_obj: Dict[str, Any]) -> Dict[str, Any]:
+
+def map_ops_object(src_file, ops_obj: Dict[str, Any]) -> Dict[str, Any]:
     """
     Pour chaque op on ajoute source_uid/target_uid/map_status/mapping_notes.
     """
     ops = ops_obj.get("operations", [])
     for op in ops:
         # source mapping
-        src_file = op.get("source_file") or ops_obj.get("source_file")
         src_art = op.get("source_article") or op.get("article")
         uid, reason = resolve_article_to_uid(src_file, src_art)
         op["source_uid"] = uid
-        op.setdefault("mapping_notes", []).append({"field": "source", "ref": src_art, "reason": reason, "source_file": src_file})
+        op.setdefault("mapping_notes", []).append(
+            {"field": "source", "ref": src_art, "reason": reason, "source_file": src_file}
+        )
 
         # target mapping : tenter plusieurs champs possibles
-        tgt_file_ref = op.get("target_file") or op.get("target_arrete") or op.get("target_source_file")
+        tgt_file_ref = (
+            op.get("target_file") or op.get("target_arrete") or op.get("target_source_file")
+        )
         # si target_file_ref est une description contenant une date, tenter de retrouver le doc_id
-        resolved_docid = _resolve_arrete_ref_to_docid(tgt_file_ref) if isinstance(tgt_file_ref, str) else None
+        resolved_docid = (
+            _resolve_arrete_ref_to_docid(tgt_file_ref) if isinstance(tgt_file_ref, str) else None
+        )
         if resolved_docid:
-            tgt_file_for_lookup = resolved_docid  # pass doc_id to load_index_for_file (works with stem)
-            op.setdefault("mapping_notes", []).append({"field": "target_arrete", "ref": tgt_file_ref, "reason": "resolved_by_date", "doc_id": resolved_docid})
+            tgt_file_for_lookup = (
+                resolved_docid  # pass doc_id to load_index_for_file (works with stem)
+            )
+            op.setdefault("mapping_notes", []).append(
+                {
+                    "field": "target_arrete",
+                    "ref": tgt_file_ref,
+                    "reason": "resolved_by_date",
+                    "doc_id": resolved_docid,
+                }
+            )
         else:
             # si le champ est explicitement un filename, on l'utilise ; sinon, on essaie la même arrete que la source
             if isinstance(tgt_file_ref, str) and tgt_file_ref.strip():
@@ -200,7 +241,9 @@ def map_ops_object(ops_obj: Dict[str, Any]) -> Dict[str, Any]:
             doc_candidate = None
             if resolved_docid:
                 doc_candidate = resolved_docid
-            elif isinstance(tgt_file_for_lookup, str) and re.match(r"\d{4}-\d{2}-\d{2}", str(tgt_file_for_lookup)):
+            elif isinstance(tgt_file_for_lookup, str) and re.match(
+                r"\d{4}-\d{2}-\d{2}", str(tgt_file_for_lookup)
+            ):
                 doc_candidate = Path(tgt_file_for_lookup).stem
             elif isinstance(tgt_file_for_lookup, str) and tgt_file_for_lookup.strip():
                 doc_candidate = Path(tgt_file_for_lookup).stem
@@ -213,19 +256,34 @@ def map_ops_object(ops_obj: Dict[str, Any]) -> Dict[str, Any]:
                 tgt_uid = None
                 reason_t = "whole_document_no_doc"
             op["target_uid"] = tgt_uid
-            op.setdefault("mapping_notes", []).append({"field": "target", "ref": tgt_ref, "reason": reason_t, "target_file_used": tgt_file_for_lookup})
+            op.setdefault("mapping_notes", []).append(
+                {
+                    "field": "target",
+                    "ref": tgt_ref,
+                    "reason": reason_t,
+                    "target_file_used": tgt_file_for_lookup,
+                }
+            )
         else:
             # comportement précédent : résolution classique par article
             tgt_uid, reason_t = resolve_article_to_uid(tgt_file_for_lookup, tgt_ref)
             op["target_uid"] = tgt_uid
-            op.setdefault("mapping_notes", []).append({"field": "target", "ref": tgt_ref, "reason": reason_t, "target_file_used": tgt_file_for_lookup})
+            op.setdefault("mapping_notes", []).append(
+                {
+                    "field": "target",
+                    "ref": tgt_ref,
+                    "reason": reason_t,
+                    "target_file_used": tgt_file_for_lookup,
+                }
+            )
 
         # final status
-        if (op.get("source_uid") or op.get("target_uid")):
+        if op.get("source_uid") or op.get("target_uid"):
             op["map_status"] = "mapped"
         else:
             op["map_status"] = "unmapped"
     return ops_obj
+
 
 def map_ops_file(in_path: Path):
     """
@@ -235,13 +293,16 @@ def map_ops_file(in_path: Path):
     if data is None:
         print("Impossible de lire", in_path)
         return
-    mapped = map_ops_object(data)
+    src_file = data.get("source_file")
+    mapped = map_ops_object(src_file, data)
     out_path = OUT_DIR / f"{in_path.stem}.mapped.json"
     _write_json(out_path, mapped)
     print(f"Wrote mapped operations: {out_path}")
 
+
 if __name__ == "__main__":
     import sys
+
     p = Path(sys.argv[1]) if len(sys.argv) > 1 else None
     if not p or not p.exists():
         print("Usage: map_ops_to_tree.py <ops_clean.json>")

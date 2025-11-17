@@ -13,7 +13,8 @@ Options :
   --out DIR    ; dossier de sortie pour graphes (par défaut data/.../graphs)
 """
 
-#TODO: comment gérer les parents enfant dans le graphe au niveau des dépendances 
+# TODO: comment gérer les parents enfant dans le graphe au niveau des dépendances
+# TODO: Comment gérer edges avec même src / target ? adapter en multigraph ?
 
 
 from pathlib import Path
@@ -21,22 +22,80 @@ import json
 import argparse
 from typing import Optional, Dict, Any
 import networkx as nx
-import pickle
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+from permis.scripts.constants import PROJECT_ROOT
+from permis.scripts.io_utils import read_json
+from permis.scripts.types import OPERATION_EDGE_ATTRS, NodeId, Operation, OperationType
+from permis.scripts.utils import make_id, IdCounter
+
+_OPERATION_ID_COUNTER = IdCounter()
 DEFAULT_MAPPED_DIR = PROJECT_ROOT / "permis" / "data" / "0005804239" / "operations_mapped"
 DEFAULT_OUT_DIR = PROJECT_ROOT / "permis" / "data" / "0005804239" / "graphs"
 DEFAULT_OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _read_json(p: Path) -> Optional[Dict[str, Any]]:
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        return None
+def add_node(G: nx.MultiDiGraph, node_id: NodeId):
+    if not G.has_node(node_id):
+        G.add_node(node_id)
 
 
-def _node_key_from_op(side_file: Optional[str], side_ref: Optional[str], side_uid: Optional[str]) -> str:
+def add_edge(G: nx.MultiDiGraph, operation: Operation):
+    edge_data = operation.model_dump(include=OPERATION_EDGE_ATTRS)
+    G.add_edge(operation.source_uid, operation.target_uid, **edge_data)
+
+
+def build_graph(ops: list[Operation]) -> nx.MultiDiGraph:
+    G = nx.MultiDiGraph()
+    for op in ops:
+        add_node(G, op.source_uid)
+        add_node(G, op.target_uid)
+        add_edge(G, op)
+    return G
+
+
+def convert_operations_raw_to_operations(raw_operations: list[Dict[str, Any]]) -> list[Operation]:
+    operations = []
+    for op in raw_operations:
+        src_file = op.get("source_file")
+        src_ref = op.get("source_article") or op.get("article")
+        src_uid = op.get("source_uid")
+
+        tgt_file = (
+            op.get("target_file") or op.get("target_arrete") or op.get("target_source_file")
+        )
+        tgt_ref = op.get("target_article") or op.get("target") or op.get("target_ref")
+        tgt_uid = op.get("target_uid")
+
+        src_node = _node_key_from_op(src_file, src_ref, src_uid)
+        tgt_node = _node_key_from_op(tgt_file, tgt_ref, tgt_uid)
+
+        operation = Operation(
+            id=make_id(_OPERATION_ID_COUNTER),
+            source_uid=src_node,
+            target_uid=tgt_node,
+            op_type=OperationType(op["modification_type"]),
+            operand=op.get("new_content_html", None),
+            sub_target=op.get("target_element", None),
+        )
+        operations.append(operation)
+    return operations
+
+
+def build_graph_from_mapped_dir(mapped_dir: Path) -> nx.MultiDiGraph:
+    G = nx.MultiDiGraph()
+    files = sorted(mapped_dir.glob("*.mapped.json"))
+    all_operations = []
+    for f in files:
+        data = read_json(f)
+        ops = data.get("operations") or []
+        operations = convert_operations_raw_to_operations(ops)
+        all_operations.extend(operations)
+    return build_graph(all_operations)
+
+
+def _node_key_from_op(
+    side_file: Optional[str], side_ref: Optional[str], side_uid: Optional[str]
+) -> str:
     """Retourne l'identifiant du noeud à utiliser : uid si présent, sinon doc::ref."""
     if side_uid:
         return str(side_uid)
@@ -45,93 +104,18 @@ def _node_key_from_op(side_file: Optional[str], side_ref: Optional[str], side_ui
     return f"{doc}::{ref}"
 
 
-def build_graph_from_mapped_dir(mapped_dir: Path) -> nx.DiGraph:
-    G = nx.DiGraph()
-    files = sorted(mapped_dir.glob("*.mapped.json"))
-    for f in files:
-        data = _read_json(f)
-        if not data:
-            continue
-        ops = data.get("operations") or []
-        for op in ops:
-            # récupérer champs divers
-            src_file = op.get("source_file") or data.get("source_file")
-            src_ref = op.get("source_article") or op.get("article")
-            src_uid = op.get("source_uid")
-
-            tgt_file = op.get("target_file") or op.get("target_arrete") or op.get("target_source_file")
-            tgt_ref = op.get("target_article") or op.get("target") or op.get("target_ref")
-            tgt_uid = op.get("target_uid")
-
-            src_node = _node_key_from_op(src_file, src_ref, src_uid)
-            tgt_node = _node_key_from_op(tgt_file, tgt_ref, tgt_uid)
-
-            # ajouter noeuds (on stocke meta basique pour inspection)
-            if not G.has_node(src_node):
-                G.add_node(src_node, doc=Path(src_file).stem if src_file else None, ref=src_ref, uid=src_uid)
-            if not G.has_node(tgt_node):
-                G.add_node(tgt_node, doc=Path(tgt_file).stem if tgt_file else None, ref=tgt_ref, uid=tgt_uid)
-
-            # attributs d'arête
-            edge_attr = {
-                "op_id": op.get("op_id"),
-                "op_type": op.get("modification_type") or op.get("type"),
-                "source_file": src_file,
-                "target_file": tgt_file,
-                "map_status": op.get("map_status"),
-                "raw": None  # on évite de stocker gros champs ; peut être rempli si besoin
-            }
-            G.add_edge(src_node, tgt_node, **{k: v for k, v in edge_attr.items() if v is not None})
-    return G
-
-
 def summarize_and_write(G: nx.DiGraph, out_dir: Path, name_stem: str = "op_graph"):
     out_dir.mkdir(parents=True, exist_ok=True)
     graphml_path = out_dir / f"{name_stem}.graphml"
-    gpickle_path = out_dir / f"{name_stem}.gpickle"
-
-    def _sanitize_graph_for_graphml(G_in: nx.DiGraph) -> nx.DiGraph:
-        """
-        Retourne une copie du graphe avec tous les attributs de noeuds/aretes
-        convertis en chaînes (GraphML n'accepte pas None ni objets complexes).
-        """
-        H = nx.DiGraph()
-        for n, attrs in G_in.nodes(data=True):
-            safe = {}
-            for k, v in (attrs or {}).items():
-                if v is None:
-                    continue
-                # GraphML veut des valeurs atomiques : on les stringifie
-                safe[k] = str(v)
-            H.add_node(n, **safe)
-        for u, v, attrs in G_in.edges(data=True):
-            safe = {}
-            for k, val in (attrs or {}).items():
-                if val is None:
-                    continue
-                safe[k] = str(val)
-            H.add_edge(u, v, **safe)
-        return H
 
     # essayer d'écrire GraphML sur une version sanitizée
     wrote_graphml = False
     try:
-        H = _sanitize_graph_for_graphml(G)
-        nx.write_graphml(H, graphml_path)
+        nx.write_graphml(G, graphml_path)
         wrote_graphml = True
     except Exception as e:
         print("warning: write_graphml failed:", e)
         wrote_graphml = False
-
-    # sérialisation via pickle (compatible, évite dépendance à write_gpickle)
-    wrote_gpickle = False
-    try:
-        with open(gpickle_path, "wb") as fh:
-            pickle.dump(G, fh, protocol=pickle.HIGHEST_PROTOCOL)
-        wrote_gpickle = True
-    except Exception as e:
-        print("warning: write_gpickle (pickle.dump) failed:", e)
-        wrote_gpickle = False
 
     # résumé
     n_nodes = G.number_of_nodes()
@@ -144,7 +128,9 @@ def summarize_and_write(G: nx.DiGraph, out_dir: Path, name_stem: str = "op_graph
     if comp_sizes:
         top = comp_sizes[:10]
         print(f"Top component sizes (desc): {top} (total comps {n_comps})")
-    print(f"graphml: {graphml_path if wrote_graphml else 'not_written'}, gpickle: {gpickle_path if wrote_gpickle else 'not_written'}")
+    print(
+        f"graphml: {graphml_path if wrote_graphml else 'not_written'}"
+    )
     return {"nodes": n_nodes, "edges": n_edges, "components": n_comps, "top_comp_sizes": comp_sizes}
 
 
@@ -162,9 +148,10 @@ def main(mapped_dir: Path, out_dir: Path):
 
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser(description="Build operation dependency graph from operations_mapped")
+    p = argparse.ArgumentParser(
+        description="Build operation dependency graph from operations_mapped"
+    )
     p.add_argument("--input", "-i", help="mapped ops dir", default=str(DEFAULT_MAPPED_DIR))
     p.add_argument("--out", "-o", help="output graphs dir", default=str(DEFAULT_OUT_DIR))
     args = p.parse_args()
     main(Path(args.input), Path(args.out))
-

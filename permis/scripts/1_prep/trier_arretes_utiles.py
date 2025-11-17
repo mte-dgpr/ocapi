@@ -1,33 +1,22 @@
 """
-Ce fichier doit ouvrir un dossier d'AP qui concernent une ICPE, et classifier en déterminant le type d'AP dont il d'agit. 
-Un AP peut être par exemple : 
+Ce fichier doit ouvrir un dossier d'AP qui concernent une ICPE, et classifier en déterminant le type d'AP dont il d'agit.
+Un AP peut être par exemple :
 - l'AP d'autorisation d'exploitation (l'AP initial, à identifier absolument)
-- un AP complémentaire modifiant l'AP auto 
+- un AP complémentaire modifiant l'AP auto
 - un AP complémentaire autre à conserver en annexe (garanties financières, ...)
 - un AP inutile à ne pas traiter (une mise en demeure ou abrogation de mise en demeure)
 
-attention : potentiellement AP refonte. 
-................ bon en fait !!!!!!!!!!!! on va skip cette étape pour l'instant. 
-pour l'instant, AP auto considère que c le premier fichier. puis pr les autres qui sont pas connexes, et bah on les met juste en annexe à la fin. 
+attention : potentiellement AP refonte.
+................ bon en fait !!!!!!!!!!!! on va skip cette étape pour l'instant.
+pour l'instant, AP auto considère que c le premier fichier. puis pr les autres qui sont pas connexes, et bah on les met juste en annexe à la fin.
 le graphe va aider à savoir qui est l'AP auto... la racine ??
 
-Par exemple : 
+Par exemple :
 lire data/arretes_propres/*.html
 pour chaque AP, décider la catégorie : 'autorisation' | 'complementaire' | 'annexe' | 'inutiles'
 règles initiales : mots-clés + heuristiques simples (titre, entête); produire un CSV/JSON de catalogage
 sortie : data/journaux/catalogue_ap.json avec meta {file, date, category, confidence, notes}
 
-"""
-#TODO: adapter avec les nouveaux format de titre
-#TODO pour l'instant auto = le premier. 
-
-"""
-Pré-traitement très simple des arrêtés :
-- extrait la date depuis le nom de fichier AAAA-MM-JJ_...
-- extrait le titre depuis <div class="arretify-arrete_title"> dans le HTML
-- marque le plus ancien arrêté (selon date trouvée) comme "autorisation"
-- pour les autres : si le titre contient "mise en demeure" => "inutile", et "garanties financières" => annexe, sinon "complementaire"
-Sortie : data/journaux/catalogue_ap.json
 """
 from pathlib import Path
 import json
@@ -37,14 +26,27 @@ from datetime import datetime
 from typing import Optional, List, Dict
 from bs4 import BeautifulSoup
 
+# TODO: adapter avec les nouveaux format de titre
+# TODO pour l'instant auto = le premier.
+
+"""
+Pré-traitement très simple des arrêtés :
+- extrait la date depuis le nom de fichier AAAA-MM-JJ_...
+- extrait le titre depuis <div class="arretify-arrete_title"> dans le HTML
+- marque le plus ancien arrêté (selon date trouvée) comme "autorisation"
+- pour les autres : si le titre contient "mise en demeure" => "inutile", et "garanties financières" => annexe, sinon "complementaire"
+Sortie : data/journaux/catalogue_ap.json
+"""
+
 PROJECT_PERMIS = Path(__file__).resolve().parents[2]  # .../permis
 INPUT_DIR = PROJECT_PERMIS / "data" / "0005804239" / "arretes_bruts"
 OUT_DIR = PROJECT_PERMIS / "data" / "0005804239" / "journaux"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 OUT_PATH = OUT_DIR / "catalogue_ap.json"
 
-_date_re = re.compile(r'(\d{4}-\d{2}-\d{2})')
+_date_re = re.compile(r"(\d{4}-\d{2}-\d{2})")
 _title_class_re = re.compile(r"arretify[-_]arrete_title", flags=re.IGNORECASE)
+
 
 def normalize_text(s: str) -> str:
     if not s:
@@ -53,6 +55,7 @@ def normalize_text(s: str) -> str:
     s = unicodedata.normalize("NFKD", s)
     s = "".join(ch for ch in s if not unicodedata.combining(ch))
     return s
+
 
 def extract_date_from_filename(name: str) -> Optional[str]:
     """
@@ -67,6 +70,7 @@ def extract_date_from_filename(name: str) -> Optional[str]:
         return d.isoformat()
     except Exception:
         return None
+
 
 def extract_title_from_html(path: Path) -> Optional[str]:
     try:
@@ -83,6 +87,7 @@ def extract_title_from_html(path: Path) -> Optional[str]:
     except Exception:
         return None
     return None
+
 
 def run(input_dir: Optional[Path] = None, out_path: Optional[Path] = None):
     if input_dir is None:
@@ -101,19 +106,22 @@ def run(input_dir: Optional[Path] = None, out_path: Optional[Path] = None):
         date_str = extract_date_from_filename(name)
         title = extract_title_from_html(f)
         norm_title = normalize_text(title) if title else normalize_text(name)
-        items.append({
-            "file": name,
-            "path": str(f),
-            "date": date_str,
-            "title": title,
-            "norm_title": norm_title,
-            "category": None,
-            "notes": []
-        })
+        items.append(
+            {
+                "file": name,
+                "path": str(f),
+                "date": date_str,
+                "title": title,
+                "norm_title": norm_title,
+                "category": None,
+                "notes": [],
+            }
+        )
 
     # trier : d'abord par date (les None en dernier), puis par nom
     def sort_key(it):
         return (it["date"] is None, it["date"] or "", it["file"])
+
     items = sorted(items, key=sort_key)
 
     # première règle simple : le premier (le plus ancien) devient 'autorisation'
@@ -137,21 +145,27 @@ def run(input_dir: Optional[Path] = None, out_path: Optional[Path] = None):
     # sortie simplifiée
     out_list = []
     for it in items:
-        out_list.append({
-            "file": it["file"],
-            "date": it["date"],
-            "title": it.get("title"),
-            "category": it["category"],
-            "confidence": it.get("confidence"),
-            "notes": it["notes"]
-        })
+        out_list.append(
+            {
+                "file": it["file"],
+                "date": it["date"],
+                "title": it.get("title"),
+                "category": it["category"],
+                "confidence": it.get("confidence"),
+                "notes": it["notes"],
+            }
+        )
 
     out_path.write_text(json.dumps(out_list, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Wrote catalogue {out_path} ({len(out_list)} entrées)")
 
+
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description="Pré-classification rapide des arrêtés (détection autorisation / inutiles)")
+
+    p = argparse.ArgumentParser(
+        description="Pré-classification rapide des arrêtés (détection autorisation / inutiles)"
+    )
     p.add_argument("--input", "-i", help="dossier input (arretes_bruts)")
     p.add_argument("--out", "-o", help="fichier de sortie (catalogue_ap.json)")
     args = p.parse_args()
