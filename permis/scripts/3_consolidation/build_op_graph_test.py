@@ -73,11 +73,11 @@ class TestBuildOpGraph(unittest.TestCase):
         assert G.has_edge("node1", "node2") == True
         assert G.has_edge("node2", "node3") == True
 
-        edge_data_1 = G.get_edge_data("node1", "node2")
+        edge_data_1 = G.get_edge_data("node1", "node2", 0)
         assert edge_data_1["op_type"] == 'REPLACE'
         assert edge_data_1["operand"] == "article"
         assert edge_data_1["sub_target"] == "bla"
 
-        edge_data_2 = G.get_edge_data("node2", "node3")
+        edge_data_2 = G.get_edge_data("node2", "node3", 0)
         assert edge_data_2["op_type"] == 'REMOVE'
         assert edge_data_2["operand"] == "section"

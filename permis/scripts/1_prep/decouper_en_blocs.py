@@ -20,7 +20,7 @@ from typing import List, Dict, Union, Optional, Tuple
 from bs4 import BeautifulSoup
 
 from permis.scripts.constants import PROJECT_ROOT
-from permis.scripts.io_utils import CATALOGUE_PATH
+from permis.scripts.utils.io_utils import CATALOGUE_PATH
 
 def normalize_html_minify_fragment(html: str) -> str:
     """

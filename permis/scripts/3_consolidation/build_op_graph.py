@@ -14,7 +14,9 @@ Options :
 """
 
 # TODO: comment gérer les parents enfant dans le graphe au niveau des dépendances
+
 # TODO: Comment gérer edges avec même src / target ? adapter en multigraph ?
+
 
 
 from pathlib import Path
@@ -24,9 +26,9 @@ from typing import Optional, Dict, Any
 import networkx as nx
 
 from permis.scripts.constants import PROJECT_ROOT
-from permis.scripts.io_utils import read_json
+from permis.scripts.utils.io_utils import read_json
 from permis.scripts.types import OPERATION_EDGE_ATTRS, NodeId, Operation, OperationType
-from permis.scripts.utils import make_id, IdCounter
+from permis.scripts.utils.utils import make_id, IdCounter
 
 _OPERATION_ID_COUNTER = IdCounter()
 DEFAULT_MAPPED_DIR = PROJECT_ROOT / "permis" / "data" / "0005804239" / "operations_mapped"
@@ -35,12 +37,14 @@ DEFAULT_OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def add_node(G: nx.MultiDiGraph, node_id: NodeId):
+    # TODO : ajouter le contenu si possible
     if not G.has_node(node_id):
         G.add_node(node_id)
 
 
 def add_edge(G: nx.MultiDiGraph, operation: Operation):
     edge_data = operation.model_dump(include=OPERATION_EDGE_ATTRS)
+    # TODO : ne fonctionne pas 
     G.add_edge(operation.source_uid, operation.target_uid, **edge_data)
 
 
@@ -68,6 +72,8 @@ def convert_operations_raw_to_operations(raw_operations: list[Dict[str, Any]]) -
 
         src_node = _node_key_from_op(src_file, src_ref, src_uid)
         tgt_node = _node_key_from_op(tgt_file, tgt_ref, tgt_uid)
+
+        # TODO: checker que make_id c'est bien l'ordre chrono des operations.
 
         operation = Operation(
             id=make_id(_OPERATION_ID_COUNTER),
