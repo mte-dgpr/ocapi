@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 # charger explicitement le .env à la racine du projet (un niveau au-dessus de liste_modif)
-project_root = Path(__file__).resolve().parents[1]
+project_root = Path(__file__).resolve().parents[2]
 env_path = project_root / ".env"
 print("DEBUG: load .env from:", env_path)
 if env_path.exists():
@@ -56,7 +56,71 @@ def ask_llm_for_operation(analysis_html: str, cfg) -> list:
     }}
     Les markers DOIVENT correspondre exactement au HTML-LITE fourni. Réponds UNIQUEMENT avec une liste d'éléments JSON. Pas d'explications, pas d'interprétation. Si tu n'en trouves pas (ce qui est possible), envoie une liste vide. 
     """ 
-    prompt2 = "Hello"
+    prompt2 = f"""
+Extrait HTML d'arrêté préfectoral :
+\"\"\"{analysis_html}\"\"\"
+
+Détecte les opérations juridiques (modifications, ajouts, abrogations d'autres arrêtés).
+Réponds UNIQUEMENT avec une liste JSON, sans explication.
+
+ABROGATION :
+{{
+  "modification_type": "ABROGE",
+  "source_article": "x.x.x" | null,
+  "target_arrete": "DD/MM/YYYY",
+  "target_article": "ALL" | "x.x.x",
+  "target_in_article": "ALL" | "description élément" | null
+}}
+
+MODIFICATION :
+{{
+  "modification_type": "REPLACE",
+  "source_article": "x.x.x" | null,
+  "target_arrete": "DD/MM/YYYY",
+  "target_article": "x.x.x",
+  "target_in_article": "description élément" | null,
+  "new_content_ref": {{
+    "start_marker": "80-100 caractères EXACTS du début",
+    "end_marker": "80-100 caractères EXACTS de la fin"
+  }}
+}}
+
+AJOUT :
+{{
+  "modification_type": "ADD",
+  "source_article": "x.x.x" | null,
+  "target_arrete": "DD/MM/YYYY",
+  "target_article": "END" | "NEW_ARTICLE:x.x.x" | "x.x.x",
+  "target_in_article": "END" | "description position" | null,
+  "new_content_ref": {{
+    "start_marker": "80-100 caractères EXACTS du début",
+    "end_marker": "80-100 caractères EXACTS de la fin"
+  }}
+}}
+
+AUTRE :
+{{
+  "modification_type": "AUTRE",
+  "source_article": "x.x.x" | null,
+  "target_arrete": "DD/MM/YYYY",
+  "target_article": "x.x.x" | null,
+  "context": "description brève"
+}}
+
+Notes CRITIQUES :
+- source_article : article du TEXTE FOURNI contenant l'opération si existe (ex: "2.1.3")
+- target_arrete : date de l'arrêté MODIFIÉ (format DD/MM/YYYY)
+- target_article : 
+  * Article existant à compléter : "x.x.x" (ex: "9.2.1")
+  * Nouvel article à créer : "NEW_ARTICLE:x.x.x"
+  * Ajout en fin d'arrêté : "END" 
+- target_in_article : description (ex: "première phrase", "le tableau", "END" pour ajout en fin d'article)
+- start/end_marker : 
+  * UNIQUEMENT le contenu à extraire (80-100 caractères début/fin)
+  * EXCLURE tout contexte : "sont remplacées par", "comme suit", etc.
+  * COMMENCER juste après ":" des formules introductives
+- Liste vide [] si aucune opération
+"""
     # En-têtes HTTP requis pour l'authentification et le format des données
     HEADERS = {
         "Authorization": f"Bearer {API_KEY}",
@@ -65,9 +129,9 @@ def ask_llm_for_operation(analysis_html: str, cfg) -> list:
 
      # payload minimal compatible Mistral / GPT
     if MODEL_NAME == "mte-api-piag-mistral-medium-latest":
-        payload = {"model": MODEL_NAME, "messages": [{"role": "user", "content": prompt}], "temperature": 0, "n": 1}
+        payload = {"model": MODEL_NAME, "messages": [{"role": "user", "content": prompt2}], "temperature": 0, "n": 1}
     else:
-        payload = {"model": MODEL_NAME, "messages": [{"role": "user", "content": prompt}], "verbosity": "low", "reasoning_effort": "minimal", "n": 1}
+        payload = {"model": MODEL_NAME, "messages": [{"role": "user", "content": prompt2}], "verbosity": "low", "reasoning_effort": "minimal", "n": 1}
 
 
     try:
