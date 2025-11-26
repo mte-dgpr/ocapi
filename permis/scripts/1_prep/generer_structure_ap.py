@@ -112,7 +112,7 @@ def _annotate_catalogue_with_structure(
         print(f"Erreur écriture catalogue {catalogue_path}: {e}")
 
 
-def _parse_toc_from_soup(soup: BeautifulSoup):
+def _parse_toc_from_soup(   soup: BeautifulSoup):
     """
     Détecte la table des matières dans le soup et retourne (toc_found, toc_tag, toc_entries).
     Comportement ligne-par-ligne : pour chaque <div> enfant du conteneur TOC,

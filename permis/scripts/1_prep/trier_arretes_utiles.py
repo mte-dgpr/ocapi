@@ -1,24 +1,20 @@
 """
 Ce fichier doit ouvrir un dossier d'AP qui concernent une ICPE, et classifier en déterminant le type d'AP dont il d'agit.
 Un AP peut être par exemple :
-- l'AP d'autorisation d'exploitation (l'AP initial, à identifier absolument)
-- un AP complémentaire modifiant l'AP auto
+- l'AP d'autorisation d'exploitation (l'AP initial, à identifier absolument). Pour l'instant, premier en date = AP auto.
+- un AP complémentaire modifiant l'AP auto. (APC)
 - un AP complémentaire autre à conserver en annexe (garanties financières, ...)
 - un AP inutile à ne pas traiter (une mise en demeure ou abrogation de mise en demeure)
-
-attention : potentiellement AP refonte.
-................ bon en fait !!!!!!!!!!!! on va skip cette étape pour l'instant.
-pour l'instant, AP auto considère que c le premier fichier. puis pr les autres qui sont pas connexes, et bah on les met juste en annexe à la fin.
-le graphe va aider à savoir qui est l'AP auto... la racine ??
 
 Par exemple :
 lire data/arretes_propres/*.html
 pour chaque AP, décider la catégorie : 'autorisation' | 'complementaire' | 'annexe' | 'inutiles'
 règles initiales : mots-clés + heuristiques simples (titre, entête); produire un CSV/JSON de catalogage
 sortie : data/journaux/catalogue_ap.json avec meta {file, date, category, confidence, notes}
-
 """
 from pathlib import Path
+
+
 import json
 import re
 import unicodedata

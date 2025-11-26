@@ -1,19 +1,94 @@
+import json
+import os
+import re
+from typing import Tuple
+from dotenv import load_dotenv
+import requests
 
 
-def call_llm_api(prompt: str) -> dict:
+def config_model_llm(modele: str) -> Tuple[str, str, str]:
     """
-    Fonction fictive pour simuler un appel à une API de LLM.
-    Remplacer par l'implémentation réelle.
+    Retourne (MODEL_NAME, API_KEY, API_URL) selon le nom logique du modèle.
     """
-    # Simuler une réponse
-    response = {
-        "type": "FULL_SECTION",
-        "position": None,
-        "details": {}
+    if modele == "GPT5":
+        return (
+            "gpt-5",
+            os.getenv("OPENAI_API_KEY"),
+            os.getenv("OPENAI_API_URL", "https://api.openai.com/v1/chat/completions"),
+        )
+    if modele == "GPT5mini":
+        return (
+            "gpt-5-mini",
+            os.getenv("OPENAI_API_KEY"),
+            os.getenv("OPENAI_API_URL", "https://api.openai.com/v1/chat/completions"),
+        )
+    return (
+        "mte-api-piag-mistral-medium-latest",
+        os.getenv("PIAG_API_KEY"),
+        os.getenv("PIAG_API_URL", "https://preprod.api.piag.e2.rie.gouv.fr/v1/chat/completions"),
+    )
+
+
+def call_llm_api(cfg, prompt: str) -> dict:
+    """
+    Appelle le modèle LLM avec le prompt donné et retourne la réponse au format JSON.
+    cfg : tuple (MODEL_NAME, API_KEY, API_URL)
+    prompt : texte du prompt à envoyer au modèle
+    """
+    MODEL_NAME, API_KEY, API_URL = cfg
+    # En-têtes HTTP requis pour l'authentification et le format des données
+    HEADERS = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
     }
-    return response
 
-def query_llm_for_subtarget(text: str, context_html: str) -> dict:
+    # payload minimal compatible Mistral / GPT
+    if MODEL_NAME == "mte-api-piag-mistral-medium-latest":
+        payload = {
+            "model": MODEL_NAME,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+            "n": 1,
+        }
+    else:
+        payload = {
+            "model": MODEL_NAME,
+            "messages": [{"role": "user", "content": prompt}],
+            "verbosity": "low",
+            "reasoning_effort": "minimal",
+            "n": 1,
+        }
+
+    # Appel avec gestion des erreurs HTTP
+    r = requests.post(API_URL, headers=HEADERS, json=payload, timeout=(40, 120))
+    r.raise_for_status()
+
+    # Extraction du contenu de la réponse du modèle
+    data = r.json()
+    raw = data["choices"][0]["message"]["content"]
+
+    return raw
+
+def parse_ops_llm_response(raw: str) -> list:
+    """
+    Parse la réponse brute du LLM pour extraire une liste d'opérations au format JSON
+    """
+    try:
+        # Chercher le premier grand tableau JSON dans la réponse
+        m = re.search(r"\[[\s\S]*\]", raw)
+        if not m:
+            return []
+
+        # Parser le tableau JSON
+        ops = json.loads(m.group())
+        # S'assurer qu'on renvoie bien une liste
+        return ops if isinstance(ops, list) else []
+
+    except Exception as e:
+        print(" Erreur de parsing JSON ou d'appel API :", e)
+        return []
+
+def query_llm_for_subtarget(target_content: str, sub_target: str) -> dict:
     """
     Interroge un LLM pour déterminer le sub-target à partir d'un texte descriptif et d'un contexte HTML.
     Retourne un dictionnaire avec les informations du sub-target.

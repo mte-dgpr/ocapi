@@ -94,6 +94,72 @@ def ask_llm_for_operation(analysis_html: str, cfg) -> list:
     Les markers DOIVENT correspondre exactement au HTML-LITE fourni. Réponds UNIQUEMENT avec une liste d'éléments JSON.
     Pas d'explications, pas d'interprétation. Si tu n'en trouves pas (ce qui est possible), envoie une liste vide.
     """
+# TODO : rajouter A-x.x pour article x.x dans annexes?
+    prompt2 = f"""
+Extrait HTML d'arrêté préfectoral :
+\"\"\"{analysis_html}\"\"\"
+
+Détecte les opérations juridiques (modifications, ajouts, abrogations d'autres arrêtés).
+Réponds UNIQUEMENT avec une liste JSON, sans explication.
+
+ABROGATION :
+{{
+  "modification_type": "ABROGE",
+  "source_article": "x.x.x" | null,
+  "target_arrete": "DD/MM/YYYY",
+  "target_article": "ALL" | "x.x.x",
+  "target_in_article": "ALL" | "description élément" | null
+}}
+
+MODIFICATION :
+{{
+  "modification_type": "REPLACE",
+  "source_article": "x.x.x" | null,
+  "target_arrete": "DD/MM/YYYY",
+  "target_article": "x.x.x",
+  "target_in_article": "description élément" | null,
+  "new_content_ref": {{
+    "start_marker": "80-100 premiers token EXACTS du début",
+    "end_marker": "80-100 derniers token EXACTS de la fin"
+  }}
+}}
+
+AJOUT :
+{{
+  "modification_type": "ADD",
+  "source_article": "x.x.x" | null,
+  "target_arrete": "DD/MM/YYYY",
+  "target_article": "END" | "NEW_ARTICLE:x.x.x" | "x.x.x",
+  "target_in_article": "END" | "description position" | null,
+  "new_content_ref": {{
+    "start_marker": "80-100 premiers token EXACTS du début",
+    "end_marker": "80-100 derniers token EXACTS de la fin"
+  }}
+}}
+
+AUTRE :
+{{
+  "modification_type": "AUTRE",
+  "source_article": "x.x.x" | null,
+  "target_arrete": "DD/MM/YYYY",
+  "target_article": "x.x.x" | null,
+  "context": "description brève"
+}}
+
+Notes CRITIQUES :
+- source_article : article du TEXTE FOURNI contenant l'opération si existe (ex: "2.1.3")
+- target_arrete : date de l'arrêté MODIFIÉ (format DD/MM/YYYY)
+- target_article : 
+  * Article existant à compléter : "x.x.x" (ex: "9.2.1")
+  * Nouvel article à créer : "NEW_ARTICLE:x.x.x"
+  * Ajout en fin d'arrêté : "END" 
+- target_in_article : description (ex: "première phrase", "le tableau", "END" pour ajout en fin d'article)
+- start/end_marker : 
+  * UNIQUEMENT le contenu à extraire (80-100 premiers et derniers tokens))
+  * EXCLURE tout contexte : "sont remplacées par", "comme suit", etc.
+  * Je dois pouvoir extraire le contenu compris entre start_marker et end_marker tel quel pour l'insérer dans l'arrêté ciblé.
+- Liste vide [] si aucune opération
+"""
     # En-têtes HTTP requis pour l'authentification et le format des données
     HEADERS = {
         "Authorization": f"Bearer {API_KEY}",
@@ -104,14 +170,14 @@ def ask_llm_for_operation(analysis_html: str, cfg) -> list:
     if MODEL_NAME == "mte-api-piag-mistral-medium-latest":
         payload = {
             "model": MODEL_NAME,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": prompt2}],
             "temperature": 0,
             "n": 1,
         }
     else:
         payload = {
             "model": MODEL_NAME,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": prompt2}],
             "verbosity": "low",
             "reasoning_effort": "minimal",
             "n": 1,

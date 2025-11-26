@@ -7,7 +7,7 @@ Format attendu : liste de dicts {"index":i, "html": "..."} (normaliser la sortie
 Le HTML est minifié.
 """
 
-# TODO later reflechir a si on découpe les arretes bruts ou la structure.....
+# TODO simplifier ? 
 
 import json
 import math

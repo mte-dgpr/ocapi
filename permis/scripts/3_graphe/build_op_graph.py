@@ -41,7 +41,6 @@ def add_node(G: nx.MultiDiGraph, node_id: NodeId):
     if not G.has_node(node_id):
         G.add_node(node_id)
 
-
 def add_edge(G: nx.MultiDiGraph, operation: Operation):
     edge_data = operation.model_dump(include=OPERATION_EDGE_ATTRS)
     # TODO : ne fonctionne pas 

@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, model_serializer, Field
 
 NodeId = str
 OperationId = str
+ArreteId = str
 
 Content = str
 
@@ -27,16 +28,15 @@ class _BaseModelWithConfig(BaseModel):
         return {k: v for k, v in self.__dict__.items() if v is not None}
 
 class Operation(_BaseModelWithConfig):
-    id: OperationId
+    id: OperationId # TODO : conserver ref vers arrete source et index qui incrémente pour chaque tgt identique dans cet arrete
     source_uid: NodeId | None = None
     target_uid: NodeId | None = None
-    result: str | None = None
     op_type: OperationType
     operand: str | None = None
     sub_target: str | None = None
 
 
-OPERATION_EDGE_ATTRS = {"op_type", "operand", "sub_target"}
+OPERATION_EDGE_ATTRS = {"id", "op_type", "operand", "sub_target"}
 
 
 class OperationTrace(_BaseModelWithConfig):

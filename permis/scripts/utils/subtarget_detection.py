@@ -15,6 +15,8 @@ Exemples de cas simples détectés :
 import re
 from typing import Optional, Dict, Any
 from enum import Enum
+
+from bs4 import BeautifulSoup, Tag
 from permis.scripts.constants import FULL_SECTION
 
 
@@ -26,7 +28,7 @@ class SubTargetType(Enum):
     ALINEA = "ALINEA"
     PARAGRAPHE = "PARAGRAPHE"
     LIGNE_TABLEAU = "LIGNE_TABLEAU"
-    COLONNE_TABLEAU = "COLONNE_TABLEAU"
+    COLONNE_TABLEAU = "COLONNE_TABLEAU" # Ligne et colonne à supprimer si mauvaise détection ? 
     COMPLEX = "COMPLEX"  # Nécessite LLM
 
 
@@ -72,7 +74,6 @@ ORDINAUX = {
 ELEMENTS = {
     r'\bphrase\b': SubTargetType.PHRASE,
     r'\balin[ée]a\b': SubTargetType.ALINEA,
-    r'\bparagraphe\b': SubTargetType.PARAGRAPHE,
     r'\bligne\s+(?:du\s+)?tableau\b': SubTargetType.LIGNE_TABLEAU,
     r'\bcolonne(?:\s+du\s+tableau)?\b': SubTargetType.COLONNE_TABLEAU,
 }
@@ -83,7 +84,7 @@ SIMPLE_PATTERNS = [
 ]
 
 
-def detect_subtarget(text: str) -> SubTarget:
+def parse_subtarget(text: str) -> SubTarget:
     """
     Détecte le type de sub-target à partir du texte.
     
@@ -129,8 +130,107 @@ def is_simple_subtarget(text: str) -> bool:
     Returns:
         bool: True si détectable par regex, False si nécessite LLM
     """
-    result = detect_subtarget(text)
+    result = parse_subtarget(text)
     return result.type != SubTargetType.COMPLEX
 
+def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -> BeautifulSoup:
+    """
+    Remplace l'élément ciblé par le nouveau contenu (operand) dans le soup.
+    
+    Args:
+        soup: BeautifulSoup de la section
+        subtarget: SubTarget parsé indiquant quoi remplacer
+        operand: Nouveau contenu HTML à insérer
+    
+    Returns:
+        BeautifulSoup: Le soup modifié avec le remplacement effectué
+    """
+    operand_soup = BeautifulSoup(operand, 'html.parser')
+    
+    if subtarget.type == SubTargetType.FULL_SECTION:
+        # Remplacer tout le contenu
+        soup.clear()
+        soup.append(operand_soup)
+        return soup
+    
+    elif subtarget.type == SubTargetType.TABLEAU:
+        table = soup.find('table')
+        if table:
+            table.replace_with(operand_soup)
+        return soup
+    
+    elif subtarget.type == SubTargetType.PHRASE:
+        # Trouver tous les nœuds texte et reconstruire les phrases
+        full_text = soup.get_text()
+        phrases = [p.strip() for p in full_text.split('.') if p.strip()]
+        
+        # Déterminer quelle phrase remplacer
+        target_phrase = None
+        if subtarget.position is None and phrases:
+            target_phrase = phrases[-1]
+        elif subtarget.position and 1 <= subtarget.position <= len(phrases):
+            target_phrase = phrases[subtarget.position - 1]
+        
+        if target_phrase:
+            # Chercher le texte de la phrase dans le soup et le remplacer
+            for text_node in soup.find_all(string=True):
+                if target_phrase in text_node:
+                    # Remplacer uniquement cette occurrence
+                    new_text = text_node.replace(target_phrase, operand)
+                    text_node.replace_with(new_text)
+                    break
+        return soup
+    
+    elif subtarget.type == SubTargetType.ALINEA:
+        alineas = soup.find_all('div', class_='arretify-alinea')
+        target_alinea = None
+        
+        if subtarget.position is None and alineas:
+            target_alinea = alineas[-1]
+        else:
+            for alinea in alineas:
+                if alinea.get('data-number') == str(subtarget.position):
+                    target_alinea = alinea
+                    break
+        
+        if target_alinea:
+            target_alinea.replace_with(operand_soup)
+        return soup
+    
+    elif subtarget.type == SubTargetType.LIGNE_TABLEAU:
+        table = soup.find('table')
+        if table:
+            lignes = table.find_all('tr')
+            target_ligne = None
+            
+            if subtarget.position is None and lignes:
+                target_ligne = lignes[-1]
+            elif subtarget.position and 1 <= subtarget.position <= len(lignes):
+                target_ligne = lignes[subtarget.position - 1]
+            
+            if target_ligne:
+                target_ligne.replace_with(operand_soup)
+        return soup
+    
+    elif subtarget.type == SubTargetType.COLONNE_TABLEAU:
+        table = soup.find('table')
+        if table:
+            # Remplacer toutes les cellules de la colonne
+            rows = table.find_all('tr')
+            for row in rows:
+                colonnes = row.find_all(['td', 'th'])
+                target_col = None
+                
+                if subtarget.position is None and colonnes:
+                    target_col = colonnes[-1]
+                elif subtarget.position and 1 <= subtarget.position <= len(colonnes):
+                    target_col = colonnes[subtarget.position - 1]
+                
+                if target_col:
+                    target_col.replace_with(operand_soup.find(['td', 'th']) or operand_soup)
+        return soup
+    
+    return soup
 
 
+# Note: Les cas complexes nécessitant un LLM ne sont pas gérés ici.
