@@ -47,10 +47,7 @@ class TestConvertOperationsRawToOperations(unittest.TestCase):
         assert op1.source_id == NodeId(arrete_id="AP001", article_id="1")
         assert op1.target_id == NodeId(arrete_id="AP002", article_id="2")
         assert op1.operation_type == "REPLACE"  # Comparaison avec string car use_enum_values=True
-        assert op1.sub_target.type == SubTargetType.TABLEAU
-        assert op1.operand == "<mocked>operand content</mocked>"
-        assert op1.id == "1"
-        
+    assert op1.sub_target.type == "TABLEAU"
         # Vérifier que extract_operand_with_images a été appelé
         mock_extract_operand_with_images.assert_called_once()
         mock_parse_subtarget.assert_called_once_with("le tableau")

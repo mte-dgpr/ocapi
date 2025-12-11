@@ -1,35 +1,36 @@
-from ocapi.types import NodeId, ArticlesContentMap
+from ocapi.step_resolution.build_op_graph import add_edge, add_node
+from ocapi.types import NodeId, ArticlesContentMap, Operation
 import networkx as nx
 
 
 op_graph_exemple: nx.MultiDiGraph = nx.MultiDiGraph()
-op_graph_exemple.add_node(NodeId(arrete_id="AP-auto", article_id="1"))
-op_graph_exemple.add_node(NodeId(arrete_id="AP-auto", article_id="2.1"))
-op_graph_exemple.add_node(NodeId(arrete_id="AP-auto", article_id="3.4"))
-op_graph_exemple.add_node(NodeId(arrete_id="AP-auto", article_id="8"))
-op_graph_exemple.add_node(NodeId(arrete_id="APC1", article_id="3"))
-op_graph_exemple.add_node(NodeId(arrete_id="APC2", article_id="2.2.1"))
-op_graph_exemple.add_node(NodeId(arrete_id="APC3", article_id="1"))
+add_node(op_graph_exemple, NodeId(arrete_id="AP-auto", article_id="1"))
+add_node(op_graph_exemple, NodeId(arrete_id="AP-auto", article_id="2.1"))
+add_node(op_graph_exemple, NodeId(arrete_id="AP-auto", article_id="3.4"))
+add_node(op_graph_exemple, NodeId(arrete_id="AP-auto", article_id="8"))
+add_node(op_graph_exemple, NodeId(arrete_id="APC1", article_id="3"))
+add_node(op_graph_exemple, NodeId(arrete_id="APC2", article_id="2.2.1"))
+add_node(op_graph_exemple, NodeId(arrete_id="APC3", article_id="1"))
 
-op_graph_exemple.add_edge(NodeId(arrete_id="APC1", article_id="3"),
-                          NodeId(arrete_id="AP-auto", article_id="2.1"),    
+add_edge(op_graph_exemple, Operation(source_id=NodeId(arrete_id="APC1", article_id="3"),
+                          target_id=NodeId(arrete_id="AP-auto", article_id="2.1"),    
                           id="op1",
                           operation_type="REPLACE",
                           operand="<p>Les déchets doivent être triés à la source selon les catégories suivantes: plastique, verre, carton.</p>",
                           sub_target=None
-                    )                        
-op_graph_exemple.add_edge(NodeId(arrete_id="APC2", article_id="2.2.1"),
-                            NodeId(arrete_id="AP-auto", article_id="3.4"),
+                    )                        )
+add_edge(op_graph_exemple, Operation(source_id=NodeId(arrete_id="APC2", article_id="2.2.1"),
+                            target_id=NodeId(arrete_id="AP-auto", article_id="3.4"),
                             id="op2",
                             operation_type="ADD",
                             operand="Elles doivent être vidées régulièrement pour éviter tout débordement.",
-                            sub_target=None)
-op_graph_exemple.add_edge(NodeId(arrete_id="APC3", article_id="1"),
+                            sub_target=None))
+add_edge(op_graph_exemple, Operation(NodeId(arrete_id="APC3", article_id="1"),
                           NodeId(arrete_id="AP-auto", article_id="8"),
                             id="op3",
                             operation_type="ADD",
                             operand="<p>Un registre des déchets doit être tenu à jour.</p>",
-                            sub_target=None)
+                            sub_target=None))
 
 
 # Exemple 1: Évolution simple d'un arrêté avec 3 versions

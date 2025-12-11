@@ -65,11 +65,7 @@ class _BaseModelWithConfig(BaseModel):
     """
     Base class for removing None values during serialization.
     """
-    model_config = ConfigDict(use_enum_values=True, extra="forbid")
-
-    @model_serializer
-    def serialize_model(self):
-        return {k: v for k, v in self.__dict__.items() if v is not None}
+    model_config = ConfigDict(use_enum_values=True, extra="forbid", exclude_none=True)
 
 
 class RawOperation(_BaseModelWithConfig):
@@ -94,10 +90,11 @@ class SubTargetType(Enum):
     COMPLEX = "COMPLEX"  # Nécessite LLM
 
 
-class SubTarget(BaseModel):
+class SubTarget(_BaseModelWithConfig):
     """Représente un sub-target parsé."""
     type: SubTargetType
     position: Optional[int] = None  # 0 = dernière, 1 = première, 2 = deuxième, etc.
+    description: Optional[str] = None  # Texte original du sub-target
     def __repr__(self):
         return f"SubTarget({self.type.value}, pos={self.position})"
 

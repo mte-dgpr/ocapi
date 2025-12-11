@@ -13,13 +13,13 @@ class TestSubtargetParsing(unittest.TestCase):
 
         text = "le tableau"
         result = parse_subtarget(text)
-        assert result.type == SubTargetType.TABLEAU
+        assert result.type == "TABLEAU"
 
     def test_complex_detection(self):
 
         text = "quelque chose de très compliqué qui nécessite un LLM"
         result = parse_subtarget(text)
-        assert result.type == SubTargetType.COMPLEX
+        assert result.type == "COMPLEX"
 
     def test_ordinal_extraction(self):
         text = "la troisième ligne du tableau"
@@ -27,9 +27,9 @@ class TestSubtargetParsing(unittest.TestCase):
         result = parse_subtarget(text)
         result2 = parse_subtarget(text2)
 
-        assert result.type == SubTargetType.LIGNE_TABLEAU
+        assert result.type == "LIGNE_TABLEAU"
         assert result.position == 3
-        assert result2.type == SubTargetType.ALINEA
+        assert result2.type == "ALINEA"
         assert result2.position == 2
 
 class TestReplaceSubtarget(unittest.TestCase):

@@ -1,7 +1,9 @@
-"""Ce fichier contient des fonctions pour appliquer les opérations détectées sur le contenu des articles d'arrêtés.
+"""
+Ce fichier contient des fonctions pour appliquer les opérations détectées sur le contenu des articles d'arrêtés.
 Chaque opération est appliquée en fonction de son type (REPLACE, REMOVE, ADD) et de sa cible (subtarget).
 Lorsque la subtarget est complexe, un LLM est utilisé pour savoir où insérer le contenu modifié.
-
+Pour chaque arrêté, un sous-graphe des opérations le concernant est construit et les opérations sont appliquées dans l'ordre.
+Cela permet de construire l'historique des versions des articles modifiés au fil des modifications apportées par les opérations.
 """
 
 
@@ -11,32 +13,6 @@ import networkx as nx
 from ocapi.types import ArreteFile, ArticlesContentMap, Content, Operation, NodeId, ArreteId, OperationType
 from ocapi.utils.llm_utils import call_llm_api, query_llm_for_subtarget
 from ocapi.step_detection.subtarget_detection import SubTarget, is_simple_subtarget, parse_subtarget, replace_subtarget
-
-"""
-t1   t2   t3   t4 
-A <- B <- C 
-A            <- D
-G1   G2   G3   G4 
-
-dans G4, la branche A<- B <- C sera repliée en branche A <- C
-chaque Gi n'a que des branches de taille 1
-
-ordre chronologique mais dès qu'on détecte une branche >1, sous résolution de cette branche en remontant.
-2 graphes : 1 graphe canonique et 1 graphe de résolution des conflits
-sous graphe pour chaque arrêté -- snapshot temporel dans la création du graphe
-construire la liste d'historiques de modifications pour chaque article
-
-t1   t2   t3  
-A <- B1
-A <- B2
-A       <- C
-
-à un ti donné, on garde une seule trace. 
-à chaque ti donné on a une map id_article -> contenu actuel
-"""
-
-
-
 
 
 def _edge_to_operation(operations_graph: nx.MultiDiGraph, src: NodeId, tgt: NodeId, key: int) -> Operation:
@@ -55,39 +31,27 @@ def _edge_to_operation(operations_graph: nx.MultiDiGraph, src: NodeId, tgt: Node
     return operation
 
 
-def apply_replace(subtarget: SubTarget, operand: Content, tgt_content: Content) -> Content:
-    """
-    """
-    parsed = parse_subtarget(subtarget)
-    if is_simple_subtarget(parsed):
-        soup = BeautifulSoup(tgt_content, "html.parser")
-        modified_soup = replace_subtarget(soup, parsed, operand)
+def apply_replace(operation: Operation, soup_input: BeautifulSoup) -> Content:
+    if is_simple_subtarget(operation.sub_target):
+        modified_soup = replace_subtarget(soup_input, operation.sub_target, operation.operand)
         return str(modified_soup)   
     else:
-        prompt = query_llm_for_subtarget(OperationType.REPLACE, tgt_content, subtarget)
+        prompt = query_llm_for_subtarget(OperationType.REPLACE, str(soup_input), operation.sub_target.description)
         raw = call_llm_api(prompt)
         for line in raw.splitlines():
             if "<NEWCONTENT>" in line:
-                output = line.replace("<NEWCONTENT>", operand)
+                output = line.replace("<NEWCONTENT>", operation.operand)
                 break
         return output
 
 
-def apply_remove(operation: Operation, input: Content) -> Content:
-    """
-    Applique une opération REMOVE.
-    Retire la partie ciblée ou marque l'article comme abrogé.
-    
-    Returns:
-        Content: Le contenu modifié
-    """
+def apply_remove(operation: Operation, soup_input: BeautifulSoup) -> Content:
     parsed = parse_subtarget(operation.sub_target)
     if is_simple_subtarget(parsed):
-        soup = BeautifulSoup(input, "html.parser")
-        modified_soup = replace_subtarget(soup, parsed, "")
+        modified_soup = replace_subtarget(soup_input, parsed, "")
         return str(modified_soup)   
     else:
-        prompt = query_llm_for_subtarget(OperationType.REMOVE, input, operation.sub_target)
+        prompt = query_llm_for_subtarget(OperationType.REMOVE, str(soup_input), operation.sub_target.description)
         raw = call_llm_api(prompt)
         for line in raw.splitlines():
             if "<NEWCONTENT>" in line:
@@ -96,20 +60,13 @@ def apply_remove(operation: Operation, input: Content) -> Content:
         return output
 
 
-def apply_add(operation: Operation, input: Content) -> Content:
-    """
-    Applique une opération ADD.
-    Insère un nouveau passage ou article (peut nécessiter renumérotation).
-    
-    Returns:
-        Content: Le contenu modifié
-    """    
+def apply_add(operation: Operation, soup_input: BeautifulSoup) -> Content:
     parsed = parse_subtarget(operation.sub_target)
     if is_simple_subtarget(parsed):
-        soup = BeautifulSoup(input, "html.parser")
+        pass
         # TODO : implementer add? 
     else:
-        prompt = query_llm_for_subtarget(OperationType.ADD, input, operation.sub_target)
+        prompt = query_llm_for_subtarget(OperationType.ADD, str(soup_input), operation.sub_target.description)
         raw = call_llm_api(prompt)
         for line in raw.splitlines():
             if "<NEWCONTENT>" in line:
@@ -131,7 +88,7 @@ def apply_subgraph_operations(subG: nx.MultiDiGraph, articles_content_map:Articl
             input_content = output_content_map[tgt]
             if op.operation_type == "REPLACE":
                 output = apply_replace(op, input_content)
-            elif op.operation_type in ["DELETE", "ABROGATION"]:
+            elif op.operation_type == "REMOVE":
                 output = apply_remove(op, input_content)
             elif op.operation_type == "ADD":
                 output = apply_add(op, input_content)
@@ -151,20 +108,20 @@ def apply_all_operations(
     versions: list[ArticlesContentMap] = [articles_content_map]
     for arrete_file in arrete_list :
         subG = build_subgraph(operations_graph, arrete_file.id)
-        articles_content_map = apply_subgraph_operations(subG, articles_content_map)
-        versions.append(articles_content_map)
+        if subG.number_of_edges() > 0:
+            articles_content_map = apply_subgraph_operations(subG, articles_content_map)
+            versions.append(articles_content_map)
     
     return versions
 
 
 def build_initial_articles_content_map(operations_graph: nx.MultiDiGraph, arrete_files: list[ArreteFile]) -> ArticlesContentMap:
-    # TODO : ne mettre que les articles cibles (target_id) dans la map
     articles_content_map : ArticlesContentMap = {}
     soups : dict[ArreteId, BeautifulSoup] = {
         arrete_file.id: arrete_file.soup for arrete_file in arrete_files}
     for node in operations_graph.nodes:
         if operations_graph.in_degree(node) != 0:
-            arrete_id, article_id = parse_node_id(node)
+            arrete_id, article_id = node.arrete_id, node.article_id
             soup = soups[arrete_id]
             section_tag = soup.select_one(f"section.arretify-section[data-num='{article_id}']")
             # TODO : gérer le cas où l'article n'existe pas (article ajouté?)
@@ -179,22 +136,10 @@ def build_subgraph(operations_graph: nx.MultiDiGraph, arrete_id: ArreteId) -> nx
 
     filtered_nodes: set[NodeId] = set()
     for node in operations_graph.nodes:
-        node_arrete_id, _ = parse_node_id(node)
+        node_arrete_id = node.arrete_id
 
         if node_arrete_id == arrete_id:
             filtered_nodes.add(node)
             for node in operations_graph.successors(node):
                 filtered_nodes.add(node)
     return operations_graph.subgraph(filtered_nodes).copy()
-
-
-def parse_node_id(node_id_str: str) -> tuple[NodeId, ArreteId]:
-    parts = node_id_str.split("::")
-    arrete_id = parts[0]
-    article_id = parts[1] if len(parts) > 1 else None
-    return arrete_id, article_id
-
-
-
-
-

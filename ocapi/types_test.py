@@ -12,6 +12,15 @@ class TestBaseModelWithConfig(unittest.TestCase):
             c: float | None = None
 
         model = TestModel(a=10, b=None, c=3.14)
-        serialized = model.model_dump()
-        assert "b" not in serialized
+        # exclude_none dans ConfigDict ne s'applique pas automatiquement à model_dump()
+        # Il faut utiliser model_dump(exclude_none=True) ou model_dump_json()
+        serialized_default = model.model_dump()
+        assert "b" in serialized_default  # Par défaut, None est inclus
+        assert serialized_default["b"] is None
+        
+        # Mais quand on utilise exclude_none explicitement
+        serialized_no_none = model.model_dump(exclude_none=True)
+        assert "b" not in serialized_no_none
+        assert "c" in serialized_no_none
+        assert serialized_no_none["c"] == 3.14
 

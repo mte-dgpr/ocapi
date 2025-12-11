@@ -9,15 +9,12 @@ entre deux articles.
 import networkx as nx
 from ocapi.types import NodeId, Operation
 
-OPERATION_EDGE_ATTRS = {"id", "operation_type", "operand", "sub_target"}
-
 def add_node(G: nx.MultiDiGraph, node_id: NodeId):
     if not G.has_node(node_id):
         G.add_node(node_id)
 
 def add_edge(G: nx.MultiDiGraph, operation: Operation):
-    edge_data = operation.model_dump(include=OPERATION_EDGE_ATTRS)
-    # TODO : ne fonctionne pas 
+    edge_data = operation.model_dump(exclude={"source_id", "target_id"}, exclude_none=True)
     G.add_edge(operation.source_id, operation.target_id, **edge_data)
 
 

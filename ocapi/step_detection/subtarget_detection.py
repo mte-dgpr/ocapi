@@ -72,18 +72,18 @@ def parse_subtarget(text: str) -> SubTarget:
         SubTarget: Le sub-target parsé, ou COMPLEX si non reconnu
     """
     if not text or text.strip() == "":
-        return SubTarget(type=SubTargetType.FULL_SECTION)
+        return SubTarget(type=SubTargetType.FULL_SECTION, description=text)
     
     text_lower = text.lower().strip()
     
     # Cas spécial : "tout" ou variations
     if re.match(r'contenu entier', text_lower):
-        return SubTarget(type=SubTargetType.FULL_SECTION)
+        return SubTarget(type=SubTargetType.FULL_SECTION, description=text)
     
     # Tester les patterns simples d'abord
     for pattern, target_type, position in SIMPLE_PATTERNS:
         if re.search(pattern, text_lower, re.IGNORECASE):
-            return SubTarget(type=target_type, position=position)
+            return SubTarget(type=target_type, position=position, description=text)
     
     # Tester les combinaisons ordinal + élément
     for ordinal_pattern, position in ORDINAUX.items():
@@ -91,10 +91,10 @@ def parse_subtarget(text: str) -> SubTarget:
             # Construire pattern combiné : "premier alinéa", "deuxième phrase", etc.
             combined_pattern = f"{ordinal_pattern}\\s+{element_pattern}"
             if re.search(combined_pattern, text_lower, re.IGNORECASE):
-                return SubTarget(type=target_type, position=position)
+                return SubTarget(type=target_type, position=position, description=text)
     
     # Si aucun pattern ne correspond, marquer comme complexe
-    return SubTarget(type=SubTargetType.COMPLEX)
+    return SubTarget(type=SubTargetType.COMPLEX, description=text)
 
 
 def is_simple_subtarget(parsed:SubTarget) -> bool:
@@ -123,19 +123,24 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
     """
     operand_soup = BeautifulSoup(operand, 'html.parser')
     
-    if subtarget.type == SubTargetType.FULL_SECTION:
-        # Remplacer tout le contenu
+    if subtarget.type == "FULL_SECTION":
+        # Remplacer tout le contenu sauf le titre (h1, h2, h3, etc.)
+        title = soup.find(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
         soup.clear()
-        soup.append(operand_soup)
+        if title:
+            soup.append(title)
+        # Append all children from operand_soup
+        for child in list(operand_soup.children):
+            soup.append(child)
         return soup
     
-    elif subtarget.type == SubTargetType.TABLEAU:
+    elif subtarget.type == "TABLEAU":
         table = soup.find('table')
         if table:
             table.replace_with(operand_soup)
         return soup
     
-    elif subtarget.type == SubTargetType.PHRASE:
+    elif subtarget.type == "PHRASE":
         # Trouver tous les nœuds texte et reconstruire les phrases
         full_text = soup.get_text()
         phrases = [p.strip() for p in full_text.split('.') if p.strip()]
@@ -157,7 +162,7 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
                     break
         return soup
     
-    elif subtarget.type == SubTargetType.ALINEA:
+    elif subtarget.type == "ALINEA":
         alineas = soup.find_all('div', class_='arretify-alinea')
         target_alinea = None
         
