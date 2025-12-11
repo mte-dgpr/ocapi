@@ -1,8 +1,8 @@
 import unittest
 from unittest import mock
 import networkx as nx
-from apply_ops import build_subgraph, apply_subgraph_operations, apply_all_operations, build_initial_articles_content_map, apply_replace
-from .build_op_graph import add_edge, add_node
+from ocapi.step_resolution.apply_ops import build_subgraph, apply_subgraph_operations, apply_all_operations, build_initial_articles_content_map, apply_replace
+from ocapi.step_resolution.build_op_graph import add_edge, add_node
 from ocapi.types import Operation
 from bs4 import BeautifulSoup
 

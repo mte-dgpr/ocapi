@@ -1,11 +1,7 @@
-import argparse
-from pathlib import Path
 from bs4 import BeautifulSoup
 import networkx as nx
-from typing import List
 
-from ocapi.constants import PROJECT_ROOT
-from ocapi.types import ArreteFile, Content, Operation, NodeId, ArreteId, OperationType
+from ocapi.types import ArreteFile, ArticlesContentMap, Content, Operation, NodeId, ArreteId, OperationType
 from ocapi.utils.llm_utils import call_llm_api, query_llm_for_subtarget
 from ocapi.step_detection.subtarget_detection import SubTarget, is_simple_subtarget, parse_subtarget, replace_subtarget
 
@@ -32,7 +28,7 @@ A       <- C
 à chaque ti donné on a une map id_article -> contenu actuel
 """
 
-ArticlesContentMap = dict[NodeId, Content]
+
 
 
 

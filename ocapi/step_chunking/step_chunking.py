@@ -1,44 +1,21 @@
 """
-Ce fichier doit
-- lire data/arretes_bruts/*.html
-- diviser chaque arrêté qui n'est pas marqué comme inutile en blocs pour préparer envoie LLM.
-- écrire par AP un fichier JSON dans data/arretes_blocs/<nom>.blocks.json
-Format attendu : liste de dicts {"index":i, "html": "..."} (normaliser la sortie si besoin). 
-Le HTML est minifié.
+Ce step prend une liste d'arretes (ArreteFile) et retourne une liste de documents chunkés (Document) et une map des images.
+Chaque document correspond à un bloc d'articles extrait de l'arrêté, avec une taille cible définie pour chaque bloc.
 """
 
-# TODO simplifier ? 
-
 import math
-import re
-import unicodedata
-from typing import Iterator, List, Dict, Tuple
+from typing import Iterator, Tuple
 from bs4 import BeautifulSoup, Tag
 
-from ocapi.types import ArreteFile
-from ocapi.utils.arretify_utils import list_top_sections
+from ocapi.types import ArreteFile, ImageMap
 from ocapi.utils.documents import ContentType, make_document_factory
 from langchain_core.documents import Document
 
-ImageMap = Dict[str, str]  # mapping token -> original src
-
-_ARRETIFY_SECTION_SELECTOR = "*[data-spec='section']"
+from ocapi.utils.utils import minify_html_fragment
 
 
-def normalize_html_minify_fragment(html: str) -> str:
-    """
-    Minification légère et normalisation Unicode pour un fragment HTML.
-    - supprime <script>/<style>
-    - normalize Unicode
-    - enlève espaces entre balises et runs d'espaces
-    """
-    s = str(html or "")
-    s = unicodedata.normalize("NFC", s)
-    s = re.sub(r"(?is)<script.*?>.*?</script>", "", s)
-    s = re.sub(r"(?is)<style.*?>.*?</style>", "", s)
-    s = re.sub(r">\s+<", "><", s)
-    s = re.sub(r"\s{2,}", " ", s)
-    return s.strip()
+_ARRETIFY_SECTION_SELECTOR = "*[data-spec=\"section\"]"
+
 
 
 def split_blocs(
@@ -48,13 +25,16 @@ def split_blocs(
 
     ignored_sections : list[Tag] = []
     selected_sections: list[Tag] = []
-    # TODO : adapter le selector pour la syntaxe arretify 
+
     for section in minified_soup.select(_ARRETIFY_SECTION_SELECTOR):
         if section in ignored_sections:
             continue
-        if all(_is_arretify_section(child) or _is_arretify_section_title(child) for child in section.contents):
+        if all((_is_arretify_section(child) or _is_arretify_section_title(child)) for child in section.contents):
             continue
-        elif len(section.find_all(_ARRETIFY_SECTION_SELECTOR)) == 0:
+        
+        # Utiliser .select() au lieu de .find_all() pour les sélecteurs CSS
+        child_sections = section.select(_ARRETIFY_SECTION_SELECTOR)
+        if len(child_sections) == 0:
             selected_sections.append(section)
         else:
             selected_sections.append(section)
@@ -94,7 +74,7 @@ def step_chunking(
     arrete_file : ArreteFile,
 )-> Tuple[list[Document], ImageMap]:
 
-    minified = normalize_html_minify_fragment(str(arrete_file.soup))
+    minified = minify_html_fragment(str(arrete_file.soup))
     minified, img_map = _extract_and_strip_images(minified)
     soup_without_images = BeautifulSoup(minified, "html.parser")
     

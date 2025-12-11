@@ -1,3 +1,5 @@
+FULL_SECTION = "contenu entier"
+
 def prompt(analysis_html: str) -> str:
     return f"""
 Voici un extrait de texte juridique (article ou extrait d'un arrêté préfectoral format HTML) :

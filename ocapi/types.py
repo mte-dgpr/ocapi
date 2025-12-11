@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Dict, Optional
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, model_serializer, field_validator
 import re
@@ -11,6 +11,8 @@ ArreteId = str
 ArticleId = str
 Content = str
 AiotId = str
+ImageMap = Dict[str, str]  # mapping token -> original src
+
 
 
 @dataclass
@@ -45,6 +47,8 @@ class NodeId(BaseModel):
     
     def __hash__(self) -> int:
         return hash((self.arrete_id, self.article_id))
+
+ArticlesContentMap = dict[NodeId, Content]  # mapping NodeId -> content str
 
 class OperationType(Enum):
     ADD = "ADD"
@@ -93,7 +97,7 @@ class SubTargetType(Enum):
 class SubTarget(BaseModel):
     """Représente un sub-target parsé."""
     type: SubTargetType
-    position: Optional[int] = None  # None = dernière, 1 = première, 2 = deuxième, etc.
+    position: Optional[int] = None  # 0 = dernière, 1 = première, 2 = deuxième, etc.
     def __repr__(self):
         return f"SubTarget({self.type.value}, pos={self.position})"
 

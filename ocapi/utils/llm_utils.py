@@ -2,7 +2,6 @@ import json
 import os
 import re
 from typing import Tuple
-from dotenv import load_dotenv
 import requests
 
 from ocapi.types import OperationType

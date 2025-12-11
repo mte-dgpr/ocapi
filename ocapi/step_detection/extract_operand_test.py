@@ -1,50 +1,78 @@
 import unittest 
 
-from ocapi.step_detection.extract_operand import extract_operand
+from ocapi.step_detection.extract_operand import extract_operand_with_images, pick_arretify_section
+from ocapi.utils.utils import _assert_html_equal, minify_html_fragment
 
+
+class TestPickArretifySection(unittest.TestCase):
+    def test_pick_arretify_section(self):
+        html = """
+        <section data-spec="section" data-number="1.1">
+            Ceci est le contenu de l'article 1.1.
+        </section>
+        <section data-spec="section" data-number="1.2">
+            Ceci est le contenu de l'article 1.2.
+        </section>
+        """
+        result = pick_arretify_section(
+            html=minify_html_fragment(html),
+            source_article="1.2"
+        )
+        expected = """
+        <section data-spec="section" data-number="1.2">
+            Ceci est le contenu de l'article 1.2.
+        </section>
+        """
+        _assert_html_equal(result, minify_html_fragment(expected))
 
 class TestExtractOperand(unittest.TestCase):
-    
-    def test_extract_with_both_markers(self):
-        """Test extraction avec start et end markers présents"""
-        html = "<p>Avant</p><p>START texte à extraire END</p><p>Après</p>"
-        result = extract_operand(html, None, "START", "END")
-        assert result is not None
-        assert "START" in result
-        assert "END" in result
-        assert "texte à extraire" in result
-    
-    def test_extract_with_only_start_marker(self):
-        """Test extraction avec seulement start marker - doit trouver le tag englobant"""
-        html = "<p>Avant</p><p>START texte à extraire</p><p>Après</p>"
-        result = extract_operand(html, None, "START", None)
-        assert result is not None
-        assert "START" in result
-        assert "texte à extraire" in result
-    
-    def test_no_start_marker_returns_none(self):
-        """Test sans start marker - doit retourner None"""
-        html = "<p>Du texte quelconque</p>"
-        result = extract_operand(html, None, None, None)
-        assert result is None
-    
-    def test_marker_not_found_returns_none(self):
-        """Test quand le marker n'existe pas dans le HTML"""
-        html = "<p>Du texte sans marker</p>"
-        result = extract_operand(html, None, "INEXISTANT", None)
-        assert result is None
-    
-    def test_extract_from_specific_section(self):
-        """Test extraction depuis une section spécifique (source_article)"""
+    def test_extract_operand_success(self):
         html = """
-        <section>Article 1.1 - Autre texte</section>
-        <section>Article 1.2 - START contenu recherché END</section>
-        <section>Article 1.3 - Encore autre chose</section>
+        <section data-spec="section" data-number="1.2">
+            Voici le nouveau contenu operand de l'article. Inclut une image :
+            <img src="image1.png" />
+        </section>
         """
-        result = extract_operand(html, "Article 1.2", "START", "END")
-        assert result is not None
-        assert "contenu recherché" in result
+        minified_html = minify_html_fragment(html)
+        
+        start_marker = "Voici le nouveau "
+        # Utiliser le HTML minifié pour le end_marker
+        end_marker = '<img src="image1.png"/>'  # Sans espace avant />
+        img_map = {"image1.png": "http://example.com/image1.png"}
 
+        result = extract_operand_with_images(
+            block_html=minified_html,
+            source_article="1.2",
+            start_marker=start_marker,
+            end_marker=end_marker,
+            img_map=img_map
+        )
 
-if __name__ == "__main__":
-    unittest.main()
+        assert "Voici le nouveau" in result
+        assert "http://example.com/image1.png" in result
+        _assert_html_equal (
+            result,
+            minify_html_fragment("""
+                Voici le nouveau contenu operand de l'article. Inclut une image :
+                <img src="http://example.com/image1.png"/>
+            """)
+        )
+
+    def test_extract_operand_no_markers(self):
+        html = """
+        <section data-spec="section" data-number="L123-4">
+            <p>This is the content of article L123-4.</p>
+        </section>
+        """
+        start_marker = "<p>Non-existent start"
+        end_marker = "</p>"
+
+        with self.assertRaises(ValueError) as context:
+            extract_operand_with_images(
+                block_html=minify_html_fragment(html),
+                source_article="L123-4",
+                start_marker=start_marker,
+                end_marker=end_marker,
+                img_map={}
+            )
+        assert "Start marker not found" in str(context.exception)

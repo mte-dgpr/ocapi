@@ -13,12 +13,8 @@ Exemples de cas simples détectés :
 """
 
 import re
-from typing import Optional, Dict, Any
-from enum import Enum
 
-from bs4 import BeautifulSoup, Tag
-from pydantic import BaseModel
-from ocapi.constants import FULL_SECTION
+from bs4 import BeautifulSoup
 from ocapi.types import SubTarget, SubTargetType
 
 
@@ -46,8 +42,8 @@ ORDINAUX = {
     r'\b9[eè]me\b': 9,
     r'\bdixi[eè]me\b': 10,
     r'\b10[eè]me\b': 10,
-    r'\bdernier\b': None,
-    r'\bdernier[eè]\b': None
+    r'\bdernier\b': 0,
+    r'\bdernier[eè]\b': 0
 }
 
 # Patterns pour les éléments cibles
@@ -65,6 +61,7 @@ SIMPLE_PATTERNS = [
 
 
 def parse_subtarget(text: str) -> SubTarget:
+    # TODO: match avec le nouveau prompt
     """
     Détecte le type de sub-target à partir du texte.
     
@@ -75,18 +72,18 @@ def parse_subtarget(text: str) -> SubTarget:
         SubTarget: Le sub-target parsé, ou COMPLEX si non reconnu
     """
     if not text or text.strip() == "":
-        return SubTarget(SubTargetType.FULL_SECTION)
+        return SubTarget(type=SubTargetType.FULL_SECTION)
     
     text_lower = text.lower().strip()
     
     # Cas spécial : "tout" ou variations
     if re.match(r'contenu entier', text_lower):
-        return SubTarget(SubTargetType.FULL_SECTION)
+        return SubTarget(type=SubTargetType.FULL_SECTION)
     
     # Tester les patterns simples d'abord
     for pattern, target_type, position in SIMPLE_PATTERNS:
         if re.search(pattern, text_lower, re.IGNORECASE):
-            return SubTarget(target_type, position)
+            return SubTarget(type=target_type, position=position)
     
     # Tester les combinaisons ordinal + élément
     for ordinal_pattern, position in ORDINAUX.items():
@@ -94,10 +91,10 @@ def parse_subtarget(text: str) -> SubTarget:
             # Construire pattern combiné : "premier alinéa", "deuxième phrase", etc.
             combined_pattern = f"{ordinal_pattern}\\s+{element_pattern}"
             if re.search(combined_pattern, text_lower, re.IGNORECASE):
-                return SubTarget(target_type, position)
+                return SubTarget(type=target_type, position=position)
     
     # Si aucun pattern ne correspond, marquer comme complexe
-    return SubTarget(SubTargetType.COMPLEX, details={"original_text": text})
+    return SubTarget(type=SubTargetType.COMPLEX)
 
 
 def is_simple_subtarget(parsed:SubTarget) -> bool:
