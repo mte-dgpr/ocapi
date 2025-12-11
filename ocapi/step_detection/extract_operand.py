@@ -49,6 +49,7 @@ def _rehydrate_images(fragment_html: str, img_map: dict) -> str:
             img["src"] = img_map[src]
     return str(soup)
 
+# TODO : insérer un fallback llm si pas trouvé
 
 def extract_operand_with_images(
     block_html: str,
@@ -57,7 +58,6 @@ def extract_operand_with_images(
     end_marker: str,
     img_map: ImageMap
 ) -> str:
-    # TODO : plus tard, si les markers ne sont pas trouvés, essayer de retrouver le contenu avec LLM
 
     section = pick_arretify_section(block_html, source_article)
     working_html = section

@@ -14,3 +14,4 @@ class TestBaseModelWithConfig(unittest.TestCase):
         model = TestModel(a=10, b=None, c=3.14)
         serialized = model.model_dump()
         assert "b" not in serialized
+

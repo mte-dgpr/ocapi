@@ -1,3 +1,10 @@
+"""Ce fichier contient des fonctions pour appliquer les opérations détectées sur le contenu des articles d'arrêtés.
+Chaque opération est appliquée en fonction de son type (REPLACE, REMOVE, ADD) et de sa cible (subtarget).
+Lorsque la subtarget est complexe, un LLM est utilisé pour savoir où insérer le contenu modifié.
+
+"""
+
+
 from bs4 import BeautifulSoup
 import networkx as nx
 
@@ -151,6 +158,7 @@ def apply_all_operations(
 
 
 def build_initial_articles_content_map(operations_graph: nx.MultiDiGraph, arrete_files: list[ArreteFile]) -> ArticlesContentMap:
+    # TODO : ne mettre que les articles cibles (target_id) dans la map
     articles_content_map : ArticlesContentMap = {}
     soups : dict[ArreteId, BeautifulSoup] = {
         arrete_file.id: arrete_file.soup for arrete_file in arrete_files}
@@ -159,6 +167,7 @@ def build_initial_articles_content_map(operations_graph: nx.MultiDiGraph, arrete
             arrete_id, article_id = parse_node_id(node)
             soup = soups[arrete_id]
             section_tag = soup.select_one(f"section.arretify-section[data-num='{article_id}']")
+            # TODO : gérer le cas où l'article n'existe pas (article ajouté?)
             if section_tag is None: 
                 raise ValueError(f"Section {article_id} not found in arrete {arrete_id}")
             articles_content_map[node] = str(section_tag)

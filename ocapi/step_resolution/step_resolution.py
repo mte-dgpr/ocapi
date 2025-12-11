@@ -8,9 +8,11 @@ def step_resolution(operations: list[Operation],
                      arrete_files: list[ArreteFile]) -> list[ArticlesContentMap]:
     operations_graph = build_graph(operations)
     initial_articles_content = build_initial_articles_content_map(operations_graph, arrete_files)
-    return apply_all_operations(
+    versions: list[ArticlesContentMap] = apply_all_operations(
         operations_graph, 
         arrete_files, 
         initial_articles_content
     )
+    return versions
     
+   

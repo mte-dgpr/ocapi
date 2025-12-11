@@ -1,11 +1,8 @@
 import unittest
-from unittest.mock import patch
-
-from ocapi.step_detection.step_detection import _OPERATION_ID_COUNTER, convert_raw_operation_to_operation
 
 from .build_op_graph import build_graph
 
-from ocapi.types import Operation, OperationType, NodeId, SubTarget, SubTargetType, RawOperation, RawOperationType
+from ocapi.types import Operation, OperationType, NodeId, SubTarget, SubTargetType
 
 
 
