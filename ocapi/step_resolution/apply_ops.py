@@ -74,6 +74,7 @@ def apply_add(operation: Operation, soup_input: BeautifulSoup) -> Content:
                 break
         return output
 
+# TODO : ajouter une entrée à verison pour chaque arreté. y compris si aps de modif. juste pas faire en double le premier. 
 
 def apply_subgraph_operations(subG: nx.MultiDiGraph, articles_content_map:ArticlesContentMap) -> ArticlesContentMap:
     output_content_map = articles_content_map.copy()
@@ -97,6 +98,7 @@ def apply_subgraph_operations(subG: nx.MultiDiGraph, articles_content_map:Articl
             output_content_map[tgt] = output
 
     return output_content_map
+
 
 def apply_all_operations(
         operations_graph: nx.MultiDiGraph, 

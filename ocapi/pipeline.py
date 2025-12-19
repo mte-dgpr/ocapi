@@ -1,3 +1,4 @@
+from typing import Iterator
 from xml.dom.minidom import Document
 from ocapi.constants import DEFAULT_LLM_MODEL
 from ocapi.step_chunking.step_chunking import step_chunking
@@ -23,6 +24,8 @@ def run_pipeline(arrete_files: list[ArreteFile], arrete_ids_included: set[Arrete
         )
 
     versions : list[ArticlesContentMap] = step_resolution(filtered_operations)
+    # ajouter à la sortie : le delta entre versions ? 
+    # modifier le type articlescontentmap pour que chaque le dict contienne nodeId, content, bool de si modifié ?
     permis = step_rendering(versions, arrete_files)
 
 

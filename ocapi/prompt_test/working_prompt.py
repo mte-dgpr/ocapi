@@ -1,4 +1,4 @@
-def prompt_detection(html: str) -> str:
+def working_prompt(html: str) -> str:
     return f"""
 Voici un extrait HTML d'arrêté préfectoral :
 \"\"\"{html}\"\"\"

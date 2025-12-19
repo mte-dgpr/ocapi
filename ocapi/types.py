@@ -37,9 +37,13 @@ class NodeId(BaseModel):
     @field_validator('article_id')
     @classmethod
     def validate_article_id_format(cls, v: str) -> str:
-        """Valide que l'article_id est au format numérique (ex: '1.2', '3.1.4')"""
+        """Valide que l'article_id est au format numérique (ex: '1.2', '3.1.4'), APPENDIX, ALL ou END"""
+        # Accepter les valeurs spéciales
+        if v in ("ALL", "END") or v.startswith("APPENDIX") or v.startswith("NEW_ARTICLE:"):
+            return v
+        # Sinon, vérifier le format numérique
         if not re.match(r'^\d+(\.\d+)*$', v):
-            raise ValueError(f"article_id doit être au format numérique (ex: '1.2', '3.1.4'), reçu: '{v}'")
+            raise ValueError(f"article_id doit être au format numérique (ex: '1.2', '3.1.4'), APPENDIX, ALL, END ou NEW_ARTICLE:X, reçu: '{v}'")
         return v
     
     def __str__(self) -> str:

@@ -31,11 +31,30 @@ def _find_marker(haystack: str, marker: str) -> int:
 
 def pick_arretify_section(html: str, source_article: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
-    # Chercher une section avec data-number correspondant
+
+    # Cas 1 : "APPENDIX" : retourner tout le footer appendix
+    if source_article == "APPENDIX":
+        footer = soup.find("footer", attrs={"data-spec": "appendix"})
+        if footer: return str(footer)
+        raise ValueError("No appendix footer found")
+    
+    # Cas 2 : "APPENDIX:X" ou "APPENDIX:X.Y.Z" → chercher dans le footer appendix
+    if source_article.startswith("APPENDIX:"):
+        appendix_number = source_article.split("APPENDIX:", 1)[1]
+        footer = soup.find("footer", attrs={"data-spec": "appendix"})
+        if footer: 
+            for section in footer.find_all("section", attrs={"data-spec": "section"}):
+                data_number = section.get("data-number")
+                if data_number == appendix_number:
+                    return str(section)
+            raise ValueError(f"No section with data-number={appendix_number} found in appendix")
+    
+    # Cas 3 : Article normal (ex: "2.1.3")
     for section in soup.find_all("section", attrs={"data-spec": "section"}):
         data_number = section.get("data-number")
-        if data_number and data_number == source_article:
+        if data_number == source_article:
             return str(section)
+    print("Section not found for source_article:", source_article)
     raise ValueError("No matching section found for the given source article.")
 
 
@@ -58,7 +77,7 @@ def extract_operand_with_images(
     end_marker: str,
     img_map: ImageMap
 ) -> str:
-
+    # garder working_html pour chercher les markers ? pourquoi on le change
     section = pick_arretify_section(block_html, source_article)
     working_html = section
     start_idx = _find_marker(working_html, start_marker)
@@ -73,8 +92,16 @@ def extract_operand_with_images(
         fragment = working_html[start_idx:end_idx+ len(end_marker)]
         fragment = _rehydrate_images(fragment, img_map)
         return fragment
-    else: 
-        raise ValueError("End marker not found in analysis HTML.")
+    else:
+        # Diagnostic détaillé
+        context_start = max(0, start_idx - 200)
+        context_end = min(len(working_html), start_idx + 500)
+        context = working_html[context_start:context_end]
+        raise ValueError(
+            f"End marker not found in analysis HTML.\n"
+            f"Looking for: {end_marker[:200]}\n"
+            f"Context around start marker (200 chars before, 500 after):\n{context}"
+        )
 
 
 

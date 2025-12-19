@@ -45,10 +45,12 @@ versions_exemple_1: list[ArticlesContentMap] = [
     },
     # Version 1: Resolution de l'APC 1
     {
+        {
         NodeId(arrete_id="AP-auto", article_id="1"): "<p>L'exploitant doit respecter les prescriptions générales.</p>",
         NodeId(arrete_id="AP-auto", article_id="2.1"): "<p>Les déchets doivent être triés à la source selon les catégories suivantes: plastique, verre, carton.</p>",
         NodeId(arrete_id="AP-auto", article_id="3.4"): "<p>Les bennes doivent être étanches.</p>",
         NodeId(arrete_id="AP-auto", article_id="8"): "",
+        }
     },
     
     # Version 2: Resolution de l'APC 2
