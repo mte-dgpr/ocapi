@@ -14,7 +14,7 @@ ABROGATION :
 {{
   "operation_type": "REMOVE",
   "source_article": "x.x.x" | null,
-  "target_arrete": "DD/MM/YYYY",
+  "target_arrete": "YYYY-MM-DD",
   "target_article": "ALL" | "x.x.x",
   "sub_target": "ALL" | str | null
 }}
@@ -23,7 +23,7 @@ MODIFICATION :
 {{
   "operation_type": "REPLACE",
   "source_article": "x.x.x" | null,
-  "target_arrete": "DD/MM/YYYY",
+  "target_arrete": "YYYY-MM-DD",
   "target_article": "x.x.x",
   "sub_target": str | null,
   "new_content_start_marker": "80-100 premiers token EXACTS du début",
@@ -34,7 +34,7 @@ AJOUT :
 {{
   "operation_type": "ADD",
   "source_article": "x.x.x" | null,
-  "target_arrete": "DD/MM/YYYY",
+  "target_arrete": "YYYY-MM-DD",
   "target_article": "END" | "NEW_ARTICLE:x.x.x" | "x.x.x",
   "sub_target": "END" | str | null,
   "new_content_start_marker": "80-100 premiers token EXACTS du début",
@@ -45,16 +45,16 @@ AUTRE :
 {{
   "operation_type": "AUTRE",
   "source_article": "x.x.x" | null,
-  "target_arrete": "DD/MM/YYYY",
+  "target_arrete": "YYYY-MM-DD",
   "target_article": "x.x.x" | null,
   "failure_message": "description brève de pourquoi l'operation n'a pu etre caracterisée"
 }}
 
 Notes CRITIQUES :
-- source_article : prendre le "data-number" de la section ou tu trouves l'opération
+- source_article : prendre EXACTEMENT le "data-number" de la section ou tu trouves l'opération
   * Le numéro d'article du TEXTE FOURNI contenant l'opération (ex: "2.1.3") 
-  * Si l'opération provient d'un article dans une ANNEXE (balise <footer data-spec="appendix">): utilise "APPENDIX:x.x" (avec "x.x" le data-num de la section dans l'annexe si existant)
-- target_arrete : date de l'arrêté MODIFIÉ (format DD/MM/YYYY)
+  * Si l'opération provient d'un article dans une ANNEXE (balise <footer data-spec="appendix">): ajoute le suffixe "APPENDIX:" (devant "x.x" le data-number exact de la section dans l'annexe si existant)
+- target_arrete : date de l'arrêté MODIFIÉ (format YYYY-MM-DD)
 - target_article : 
   * Article existant à compléter : "x.x.x" (ex: "9.2.1")
   * Nouvel article à créer : "NEW_ARTICLE:x.x.x"
@@ -65,10 +65,10 @@ Notes CRITIQUES :
   * "END" : ajouter à la FIN de l'article cible
   * Description précise : ex. "première phrase", "le tableau", "colonne N°1"
 - new_content_start_marker et new_content_end_marker : 
-  * Copier EXACTEMENT le contenu HTML/texte tel qu'il apparaît dans le document (80-100 premiers et derniers tokens)
+  * Copier EXACTEMENT le contenu HTML/texte tel qu'il apparaît dans le document (80-100 premiers et derniers tokens). Suffisamment long pour identifier précisément le contenu.
   * INCLURE les balises HTML (<table>, <th>, etc.) si présentes dans le nouveau contenu
   * EXCLURE le contexte introductif : "sont remplacées par", "comme suit", etc.
-  * Le contenu entre start_marker et end_marker doit être extractible tel quel pour insertion dans l'arrêté cible
+  * Le contenu entre start_marker et end_marker doit être extractible tel quel pour insertion dans l'arrêté cible. 
 - Liste vide [] si aucune opération
 
 RAPPEL : Un arrêté qui établit des règles n'est PAS une modification. Cherche "est modifié/abrogé/remplacé/ajouté".

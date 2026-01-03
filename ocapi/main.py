@@ -9,6 +9,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
+from ocapi.step_resolution.step_resolution import step_resolution
 from ocapi.pipeline import run_pipeline
 from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
@@ -29,15 +30,15 @@ def folder_to_list_of_ArreteFiles(folder_path: Path) -> list[ArreteFile]:
     html_files = sorted(folder_path.glob("*.html"))
     aiot = folder_path.name  # Utiliser le nom du dossier comme AIOT
 
-    for html_path in html_files:
-        arrete_file = arrete_to_ArreteFile(html_path)
+    for i, html_path in enumerate(html_files):
+        arrete_file = arrete_to_ArreteFile(i, html_path)
         arrete_file.aiot = aiot
         arrete_files.append(arrete_file)
     
     return arrete_files
 
 
-def arrete_to_ArreteFile(html_path: Path) -> ArreteFile:
+def arrete_to_ArreteFile(i:int, html_path: Path) -> ArreteFile:
     filename = html_path.stem 
     
     # Parser le nom : YYYY-MM-DD_Autresinfos.html
@@ -53,6 +54,7 @@ def arrete_to_ArreteFile(html_path: Path) -> ArreteFile:
     
     return ArreteFile(
         id=arrete_id,
+        ordered_index=i,
         aiot="",  
         filename=filename,
         soup=soup,
@@ -84,16 +86,6 @@ def temporary_main(input_dir: Path, output_dir: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
     operations_path = output_dir / "operations.json"
     
-    # # Vérifier si on a déjà des opérations en cache
-    # if operations_path.exists():
-    #     logger.info("📦 Chargement des opérations depuis le cache...\n")
-    #     with operations_path.open("r", encoding="utf-8") as f:
-    #         operations_dict = json.load(f)
-        
-    #     # Reconstruire les objets Operation depuis le JSON
-    #     operations = [Operation(**op_dict) for op_dict in operations_dict]
-    #     logger.info(f"✓ {len(operations)} opérations chargées depuis {operations_path}\n")
-    
     # else:
     # STEP 1: Chunking + Detection (avec appels API)
     print("=" * 60)
@@ -120,31 +112,51 @@ def temporary_main(input_dir: Path, output_dir: Path):
         json.dump(operations_dict, f, ensure_ascii=False, indent=2)
     print(f"💾 Opérations sauvegardées → {operations_path}\n")
 
-    # # STEP 2: Resolution
-    # print("=" * 60)
-    # print("STEP 3 : RESOLUTION")
-    # print("=" * 60)
-    
-    # versions: list[ArticlesContentMap] = step_resolution(operations)
-    # print(f"✓ {len(versions)} versions générées\n")
-    
-    # # Sauvegarder les versions
-    # versions_dir = output_dir / "versions"
-    # versions_dir.mkdir(parents=True, exist_ok=True)
-    # versions_path = versions_dir / "versions.json"
-    
-    # # Convertir NodeId en string pour JSON
-    # versions_serializable = []
-    # for version in versions:
-    #     version_dict = {str(node_id): content for node_id, content in version.items()}
-    #     versions_serializable.append(version_dict)
-    
-    # with versions_path.open("w", encoding="utf-8") as f:
-    #     json.dump(versions_serializable, f, ensure_ascii=False, indent=2)
-    # logger.info(f"💾 Versions sauvegardées → {versions_path}\n")
-    
-    # logger.info("✅ Pipeline terminé avec succès !")
 
+def temporary_main2(input_dir: Path, output_dir: Path):
+    """
+    Point d'entrée temporaire pour exécuter le pipeline OCAPI.
+    Exécute résolution seulement à partir des opérations sauvegardées.
+    """
+    print(f"📂 Dossier d'entrée : {input_dir}")
+    print(f"📂 Dossier de sortie : {output_dir}")
+    
+    operations_path = output_dir / "operations.json"
+    if not operations_path.exists():
+        print(f"❌ Fichier d'opérations introuvable : {operations_path}")
+        return
+    
+    print(f"Chargement des opérations depuis {operations_path}...")
+    arrete_files = folder_to_list_of_ArreteFiles(input_dir)
+    with operations_path.open("r", encoding="utf-8") as f:
+        operations_data = json.load(f)
+    
+    operations = [Operation.model_validate(op_data) for op_data in operations_data]
+    print(f"✓ {len(operations)} opérations chargées\n")
+    
+    print("=" * 60)
+    print("STEP 3 : RESOLUTION")
+    print("=" * 60)
+    
+    versions: list[dict] = step_resolution(operations, arrete_files)
+    print(f"✓ {len(versions)} versions générées\n")
+    
+    # Sauvegarder les versions
+    versions_dir = output_dir / "versions"
+    versions_dir.mkdir(parents=True, exist_ok=True)
+    versions_path = versions_dir / "versions.json"
+    
+    # Convertir NodeId en string pour JSON
+    versions_serializable = []
+    for version in versions:
+        version_dict = {str(node_id): content for node_id, content in version.items()}
+        versions_serializable.append(version_dict)
+    
+    with versions_path.open("w", encoding="utf-8") as f:
+        json.dump(versions_serializable, f, ensure_ascii=False, indent=2)
+    print(f"💾 Versions sauvegardées → {versions_path}\n")
+    
+    print("✅ Pipeline terminé avec succès !")
 
 def main(input_dir: Path, output_dir: Path):
     print(f"📂 Dossier d'entrée : {input_dir}")
@@ -162,7 +174,8 @@ def main(input_dir: Path, output_dir: Path):
 
 if __name__ == "__main__":
     PROJECT_ROOT = Path(__file__).parent.parent
-    input_dir = PROJECT_ROOT / "data" / "0005804239" / "arretes_html"
+    input_arretes_dir = PROJECT_ROOT / "data" / "0005804239" / "arretes_html"
+    
     output_dir = PROJECT_ROOT / "data" / "0005804239" / "ocapi_output"
-    temporary_main(input_dir, output_dir)
+    temporary_main2(input_arretes_dir, output_dir)
     

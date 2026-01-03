@@ -4,6 +4,8 @@ import unicodedata
 
 from bs4 import BeautifulSoup
 
+from ocapi.types import ArreteFile, ArreteId
+
 
 @dataclass
 class IdCounter:
@@ -34,3 +36,10 @@ def _assert_html_equal(minified_html1: str, minified_html2: str):
     soup1 = BeautifulSoup(minified_html1, 'html.parser')
     soup2 = BeautifulSoup(minified_html2, 'html.parser')
     assert soup1.prettify() == soup2.prettify()
+
+def from_arrete_id_to_ordered_index(arrete_id: ArreteId, list_arretes:list[ArreteFile]) -> int:
+    """Convertit une date au format 'YYYY-MM-DD' en un entier 'YYYYMMDD' pour le tri."""
+    for arrete in list_arretes:
+        if arrete.id == arrete_id:
+            return arrete.ordered_index
+    raise ValueError(f"ArreteId {arrete_id} not found in provided list.")

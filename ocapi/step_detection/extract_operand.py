@@ -3,10 +3,6 @@ Ce fichier contient la logique pour extraire le contenu (operand) d'une opérati
 à partir d'un bloc HTML analysé, en utilisant des marqueurs de début et de fin.
 """
 
-# TODO corriger l'article source lors de l'extraction de contenu.
-# TODO plus tard :des qu'un texte mais respecte pas les marker, a revoir.
-# TODO plus tard: modification des operations. (modif des titres etc)
-
 
 import re
 from typing import Optional, Dict
@@ -55,7 +51,7 @@ def pick_arretify_section(html: str, source_article: str) -> str:
         if data_number == source_article:
             return str(section)
     print("Section not found for source_article:", source_article)
-    raise ValueError("No matching section found for the given source article.")
+    return "ERROR_EXTRACTING_CONTENT"
 
 
 def _rehydrate_images(fragment_html: str, img_map: dict) -> str:
@@ -85,7 +81,7 @@ def extract_operand_with_images(
         working_html = block_html
         start_idx = _find_marker(working_html, start_marker)
         if start_idx == -1:
-            raise ValueError("Start marker not found in analysis HTML.")
+            return "ERROR_EXTRACTING_CONTENT"
 
     end_idx = _find_marker(working_html, end_marker)
     if end_idx != -1:
@@ -93,15 +89,7 @@ def extract_operand_with_images(
         fragment = _rehydrate_images(fragment, img_map)
         return fragment
     else:
-        # Diagnostic détaillé
-        context_start = max(0, start_idx - 200)
-        context_end = min(len(working_html), start_idx + 500)
-        context = working_html[context_start:context_end]
-        raise ValueError(
-            f"End marker not found in analysis HTML.\n"
-            f"Looking for: {end_marker[:200]}\n"
-            f"Context around start marker (200 chars before, 500 after):\n{context}"
-        )
+        return "ERROR_EXTRACTING_CONTENT"
 
 
 

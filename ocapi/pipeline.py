@@ -10,6 +10,7 @@ from ocapi.step_detection.step_detection import step_detection
 def run_pipeline(arrete_files: list[ArreteFile], arrete_ids_included: set[ArreteId])-> Permis:
     operations : list[Operation] = [] 
     modele = DEFAULT_LLM_MODEL
+    # TODO : valider le type arrete_id 
     for arrete_file in arrete_files:
         docs: list[Document]; img_map:ImageMap = step_chunking(arrete_file)
         operations.extend(step_detection(docs, arrete_file.id, modele, img_map))

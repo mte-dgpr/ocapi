@@ -4,7 +4,8 @@ from ocapi.step_resolution.build_op_graph import build_graph
 from ocapi.types import ArreteFile, Operation
 
 # TODO : liste version doit avoir un élément par AP. les APC doivent etre listés dans l'ordre chronologique. et versions c les articles cibles dans l'ordre chrono 
-
+# TODO : gérer les erreurs d'application des opérations (ex: article source non trouvé)
+# TODO : changer le type de versions, pour conserver juste les modifs par rapport à la version précédente (gain de place)
 
 def step_resolution(operations: list[Operation],
                      arrete_files: list[ArreteFile]) -> list[ArticlesContentMap]:

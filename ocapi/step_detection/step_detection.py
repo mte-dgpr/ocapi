@@ -2,8 +2,8 @@
 Ce step prend une liste de blocs HTML (Document) et leurs ArreteId correspondant et retourne une liste d'opérations détectées (Operation).
 Chaque opération est extraite en appelant un LLM avec un prompt spécifique.
 """
-# TODO modifier les opérations pour prendre en compte les changements de titre ou deplacement d'article.
-# TODO voir comment gérer l'arrete 2012 dans l'exemple cas d'école. 
+# TODO : Gérer les erreurs d'API et de parsing JSON. gérer les erreurs d'extraction/identification des articles.
+
 
 from ocapi.step_detection.prompts import prompt_detection
 from ocapi.step_detection.subtarget_detection import parse_subtarget

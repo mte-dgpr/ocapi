@@ -13,6 +13,7 @@ import networkx as nx
 from ocapi.types import ArreteFile, ArticlesContentMap, Content, Operation, NodeId, ArreteId, OperationType
 from ocapi.utils.llm_utils import call_llm_api, query_llm_for_subtarget
 from ocapi.step_detection.subtarget_detection import SubTarget, is_simple_subtarget, parse_subtarget, replace_subtarget
+from ocapi.utils.utils import from_arrete_id_to_ordered_index
 
 
 def _edge_to_operation(operations_graph: nx.MultiDiGraph, src: NodeId, tgt: NodeId, key: int) -> Operation:
@@ -125,7 +126,7 @@ def build_initial_articles_content_map(operations_graph: nx.MultiDiGraph, arrete
         if operations_graph.in_degree(node) != 0:
             arrete_id, article_id = node.arrete_id, node.article_id
             soup = soups[arrete_id]
-            section_tag = soup.select_one(f"section.arretify-section[data-num='{article_id}']")
+            section_tag = soup.select_one(f'section[data-spec="section"][data-number="{article_id}"]')
             # TODO : gérer le cas où l'article n'existe pas (article ajouté?)
             if section_tag is None: 
                 raise ValueError(f"Section {article_id} not found in arrete {arrete_id}")
