@@ -1,12 +1,11 @@
 import unittest
 from unittest import mock
 import networkx as nx
-from ocapi.step_resolution.apply_ops import build_subgraph, apply_subgraph_operations, apply_all_operations, build_initial_articles_content_map, apply_replace
+from ocapi.step_resolution.apply_ops import build_next_subgraph, apply_subgraph_operations, apply_all_ops
 from ocapi.step_resolution.build_op_graph import add_edge, add_node
-from ocapi.types import ArreteFile, ArticlesContentMap, NodeId, Operation, OperationType, SubTarget
+from ocapi.types import ArreteFile, NodeId, Operation, OperationType
 from bs4 import BeautifulSoup
 
-from ocapi.utils.utils import _assert_html_equal
 
 
 
@@ -23,7 +22,7 @@ class TestBuildSubgraph(unittest.TestCase):
         add_edge(G, Operation(id="op1", source_id=NodeId(arrete_id="arreteB", article_id="2"), target_id=NodeId(arrete_id="arreteA", article_id="1"), operation_type="REPLACE", operand="very new content"))
         add_edge(G, Operation(id="op2", source_id=NodeId(arrete_id="arreteB", article_id="3"), target_id=NodeId(arrete_id="arreteA", article_id="1"), operation_type="ADD", operand="additional content"))
         add_edge(G, Operation(id="op3", source_id=NodeId(arrete_id="arreteC", article_id="1"), target_id=NodeId(arrete_id="arreteA", article_id="1"), operation_type="REPLACE", operand="very new content"))
-        subG = build_subgraph(G, arrete_id="arreteB")
+        subG = build_next_subgraph(G, arrete_id="arreteB")
 
         assert set(subG.nodes) == {NodeId(arrete_id="arreteA", article_id="1"), NodeId(arrete_id="arreteB", article_id="2"), NodeId(arrete_id="arreteB", article_id="3")}
         assert set(subG.edges) == {(NodeId(arrete_id="arreteB", article_id="2"), NodeId(arrete_id="arreteA", article_id="1"), 0), (NodeId(arrete_id="arreteB", article_id="3"), NodeId(arrete_id="arreteA", article_id="1"), 0)}
@@ -44,12 +43,24 @@ class TestApplySubgraphOperations(unittest.TestCase):
         add_node(G, NodeId(arrete_id="arreteB", article_id="3"))
         add_edge(G, Operation(id="op1", source_id=NodeId(arrete_id="arreteB", article_id="2"), target_id=NodeId(arrete_id="arreteA", article_id="1"), operation_type="REPLACE", operand="very new content"))
         add_edge(G, Operation(id="op2", source_id=NodeId(arrete_id="arreteB", article_id="3"), target_id=NodeId(arrete_id="arreteA", article_id="2"), operation_type="ADD", operand="additional content"))
-        articles_content_map:ArticlesContentMap = {NodeId(arrete_id="arreteA", article_id="1"): "original content", NodeId(arrete_id="arreteA", article_id="2"): "original content 2"}
-        output_content_map = apply_subgraph_operations(G, articles_content_map)
-
-        assert output_content_map == {
-            NodeId(arrete_id="arreteA", article_id="1"): mock_replace.return_value,
-            NodeId(arrete_id="arreteA", article_id="2"): mock_add.return_value, 
+        initial_history = {
+            NodeId(arrete_id="arreteA", article_id="1"): [
+                {"version": 0, "content": "old content", "operation_id": None}
+            ],
+            NodeId(arrete_id="arreteA", article_id="2"): [
+                {"version": 0, "content": "old content 2", "operation_id": None}
+            ]
+        }
+        updated_history = apply_subgraph_operations(G, initial_history)
+        assert updated_history == {
+            NodeId(arrete_id="arreteA", article_id="1"): [
+                {"version": 0, "content": "old content", "operation_id": None},
+                {"version": 1, "content": "new content after replace", "operation_id": "op1"}
+            ],
+            NodeId(arrete_id="arreteA", article_id="2"): [
+                {"version": 0, "content": "old content 2", "operation_id": None},
+                {"version": 1, "content": "new content after add", "operation_id": "op2"}
+            ]
         }
 
 
@@ -78,7 +89,7 @@ class TestApplyOpsFunctions(unittest.TestCase):
         initial_articles_content_map = {NodeId(arrete_id="arreteA", article_id="1"): "old content",
                                         NodeId(arrete_id="arreteA", article_id="2"): "old content 2"
                                         }
-        versions = apply_all_operations(G, arrete_list, initial_articles_content_map)
+        versions = apply_all_ops(G, arrete_list, initial_articles_content_map)
         
         assert versions == [
             {
@@ -95,18 +106,3 @@ class TestApplyOpsFunctions(unittest.TestCase):
             }
         ]
     
-class TestBuildInitialArticlesContentMap(unittest.TestCase):
-    def test_build_initial_articles_content_map(self):
-
-        G = nx.MultiDiGraph()
-        add_node(G, NodeId(arrete_id="arreteA", article_id="1.2"))
-        add_node(G, NodeId(arrete_id="arreteB", article_id="1.3"))
-        add_edge(G, Operation(id="op1", source_id=NodeId(arrete_id="arreteB", article_id="1.3"), target_id=NodeId(arrete_id="arreteA", article_id="1.2"), operation_type="REPLACE", operand="very new content"))
-
-        arreteA = ArreteFile(id="arreteA", aiot="aiotA", filename="a.html", soup=BeautifulSoup('<section class="arretify-section" data-num="1.2">Content A1</section>', 'html.parser'),)
-        arreteB = ArreteFile(id="arreteB", aiot="aiotB", filename="b.html", soup=BeautifulSoup('<section class="arretify-section" data-num="1.3">Content B2</section>', 'html.parser'),)
-        articles_content_map = build_initial_articles_content_map(G, [arreteA, arreteB])
-
-        assert articles_content_map == {
-            NodeId(arrete_id="arreteA", article_id="1.2"): '<section class="arretify-section" data-num="1.2">Content A1</section>',
-        }

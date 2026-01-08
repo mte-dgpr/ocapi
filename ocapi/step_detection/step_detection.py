@@ -41,7 +41,7 @@ def convert_raw_operation_to_operation(block_html: str, raw_operation: RawOperat
         id=make_id(_OPERATION_ID_COUNTER),
         source_id=NodeId(
             arrete_id=source_arrete_id,
-            article_id=raw_operation.source_article,
+            article_id=raw_operation.source_article
         ),
         target_id=NodeId(
             arrete_id=raw_operation.target_arrete,

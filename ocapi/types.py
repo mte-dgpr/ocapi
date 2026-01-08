@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional, Literal
+from typing import Dict, Optional, Literal, TypedDict
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, model_serializer, field_validator
 import re
-
 
 OperationId = str
 ArreteId = str
@@ -13,23 +12,25 @@ Content = str | Literal["ERROR_EXTRACTING_CONTENT"]
 AiotId = str
 ImageMap = Dict[str, str]  # mapping token -> original src
 
-
-
-
-
-
 @dataclass
 class ArreteFile:
     """Représente un arrêté avec son ID et son contenu."""
     id: ArreteId
-    ordered_index: int
     aiot: AiotId
+    ordered_index: int  # 0 = arrêté principal, 1-n = arrêtés complémentaires
     filename: str
     soup: BeautifulSoup
-
+    status: bool = True  # si abrogé ou non
 
 class Permis(BaseModel):
-    pass
+    header: str
+    contenu: str
+    other: str
+    aiot: AiotId | None = None
+    
+    def to_html(self) -> str:
+        """Concatène le header, le contenu et other pour générer le HTML complet du permis."""
+        return f"<!DOCTYPE html>\n<html lang=\"fr\">\n{self.header}\n{self.contenu}\n{self.other}\n</html>"
 
 class NodeId(BaseModel):
     """Identifiant unique d'un nœud composé de l'ID de l'arrêté et de l'ID de l'article"""
@@ -37,6 +38,7 @@ class NodeId(BaseModel):
     
     arrete_id: ArreteId
     article_id: ArticleId
+    content: Content | None = None # contenu initial de l'article. 
     
     @field_validator('article_id')
     @classmethod
@@ -68,7 +70,12 @@ class NodeId(BaseModel):
     
     
 
-ArticlesContentMap = dict[NodeId, Content]  # mapping NodeId -> content str
+class ArticleVersion(TypedDict):
+    version: int
+    content: Content
+    operation_id: str | None
+
+ArticleHistory = Dict[NodeId, list[ArticleVersion]]
 
 class OperationType(Enum):
     ADD = "ADD"

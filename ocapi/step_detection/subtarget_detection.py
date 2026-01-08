@@ -77,7 +77,7 @@ def parse_subtarget(text: str) -> SubTarget:
     text_lower = text.lower().strip()
     
     # Cas spécial : "tout" ou variations
-    if re.match(r'contenu entier', text_lower):
+    if re.match(r'contenu entier', text_lower) or text_lower == "all":
         return SubTarget(type=SubTargetType.FULL_SECTION, description=text)
     
     # Tester les patterns simples d'abord

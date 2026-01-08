@@ -9,6 +9,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
+from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
 from ocapi.pipeline import run_pipeline
 from ocapi.step_chunking.step_chunking import step_chunking
@@ -17,8 +18,11 @@ from ocapi.types import ArreteFile, Operation
 from ocapi.constants import DEFAULT_LLM_MODEL
 
 
-
 # TODO : faire d'abord tous les appels LLM puis convertir en raw ops dans un second temps. comme ça on peut faire du batch et gérer les erreurs après.
+# TODO : enlever les blockquote au début. 
+# erreurs à gérer : appendice 2024. 
+# 6.7 à ajouter : mettre sans objet
+# parser END 
 
 
 def folder_to_list_of_ArreteFiles(folder_path: Path) -> list[ArreteFile]:
@@ -54,48 +58,51 @@ def arrete_to_ArreteFile(i:int, html_path: Path) -> ArreteFile:
     
     return ArreteFile(
         id=arrete_id,
-        ordered_index=i,
         aiot="",  
+        ordered_index=i,
         filename=filename,
         soup=soup,
     )
 
 
-def temporary_main(input_dir: Path, output_dir: Path):
+def main(input_dir: Path, output_dir: Path):
     """
-    Point d'entrée temporaire pour exécuter le pipeline OCAPI.
-    Exécute chunking + detection + resolution (sans rendering).
+    Exécute le pipeline OCAPI complet de bout en bout :
+    1. Chunking + Detection (avec sauvegarde des opérations)
+    2. Resolution (avec sauvegarde de l'historique)
+    3. Rendering (génération du permis consolidé)
     """
     print(f"📂 Dossier d'entrée : {input_dir}")
     print(f"📂 Dossier de sortie : {output_dir}")
+    
+    # Vérifier les fichiers HTML
     html_files = sorted(input_dir.glob("*.html"))
     if not html_files:
         print("❌ Aucun fichier HTML trouvé")
         return
     
     print(f"Chargement de {len(html_files)} fichiers HTML")
-    
     arrete_files = folder_to_list_of_ArreteFiles(input_dir)
     
-    print("\n🚀 Démarrage du pipeline...\n")
-
-    operations: list[Operation] = []
-    modele = DEFAULT_LLM_MODEL
-    
-    # # Chemin du cache des opérations
+    # Créer le dossier de sortie
     output_dir.mkdir(parents=True, exist_ok=True)
-    operations_path = output_dir / "operations.json"
     
-    # else:
-    # STEP 1: Chunking + Detection (avec appels API)
+    print("\n🚀 Démarrage du pipeline...\n")
+    
+    # ========================================
+    # STEP 1-2 : CHUNKING + DETECTION
+    # ========================================
     print("=" * 60)
     print("STEP 1-2 : CHUNKING + DETECTION")
     print("=" * 60)
     
+    operations: list[Operation] = []
+    modele = DEFAULT_LLM_MODEL
+    
     for i, arrete_file in enumerate(arrete_files):
         if i == 0:
             continue  # Skip first file (AP initial)
-        print(f"Traitement de l'arreté de {arrete_file.id}...")
+        print(f"Traitement de l'arrêté {arrete_file.id}...")
         docs, img_map = step_chunking(arrete_file)
         print(f"  → {len(docs)} documents chunkés")
         print(f"  → {len(img_map)} images mappées")
@@ -106,76 +113,56 @@ def temporary_main(input_dir: Path, output_dir: Path):
     
     print(f"\n✓ Total : {len(operations)} opérations\n")
     
-    # Sauvegarder les opérations pour la prochaine fois
+    # Sauvegarder les opérations
+    operations_path = output_dir / "operations.json"
     operations_dict = [op.model_dump() for op in operations]
     with operations_path.open("w", encoding="utf-8") as f:
         json.dump(operations_dict, f, ensure_ascii=False, indent=2)
     print(f"💾 Opérations sauvegardées → {operations_path}\n")
-
-
-def temporary_main2(input_dir: Path, output_dir: Path):
-    """
-    Point d'entrée temporaire pour exécuter le pipeline OCAPI.
-    Exécute résolution seulement à partir des opérations sauvegardées.
-    """
-    print(f"📂 Dossier d'entrée : {input_dir}")
-    print(f"📂 Dossier de sortie : {output_dir}")
     
-    operations_path = output_dir / "operations.json"
-    if not operations_path.exists():
-        print(f"❌ Fichier d'opérations introuvable : {operations_path}")
-        return
-    
-    print(f"Chargement des opérations depuis {operations_path}...")
-    arrete_files = folder_to_list_of_ArreteFiles(input_dir)
-    with operations_path.open("r", encoding="utf-8") as f:
-        operations_data = json.load(f)
-    
-    operations = [Operation.model_validate(op_data) for op_data in operations_data]
-    print(f"✓ {len(operations)} opérations chargées\n")
-    
+    # ========================================
+    # STEP 3 : RESOLUTION
+    # ========================================
     print("=" * 60)
     print("STEP 3 : RESOLUTION")
     print("=" * 60)
     
-    versions: list[dict] = step_resolution(operations, arrete_files)
-    print(f"✓ {len(versions)} versions générées\n")
+    history, arrete_files = step_resolution(operations, arrete_files)
+    print(f"✓ {len(history)} articles avec historique\n")
     
-    # Sauvegarder les versions
+    # Sauvegarder l'historique
     versions_dir = output_dir / "versions"
     versions_dir.mkdir(parents=True, exist_ok=True)
-    versions_path = versions_dir / "versions.json"
+    versions_path = versions_dir / "history.json"
     
-    # Convertir NodeId en string pour JSON
-    versions_serializable = []
-    for version in versions:
-        version_dict = {str(node_id): content for node_id, content in version.items()}
-        versions_serializable.append(version_dict)
+    # Convertir NodeId (tuple) en string pour JSON
+    history_serializable = {}
+    for (arrete_id, article_id), versions in history.items():
+        key = f"{arrete_id}:{article_id}"
+        history_serializable[key] = versions
     
     with versions_path.open("w", encoding="utf-8") as f:
-        json.dump(versions_serializable, f, ensure_ascii=False, indent=2)
-    print(f"💾 Versions sauvegardées → {versions_path}\n")
+        json.dump(history_serializable, f, ensure_ascii=False, indent=2)
+    print(f"💾 Historique sauvegardé → {versions_path}\n")
     
-    print("✅ Pipeline terminé avec succès !")
-
-def main(input_dir: Path, output_dir: Path):
-    print(f"📂 Dossier d'entrée : {input_dir}")
-    print(f"📂 Dossier de sortie : {output_dir}")
+    # ========================================
+    # STEP 4 : RENDERING
+    # ========================================
+    print("=" * 60)
+    print("STEP 4 : RENDERING")
+    print("=" * 60)
     
-    html_files = sorted(input_dir.glob("*.html"))
-    if not html_files:
-        print("❌ Aucun fichier HTML trouvé")
-        return
-    
-    print(f"Chargement de {len(html_files)} fichiers HTML")
-    arrete_files = folder_to_list_of_ArreteFiles(input_dir)
-    print("\n🚀 Démarrage du pipeline...\n")
-    run_pipeline(arrete_files, output_dir)
+    permis = step_rendering(history, operations, arrete_files)
+    permis_path = output_dir / "permis_consolidé.html"
+    with permis_path.open("w", encoding="utf-8") as f:
+        f.write(permis.to_html())
+    print(f"💾 Permis consolidé sauvegardé → {permis_path}")
+    print("\n✅ Pipeline terminé avec succès !")
 
 if __name__ == "__main__":
     PROJECT_ROOT = Path(__file__).parent.parent
     input_arretes_dir = PROJECT_ROOT / "data" / "0005804239" / "arretes_html"
-    
     output_dir = PROJECT_ROOT / "data" / "0005804239" / "ocapi_output"
-    temporary_main2(input_arretes_dir, output_dir)
+    
+    main(input_arretes_dir, output_dir)
     
