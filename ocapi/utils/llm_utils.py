@@ -2,10 +2,12 @@ import json
 import os
 import re
 from typing import Tuple
+from dotenv import load_dotenv
 import requests
 
 from ocapi.types import OperationType
 
+load_dotenv()
 
 def config_model_llm(modele: str) -> Tuple[str, str, str]:
     """
@@ -61,7 +63,8 @@ def call_llm_api(cfg, prompt: str) -> dict:
         }
 
     # Appel avec gestion des erreurs HTTP
-    r = requests.post(API_URL, headers=HEADERS, json=payload, timeout=(40, 120))
+    # Timeout augmenté : (connexion=60s, lecture=300s)
+    r = requests.post(API_URL, headers=HEADERS, json=payload, timeout=(60, 300))
     r.raise_for_status()
 
     # Extraction du contenu de la réponse du modèle

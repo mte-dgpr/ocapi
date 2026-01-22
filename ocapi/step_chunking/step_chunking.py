@@ -7,7 +7,7 @@ import math
 from typing import Iterator, Tuple
 from bs4 import BeautifulSoup, Tag
 
-from ocapi.types import ArreteFile, ImageMap
+from ocapi.types import ArreteFile, ArreteId, ImageMap
 from ocapi.utils.documents import ContentType, make_document_factory
 from langchain_core.documents import Document
 
@@ -19,9 +19,9 @@ _ARRETIFY_SECTION_SELECTOR = "*[data-spec=\"section\"]"
 
 
 def split_blocs(
-    minified_soup: BeautifulSoup, arrete_file: ArreteFile, target_per_block: int,
+    minified_soup: BeautifulSoup, arrete_id: ArreteId, target_per_block: int,
 ) -> Iterator[Document]:
-    document_factory = make_document_factory(ContentType.HTML, parent=arrete_file.id)    
+    document_factory = make_document_factory(ContentType.HTML, parent=arrete_id)    
 
     ignored_sections : list[Tag] = []
     selected_sections: list[Tag] = []
@@ -78,14 +78,16 @@ def step_chunking(
     minified, img_map = _extract_and_strip_images(minified)
     soup_without_images = BeautifulSoup(minified, "html.parser")
     
-    number_of_blocks = min(math.ceil(len(soup_without_images) / 70000), 5)
-    target_per_block = math.ceil(len(soup_without_images) / number_of_blocks)
+    # Calculer le nombre de blocs basé sur la taille en caractères
+    html_length = len(str(soup_without_images))
+    number_of_blocks = min(math.ceil(html_length / 70000), 5)
+    target_per_block = math.ceil(html_length / number_of_blocks)
 
     blocks = (
-        split_blocs(soup_without_images, target_per_block=target_per_block)
+        split_blocs(soup_without_images, arrete_file.id, target_per_block=target_per_block)
     )
 
-    return blocks, img_map
+    return list(blocks), img_map
 
 
 def _is_arretify_section(tag: Tag | str) -> bool:

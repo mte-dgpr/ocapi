@@ -5,3 +5,5 @@ Notes : autorisation, si dans le titre alors ok. Sinon, tjr prendre le plus vieu
 
 
 """
+# TODO : générer arrete_id (ordre chronologique?) à partir des arrete_files.
+

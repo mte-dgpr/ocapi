@@ -1,31 +1,36 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, Optional, Literal, TypedDict
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, model_serializer, field_validator
 import re
 
-
 OperationId = str
 ArreteId = str
 ArticleId = str
-Content = str
+Content = str | Literal["ERROR_EXTRACTING_CONTENT"]
 AiotId = str
 ImageMap = Dict[str, str]  # mapping token -> original src
-
-
 
 @dataclass
 class ArreteFile:
     """Représente un arrêté avec son ID et son contenu."""
     id: ArreteId
     aiot: AiotId
+    ordered_index: int  # 0 = arrêté principal, 1-n = arrêtés complémentaires
     filename: str
     soup: BeautifulSoup
-
+    status: bool = True  # si abrogé ou non
 
 class Permis(BaseModel):
-    pass
+    header: str
+    contenu: str
+    other: str
+    aiot: AiotId | None = None
+    
+    def to_html(self) -> str:
+        """Concatène le header, le contenu et other pour générer le HTML complet du permis."""
+        return f"<!DOCTYPE html>\n<html lang=\"fr\">\n{self.header}\n{self.contenu}\n{self.other}\n</html>"
 
 class NodeId(BaseModel):
     """Identifiant unique d'un nœud composé de l'ID de l'arrêté et de l'ID de l'article"""
@@ -33,13 +38,28 @@ class NodeId(BaseModel):
     
     arrete_id: ArreteId
     article_id: ArticleId
+    content: Content | None = None # contenu initial de l'article. 
     
     @field_validator('article_id')
     @classmethod
     def validate_article_id_format(cls, v: str) -> str:
-        """Valide que l'article_id est au format numérique (ex: '1.2', '3.1.4')"""
+        """Valide que l'article_id est au format numérique (ex: '1.2', '3.1.4'), APPENDIX, ALL ou END"""
+        # Accepter les valeurs spéciales
+        if v in ("ALL", "END") or v.startswith("APPENDIX") or v.startswith("NEW_ARTICLE:"):
+            return v
+        # Sinon, vérifier le format numérique
         if not re.match(r'^\d+(\.\d+)*$', v):
-            raise ValueError(f"article_id doit être au format numérique (ex: '1.2', '3.1.4'), reçu: '{v}'")
+            raise ValueError(f"article_id doit être au format numérique (ex: '1.2', '3.1.4'), APPENDIX, ALL, END ou NEW_ARTICLE:X, reçu: '{v}'")
+        return v
+    
+    @field_validator('arrete_id')
+    @classmethod
+    def validate_arrete_id_format(cls, v: str) -> str:
+        """Valide que l'arrete_id est au format YYYY-MM-DD"""
+        parts = v.split('-')
+        year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+        if not (1 <= day <= 31 and 1 <= month <= 12):
+            raise ValueError(f"Date invalide dans arrete_id: '{v}'")
         return v
     
     def __str__(self) -> str:
@@ -47,8 +67,15 @@ class NodeId(BaseModel):
     
     def __hash__(self) -> int:
         return hash((self.arrete_id, self.article_id))
+    
+    
 
-ArticlesContentMap = dict[NodeId, Content]  # mapping NodeId -> content str
+class ArticleVersion(TypedDict):
+    version: int
+    content: Content
+    operation_id: str | None
+
+ArticleHistory = Dict[NodeId, list[ArticleVersion]]
 
 class OperationType(Enum):
     ADD = "ADD"
@@ -103,7 +130,7 @@ class Operation(_BaseModelWithConfig):
     source_id: NodeId
     target_id: NodeId
     operation_type: OperationType
-    operand: str | None = None
+    operand: Content | None = None
     sub_target: SubTarget | None = None
 
 

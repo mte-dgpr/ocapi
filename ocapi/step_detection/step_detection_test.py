@@ -14,7 +14,7 @@ class TestConvertOperationsRawToOperations(unittest.TestCase):
     def test_simple(self, mock_parse_subtarget, mock_extract_operand_with_images):
         # Configurer les mocks
         mock_extract_operand_with_images.return_value = "<mocked>operand content</mocked>"
-        mock_parse_subtarget.return_value = SubTarget(type=SubTargetType.TABLEAU, position=1)
+        mock_parse_subtarget.return_value = SubTarget(type=SubTargetType.TABLEAU, position=1, description="le tableau")
         
         block_html = "<section>Test content</section>"
         source_arrete_id = "AP001"
@@ -47,11 +47,11 @@ class TestConvertOperationsRawToOperations(unittest.TestCase):
         assert op1.source_id == NodeId(arrete_id="AP001", article_id="1")
         assert op1.target_id == NodeId(arrete_id="AP002", article_id="2")
         assert op1.operation_type == "REPLACE"  # Comparaison avec string car use_enum_values=True
-    assert op1.sub_target.type == "TABLEAU"
-        # Vérifier que extract_operand_with_images a été appelé
-        mock_extract_operand_with_images.assert_called_once()
-        mock_parse_subtarget.assert_called_once_with("le tableau")
-
+        assert op1.sub_target.type == "TABLEAU"
+        assert op1.sub_target.description == "le tableau"
+        assert op1.operand == "<mocked>operand content</mocked>"
+        assert op1.id == "1"
+    
         op2 = operations[1]
         assert op2.source_id == NodeId(arrete_id="AP001", article_id="2")
         assert op2.target_id == NodeId(arrete_id="AP002", article_id="3")

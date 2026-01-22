@@ -1,4 +1,4 @@
-def prompt_detection(html: str) -> str:
+def working_prompt(html: str) -> str:
     return f"""
 Voici un extrait HTML d'arrêté préfectoral :
 \"\"\"{html}\"\"\"
@@ -51,9 +51,9 @@ AUTRE :
 }}
 
 Notes CRITIQUES :
-- source_article : prendre EXACTEMENT le "data-number" de la section ou tu trouves l'opération
+- source_article : prendre le "data-number" de la section ou tu trouves l'opération
   * Le numéro d'article du TEXTE FOURNI contenant l'opération (ex: "2.1.3") 
-  * Si l'opération provient d'un article dans une ANNEXE (balise <footer data-spec="appendix">): ajoute le suffixe "APPENDIX:" (devant "x.x" le data-number exact de la section dans l'annexe si existant)
+  * Si l'opération provient d'un article dans une ANNEXE (balise <footer data-spec="appendix">): utilise "APPENDIX:x.x" (avec "x.x" le data-num de la section dans l'annexe si existant)
 - target_arrete : date de l'arrêté MODIFIÉ (format YYYY-MM-DD)
 - target_article : 
   * Article existant à compléter : "x.x.x" (ex: "9.2.1")
