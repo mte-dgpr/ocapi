@@ -1,5 +1,5 @@
 import unittest
-from llm_utils import parse_llm_json_list_response
+from ocapi.utils.llm_utils import parse_llm_json_list_response
 
 class TestLLMUtils(unittest.TestCase):
     def test_parse_ops_llm_response_valid(self):
