@@ -1,9 +1,10 @@
 import unittest
 from ocapi.utils.llm_utils import parse_llm_json_list_response
 
+
 class TestLLMUtils(unittest.TestCase):
     def test_parse_ops_llm_response_valid(self):
-        raw_response = '''
+        raw_response = """
         [
             {
                 "modification_type": "REPLACE",
@@ -29,7 +30,7 @@ class TestLLMUtils(unittest.TestCase):
             }
         ]
         Merci.
-        '''
+        """
         expected_output = [
             {
                 "modification_type": "REPLACE",
@@ -39,8 +40,8 @@ class TestLLMUtils(unittest.TestCase):
                 "target_in_article": "le paragraphe concernant les horaires",
                 "new_content_ref": {
                     "start_marker": "Le nouveau texte commence ici...",
-                    "end_marker": "...et se termine ici."
-                }
+                    "end_marker": "...et se termine ici.",
+                },
             },
             {
                 "modification_type": "ADD",
@@ -50,15 +51,15 @@ class TestLLMUtils(unittest.TestCase):
                 "target_in_article": "à la fin de l'article 4.1",
                 "new_content_ref": {
                     "start_marker": "Le texte ajouté commence ici...",
-                    "end_marker": "...et se termine ici."
-                }
-            }
+                    "end_marker": "...et se termine ici.",
+                },
+            },
         ]
         result = parse_llm_json_list_response(raw_response)
         assert result == expected_output
 
     def test_parse_ops_llm_response_no_json(self):
-        raw_response = 'Aucune opération détectée.'
+        raw_response = "Aucune opération détectée."
         expected_output = []
         result = parse_llm_json_list_response(raw_response)
         assert result == expected_output

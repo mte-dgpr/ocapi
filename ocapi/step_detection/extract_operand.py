@@ -16,6 +16,7 @@ import html
 
 ImageMap = Dict[str, str]  # mapping from placeholder src to real src
 
+
 def _find_marker(haystack: str, marker: str) -> int:
     """ """
     if not marker:
@@ -49,14 +50,12 @@ def _rehydrate_images(fragment_html: str, img_map: dict) -> str:
             img["src"] = img_map[src]
     return str(soup)
 
+
 # TODO : insérer un fallback llm si pas trouvé
 
+
 def extract_operand_with_images(
-    block_html: str,
-    source_article: str,
-    start_marker: str,
-    end_marker: str,
-    img_map: ImageMap
+    block_html: str, source_article: str, start_marker: str, end_marker: str, img_map: ImageMap
 ) -> str:
 
     section = pick_arretify_section(block_html, source_article)
@@ -70,11 +69,8 @@ def extract_operand_with_images(
 
     end_idx = _find_marker(working_html, end_marker)
     if end_idx != -1:
-        fragment = working_html[start_idx:end_idx+ len(end_marker)]
+        fragment = working_html[start_idx : end_idx + len(end_marker)]
         fragment = _rehydrate_images(fragment, img_map)
         return fragment
-    else: 
+    else:
         raise ValueError("End marker not found in analysis HTML.")
-
-
-

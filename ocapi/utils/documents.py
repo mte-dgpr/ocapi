@@ -64,9 +64,7 @@ def make_document_factory(
         document_id = _id_generator()
 
         if metadata and metadata.get("parent"):
-            raise ValueError(
-                "Document shouldnt already have a parent"
-            )
+            raise ValueError("Document shouldnt already have a parent")
 
         return Document(
             id=document_id,
@@ -84,6 +82,7 @@ def make_document_factory(
         )
 
     return _document_factory
+
 
 def _id_generator():
     return str(uuid4())

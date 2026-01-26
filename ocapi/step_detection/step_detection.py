@@ -2,6 +2,7 @@
 Ce step prend une liste de blocs HTML (Document) et leurs ArreteId correspondant et retourne une liste d'opérations détectées (Operation).
 Chaque opération est extraite en appelant un LLM avec un prompt spécifique.
 """
+
 # TODO modifier les opérations pour prendre en compte les changements de titre ou deplacement d'article.
 
 from ocapi.step_detection.prompts import prompt2
@@ -14,7 +15,10 @@ from langchain_core.documents import Document
 
 _OPERATION_ID_COUNTER = IdCounter()
 
-def step_detection(html_blocks: list[Document], arrete_id: ArreteId, modele: str, img_map: ImageMap) -> list[Operation]:
+
+def step_detection(
+    html_blocks: list[Document], arrete_id: ArreteId, modele: str, img_map: ImageMap
+) -> list[Operation]:
     all_ops = []
     cfg = config_model_llm(modele)
     for block_html in html_blocks:
@@ -22,19 +26,28 @@ def step_detection(html_blocks: list[Document], arrete_id: ArreteId, modele: str
         raw_list = parse_llm_json_list_response(raw)
         raw_operations = [RawOperation(element) for element in raw_list]
         all_ops.extend(
-            convert_raw_operation_to_operation(block_html, raw_op, arrete_id, img_map) for raw_op in raw_operations
+            convert_raw_operation_to_operation(block_html, raw_op, arrete_id, img_map)
+            for raw_op in raw_operations
         )
     return all_ops
 
 
-def convert_raw_operation_to_operation(block_html: str, raw_operation: RawOperation, source_arrete_id: ArreteId, img_map: ImageMap) -> Operation:
-    operand = None 
+def convert_raw_operation_to_operation(
+    block_html: str, raw_operation: RawOperation, source_arrete_id: ArreteId, img_map: ImageMap
+) -> Operation:
+    operand = None
     if raw_operation.new_content_start_marker:
-        operand=extract_operand_with_images(block_html, raw_operation.source_article, raw_operation.new_content_start_marker, raw_operation.new_content_end_marker, img_map)
-    sub_target = None 
+        operand = extract_operand_with_images(
+            block_html,
+            raw_operation.source_article,
+            raw_operation.new_content_start_marker,
+            raw_operation.new_content_end_marker,
+            img_map,
+        )
+    sub_target = None
     if raw_operation.sub_target:
-        sub_target=parse_subtarget(raw_operation.sub_target)
-    
+        sub_target = parse_subtarget(raw_operation.sub_target)
+
     return Operation(
         id=make_id(_OPERATION_ID_COUNTER),
         source_id=NodeId(

@@ -14,6 +14,7 @@ def make_id(counter: IdCounter) -> str:
     counter.value += 1
     return str(counter.value)
 
+
 def minify_html_fragment(html: str) -> str:
     """
     Minification légère et normalisation Unicode pour un fragment HTML.
@@ -29,8 +30,9 @@ def minify_html_fragment(html: str) -> str:
     s = re.sub(r"\s{2,}", " ", s)
     return s.strip()
 
+
 def _assert_html_equal(minified_html1: str, minified_html2: str):
     """Compare deux HTML en normalisant les espaces blancs"""
-    soup1 = BeautifulSoup(minified_html1, 'html.parser')
-    soup2 = BeautifulSoup(minified_html2, 'html.parser')
+    soup1 = BeautifulSoup(minified_html1, "html.parser")
+    soup2 = BeautifulSoup(minified_html2, "html.parser")
     assert soup1.prettify() == soup2.prettify()

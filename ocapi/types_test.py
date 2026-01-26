@@ -17,10 +17,9 @@ class TestBaseModelWithConfig(unittest.TestCase):
         serialized_default = model.model_dump()
         assert "b" in serialized_default  # Par défaut, None est inclus
         assert serialized_default["b"] is None
-        
+
         # Mais quand on utilise exclude_none explicitement
         serialized_no_none = model.model_dump(exclude_none=True)
         assert "b" not in serialized_no_none
         assert "c" in serialized_no_none
         assert serialized_no_none["c"] == 3.14
-

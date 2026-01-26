@@ -1,5 +1,6 @@
 FULL_SECTION = "contenu entier"
 
+
 def prompt(analysis_html: str) -> str:
     return f"""
 Voici un extrait de texte juridique (article ou extrait d'un arrêté préfectoral format HTML) :
@@ -31,6 +32,7 @@ Pour chaque opération que tu trouves, retourne donc un objet avec les clés:
 Les markers DOIVENT correspondre exactement au HTML-LITE fourni. Réponds UNIQUEMENT avec une liste d'éléments JSON.
 Pas d'explications, pas d'interprétation. Si tu n'en trouves pas (ce qui est possible), envoie une liste vide.
 """
+
 
 # TODO : rajouter A-x.x pour article x.x dans annexes?
 def prompt2(analysis_html: str) -> str:

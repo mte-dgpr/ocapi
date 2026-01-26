@@ -1,54 +1,53 @@
 """
-Ce step prend une liste d'arretes (ArreteFile) et retourne une liste de documents chunkés (Document) et une map des images.
-Chaque document correspond à un bloc d'articles extrait de l'arrêté, avec une taille cible définie pour chaque bloc.
+Découpe un arrêté (`ArreteFile`) en blocs de documents (Document) et retourne la map des images.
+Chaque document correspond à un bloc HTML de taille cible.
 """
 
 import math
 from typing import Iterator, Tuple
+
 from bs4 import BeautifulSoup, Tag
+from langchain_core.documents import Document
 
 from ocapi.types import ArreteFile, ImageMap
 from ocapi.utils.documents import ContentType, make_document_factory
-from langchain_core.documents import Document
-
 from ocapi.utils.utils import minify_html_fragment
 
 
-_ARRETIFY_SECTION_SELECTOR = "*[data-spec=\"section\"]"
-
+_ARRETIFY_SECTION_SELECTOR = '*[data-spec="section"]'
 
 
 def split_blocs(
-    minified_soup: BeautifulSoup, arrete_file: ArreteFile, target_per_block: int,
+    minified_soup: BeautifulSoup, arrete_file: ArreteFile, target_per_block: int
 ) -> Iterator[Document]:
-    document_factory = make_document_factory(ContentType.HTML, parent=arrete_file.id)    
+    document_factory = make_document_factory(ContentType.HTML, parent=arrete_file.id)
 
-    ignored_sections : list[Tag] = []
+    ignored_sections: list[Tag] = []
     selected_sections: list[Tag] = []
 
     for section in minified_soup.select(_ARRETIFY_SECTION_SELECTOR):
         if section in ignored_sections:
             continue
-        if all((_is_arretify_section(child) or _is_arretify_section_title(child)) for child in section.contents):
+        if all(
+            (_is_arretify_section(child) or _is_arretify_section_title(child))
+            for child in section.contents
+        ):
             continue
-        
-        # Utiliser .select() au lieu de .find_all() pour les sélecteurs CSS
-        child_sections = section.select(_ARRETIFY_SECTION_SELECTOR)
-        if len(child_sections) == 0:
-            selected_sections.append(section)
-        else:
-            selected_sections.append(section)
-            ignored_sections.extend(section.select(_ARRETIFY_SECTION_SELECTOR))
 
-    current_block: list[str]=[]
-    current_size=0
+        child_sections = section.select(_ARRETIFY_SECTION_SELECTOR)
+        selected_sections.append(section)
+        if child_sections:
+            ignored_sections.extend(child_sections)
+
+    current_block: list[str] = []
+    current_size = 0
     while selected_sections:
         current_block.append(str(selected_sections.pop(0)))
-        current_size+=len(current_block[-1])
+        current_size += len(current_block[-1])
         if current_size >= target_per_block:
             yield document_factory("".join(current_block))
-            current_block=[]
-            current_size=0
+            current_block = []
+            current_size = 0
     if current_block:
         yield document_factory("".join(current_block))
 
@@ -70,19 +69,20 @@ def _extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
     return str(soup), img_map
 
 
-def step_chunking(
-    arrete_file : ArreteFile,
-)-> Tuple[list[Document], ImageMap]:
-
+def step_chunking(arrete_file: ArreteFile) -> Tuple[list[Document], ImageMap]:
     minified = minify_html_fragment(str(arrete_file.soup))
     minified, img_map = _extract_and_strip_images(minified)
     soup_without_images = BeautifulSoup(minified, "html.parser")
-    
+
     number_of_blocks = min(math.ceil(len(soup_without_images) / 70000), 5)
     target_per_block = math.ceil(len(soup_without_images) / number_of_blocks)
 
-    blocks = (
-        split_blocs(soup_without_images, target_per_block=target_per_block)
+    blocks = list(
+        split_blocs(
+            soup_without_images,
+            arrete_file=arrete_file,
+            target_per_block=target_per_block,
+        )
     )
 
     return blocks, img_map

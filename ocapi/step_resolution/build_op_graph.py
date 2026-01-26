@@ -4,14 +4,17 @@ Ce fichier contient des fonctions pour construire un graphe orienté des opérat
 Chaque nœud du graphe représente un article d'arrêté, et chaque arête représente une opération
 entre deux articles.
 """
+
 # TODO: gérer les dépendances parents-enfant dans le graphe (articles imbriqués)
 
 import networkx as nx
 from ocapi.types import NodeId, Operation
 
+
 def add_node(G: nx.MultiDiGraph, node_id: NodeId):
     if not G.has_node(node_id):
         G.add_node(node_id)
+
 
 def add_edge(G: nx.MultiDiGraph, operation: Operation):
     edge_data = operation.model_dump(exclude={"source_id", "target_id"}, exclude_none=True)
@@ -25,4 +28,3 @@ def build_graph(ops: list[Operation]) -> nx.MultiDiGraph:
         add_node(G, op.target_id)
         add_edge(G, op)
     return G
-

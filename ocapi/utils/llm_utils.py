@@ -1,7 +1,9 @@
 import json
 import os
 import re
+import textwrap
 from typing import Tuple
+
 import requests
 
 from ocapi.types import OperationType
@@ -92,43 +94,49 @@ def query_llm_for_subtarget(typemodif: OperationType, target_content: str, sub_t
     Retourne un dictionnaire avec les informations du sub-target.
     (REPLACE)
     """
-    prompt_REPLACE = f"""
-    Vous êtes un assistant spécialisé dans l'analyse juridique. Dans le texte suivant : 
-    
-    {target_content}
-    
-    Supprime le contenu décrit de la manière suivante : 
-    
-    {sub_target}
-    
-    et remplace le par le placeholder <NEWCONTENT>.
-    """
+    prompt_REPLACE = textwrap.dedent(
+        f"""
+        Vous êtes un assistant spécialisé dans l'analyse juridique. Dans le texte suivant :
 
-    prompt_ADD = f"""
-    Vous êtes un assistant spécialisé dans l'analyse juridique. Dans le texte suivant : 
-    
-    {target_content}
-    
-    A l'endroit décrit de la manière suivante : 
-    
-    {sub_target}
-    
-    insère le placeholder <NEWCONTENT>.
-    """
+        {target_content}
 
-    prompt_REMOVE = f"""
-    Vous êtes un assistant spécialisé dans l'analyse juridique. Dans le texte suivant : 
-    
-    {target_content}
-    
-    Supprime le segment décrit de la manière suivante : 
-    
-    {sub_target}
-    """
+        Supprime le contenu décrit de la manière suivante :
+
+        {sub_target}
+
+        et remplace le par le placeholder <NEWCONTENT>.
+        """
+    ).strip()
+
+    prompt_ADD = textwrap.dedent(
+        f"""
+        Vous êtes un assistant spécialisé dans l'analyse juridique. Dans le texte suivant :
+
+        {target_content}
+
+        A l'endroit décrit de la manière suivante :
+
+        {sub_target}
+
+        insère le placeholder <NEWCONTENT>.
+        """
+    ).strip()
+
+    prompt_REMOVE = textwrap.dedent(
+        f"""
+        Vous êtes un assistant spécialisé dans l'analyse juridique. Dans le texte suivant :
+
+        {target_content}
+
+        Supprime le segment décrit de la manière suivante :
+
+        {sub_target}
+        """
+    ).strip()
 
     if typemodif == OperationType.REPLACE:
-       return prompt_REPLACE
+        return prompt_REPLACE
     elif typemodif == OperationType.ADD:
-       return prompt_ADD
+        return prompt_ADD
     elif typemodif == OperationType.REMOVE:
-       return prompt_REMOVE
+        return prompt_REMOVE
