@@ -6,11 +6,10 @@ MYPY ?= $(PYTHON) -m mypy
 .PHONY: lint typecheck test
 
 lint:
-\t$(FLAKE8) ocapi
+	$(FLAKE8) ocapi
 
 typecheck:
-\t$(MYPY) .
+	$(MYPY) .
 
 test:
-\t$(PYTEST)
-
+	$(PYTEST)
