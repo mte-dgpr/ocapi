@@ -3,9 +3,9 @@ TODO : remplacer tout ce fichier par PY - arrete_utils quand la librairie sera p
 """
 
 import re
-from enum import Enum
 from dataclasses import dataclass
-from typing import Callable, TypedDict
+from enum import Enum
+from typing import Any, Callable, TypedDict
 from uuid import uuid4
 
 from langchain_core.documents import Document
@@ -19,7 +19,7 @@ class FieldsImport:
     Format code déchet CED : 12 34 56
     """
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not re.match(
             r"^\d\d \d\d \d\d$",
             self.champ_14_code_dechet,
@@ -42,22 +42,22 @@ IndexId = str
 DocumentId = str
 
 
-class DocumentMetadata(TypedDict):
+class DocumentMetadata(TypedDict, total=False):
     parent: str
     index_id: IndexId | None
     chunk_index: int
-    content_type: ContentType
+    content_type: str
 
 
 def make_document_factory(
     content_type: ContentType,
     parent: DocumentId | None = None,
-) -> Callable[[str, dict | None], Document]:
+) -> Callable[[str, dict[str, Any] | None], Document]:
     chunk_index_counter = -1
 
     def _document_factory(
         page_content: str,
-        metadata: dict | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Document:
         nonlocal chunk_index_counter
         chunk_index_counter += 1
@@ -66,23 +66,21 @@ def make_document_factory(
         if metadata and metadata.get("parent"):
             raise ValueError("Document shouldnt already have a parent")
 
-        return Document(
-            id=document_id,
-            page_content=page_content,
-            metadata=DocumentMetadata(
-                # Add the document ID to the metadata
-                # so that when using langchain text splitters
-                # it will be added to the metadata of each chunk.
-                parent=parent or document_id,
-                index_id=None,
-                chunk_index=chunk_index_counter,
-                content_type=content_type.value,
-                **(metadata or {}),
-            ),
-        )
+        base_metadata: DocumentMetadata = {
+            # Add the document ID to the metadata
+            # so that when using langchain text splitters
+            # it will be added to the metadata of each chunk.
+            "parent": parent or document_id,
+            "index_id": None,
+            "chunk_index": chunk_index_counter,
+            "content_type": content_type.value,
+        }
+        merged_metadata: dict[str, Any] = {**base_metadata, **(metadata or {})}
+
+        return Document(id=document_id, page_content=page_content, metadata=merged_metadata)
 
     return _document_factory
 
 
-def _id_generator():
+def _id_generator() -> str:
     return str(uuid4())

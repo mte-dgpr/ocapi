@@ -1,9 +1,10 @@
 import unittest
+
 from ocapi.utils.llm_utils import parse_llm_json_list_response
 
 
 class TestLLMUtils(unittest.TestCase):
-    def test_parse_ops_llm_response_valid(self):
+    def test_parse_ops_llm_response_valid(self) -> None:
         raw_response = """
         [
             {
@@ -31,7 +32,7 @@ class TestLLMUtils(unittest.TestCase):
         ]
         Merci.
         """
-        expected_output = [
+        expected_output: list[dict[str, object]] = [
             {
                 "modification_type": "REPLACE",
                 "source_article": "2.1.3",
@@ -58,8 +59,8 @@ class TestLLMUtils(unittest.TestCase):
         result = parse_llm_json_list_response(raw_response)
         assert result == expected_output
 
-    def test_parse_ops_llm_response_no_json(self):
+    def test_parse_ops_llm_response_no_json(self) -> None:
         raw_response = "Aucune opération détectée."
-        expected_output = []
+        expected_output: list[dict[str, object]] = []
         result = parse_llm_json_list_response(raw_response)
         assert result == expected_output

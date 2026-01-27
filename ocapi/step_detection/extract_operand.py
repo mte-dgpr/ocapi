@@ -8,13 +8,12 @@ Ce fichier contient la logique pour extraire le contenu (operand) d'une opérati
 # TODO plus tard: modification des operations. (modif des titres etc)
 
 
+import html
 import re
-from typing import Optional, Dict
 
 from bs4 import BeautifulSoup
-import html
 
-ImageMap = Dict[str, str]  # mapping from placeholder src to real src
+ImageMap = dict[str, str]  # mapping from placeholder src to real src
 
 
 def _find_marker(haystack: str, marker: str) -> int:
@@ -40,12 +39,13 @@ def pick_arretify_section(html: str, source_article: str) -> str:
     raise ValueError("No matching section found for the given source article.")
 
 
-def _rehydrate_images(fragment_html: str, img_map: dict) -> str:
+def _rehydrate_images(fragment_html: str, img_map: dict[str, str]) -> str:
     if not img_map:
         return fragment_html
     soup = BeautifulSoup(fragment_html, "html.parser")
     for img in soup.find_all("img"):
-        src = img.get("src")
+        src_attr = img.get("src")
+        src = str(src_attr) if src_attr is not None else None
         if src and src in img_map:
             img["src"] = img_map[src]
     return str(soup)

@@ -2,14 +2,14 @@ import json
 import os
 import re
 import textwrap
-from typing import Tuple
+from typing import Any, Tuple
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 from ocapi.types import OperationType
 
 
-def config_model_llm(modele: str) -> Tuple[str, str, str]:
+def config_model_llm(modele: str) -> Tuple[str, str | None, str]:
     """
     Retourne (MODEL_NAME, API_KEY, API_URL) selon le nom logique du modèle.
     """
@@ -32,7 +32,7 @@ def config_model_llm(modele: str) -> Tuple[str, str, str]:
     )
 
 
-def call_llm_api(cfg, prompt: str) -> dict:
+def call_llm_api(cfg: Tuple[str, str | None, str], prompt: str) -> str:
     """
     Appelle le modèle LLM avec le prompt donné et retourne la réponse au format JSON.
     cfg : tuple (MODEL_NAME, API_KEY, API_URL)
@@ -67,13 +67,13 @@ def call_llm_api(cfg, prompt: str) -> dict:
     r.raise_for_status()
 
     # Extraction du contenu de la réponse du modèle
-    data = r.json()
-    raw = data["choices"][0]["message"]["content"]
+    data: Any = r.json()
+    raw = str(data["choices"][0]["message"]["content"])
 
     return raw
 
 
-def parse_llm_json_list_response(raw: str) -> list:
+def parse_llm_json_list_response(raw: str) -> list[dict[str, Any]]:
     """
     Parse la réponse brute du LLM pour extraire une liste au format JSON
     """
@@ -83,16 +83,16 @@ def parse_llm_json_list_response(raw: str) -> list:
         return []
 
     # Parser le tableau JSON
-    lst = json.loads(m.group())
+    lst: Any = json.loads(m.group())
     # S'assurer qu'on renvoie bien une liste
     return lst if isinstance(lst, list) else []
 
 
-def query_llm_for_subtarget(typemodif: OperationType, target_content: str, sub_target: str) -> dict:
+def query_llm_for_subtarget(typemodif: OperationType, target_content: str, sub_target: str) -> str:
     """
-    Interroge un LLM pour déterminer le sub-target à partir d'un texte descriptif et d'un contexte HTML.
-    Retourne un dictionnaire avec les informations du sub-target.
-    (REPLACE)
+    Interroge un LLM pour déterminer le sub-target à partir d'un texte descriptif
+    et d'un contexte HTML. Retourne un dictionnaire avec les informations
+    du sub-target. (REPLACE)
     """
     prompt_REPLACE = textwrap.dedent(
         f"""

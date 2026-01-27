@@ -3,13 +3,7 @@ from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
-from ocapi.types import (
-    ArreteFile,
-    ArreteId,
-    ArticlesContentMap,
-    Operation,
-    Permis,
-)
+from ocapi.types import ArreteFile, ArreteId, ArticlesContentMap, Operation, Permis
 
 
 def run_pipeline(arrete_files: list[ArreteFile], arrete_ids_included: set[ArreteId]) -> Permis:
@@ -29,6 +23,6 @@ def run_pipeline(arrete_files: list[ArreteFile], arrete_ids_included: set[Arrete
             and operation.target_id.arrete_id in arrete_ids_included
         ]
 
-    versions: list[ArticlesContentMap] = step_resolution(filtered_operations)
+    versions: list[ArticlesContentMap] = step_resolution(filtered_operations, arrete_files)
     permis = step_rendering(versions, arrete_files)
     return permis

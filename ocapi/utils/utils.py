@@ -1,6 +1,6 @@
-from dataclasses import dataclass
 import re
 import unicodedata
+from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
 
@@ -31,7 +31,7 @@ def minify_html_fragment(html: str) -> str:
     return s.strip()
 
 
-def _assert_html_equal(minified_html1: str, minified_html2: str):
+def _assert_html_equal(minified_html1: str, minified_html2: str) -> None:
     """Compare deux HTML en normalisant les espaces blancs"""
     soup1 = BeautifulSoup(minified_html1, "html.parser")
     soup2 = BeautifulSoup(minified_html2, "html.parser")

@@ -1,18 +1,17 @@
 import unittest
 from unittest import mock
+
 import networkx as nx
-from ocapi.step_resolution.apply_ops import (
-    build_subgraph,
-    apply_subgraph_operations,
-    apply_all_operations,
-    build_initial_articles_content_map,
-    apply_replace,
-)
-from ocapi.step_resolution.build_op_graph import add_edge, add_node
-from ocapi.types import ArreteFile, ArticlesContentMap, NodeId, Operation, OperationType, SubTarget
 from bs4 import BeautifulSoup
 
-from ocapi.utils.utils import _assert_html_equal
+from ocapi.step_resolution.apply_ops import (
+    apply_all_operations,
+    apply_subgraph_operations,
+    build_initial_articles_content_map,
+    build_subgraph,
+)
+from ocapi.step_resolution.build_op_graph import add_edge, add_node
+from ocapi.types import ArreteFile, ArticlesContentMap, NodeId, Operation, OperationType
 
 
 class TestApplyReplace(unittest.TestCase):
@@ -20,7 +19,7 @@ class TestApplyReplace(unittest.TestCase):
 
 
 class TestBuildSubgraph(unittest.TestCase):
-    def test_build_subgraph(self):
+    def test_build_subgraph(self) -> None:
         G = nx.MultiDiGraph()
         add_node(G, NodeId(arrete_id="arreteA", article_id="1"))
         add_node(G, NodeId(arrete_id="arreteB", article_id="2"))
@@ -32,7 +31,7 @@ class TestBuildSubgraph(unittest.TestCase):
                 id="op1",
                 source_id=NodeId(arrete_id="arreteB", article_id="2"),
                 target_id=NodeId(arrete_id="arreteA", article_id="1"),
-                operation_type="REPLACE",
+                operation_type=OperationType.REPLACE,
                 operand="very new content",
             ),
         )
@@ -42,7 +41,7 @@ class TestBuildSubgraph(unittest.TestCase):
                 id="op2",
                 source_id=NodeId(arrete_id="arreteB", article_id="3"),
                 target_id=NodeId(arrete_id="arreteA", article_id="1"),
-                operation_type="ADD",
+                operation_type=OperationType.ADD,
                 operand="additional content",
             ),
         )
@@ -52,7 +51,7 @@ class TestBuildSubgraph(unittest.TestCase):
                 id="op3",
                 source_id=NodeId(arrete_id="arreteC", article_id="1"),
                 target_id=NodeId(arrete_id="arreteA", article_id="1"),
-                operation_type="REPLACE",
+                operation_type=OperationType.REPLACE,
                 operand="very new content",
             ),
         )
@@ -81,7 +80,9 @@ class TestApplySubgraphOperations(unittest.TestCase):
     @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
     @mock.patch("ocapi.step_resolution.apply_ops.apply_remove")
     @mock.patch("ocapi.step_resolution.apply_ops.apply_add")
-    def test_apply_subgraph_operations(self, mock_add, mock_remove, mock_replace):
+    def test_apply_subgraph_operations(
+        self, mock_add: mock.Mock, mock_remove: mock.Mock, mock_replace: mock.Mock
+    ) -> None:
         mock_add.return_value = "new content after add"
         mock_remove.return_value = ""
         mock_replace.return_value = "new content after replace"
@@ -96,7 +97,7 @@ class TestApplySubgraphOperations(unittest.TestCase):
                 id="op1",
                 source_id=NodeId(arrete_id="arreteB", article_id="2"),
                 target_id=NodeId(arrete_id="arreteA", article_id="1"),
-                operation_type="REPLACE",
+                operation_type=OperationType.REPLACE,
                 operand="very new content",
             ),
         )
@@ -106,7 +107,7 @@ class TestApplySubgraphOperations(unittest.TestCase):
                 id="op2",
                 source_id=NodeId(arrete_id="arreteB", article_id="3"),
                 target_id=NodeId(arrete_id="arreteA", article_id="2"),
-                operation_type="ADD",
+                operation_type=OperationType.ADD,
                 operand="additional content",
             ),
         )
@@ -126,7 +127,9 @@ class TestApplyOpsFunctions(unittest.TestCase):
     @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
     @mock.patch("ocapi.step_resolution.apply_ops.apply_remove")
     @mock.patch("ocapi.step_resolution.apply_ops.apply_add")
-    def test_apply_all_operations(self, mock_add, mock_remove, mock_replace):
+    def test_apply_all_operations(
+        self, mock_add: mock.Mock, mock_remove: mock.Mock, mock_replace: mock.Mock
+    ) -> None:
         mock_add.return_value = "new content after add"
         mock_remove.return_value = ""
         mock_replace.return_value = "new content after replace"
@@ -177,9 +180,24 @@ class TestApplyOpsFunctions(unittest.TestCase):
             ),
         )
         arrete_list = [
-            ArreteFile(id="arreteA", aiot="aiotA", filename="a.html", soup=None),
-            ArreteFile(id="arreteB", aiot="aiotB", filename="b.html", soup=None),
-            ArreteFile(id="arreteC", aiot="aiotC", filename="c.html", soup=None),
+            ArreteFile(
+                id="arreteA",
+                aiot="aiotA",
+                filename="a.html",
+                soup=BeautifulSoup("<section/>", "html.parser"),
+            ),
+            ArreteFile(
+                id="arreteB",
+                aiot="aiotB",
+                filename="b.html",
+                soup=BeautifulSoup("<section/>", "html.parser"),
+            ),
+            ArreteFile(
+                id="arreteC",
+                aiot="aiotC",
+                filename="c.html",
+                soup=BeautifulSoup("<section/>", "html.parser"),
+            ),
         ]
         initial_articles_content_map = {
             NodeId(arrete_id="arreteA", article_id="1"): "old content",
@@ -204,7 +222,7 @@ class TestApplyOpsFunctions(unittest.TestCase):
 
 
 class TestBuildInitialArticlesContentMap(unittest.TestCase):
-    def test_build_initial_articles_content_map(self):
+    def test_build_initial_articles_content_map(self) -> None:
 
         G = nx.MultiDiGraph()
         add_node(G, NodeId(arrete_id="arreteA", article_id="1.2"))
@@ -215,7 +233,7 @@ class TestBuildInitialArticlesContentMap(unittest.TestCase):
                 id="op1",
                 source_id=NodeId(arrete_id="arreteB", article_id="1.3"),
                 target_id=NodeId(arrete_id="arreteA", article_id="1.2"),
-                operation_type="REPLACE",
+                operation_type=OperationType.REPLACE,
                 operand="very new content",
             ),
         )

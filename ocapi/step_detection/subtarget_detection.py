@@ -15,8 +15,8 @@ Exemples de cas simples détectés :
 import re
 
 from bs4 import BeautifulSoup
-from ocapi.types import SubTarget, SubTargetType
 
+from ocapi.types import SubTarget, SubTargetType
 
 # Patterns pour les ordinaux (masculin/féminin)
 ORDINAUX = {
@@ -58,6 +58,18 @@ ELEMENTS = {
 SIMPLE_PATTERNS = [(r"\ble\s+tableau\b", SubTargetType.TABLEAU, None)]
 
 
+def _ensure_subtarget_type(value: SubTargetType | str | None) -> SubTargetType:
+    """
+    Convertit une valeur potentiellement sérialisée en SubTargetType.
+    """
+    if isinstance(value, SubTargetType):
+        return value
+    try:
+        return SubTargetType(str(value))
+    except Exception:
+        return SubTargetType.COMPLEX
+
+
 def parse_subtarget(text: str) -> SubTarget:
     # TODO: match avec le nouveau prompt
     """
@@ -81,7 +93,11 @@ def parse_subtarget(text: str) -> SubTarget:
     # Tester les patterns simples d'abord
     for pattern, target_type, position in SIMPLE_PATTERNS:
         if re.search(pattern, text_lower, re.IGNORECASE):
-            return SubTarget(type=target_type, position=position, description=text)
+            return SubTarget(
+                type=target_type,
+                position=position,
+                description=text,
+            )
 
     # Tester les combinaisons ordinal + élément
     for ordinal_pattern, position in ORDINAUX.items():
@@ -89,7 +105,11 @@ def parse_subtarget(text: str) -> SubTarget:
             # Construire pattern combiné : "premier alinéa", "deuxième phrase", etc.
             combined_pattern = f"{ordinal_pattern}\\s+{element_pattern}"
             if re.search(combined_pattern, text_lower, re.IGNORECASE):
-                return SubTarget(type=target_type, position=position, description=text)
+                return SubTarget(
+                    type=target_type,
+                    position=position,
+                    description=text,
+                )
 
     # Si aucun pattern ne correspond, marquer comme complexe
     return SubTarget(type=SubTargetType.COMPLEX, description=text)
@@ -120,26 +140,40 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
     Returns:
         BeautifulSoup: Le soup modifié avec le remplacement effectué
     """
-    operand_soup = BeautifulSoup(operand, "html.parser")
+    from copy import copy
 
-    if subtarget.type == "FULL_SECTION":
+    operand_soup = BeautifulSoup(operand, "html.parser")
+    # Prélever un fragment « propre » (évite d'insérer <html><body> dans le DOM)
+    operand_children = [
+        c for c in operand_soup.contents if not (isinstance(c, str) and c.strip() == "")
+    ]
+    operand_fragment = operand_children[0] if len(operand_children) == 1 else operand_soup
+    # Copier le fragment pour éviter les problèmes de mutation
+    operand_fragment = copy(operand_fragment)
+    subtarget_type = _ensure_subtarget_type(subtarget.type)
+
+    if subtarget_type == SubTargetType.FULL_SECTION:
         # Remplacer tout le contenu sauf le titre (h1, h2, h3, etc.)
         title = soup.find(["h1", "h2", "h3", "h4", "h5", "h6"])
         soup.clear()
         if title:
             soup.append(title)
-        # Append all children from operand_soup
-        for child in list(operand_soup.children):
+        # Append all children from operand_fragment
+        if hasattr(operand_fragment, "children"):
+            children = list(operand_fragment.children)
+        else:
+            children = [operand_fragment]
+        for child in children:
             soup.append(child)
         return soup
 
-    elif subtarget.type == "TABLEAU":
+    elif subtarget_type == SubTargetType.TABLEAU:
         table = soup.find("table")
         if table:
-            table.replace_with(operand_soup)
+            table.replace_with(operand_fragment)
         return soup
 
-    elif subtarget.type == "PHRASE":
+    elif subtarget_type == SubTargetType.PHRASE:
         # Trouver tous les nœuds texte et reconstruire les phrases
         full_text = soup.get_text()
         phrases = [p.strip() for p in full_text.split(".") if p.strip()]
@@ -161,7 +195,9 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
                     break
         return soup
 
-    elif subtarget.type == "ALINEA":
+    elif subtarget_type == SubTargetType.ALINEA:
+        from copy import copy
+
         alineas = soup.find_all("div", class_="arretify-alinea")
         target_alinea = None
 
@@ -174,10 +210,16 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
                     break
 
         if target_alinea:
-            target_alinea.replace_with(operand_soup)
+            # Créer un nouveau div avec le contenu de l'operand
+            new_div = soup.new_tag("div")
+            new_div["class"] = "arretify-alinea"
+            data_num = target_alinea.get("data-number")
+            new_div["data-number"] = str(data_num) if data_num else ""
+            new_div.string = operand if isinstance(operand, str) else str(copy(operand_fragment))
+            target_alinea.replace_with(new_div)
         return soup
 
-    elif subtarget.type == SubTargetType.LIGNE_TABLEAU:
+    elif subtarget_type == SubTargetType.LIGNE_TABLEAU:
         table = soup.find("table")
         if table:
             lignes = table.find_all("tr")
@@ -189,10 +231,10 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
                 target_ligne = lignes[subtarget.position - 1]
 
             if target_ligne:
-                target_ligne.replace_with(operand_soup)
+                target_ligne.replace_with(operand_fragment)
         return soup
 
-    elif subtarget.type == SubTargetType.COLONNE_TABLEAU:
+    elif subtarget_type == SubTargetType.COLONNE_TABLEAU:
         table = soup.find("table")
         if table:
             # Remplacer toutes les cellules de la colonne
@@ -207,7 +249,12 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
                     target_col = colonnes[subtarget.position - 1]
 
                 if target_col:
-                    target_col.replace_with(operand_soup.find(["td", "th"]) or operand_soup)
+                    replacement = (
+                        operand_fragment.find(["td", "th"])
+                        if hasattr(operand_fragment, "find")
+                        else None
+                    )
+                    target_col.replace_with(replacement or operand_fragment)
         return soup
 
     return soup

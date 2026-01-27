@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 # Project root = repository root (parent of the top-level package directory)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CATALOGUE_PATH = PROJECT_ROOT / "data" / "0005804239" / "journaux" / "catalogue_ap.json"

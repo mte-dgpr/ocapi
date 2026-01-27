@@ -1,10 +1,9 @@
-from ocapi.step_resolution.apply_ops import ArticlesContentMap
-from ocapi.types import ArreteFile
+from ocapi.types import ArreteFile, ArticlesContentMap, Permis
 
 
 def step_rendering(
     arretes_versions: list[ArticlesContentMap], arrete_files: list[ArreteFile]
-) -> ArticlesContentMap:
+) -> Permis:
     """
     Rendu final non implémenté.
     """

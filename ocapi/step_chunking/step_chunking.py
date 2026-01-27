@@ -13,7 +13,6 @@ from ocapi.types import ArreteFile, ImageMap
 from ocapi.utils.documents import ContentType, make_document_factory
 from ocapi.utils.utils import minify_html_fragment
 
-
 _ARRETIFY_SECTION_SELECTOR = '*[data-spec="section"]'
 
 
@@ -45,11 +44,11 @@ def split_blocs(
         current_block.append(str(selected_sections.pop(0)))
         current_size += len(current_block[-1])
         if current_size >= target_per_block:
-            yield document_factory("".join(current_block))
+            yield document_factory("".join(current_block), None)
             current_block = []
             current_size = 0
     if current_block:
-        yield document_factory("".join(current_block))
+        yield document_factory("".join(current_block), None)
 
 
 def _extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
@@ -60,7 +59,7 @@ def _extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
     soup = BeautifulSoup(html, "html.parser")
     img_map: ImageMap = {}
     for i, img in enumerate(soup.find_all("img")):
-        src = img.get("src") or img.get("data-src") or ""
+        src = str(img.get("src") or img.get("data-src") or "")
         key = f"IMG_{i:03d}"
         if src:
             img_map[key] = src
@@ -88,7 +87,7 @@ def step_chunking(arrete_file: ArreteFile) -> Tuple[list[Document], ImageMap]:
     return blocks, img_map
 
 
-def _is_arretify_section(tag: Tag | str) -> bool:
+def _is_arretify_section(tag: object) -> bool:
     if not isinstance(tag, Tag):
         return False
     if tag.get("data-spec") == "section":
@@ -96,7 +95,7 @@ def _is_arretify_section(tag: Tag | str) -> bool:
     return False
 
 
-def _is_arretify_section_title(tag: Tag | str) -> bool:
+def _is_arretify_section_title(tag: object) -> bool:
     if not isinstance(tag, Tag):
         return False
     if tag.get("data-spec") == "section-title":

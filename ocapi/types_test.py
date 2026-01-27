@@ -5,7 +5,7 @@ from .types import _BaseModelWithConfig
 
 class TestBaseModelWithConfig(unittest.TestCase):
 
-    def test_serialize_model_excludes_none(self):
+    def test_serialize_model_excludes_none(self) -> None:
         class TestModel(_BaseModelWithConfig):
             a: int
             b: str | None = None

@@ -1,13 +1,13 @@
 import unittest
 
-from .build_op_graph import build_graph
+from ocapi.types import NodeId, Operation, OperationType, SubTarget, SubTargetType
 
-from ocapi.types import Operation, OperationType, NodeId, SubTarget, SubTargetType
+from .build_op_graph import build_graph
 
 
 class TestBuildOpGraph(unittest.TestCase):
 
-    def test_build_graph(self):
+    def test_build_graph(self) -> None:
         operations = [
             Operation(
                 id="1",
@@ -35,8 +35,8 @@ class TestBuildOpGraph(unittest.TestCase):
         node3 = NodeId(arrete_id="APC2", article_id="1")
         node4 = NodeId(arrete_id="APC2", article_id="2")
 
-        assert G.has_edge(node3, node1) == True
-        assert G.has_edge(node4, node2) == True
+        assert G.has_edge(node3, node1) is True
+        assert G.has_edge(node4, node2) is True
 
         edge_data_1 = G.get_edge_data(node3, node1, 0)
         assert edge_data_1 == {

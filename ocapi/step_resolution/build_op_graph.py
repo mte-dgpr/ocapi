@@ -8,16 +8,19 @@ entre deux articles.
 # TODO: gérer les dépendances parents-enfant dans le graphe (articles imbriqués)
 
 import networkx as nx
+
 from ocapi.types import NodeId, Operation
 
 
-def add_node(G: nx.MultiDiGraph, node_id: NodeId):
+def add_node(G: nx.MultiDiGraph, node_id: NodeId) -> None:
     if not G.has_node(node_id):
         G.add_node(node_id)
 
 
-def add_edge(G: nx.MultiDiGraph, operation: Operation):
-    edge_data = operation.model_dump(exclude={"source_id", "target_id"}, exclude_none=True)
+def add_edge(G: nx.MultiDiGraph, operation: Operation) -> None:
+    edge_data = operation.model_dump(
+        exclude={"source_id", "target_id"}, exclude_none=True, mode="json"
+    )
     G.add_edge(operation.source_id, operation.target_id, **edge_data)
 
 

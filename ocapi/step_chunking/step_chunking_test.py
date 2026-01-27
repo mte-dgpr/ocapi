@@ -1,16 +1,16 @@
 import unittest
-from bs4 import BeautifulSoup
 
-from ocapi.step_chunking.step_chunking import split_blocs, _extract_and_strip_images
-from ocapi.types import ArreteFile
+from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 
+from ocapi.step_chunking.step_chunking import _extract_and_strip_images, split_blocs
+from ocapi.types import ArreteFile
 from ocapi.utils.utils import _assert_html_equal, minify_html_fragment
 
 
 class TestSplitBlocs(unittest.TestCase):
 
-    def test_split_in_single_bloc(self):
+    def test_split_in_single_bloc(self) -> None:
         html_content = """
         <section data-spec="section">Content of article 1.</section>
         <section data-spec="section">Content of article 2.</section>
@@ -42,7 +42,7 @@ class TestSplitBlocs(unittest.TestCase):
         """,
         )
 
-    def test_split_in_multiple_blocs(self):
+    def test_split_in_multiple_blocs(self) -> None:
         html_content = """
         <section data-spec="section">Content of article 1 with more text.</section>
         <section data-spec="section">Content of article 2 with more text.</section>
@@ -77,7 +77,7 @@ class TestSplitBlocs(unittest.TestCase):
             '<section data-spec="section">Content of article 5 with more text.</section>'
         )
 
-    def test_split_section_with_mixed_content(self):
+    def test_split_section_with_mixed_content(self) -> None:
         html_content = """
         <section data-spec="section">
             Content part 1.
@@ -108,7 +108,7 @@ class TestSplitBlocs(unittest.TestCase):
 
 
 class TestExtractAndStripImages(unittest.TestCase):
-    def test_extract_and_strip_images(self):
+    def test_extract_and_strip_images(self) -> None:
 
         html_content = """
         <p>Here is an image: <img src="http://example.com/image1.png" alt="Image 1"></p>

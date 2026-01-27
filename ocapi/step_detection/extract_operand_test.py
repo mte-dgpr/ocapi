@@ -5,7 +5,7 @@ from ocapi.utils.utils import _assert_html_equal, minify_html_fragment
 
 
 class TestPickArretifySection(unittest.TestCase):
-    def test_pick_arretify_section(self):
+    def test_pick_arretify_section(self) -> None:
         html = """
         <section data-spec="section" data-number="1.1">
             Ceci est le contenu de l'article 1.1.
@@ -24,7 +24,7 @@ class TestPickArretifySection(unittest.TestCase):
 
 
 class TestExtractOperand(unittest.TestCase):
-    def test_extract_operand_success(self):
+    def test_extract_operand_success(self) -> None:
         html = """
         <section data-spec="section" data-number="1.2">
             Voici le nouveau contenu operand de l'article. Inclut une image :
@@ -58,7 +58,7 @@ class TestExtractOperand(unittest.TestCase):
             ),
         )
 
-    def test_extract_operand_no_markers(self):
+    def test_extract_operand_no_markers(self) -> None:
         html = """
         <section data-spec="section" data-number="L123-4">
             <p>This is the content of article L123-4.</p>

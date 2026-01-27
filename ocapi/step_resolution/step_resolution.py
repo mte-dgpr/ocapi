@@ -1,10 +1,6 @@
-from ocapi.step_resolution.apply_ops import (
-    ArticlesContentMap,
-    apply_all_operations,
-    build_initial_articles_content_map,
-)
+from ocapi.step_resolution.apply_ops import apply_all_operations, build_initial_articles_content_map
 from ocapi.step_resolution.build_op_graph import build_graph
-from ocapi.types import ArreteFile, Operation
+from ocapi.types import ArreteFile, ArticlesContentMap, Operation
 
 
 def step_resolution(
