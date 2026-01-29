@@ -86,12 +86,12 @@ AUTRE :
 Notes CRITIQUES :
 - source_article : article du TEXTE FOURNI contenant l'opération si existe (ex: "2.1.3")
 - target_arrete : date de l'arrêté MODIFIÉ (format DD/MM/YYYY)
-- target_article : 
+- target_article :
   * Article existant à compléter : "x.x.x" (ex: "9.2.1")
   * Nouvel article à créer : "NEW_ARTICLE:x.x.x"
-  * Ajout en fin d'arrêté : "END" 
+  * Ajout en fin d'arrêté : "END"
 - sub_target : description (ex: "première phrase", "le tableau", "END" pour ajout en fin d'article)
-- start/new_content_end_marker : 
+- start/new_content_end_marker :
   * UNIQUEMENT le contenu à extraire (80-100 premiers et derniers tokens))
   * EXCLURE tout contexte : "sont remplacées par", "comme suit", etc.
   * Je dois pouvoir extraire le contenu compris entre new_content_start_marker et new_content_end_marker tel quel pour l'insérer dans l'arrêté ciblé.
