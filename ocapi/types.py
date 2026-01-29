@@ -38,6 +38,7 @@ class ArreteFile:
 
     id: ArreteId
     aiot: AiotId
+    ordered_index: int
     filename: str
     soup: BeautifulSoup
 
