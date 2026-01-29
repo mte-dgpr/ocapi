@@ -41,10 +41,12 @@ class ArreteFile:
     ordered_index: int
     filename: str
     soup: BeautifulSoup
+    status: bool = True
 
 
 class Permis(BaseModel):
-    pass
+    def to_html(self) -> str:
+        return ""
 
 
 class NodeId(BaseModel):

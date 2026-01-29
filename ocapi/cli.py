@@ -53,7 +53,7 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
         print(f"Aucun fichier HTML trouvé dans {input_dir}", file=sys.stderr)
         return []
 
-    for html_path in html_files:
+    for ordered_index, html_path in enumerate(html_files):
         # Extraire l'ID de l'arrêté du nom de fichier
         # ex: 2024-09-27_APC_mistral.html -> 2024-09-27_APC
         arrete_id = html_path.stem.rsplit("_", 1)[0]
@@ -64,6 +64,7 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
         arrete = ArreteFile(
             id=arrete_id,
             aiot=aiot,
+            ordered_index=ordered_index,
             filename=html_path.name,
             soup=BeautifulSoup(html_content, "html.parser"),
         )

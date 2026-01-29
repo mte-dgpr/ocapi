@@ -1,3 +1,21 @@
+#
+# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+#
+# This file is part of OCAPI.
+# See https://github.com/mte-dgpr/ocapi for further info.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 def working_prompt(html: str) -> str:
     return f"""
 Voici un extrait HTML d'arrêté préfectoral :
@@ -52,23 +70,23 @@ AUTRE :
 
 Notes CRITIQUES :
 - source_article : prendre le "data-number" de la section ou tu trouves l'opération
-  * Le numéro d'article du TEXTE FOURNI contenant l'opération (ex: "2.1.3") 
+  * Le numéro d'article du TEXTE FOURNI contenant l'opération (ex: "2.1.3")
   * Si l'opération provient d'un article dans une ANNEXE (balise <footer data-spec="appendix">): utilise "APPENDIX:x.x" (avec "x.x" le data-num de la section dans l'annexe si existant)
 - target_arrete : date de l'arrêté MODIFIÉ (format YYYY-MM-DD)
-- target_article : 
+- target_article :
   * Article existant à compléter : "x.x.x" (ex: "9.2.1")
   * Nouvel article à créer : "NEW_ARTICLE:x.x.x"
-  * Ajout en fin d'arrêté : "END" 
+  * Ajout en fin d'arrêté : "END"
   * "ALL" pour abrogation de tout l'arreté
-- sub_target : 
+- sub_target :
   * "ALL" : remplacer TOUT l'article cible
   * "END" : ajouter à la FIN de l'article cible
   * Description précise : ex. "première phrase", "le tableau", "colonne N°1"
-- new_content_start_marker et new_content_end_marker : 
+- new_content_start_marker et new_content_end_marker :
   * Copier EXACTEMENT le contenu HTML/texte tel qu'il apparaît dans le document (80-100 premiers et derniers tokens). Suffisamment long pour identifier précisément le contenu.
   * INCLURE les balises HTML (<table>, <th>, etc.) si présentes dans le nouveau contenu
   * EXCLURE le contexte introductif : "sont remplacées par", "comme suit", etc.
-  * Le contenu entre start_marker et end_marker doit être extractible tel quel pour insertion dans l'arrêté cible. 
+  * Le contenu entre start_marker et end_marker doit être extractible tel quel pour insertion dans l'arrêté cible.
 - Liste vide [] si aucune opération
 
 RAPPEL : Un arrêté qui établit des règles n'est PAS une modification. Cherche "est modifié/abrogé/remplacé/ajouté".
