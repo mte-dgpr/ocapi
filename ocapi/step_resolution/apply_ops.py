@@ -38,10 +38,13 @@ from ocapi.step_detection.subtarget_detection import is_simple_subtarget, replac
 from ocapi.types import (
     ArreteFile,
     ArreteId,
+    ArticleHistory,
+    ArticleVersion,
     ArticlesContentMap,
     Content,
     NodeId,
     Operation,
+    OperationId,
     OperationType,
 )
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
@@ -146,74 +149,93 @@ def apply_add(operation: Operation, soup_input: Content | BeautifulSoup) -> Cont
         return output
 
 
-def apply_subgraph_operations(
-    subG: nx.MultiDiGraph, articles_content_map: ArticlesContentMap
-) -> ArticlesContentMap:
-    output_content_map = articles_content_map.copy()
+def apply_subgraph_operations(subG: nx.MultiDiGraph, history: ArticleHistory) -> tuple[ArticleHistory, list[tuple[OperationId, str]]]:
+    """
+    Applique les opérations du sous-graphe et met à jour l'historique des articles.
+    Pour chaque opération, ajoute une nouvelle version à l'historique de l'article cible.
+    Retourne l'historique mis à jour et la liste des opérations qui ont échoué.
+    """
+    skipped_ops: list[tuple[OperationId, str]] = []  # Liste des (operation_id, error_message)
     start_nodes = [node for node in subG.nodes if subG.in_degree(node) == 0]
     for start_node in start_nodes:
         for succ in subG.successors(start_node):
             if len(list(subG.successors(succ))) > 1:
-                raise NotImplementedError(
-                    "Branches with multiple successors are not supported yet."
-                )
-
+                raise NotImplementedError("Branches with multiple successors are not supported yet.")
+    
         for src, tgt, key in subG.out_edges(start_node, keys=True):
-            op = _edge_to_operation(subG, src, tgt, key)
-            op_type = _to_operation_type(op.operation_type)
-            input_content = output_content_map[tgt]
-            if op_type == OperationType.REPLACE:
-                output = apply_replace(op, input_content)
-            elif op_type == OperationType.REMOVE:
-                output = apply_remove(op, input_content)
-            elif op_type == OperationType.ADD:
-                output = apply_add(op, input_content)
-            else:
-                raise ValueError(f"Type d'opération inconnu: {op_type}")
-            output_content_map[tgt] = output
+            op_id = None
+            try:
+                op = _edge_to_operation(subG, src, tgt, key)
+                op_id = op.id
+                
+                # Récupérer le contenu actuel (dernière version) de l'article cible
+                article_key = (tgt.arrete_id, tgt.article_id)
+                if article_key not in history:
+                    # Initialiser l'historique avec la version 0 (contenu initial)
+                    history[article_key] = [
+                        ArticleVersion(version=0, content=tgt.content, operation_id=None)
+                    ]
+                
+                current_content = history[article_key][-1]["content"]
+                
+                # Appliquer l'opération
+                if op.operation_type == "REPLACE":
+                    new_content = apply_replace(op, BeautifulSoup(current_content, "html.parser"))
+                elif op.operation_type == "REMOVE":
+                    new_content = apply_remove(op, BeautifulSoup(current_content, "html.parser"))
+                elif op.operation_type == "ADD":
+                    new_content = apply_add(op, BeautifulSoup(current_content, "html.parser"))
+                else:
+                    raise ValueError(f"Type d'opération inconnu: {op.operation_type}")
+                
+                # Ajouter la nouvelle version à l'historique
+                new_version = ArticleVersion(
+                    version=len(history[article_key]),
+                    content=new_content,
+                    operation_id=op.id
+                )
+                history[article_key].append(new_version)
+            except Exception as e:
+                error_msg = f"⚠️  Opération {op_id or 'inconnue'} ignorée: {str(e)}"
+                print(error_msg)
+                skipped_ops.append((op_id or "unknown", str(e)))
+                continue
+    
+    return history, skipped_ops
 
-    return output_content_map
 
-
-def apply_all_operations(
-    operations_graph: nx.MultiDiGraph,
-    arrete_list: list[ArreteFile],
-    initial_articles_content_map: ArticlesContentMap,
-) -> list[ArticlesContentMap]:
-
-    articles_content_map: ArticlesContentMap = initial_articles_content_map
-    versions: list[ArticlesContentMap] = [articles_content_map]
+def apply_all_ops(
+        operations_graph: nx.MultiDiGraph, 
+        arrete_list: list[ArreteFile], 
+    ) -> tuple[ArticleHistory, list[tuple[OperationId, str]]]:
+    """
+    Construit l'historique complet des articles en parcourant chronologiquement les arrêtés.
+    Retourne un dictionnaire {(arrete_id, article_id): [versions]} avec toutes les modifications
+    et la liste des opérations qui ont échoué.
+    """
+    history: ArticleHistory = {}
+    all_skipped_ops: list[tuple[OperationId, str]] = []
+    
     for arrete_file in arrete_list:
-        subG = build_subgraph(operations_graph, arrete_file.id)
+        subG = build_next_subgraph(operations_graph, history, arrete_file.id)
         if subG.number_of_edges() > 0:
-            articles_content_map = apply_subgraph_operations(subG, articles_content_map)
-            versions.append(articles_content_map)
+            history, skipped_ops = apply_subgraph_operations(subG, history)
+            all_skipped_ops.extend(skipped_ops)
+    
+    if all_skipped_ops:
+        print(f"\n⚠️  {len(all_skipped_ops)} opération(s) ignorée(s) lors de l'application")
+    
+    return history, all_skipped_ops
 
-    return versions
-
-
-def build_initial_articles_content_map(
-    operations_graph: nx.MultiDiGraph, arrete_files: list[ArreteFile]
-) -> ArticlesContentMap:
-    articles_content_map: ArticlesContentMap = {}
-    soups: dict[ArreteId, BeautifulSoup] = {
-        arrete_file.id: arrete_file.soup for arrete_file in arrete_files
-    }
-    for node in operations_graph.nodes:
-        if operations_graph.in_degree(node) != 0:
-            arrete_id, article_id = node.arrete_id, node.article_id
-            soup = soups[arrete_id]
-            section_tag = soup.select_one(f"section.arretify-section[data-num='{article_id}']")
-            # TODO : gérer le cas où l'article n'existe pas (article ajouté?)
-            if section_tag is None:
-                raise ValueError(f"Section {article_id} not found in arrete {arrete_id}")
-            articles_content_map[node] = str(section_tag)
-
-    return articles_content_map
-
-
-def build_subgraph(operations_graph: nx.MultiDiGraph, arrete_id: ArreteId) -> nx.MultiDiGraph:
-
+def build_next_subgraph(
+        operations_graph: nx.MultiDiGraph, 
+        history: ArticleHistory, 
+        arrete_id: ArreteId
+    ) -> nx.MultiDiGraph:
+    """
+    Construit le sous-graphe des opérations définies par l'arrêté donné.
+    Met à jour le contenu des nœuds avec leur dernière version depuis l'historique.
+    """
     filtered_nodes: set[NodeId] = set()
     for node in operations_graph.nodes:
         node_arrete_id = node.arrete_id
@@ -222,4 +244,14 @@ def build_subgraph(operations_graph: nx.MultiDiGraph, arrete_id: ArreteId) -> nx
             filtered_nodes.add(node)
             for successor in operations_graph.successors(node):
                 filtered_nodes.add(successor)
-    return operations_graph.subgraph(filtered_nodes).copy()
+    
+    new_graph = operations_graph.subgraph(filtered_nodes).copy()
+    
+    # Mettre à jour le contenu des nœuds avec leur dernière version depuis l'historique
+    for node in new_graph.nodes:
+        article_key = (node.arrete_id, node.article_id)
+        if article_key in history and len(history[article_key]) > 0:
+            latest_version = history[article_key][-1]
+            new_graph.nodes[node]['content'] = latest_version["content"]
+    
+    return new_graph
