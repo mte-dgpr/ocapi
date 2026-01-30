@@ -1,6 +1,6 @@
 """
-Découpe un arrêté (`ArreteFile`) en blocs de documents (Document) et retourne la map des images.
-Chaque document correspond à un bloc HTML de taille cible.
+Découpe un arrêté (`ArreteFile`) en blocs (= liste de `Document`) et une map des images.
+Chaque bloc (= `Document`) correspond à un extrait de taille limitée du HTML d'origine.
 """
 
 import math
