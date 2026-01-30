@@ -5,33 +5,37 @@ Chaque bloc (= `Document`) correspond à un extrait de taille limitée du HTML d
 
 import math
 from typing import Iterator, Tuple
+
 from bs4 import BeautifulSoup, Tag
+from langchain_core.documents import Document
 
 from ocapi.types import ArreteFile, ImageMap
 from ocapi.utils.documents import ContentType, make_document_factory
-from langchain_core.documents import Document
-
 from ocapi.utils.utils import minify_html_fragment
 
-
-_ARRETIFY_SECTION_SELECTOR = "*[data-spec=\"section\"]"
-
+_ARRETIFY_SECTION_SELECTOR = '*[data-spec="section"]'
 
 
 def split_blocs(
-    minified_soup: BeautifulSoup, arrete_file: ArreteFile, target_per_block: int,
+    minified_soup: BeautifulSoup,
+    arrete_file: ArreteFile,
+    target_per_block: int,
 ) -> Iterator[Document]:
-    document_factory = make_document_factory(ContentType.HTML, parent=arrete_file.id)    
+    document_factory = make_document_factory(ContentType.HTML, parent=arrete_file.id)
 
-    ignored_sections : list[Tag] = []
+    ignored_sections: list[Tag] = []
     selected_sections: list[Tag] = []
 
     for section in minified_soup.select(_ARRETIFY_SECTION_SELECTOR):
         if section in ignored_sections:
             continue
-        if all((_is_arretify_section(child) or _is_arretify_section_title(child)) for child in section.contents):
+        if all(
+            (_is_arretify_section(child) or _is_arretify_section_title(child))
+            for child in section.contents
+            if isinstance(child, Tag)
+        ):
             continue
-        
+
         # Utiliser .select() au lieu de .find_all() pour les sélecteurs CSS
         child_sections = section.select(_ARRETIFY_SECTION_SELECTOR)
         if len(child_sections) == 0:
@@ -40,17 +44,17 @@ def split_blocs(
             selected_sections.append(section)
             ignored_sections.extend(section.select(_ARRETIFY_SECTION_SELECTOR))
 
-    current_block: list[str]=[]
-    current_size=0
+    current_block: list[str] = []
+    current_size = 0
     while selected_sections:
         current_block.append(str(selected_sections.pop(0)))
-        current_size+=len(current_block[-1])
+        current_size += len(current_block[-1])
         if current_size >= target_per_block:
-            yield document_factory("".join(current_block))
-            current_block=[]
-            current_size=0
+            yield document_factory("".join(current_block), None)
+            current_block = []
+            current_size = 0
     if current_block:
-        yield document_factory("".join(current_block))
+        yield document_factory("".join(current_block), None)
 
 
 def _extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
@@ -61,7 +65,7 @@ def _extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
     soup = BeautifulSoup(html, "html.parser")
     img_map: ImageMap = {}
     for i, img in enumerate(soup.find_all("img")):
-        src = img.get("src") or img.get("data-src") or ""
+        src = str(img.get("src") or img.get("data-src") or "")
         key = f"IMG_{i:03d}"
         if src:
             img_map[key] = src
@@ -71,24 +75,28 @@ def _extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
 
 
 def step_chunking(
-    arrete_file : ArreteFile,
-)-> Tuple[list[Document], ImageMap]:
+    arrete_file: ArreteFile,
+) -> Tuple[list[Document], ImageMap]:
 
     minified = minify_html_fragment(str(arrete_file.soup))
     minified, img_map = _extract_and_strip_images(minified)
     soup_without_images = BeautifulSoup(minified, "html.parser")
-    
+
     number_of_blocks = min(math.ceil(len(soup_without_images) / 70000), 5)
     target_per_block = math.ceil(len(soup_without_images) / number_of_blocks)
 
-    blocks = (
-        split_blocs(soup_without_images, target_per_block=target_per_block)
+    blocks = list(
+        split_blocs(
+            soup_without_images,
+            arrete_file=arrete_file,
+            target_per_block=target_per_block,
+        )
     )
 
     return blocks, img_map
 
 
-def _is_arretify_section(tag: Tag | str) -> bool:
+def _is_arretify_section(tag: object) -> bool:
     if not isinstance(tag, Tag):
         return False
     if tag.get("data-spec") == "section":
@@ -96,7 +104,7 @@ def _is_arretify_section(tag: Tag | str) -> bool:
     return False
 
 
-def _is_arretify_section_title(tag: Tag | str) -> bool:
+def _is_arretify_section_title(tag: object) -> bool:
     if not isinstance(tag, Tag):
         return False
     if tag.get("data-spec") == "section-title":
