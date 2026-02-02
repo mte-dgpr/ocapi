@@ -27,7 +27,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class LLMConfig(BaseSettings):
+class LLMConfig(BaseSettings):  # type: ignore[misc]
     """Configuration des APIs LLM."""
 
     model_config = SettingsConfigDict(env_prefix="")
@@ -41,7 +41,7 @@ class LLMConfig(BaseSettings):
     openai_api_url: str = Field(default="https://api.openai.com/v1/chat/completions")
 
 
-class PipelineConfig(BaseSettings):
+class PipelineConfig(BaseSettings):  # type: ignore[misc]
     """Configuration du pipeline de traitement."""
 
     model_config = SettingsConfigDict(env_prefix="")
@@ -49,7 +49,7 @@ class PipelineConfig(BaseSettings):
     default_llm_model: str = Field(default="mte-api-piag-mistral-medium-latest")
 
 
-class AppConfig(BaseSettings):
+class AppConfig(BaseSettings):  # type: ignore[misc]
     """Configuration principale de l'application."""
 
     model_config = SettingsConfigDict(
