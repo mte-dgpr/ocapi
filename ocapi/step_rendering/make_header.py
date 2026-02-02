@@ -16,6 +16,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+#
+# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+#
+# This file is part of OCAPI.
+# See https://github.com/mte-dgpr/ocapi for further info.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 
 from bs4 import BeautifulSoup
@@ -23,12 +41,15 @@ from bs4 import BeautifulSoup
 from ocapi.types import ArreteFile
 
 
+
 def get_html_head(arrete_file: ArreteFile) -> str:
     """
     Extrait la section <head> complète d'un document HTML.
 
+
     Args:
         arrete_file: Un objet ArreteFile contenant le soup HTML.
+
 
     Returns:
         La section <head> sous forme de chaîne de caractères.
@@ -42,12 +63,16 @@ def get_html_head(arrete_file: ArreteFile) -> str:
 
 
 def extract_visa(soup: BeautifulSoup) -> list[str]:
+
+def extract_visa(soup: BeautifulSoup) -> list[str]:
     """
     Extrait les divs 'visa' du header d'un document HTML.
+
 
     Cherche des divs avec l'attribut data-spec="visa" et retourne leur contenu HTML.
     Si aucun div n'est trouvé, retourne une liste vide.
     """
+
 
     visa_divs = soup.find_all("div", attrs={"data-spec": "visa"})
     if visa_divs:
@@ -59,9 +84,11 @@ def extract_motif(soup: BeautifulSoup) -> list[str]:
     """
     Extrait les divs 'motif' du header d'un document HTML.
 
+
     Cherche des divs avec l'attribut data-spec="motif" et retourne leur contenu HTML.
     Si aucun div n'est trouvé, retourne une liste vide.
     """
+
 
     motif_divs = soup.find_all("div", attrs={"data-spec": "motifs"})
     if motif_divs:
@@ -73,18 +100,22 @@ def make_liste_arretes(arrete_files: list[ArreteFile]) -> str:
     """
     Génère la liste des arrêtés utilisés pour construire le permis. (indique si arrêté abrogé)
 
+
     Retourne une section HTML listant tous les arrêtés par leur ID et nom de fichier.
     """
     arretes_list = []
     for arrete_file in arrete_files:
         if arrete_file.status:
+        if arrete_file.status:
             arretes_list.append(
                 f"<li><strong>Arrêté {arrete_file.id}</strong> : {arrete_file.filename} (AIOT: {arrete_file.aiot})</li>"
             )
         else:
+        else:
             arretes_list.append(
                 f"<li><strong>Arrêté {arrete_file.id} (ABROGÉ)</strong> : {arrete_file.filename} (AIOT: {arrete_file.aiot})</li>"
             )
+
 
     return f"""
    <div data-spec="arrete_title">
@@ -103,6 +134,7 @@ def make_liste_arretes(arrete_files: list[ArreteFile]) -> str:
 def make_visa_permis(arrete_files: list[ArreteFile]) -> str:
     """
     Génère la liste consolidée des visas pour le permis à partir des arrete_files.
+
 
     Parcourt chaque arrete_file, extrait les visas et les ajoute à une liste.
     Retourne la liste fusionnée des visas = sans doublons.
@@ -124,6 +156,7 @@ def make_visa_permis(arrete_files: list[ArreteFile]) -> str:
 def make_motif_permis(arrete_files: list[ArreteFile]) -> str:
     """
     Génère la liste consolidée des motifs pour le permis à partir des arrete_files.
+
 
     Parcourt chaque arrete_file, extrait les motifs et les ajoute à une liste groupée par arrêté.
     Retourne la liste fusionnée des motifs avec un titre pour chaque arrêté.
@@ -150,8 +183,10 @@ def make_header_permis(arrete_files: list[ArreteFile]) -> str:
     3. Les visas fusionnés (sans doublons)
     4. Les considérants groupés par arrêté
 
+
     Args:
         arrete_files: Liste des arrêtés utilisés pour construire le permis
+
 
     Returns:
         Document HTML complet avec le header du permis
@@ -160,6 +195,7 @@ def make_header_permis(arrete_files: list[ArreteFile]) -> str:
     liste_arretes = make_liste_arretes(arrete_files)
     visas_permis = make_visa_permis(arrete_files)
     motifs_permis = make_motif_permis(arrete_files)
+
 
     header_html = f"""{html_head}
  <body data-spec="permis">

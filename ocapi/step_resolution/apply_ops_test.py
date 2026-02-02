@@ -201,18 +201,21 @@ class TestApplyOpsFunctions(unittest.TestCase):
             ArreteFile(
                 id="arreteA",
                 aiot="aiotA",
+                ordered_index=0,
                 filename="a.html",
                 soup=BeautifulSoup("<section/>", "html.parser"),
             ),
             ArreteFile(
                 id="arreteB",
                 aiot="aiotB",
+                ordered_index=1,
                 filename="b.html",
                 soup=BeautifulSoup("<section/>", "html.parser"),
             ),
             ArreteFile(
                 id="arreteC",
                 aiot="aiotC",
+                ordered_index=2,
                 filename="c.html",
                 soup=BeautifulSoup("<section/>", "html.parser"),
             ),
@@ -259,6 +262,7 @@ class TestBuildInitialArticlesContentMap(unittest.TestCase):
         arreteA = ArreteFile(
             id="arreteA",
             aiot="aiotA",
+            ordered_index=0,
             filename="a.html",
             soup=BeautifulSoup(
                 '<section class="arretify-section" data-num="1.2">Content A1</section>',
@@ -268,6 +272,7 @@ class TestBuildInitialArticlesContentMap(unittest.TestCase):
         arreteB = ArreteFile(
             id="arreteB",
             aiot="aiotB",
+            ordered_index=1,
             filename="b.html",
             soup=BeautifulSoup(
                 '<section class="arretify-section" data-num="1.3">Content B2</section>',

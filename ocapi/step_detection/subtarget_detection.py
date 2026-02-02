@@ -89,7 +89,6 @@ def _ensure_subtarget_type(value: SubTargetType | str | None) -> SubTargetType:
 
 
 def parse_subtarget(text: str) -> SubTarget:
-    # TODO: match avec le nouveau prompt
     """
     Détecte le type de sub-target à partir du texte.
 
@@ -101,34 +100,26 @@ def parse_subtarget(text: str) -> SubTarget:
     """
     if not text or text.strip() == "":
         return SubTarget(type=SubTargetType.FULL_SECTION, description=text)
-
+    
     text_lower = text.lower().strip()
-
+    
     # Cas spécial : "tout" ou variations
-    if re.match(r"contenu entier", text_lower):
+    if re.match(r'contenu entier', text_lower) or text_lower == "all":
         return SubTarget(type=SubTargetType.FULL_SECTION, description=text)
-
+    
     # Tester les patterns simples d'abord
     for pattern, target_type, position in SIMPLE_PATTERNS:
         if re.search(pattern, text_lower, re.IGNORECASE):
-            return SubTarget(
-                type=target_type,
-                position=position,
-                description=text,
-            )
-
+            return SubTarget(type=target_type, position=position, description=text)
+    
     # Tester les combinaisons ordinal + élément
     for ordinal_pattern, position in ORDINAUX.items():
         for element_pattern, target_type in ELEMENTS.items():
             # Construire pattern combiné : "premier alinéa", "deuxième phrase", etc.
             combined_pattern = f"{ordinal_pattern}\\s+{element_pattern}"
             if re.search(combined_pattern, text_lower, re.IGNORECASE):
-                return SubTarget(
-                    type=target_type,
-                    position=position,
-                    description=text,
-                )
-
+                return SubTarget(type=target_type, position=position, description=text)
+    
     # Si aucun pattern ne correspond, marquer comme complexe
     return SubTarget(type=SubTargetType.COMPLEX, description=text)
 

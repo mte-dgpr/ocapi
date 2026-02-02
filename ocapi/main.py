@@ -34,8 +34,13 @@ from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
 from ocapi.types import ArreteFile, Operation
 
+<<<<<<< HEAD
 # TODO : faire d'abord tous les appels LLM puis convertir en raw ops dans un second
 # temps. comme ça on peut faire du batch et gérer les erreurs après.
+=======
+# TODO : faire d'abord tous les appels LLM puis convertir en raw ops dans un second temps.
+# comme ça on peut faire du batch et gérer les erreurs après.
+>>>>>>> 048dc4d46b16e03bccdd4deb353d67746262c02f
 # TODO : enlever les blockquote au début.
 # erreurs à gérer : appendice 2024.
 # 6.7 à ajouter : mettre sans objet
@@ -47,7 +52,7 @@ def folder_to_list_of_ArreteFiles(folder_path: Path) -> list[ArreteFile]:
     Charge tous les fichiers HTML d'un dossier et les convertit en ArreteFile.
     Attention, les arrete_id sont uniquement la date extraite du nom de fichier pour l'instant.
     """
-    arrete_files = []
+    arrete_files: list[ArreteFile] = []
     html_files = sorted(folder_path.glob("*.html"))
     aiot = folder_path.name  # Utiliser le nom du dossier comme AIOT
 
@@ -76,6 +81,10 @@ def arrete_to_ArreteFile(i: int, html_path: Path) -> ArreteFile:
     return ArreteFile(
         id=arrete_id,
         aiot="",
+<<<<<<< HEAD
+=======
+        ordered_index=i,
+>>>>>>> 048dc4d46b16e03bccdd4deb353d67746262c02f
         filename=filename,
         soup=soup,
     )
@@ -143,14 +152,23 @@ def main(input_dir: Path, output_dir: Path) -> None:
     print("STEP 3 : RESOLUTION")
     print("=" * 60)
 
+<<<<<<< HEAD
     history = step_resolution(operations, arrete_files)
     print(f"✓ {len(history)} versions d'articles\n")
+=======
+    versions = step_resolution(operations, arrete_files)
+    if versions:
+        print(f"✓ {len(versions[-1])} articles avec historique\n")
+    else:
+        print("✓ 0 article avec historique\n")
+>>>>>>> 048dc4d46b16e03bccdd4deb353d67746262c02f
 
     # Sauvegarder l'historique
     versions_dir = output_dir / "versions"
     versions_dir.mkdir(parents=True, exist_ok=True)
     versions_path = versions_dir / "history.json"
 
+<<<<<<< HEAD
     # Convertir l'historique en format sérialisable
     history_serializable = []
     for version_map in history:
@@ -159,6 +177,12 @@ def main(input_dir: Path, output_dir: Path) -> None:
             key = f"{node_id.arrete_id}:{node_id.article_id}"
             serialized_version[key] = content
         history_serializable.append(serialized_version)
+=======
+    # Convertir NodeId en string pour JSON
+    history_serializable = [
+        {str(node_id): content for node_id, content in version.items()} for version in versions
+    ]
+>>>>>>> 048dc4d46b16e03bccdd4deb353d67746262c02f
 
     with versions_path.open("w", encoding="utf-8") as f:
         json.dump(history_serializable, f, ensure_ascii=False, indent=2)
@@ -171,7 +195,11 @@ def main(input_dir: Path, output_dir: Path) -> None:
     print("STEP 4 : RENDERING")
     print("=" * 60)
 
+<<<<<<< HEAD
     permis = step_rendering(history, arrete_files)
+=======
+    permis = step_rendering(versions, arrete_files)
+>>>>>>> 048dc4d46b16e03bccdd4deb353d67746262c02f
     permis_path = output_dir / "permis_consolidé.html"
     with permis_path.open("w", encoding="utf-8") as f:
         f.write(str(permis))  # TODO: implémenter to_html() dans Permis

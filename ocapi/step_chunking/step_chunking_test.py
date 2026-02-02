@@ -43,6 +43,7 @@ class TestSplitBlocs(unittest.TestCase):
         arrete_file = ArreteFile(
             id="arrete_1",
             aiot="aiot_1",
+            ordered_index=0,
             filename="test.html",
             soup=BeautifulSoup(minified_html, "html.parser"),
         )
@@ -76,6 +77,7 @@ class TestSplitBlocs(unittest.TestCase):
         arrete_file = ArreteFile(
             id="arrete_2",
             aiot="aiot_2",
+            ordered_index=0,
             filename="test.html",
             soup=BeautifulSoup(minified_html, "html.parser"),
         )
@@ -108,6 +110,7 @@ class TestSplitBlocs(unittest.TestCase):
         arrete_file = ArreteFile(
             id="arrete_3",
             aiot="aiot_3",
+            ordered_index=0,
             filename="test.html",
             soup=BeautifulSoup(minified_html, "html.parser"),
         )

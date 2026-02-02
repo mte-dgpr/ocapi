@@ -16,14 +16,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+<<<<<<< HEAD
 import tempfile
 import unittest
 from pathlib import Path
 
+=======
+from pathlib import Path
+
+import pytest
+
+>>>>>>> 048dc4d46b16e03bccdd4deb353d67746262c02f
 from ocapi.main import arrete_to_ArreteFile
 from ocapi.types import ArreteFile
 
 
+<<<<<<< HEAD
 class TestArreteToArreteFile(unittest.TestCase):
     def test_valid_filename(self) -> None:
         # Créer un fichier temporaire avec le bon format
@@ -49,3 +57,22 @@ class TestArreteToArreteFile(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 arrete_to_ArreteFile(0, temp_path)
+=======
+class TestArreteToArreteFile:
+    def test_valid_filename(self, tmp_path: Path) -> None:
+        test_file = tmp_path / "2023-01-15_APC_source.html"
+        test_file.write_text("<html><body>Test</body></html>", encoding="utf-8")
+
+        arrete_file = arrete_to_ArreteFile(0, test_file)
+
+        assert isinstance(arrete_file, ArreteFile)
+        assert arrete_file.id == "2023-01-15"
+        assert arrete_file.filename == "2023-01-15_APC_source"
+
+    def test_invalid_filename(self, tmp_path: Path) -> None:
+        test_file = tmp_path / "invalidfilename.html"
+        test_file.write_text("<html></html>", encoding="utf-8")
+
+        with pytest.raises(ValueError):
+            arrete_to_ArreteFile(0, test_file)
+>>>>>>> 048dc4d46b16e03bccdd4deb353d67746262c02f

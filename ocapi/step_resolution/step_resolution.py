@@ -16,17 +16,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from ocapi.step_resolution.apply_ops import apply_all_operations, build_initial_articles_content_map
+from ocapi.step_resolution.apply_ops import apply_all_ops
 from ocapi.step_resolution.build_op_graph import build_graph
-from ocapi.types import ArreteFile, ArticlesContentMap, Operation
+from ocapi.types import ArreteFile, ArticleHistory, Operation
 
 
-def step_resolution(
-    operations: list[Operation], arrete_files: list[ArreteFile]
-) -> list[ArticlesContentMap]:
-    operations_graph = build_graph(operations)
-    initial_articles_content = build_initial_articles_content_map(operations_graph, arrete_files)
-    versions: list[ArticlesContentMap] = apply_all_operations(
-        operations_graph, arrete_files, initial_articles_content
+def step_resolution(operations: list[Operation],
+                     arrete_files: list[ArreteFile]) -> ArticleHistory:
+    operations_graph, arrete_files, skipped_ops_graph = build_graph(operations, arrete_files)
+    history, skipped_ops_apply = apply_all_ops(
+        operations_graph, 
+        arrete_files, 
     )
-    return versions
+    return history, arrete_files
+    

@@ -23,8 +23,13 @@ Ce module utilise Pydantic Settings pour charger et valider
 la configuration depuis les variables d'environnement et fichiers .env.
 """
 
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Racine du projet (calculée une seule fois)
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class LLMConfig(BaseSettings):  # type: ignore[misc]
@@ -47,6 +52,21 @@ class PipelineConfig(BaseSettings):  # type: ignore[misc]
     model_config = SettingsConfigDict(env_prefix="")
 
     default_llm_model: str = Field(default="mte-api-piag-mistral-medium-latest")
+    # Placeholder pour indiquer au LLM d'insérer la section complète
+    full_section: str = Field(default="contenu entier")
+
+
+class PathsConfig(BaseSettings):
+    """Configuration des chemins de fichiers."""
+
+    model_config = SettingsConfigDict(env_prefix="")
+
+    # Racine du projet (défaut: répertoire parent du package ocapi)
+    project_root: Path = Field(default=_PROJECT_ROOT)
+    # Chemin vers le catalogue des arrêtés
+    catalogue_path: Path = Field(
+        default=_PROJECT_ROOT / "data" / "0005804239" / "journaux" / "catalogue_ap.json"
+    )
 
 
 class AppConfig(BaseSettings):  # type: ignore[misc]
@@ -60,6 +80,7 @@ class AppConfig(BaseSettings):  # type: ignore[misc]
 
     llm: LLMConfig = Field(default_factory=LLMConfig)
     pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
+    paths: PathsConfig = Field(default_factory=PathsConfig)
 
 
 # Instance singleton de la configuration
