@@ -21,7 +21,7 @@
 
 from bs4 import BeautifulSoup
 
-from ocapi.types import ArreteFile, ArticleHistory, Operation
+from ocapi.types import ArreteFile, ArticleHistory, NodeId, Operation, OperationType
 
 
 def make_contenu_permis(
@@ -70,7 +70,7 @@ def make_consolidated_section(
     Génère la section consolidée pour un article donné en utilisant l'historique.
     Affiche en rouge l'historique des modifications puis le contenu actuel.
     """
-    key = (arrete_id, article_id)
+    key = NodeId(arrete_id=arrete_id, article_id=article_id)
     if key not in history:
         return original_section  # Pas de modifications, retourner l'original
 
@@ -103,8 +103,8 @@ def make_consolidated_section(
                 if op:
                     op_type_text = (
                         "modifié"
-                        if op.operation_type == "REPLACE"
-                        else "abrogé" if op.operation_type == "REMOVE" else "créé"
+                        if op.operation_type == OperationType.REPLACE
+                        else "abrogé" if op.operation_type == OperationType.REMOVE else "créé"
                     )
                     source_article = (
                         f"Article {op.source_id.article_id}"
@@ -142,7 +142,7 @@ def make_consolidated_section(
     is_abrogated = False
     if last_op_id:
         last_op = next((o for o in operations if o.id == last_op_id), None)
-        if last_op and last_op.operation_type == "REMOVE":
+        if last_op and last_op.operation_type == OperationType.REMOVE:
             is_abrogated = True
 
     # Construire le contenu consolidé

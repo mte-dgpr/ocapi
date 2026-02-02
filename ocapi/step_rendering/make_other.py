@@ -33,7 +33,7 @@ def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
 def detect_additional_prescriptions(arrete_files: list[ArreteFile]) -> str:
     # TODO : refaire des appels LLM pour détecter les prescriptions
     # additionnelles non modificatives ? à voir.
-    pass
+    return ""
 
 
 def extract_main(soup: BeautifulSoup) -> str:
