@@ -69,23 +69,16 @@ AUTRE :
 }}
 
 Notes CRITIQUES :
-- source_article : prendre EXACTEMENT le "data-number" de la section ou tu trouves l'opération
-  * Le numéro d'article du TEXTE FOURNI contenant l'opération (ex: "2.1.3") 
-  * Si l'opération provient d'un article dans une ANNEXE (balise <footer data-spec="appendix">): ajoute le suffixe "APPENDIX:" (devant "x.x" le data-number exact de la section dans l'annexe si existant)
-- target_arrete : date de l'arrêté MODIFIÉ (format YYYY-MM-DD)
-- target_article : 
+- source_article : article du TEXTE FOURNI contenant l'opération si existe (ex: "2.1.3")
+- target_arrete : date de l'arrêté MODIFIÉ (format DD/MM/YYYY)
+- target_article :
   * Article existant à compléter : "x.x.x" (ex: "9.2.1")
   * Nouvel article à créer : "NEW_ARTICLE:x.x.x"
-  * Ajout en fin d'arrêté : "END" 
-  * "ALL" pour abrogation de tout l'arreté
-- sub_target : 
-  * "ALL" : remplacer TOUT l'article cible
-  * "END" : ajouter à la FIN de l'article cible
-  * Description précise : ex. "première phrase", "le tableau", "colonne N°1"
-- new_content_start_marker et new_content_end_marker : 
-  * Copier EXACTEMENT le contenu HTML/texte tel qu'il apparaît dans le document (80-100 premiers et derniers tokens). Suffisamment long pour identifier précisément le contenu.
-  * INCLURE les balises HTML (<table>, <th>, etc.) si présentes dans le nouveau contenu
-  * EXCLURE le contexte introductif : "sont remplacées par", "comme suit", etc.
-  * Le contenu entre start_marker et end_marker doit être extractible tel quel pour insertion dans l'arrêté cible. 
-- Liste vide [] si aucune opération detectée.
+  * Ajout en fin d'arrêté : "END"
+- sub_target : description (ex: "première phrase", "le tableau", "END" pour ajout en fin d'article)
+- start/new_content_end_marker :
+  * UNIQUEMENT le contenu à extraire (80-100 premiers et derniers tokens))
+  * EXCLURE tout contexte : "sont remplacées par", "comme suit", etc.
+  * Je dois pouvoir extraire le contenu compris entre new_content_start_marker et new_content_end_marker tel quel pour l'insérer dans l'arrêté ciblé.
+- Liste vide [] si aucune opération
 """

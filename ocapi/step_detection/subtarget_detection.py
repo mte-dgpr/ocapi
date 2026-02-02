@@ -31,6 +31,7 @@ Exemples de cas simples détectés :
 """
 
 import re
+from copy import copy
 
 from bs4 import BeautifulSoup
 
@@ -149,7 +150,6 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
     Returns:
         BeautifulSoup: Le soup modifié avec le remplacement effectué
     """
-    from copy import copy
 
     operand_soup = BeautifulSoup(operand, "html.parser")
     # Prélever un fragment « propre » (évite d'insérer <html><body> dans le DOM)
@@ -205,8 +205,6 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
         return soup
 
     elif subtarget_type == SubTargetType.ALINEA:
-        from copy import copy
-
         alineas = soup.find_all("div", class_="arretify-alinea")
         target_alinea = None
 
