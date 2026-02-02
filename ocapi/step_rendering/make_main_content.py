@@ -88,11 +88,14 @@ def make_consolidated_section(
             if op_id:
                 op = next((o for o in operations if o.id == op_id), None)
                 if op:
-                    history_html += f"<p><strong>Article créé par l'arrêté {op.source_id.arrete_id}</strong></p>"
+                    history_html += (
+                        f"<p><strong>Article créé par l'arrêté "
+                        f"{op.source_id.arrete_id}</strong></p>"
+                    )
                 else:
-                    history_html += f"<p><strong>Article créé par l'arrêté initial</strong></p>"
+                    history_html += "<p><strong>Article créé par l'arrêté initial</strong></p>"
             else:
-                history_html += f"<p><strong>Article créé par l'arrêté initial</strong></p>"
+                history_html += "<p><strong>Article créé par l'arrêté initial</strong></p>"
         else:
             # Versions suivantes = modifications
             if op_id:
@@ -108,17 +111,22 @@ def make_consolidated_section(
                         if op.source_id.article_id
                         else "l'arrêté"
                     )
-                    history_html += f"<p><strong>Article {op_type_text} par {source_article} de l'arrêté {op.source_id.arrete_id}</strong></p>"
+                    history_html += (
+                        f"<p><strong>Article {op_type_text} par {source_article} "
+                        f"de l'arrêté {op.source_id.arrete_id}</strong></p>"
+                    )
 
                     # Ajouter un menu déroulant avec l'ancienne version
                     if i > 0:  # Il y a une version précédente
                         previous_version = versions[i - 1]
                         history_html += f"""
-                        <details style="margin-left: 1rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">
+                        <details style="margin-left: 1rem; margin-top: 0.5rem;
+                                        margin-bottom: 0.5rem;">
                          <summary style="cursor: pointer; font-weight: bold;">
                           Voir l'ancienne version
                          </summary>
-                         <div style="color: red; border-left: 3px solid red; padding-left: 1rem; margin-top: 0.5rem;">
+                         <div style="color: red; border-left: 3px solid red;
+                                     padding-left: 1rem; margin-top: 0.5rem;">
                           {previous_version['content']}
                          </div>
                         </details>

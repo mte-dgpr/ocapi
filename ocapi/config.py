@@ -32,7 +32,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-class LLMConfig(BaseSettings):  # type: ignore[misc]
+class LLMConfig(BaseSettings):
     """Configuration des APIs LLM."""
 
     model_config = SettingsConfigDict(env_prefix="")
@@ -46,7 +46,7 @@ class LLMConfig(BaseSettings):  # type: ignore[misc]
     openai_api_url: str = Field(default="https://api.openai.com/v1/chat/completions")
 
 
-class PipelineConfig(BaseSettings):  # type: ignore[misc]
+class PipelineConfig(BaseSettings):
     """Configuration du pipeline de traitement."""
 
     model_config = SettingsConfigDict(env_prefix="")
@@ -69,7 +69,7 @@ class PathsConfig(BaseSettings):
     )
 
 
-class AppConfig(BaseSettings):  # type: ignore[misc]
+class AppConfig(BaseSettings):
     """Configuration principale de l'application."""
 
     model_config = SettingsConfigDict(

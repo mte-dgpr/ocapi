@@ -101,18 +101,18 @@ def parse_subtarget(text: str) -> SubTarget:
     """
     if not text or text.strip() == "":
         return SubTarget(type=SubTargetType.FULL_SECTION, description=text)
-    
+
     text_lower = text.lower().strip()
-    
+
     # Cas spécial : "tout" ou variations
-    if re.match(r'contenu entier', text_lower) or text_lower == "all":
+    if re.match(r"contenu entier", text_lower) or text_lower == "all":
         return SubTarget(type=SubTargetType.FULL_SECTION, description=text)
-    
+
     # Tester les patterns simples d'abord
     for pattern, target_type, position in SIMPLE_PATTERNS:
         if re.search(pattern, text_lower, re.IGNORECASE):
             return SubTarget(type=target_type, position=position, description=text)
-    
+
     # Tester les combinaisons ordinal + élément
     for ordinal_pattern, position in ORDINAUX.items():
         for element_pattern, target_type in ELEMENTS.items():
@@ -120,7 +120,7 @@ def parse_subtarget(text: str) -> SubTarget:
             combined_pattern = f"{ordinal_pattern}\\s+{element_pattern}"
             if re.search(combined_pattern, text_lower, re.IGNORECASE):
                 return SubTarget(type=target_type, position=position, description=text)
-    
+
     # Si aucun pattern ne correspond, marquer comme complexe
     return SubTarget(type=SubTargetType.COMPLEX, description=text)
 

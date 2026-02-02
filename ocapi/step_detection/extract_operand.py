@@ -42,27 +42,27 @@ def _find_marker(haystack: str, marker: str) -> int:
     return m.start() if m else -1
 
 
-
 def pick_arretify_section(html: str, source_article: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
 
     # Cas 1 : "APPENDIX" : retourner tout le footer appendix
     if source_article == "APPENDIX":
         footer = soup.find("footer", attrs={"data-spec": "appendix"})
-        if footer: return str(footer)
+        if footer:
+            return str(footer)
         raise ValueError("No appendix footer found")
-    
+
     # Cas 2 : "APPENDIX:X" ou "APPENDIX:X.Y.Z" → chercher dans le footer appendix
     if source_article.startswith("APPENDIX:"):
         appendix_number = source_article.split("APPENDIX:", 1)[1]
         footer = soup.find("footer", attrs={"data-spec": "appendix"})
-        if footer: 
+        if footer:
             for section in footer.find_all("section", attrs={"data-spec": "section"}):
                 data_number = section.get("data-number")
                 if data_number == appendix_number:
                     return str(section)
             raise ValueError(f"No section with data-number={appendix_number} found in appendix")
-    
+
     # Cas 3 : Article normal (ex: "2.1.3")
     for section in soup.find_all("section", attrs={"data-spec": "section"}):
         data_number = section.get("data-number")
@@ -70,6 +70,7 @@ def pick_arretify_section(html: str, source_article: str) -> str:
             return str(section)
     print("Section not found for source_article:", source_article)
     return "ERROR_EXTRACTING_CONTENT"
+
 
 def _rehydrate_images(fragment_html: str, img_map: dict[str, str]) -> str:
     if not img_map:
@@ -98,7 +99,7 @@ def extract_operand_with_images(
 
     end_idx = _find_marker(working_html, end_marker)
     if end_idx != -1:
-        fragment = working_html[start_idx:end_idx+ len(end_marker)]
+        fragment = working_html[start_idx : end_idx + len(end_marker)]
         fragment = _rehydrate_images(fragment, img_map)
         return fragment
     else:

@@ -38,7 +38,6 @@ class ArreteFile:
 
     id: ArreteId
     aiot: AiotId
-    ordered_index: int
     filename: str
     soup: BeautifulSoup
     status: bool = True
@@ -49,10 +48,13 @@ class Permis(BaseModel):
     contenu: str
     other: str
     aiot: AiotId | None = None
-    
+
     def to_html(self) -> str:
         """Concatène le header, le contenu et other pour générer le HTML complet du permis."""
-        return f"<!DOCTYPE html>\n<html lang=\"fr\">\n{self.header}\n{self.contenu}\n{self.other}\n</html>"
+        return (
+            f'<!DOCTYPE html>\n<html lang="fr">\n'
+            f"{self.header}\n{self.contenu}\n{self.other}\n</html>"
+        )
 
 
 class NodeId(BaseModel):
@@ -63,39 +65,49 @@ class NodeId(BaseModel):
     arrete_id: ArreteId
     article_id: ArticleId
 
-    @field_validator('article_id')
+    @field_validator("article_id")
     @classmethod
     def validate_article_id_format(cls, v: str) -> str:
-        """Valide que l'article_id est au format numérique (ex: '1.2', '3.1.4'), APPENDIX, ALL ou END"""
+        """
+        Valide que l'article_id est au format numérique (ex: '1.2', '3.1.4'),
+        APPENDIX, ALL ou END
+        """
         # Accepter les valeurs spéciales
         if v in ("ALL", "END") or v.startswith("APPENDIX") or v.startswith("NEW_ARTICLE:"):
             return v
         # Sinon, vérifier le format numérique
-        if not re.match(r'^\d+(\.\d+)*$', v):
-            raise ValueError(f"article_id doit être au format numérique (ex: '1.2', '3.1.4'), APPENDIX, ALL, END ou NEW_ARTICLE:X, reçu: '{v}'")
+        if not re.match(r"^\d+(\.\d+)*$", v):
+            msg = (
+                "article_id doit être au format numérique (ex: '1.2', '3.1.4'), "
+                f"APPENDIX, ALL, END ou NEW_ARTICLE:X, reçu: '{v}'"
+            )
+            raise ValueError(msg)
         return v
-    
-    @field_validator('arrete_id')
+
+    @field_validator("arrete_id")
     @classmethod
     def validate_arrete_id_format(cls, v: str) -> str:
         """Valide que l'arrete_id est au format YYYY-MM-DD"""
-        parts = v.split('-')
-        year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+        parts = v.split("-")
+        month, day = int(parts[1]), int(parts[2])
         if not (1 <= day <= 31 and 1 <= month <= 12):
             raise ValueError(f"Date invalide dans arrete_id: '{v}'")
         return v
-    
+
     def __str__(self) -> str:
         return f"{self.arrete_id}#{self.article_id}"
-    
+
     def __hash__(self) -> int:
-        return hash((self.arrete_id, self.article_id))   
+        return hash((self.arrete_id, self.article_id))
+
 
 class ArticleVersion(TypedDict):
     version: int
     content: Content
     operation_id: str | None
 
+
+ArticlesContentMap = Dict[NodeId, Content]
 ArticleHistory = Dict[NodeId, list[ArticleVersion]]
 
 

@@ -40,7 +40,6 @@ from ocapi.types import (
     ArreteId,
     ArticleHistory,
     ArticleVersion,
-    ArticlesContentMap,
     Content,
     NodeId,
     Operation,
@@ -149,7 +148,9 @@ def apply_add(operation: Operation, soup_input: Content | BeautifulSoup) -> Cont
         return output
 
 
-def apply_subgraph_operations(subG: nx.MultiDiGraph, history: ArticleHistory) -> tuple[ArticleHistory, list[tuple[OperationId, str]]]:
+def apply_subgraph_operations(
+    subG: nx.MultiDiGraph, history: ArticleHistory
+) -> tuple[ArticleHistory, list[tuple[OperationId, str]]]:
     """
     Applique les opérations du sous-graphe et met à jour l'historique des articles.
     Pour chaque opération, ajoute une nouvelle version à l'historique de l'article cible.
@@ -160,54 +161,52 @@ def apply_subgraph_operations(subG: nx.MultiDiGraph, history: ArticleHistory) ->
     for start_node in start_nodes:
         for succ in subG.successors(start_node):
             if len(list(subG.successors(succ))) > 1:
-                raise NotImplementedError("Branches with multiple successors are not supported yet.")
-    
+                raise NotImplementedError(
+                    "Branches with multiple successors are not supported yet."
+                )
+
         for src, tgt, key in subG.out_edges(start_node, keys=True):
             op_id = None
             try:
                 op = _edge_to_operation(subG, src, tgt, key)
                 op_id = op.id
-                
+
                 # Récupérer le contenu actuel (dernière version) de l'article cible
-                article_key = (tgt.arrete_id, tgt.article_id)
-                if article_key not in history:
-                    # Initialiser l'historique avec la version 0 (contenu initial)
-                    history[article_key] = [
-                        ArticleVersion(version=0, content=tgt.content, operation_id=None)
-                    ]
-                
-                current_content = history[article_key][-1]["content"]
-                
+                if tgt not in history:
+                    # Initialiser l'historique avec la version 0 (contenu initial vide)
+                    # Le contenu initial sera récupéré depuis le graphe ou les fichiers
+                    history[tgt] = [ArticleVersion(version=0, content="", operation_id=None)]
+
+                current_content = history[tgt][-1]["content"]
+
                 # Appliquer l'opération
-                if op.operation_type == "REPLACE":
+                if op.operation_type == OperationType.REPLACE:
                     new_content = apply_replace(op, BeautifulSoup(current_content, "html.parser"))
-                elif op.operation_type == "REMOVE":
+                elif op.operation_type == OperationType.REMOVE:
                     new_content = apply_remove(op, BeautifulSoup(current_content, "html.parser"))
-                elif op.operation_type == "ADD":
+                elif op.operation_type == OperationType.ADD:
                     new_content = apply_add(op, BeautifulSoup(current_content, "html.parser"))
                 else:
                     raise ValueError(f"Type d'opération inconnu: {op.operation_type}")
-                
+
                 # Ajouter la nouvelle version à l'historique
                 new_version = ArticleVersion(
-                    version=len(history[article_key]),
-                    content=new_content,
-                    operation_id=op.id
+                    version=len(history[tgt]), content=new_content, operation_id=op.id
                 )
-                history[article_key].append(new_version)
+                history[tgt].append(new_version)
             except Exception as e:
                 error_msg = f"⚠️  Opération {op_id or 'inconnue'} ignorée: {str(e)}"
                 print(error_msg)
                 skipped_ops.append((op_id or "unknown", str(e)))
                 continue
-    
+
     return history, skipped_ops
 
 
 def apply_all_ops(
-        operations_graph: nx.MultiDiGraph, 
-        arrete_list: list[ArreteFile], 
-    ) -> tuple[ArticleHistory, list[tuple[OperationId, str]]]:
+    operations_graph: nx.MultiDiGraph,
+    arrete_list: list[ArreteFile],
+) -> tuple[ArticleHistory, list[tuple[OperationId, str]]]:
     """
     Construit l'historique complet des articles en parcourant chronologiquement les arrêtés.
     Retourne un dictionnaire {(arrete_id, article_id): [versions]} avec toutes les modifications
@@ -215,23 +214,22 @@ def apply_all_ops(
     """
     history: ArticleHistory = {}
     all_skipped_ops: list[tuple[OperationId, str]] = []
-    
+
     for arrete_file in arrete_list:
         subG = build_next_subgraph(operations_graph, history, arrete_file.id)
         if subG.number_of_edges() > 0:
             history, skipped_ops = apply_subgraph_operations(subG, history)
             all_skipped_ops.extend(skipped_ops)
-    
+
     if all_skipped_ops:
         print(f"\n⚠️  {len(all_skipped_ops)} opération(s) ignorée(s) lors de l'application")
-    
+
     return history, all_skipped_ops
 
+
 def build_next_subgraph(
-        operations_graph: nx.MultiDiGraph, 
-        history: ArticleHistory, 
-        arrete_id: ArreteId
-    ) -> nx.MultiDiGraph:
+    operations_graph: nx.MultiDiGraph, history: ArticleHistory, arrete_id: ArreteId
+) -> nx.MultiDiGraph:
     """
     Construit le sous-graphe des opérations définies par l'arrêté donné.
     Met à jour le contenu des nœuds avec leur dernière version depuis l'historique.
@@ -244,14 +242,13 @@ def build_next_subgraph(
             filtered_nodes.add(node)
             for successor in operations_graph.successors(node):
                 filtered_nodes.add(successor)
-    
+
     new_graph = operations_graph.subgraph(filtered_nodes).copy()
-    
+
     # Mettre à jour le contenu des nœuds avec leur dernière version depuis l'historique
     for node in new_graph.nodes:
-        article_key = (node.arrete_id, node.article_id)
-        if article_key in history and len(history[article_key]) > 0:
-            latest_version = history[article_key][-1]
-            new_graph.nodes[node]['content'] = latest_version["content"]
-    
+        if node in history and len(history[node]) > 0:
+            latest_version = history[node][-1]
+            new_graph.nodes[node]["content"] = latest_version["content"]
+
     return new_graph

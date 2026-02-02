@@ -16,30 +16,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-#
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
-#
-# This file is part of OCAPI.
-# See https://github.com/mte-dgpr/ocapi for further info.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
 
 
 from bs4 import BeautifulSoup
 
 from ocapi.types import ArreteFile
-
 
 
 def get_html_head(arrete_file: ArreteFile) -> str:
@@ -63,17 +44,12 @@ def get_html_head(arrete_file: ArreteFile) -> str:
 
 
 def extract_visa(soup: BeautifulSoup) -> list[str]:
-
-def extract_visa(soup: BeautifulSoup) -> list[str]:
     """
     Extrait les divs 'visa' du header d'un document HTML.
-
 
     Cherche des divs avec l'attribut data-spec="visa" et retourne leur contenu HTML.
     Si aucun div n'est trouvé, retourne une liste vide.
     """
-
-
     visa_divs = soup.find_all("div", attrs={"data-spec": "visa"})
     if visa_divs:
         return [str(div) for div in visa_divs]
@@ -88,7 +64,6 @@ def extract_motif(soup: BeautifulSoup) -> list[str]:
     Cherche des divs avec l'attribut data-spec="motif" et retourne leur contenu HTML.
     Si aucun div n'est trouvé, retourne une liste vide.
     """
-
 
     motif_divs = soup.find_all("div", attrs={"data-spec": "motifs"})
     if motif_divs:
@@ -106,16 +81,15 @@ def make_liste_arretes(arrete_files: list[ArreteFile]) -> str:
     arretes_list = []
     for arrete_file in arrete_files:
         if arrete_file.status:
-        if arrete_file.status:
             arretes_list.append(
-                f"<li><strong>Arrêté {arrete_file.id}</strong> : {arrete_file.filename} (AIOT: {arrete_file.aiot})</li>"
+                f"<li><strong>Arrêté {arrete_file.id}</strong> : "
+                f"{arrete_file.filename} (AIOT: {arrete_file.aiot})</li>"
             )
         else:
-        else:
             arretes_list.append(
-                f"<li><strong>Arrêté {arrete_file.id} (ABROGÉ)</strong> : {arrete_file.filename} (AIOT: {arrete_file.aiot})</li>"
+                f"<li><strong>Arrêté {arrete_file.id} (ABROGÉ)</strong> : "
+                f"{arrete_file.filename} (AIOT: {arrete_file.aiot})</li>"
             )
-
 
     return f"""
    <div data-spec="arrete_title">
@@ -167,7 +141,8 @@ def make_motif_permis(arrete_files: list[ArreteFile]) -> str:
             extracted_motifs = extract_motif(arrete_file.soup)
             if extracted_motifs:
                 motifs_sections.append(
-                    f'   <div data-spec="supplementary_motif_info" style="margin-top: var(--spacing-2);">\n'
+                    f'   <div data-spec="supplementary_motif_info" '
+                    f'style="margin-top: var(--spacing-2);">\n'
                     f"    <h2>Considérants de l'arrêté {arrete_file.id}</h2>\n"
                     f"   </div>\n"
                 )
@@ -195,7 +170,6 @@ def make_header_permis(arrete_files: list[ArreteFile]) -> str:
     liste_arretes = make_liste_arretes(arrete_files)
     visas_permis = make_visa_permis(arrete_files)
     motifs_permis = make_motif_permis(arrete_files)
-
 
     header_html = f"""{html_head}
  <body data-spec="permis">
