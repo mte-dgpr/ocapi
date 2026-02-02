@@ -19,7 +19,7 @@
 
 # TODO nowwwwwwww
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from ocapi.types import ArreteFile, ArticleHistory, NodeId, Operation, OperationType
 
@@ -43,13 +43,15 @@ def make_contenu_permis(
 
     # Extraire seulement le body (skip header)
     main = consolidated_soup.find("main")
+    if main is None:
+        return ""
 
     # Trouver toutes les sections (articles) dans le body
     sections = main.find_all("section", attrs={"data-spec": "section"})
 
     for section in sections:
         article_id = section.get("data-number")
-        if not article_id:
+        if not article_id or not isinstance(article_id, str):
             continue
 
         section.replace_with(
@@ -60,7 +62,7 @@ def make_contenu_permis(
 
 
 def make_consolidated_section(
-    original_section: BeautifulSoup,
+    original_section: Tag,
     article_id: str,
     operations: list[Operation],
     history: ArticleHistory,
@@ -72,7 +74,8 @@ def make_consolidated_section(
     """
     key = NodeId(arrete_id=arrete_id, article_id=article_id)
     if key not in history:
-        return original_section  # Pas de modifications, retourner l'original
+        # Pas de modifications, retourner l'original converti en BeautifulSoup
+        return BeautifulSoup(str(original_section), "html.parser")
 
     # Récupérer toutes les versions de l'article
     versions = history[key]
