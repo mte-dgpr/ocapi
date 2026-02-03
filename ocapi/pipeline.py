@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from ocapi.constants import DEFAULT_LLM_MODEL
+from ocapi.config import settings
 from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
@@ -26,7 +26,7 @@ from ocapi.types import ArreteFile, Operation, Permis
 
 def run_pipeline(arrete_files: list[ArreteFile]) -> Permis:
     operations: list[Operation] = []
-    modele = DEFAULT_LLM_MODEL
+    modele = settings.pipeline.default_llm_model
     # TODO : valider le type arrete_id
     for arrete_file in arrete_files:
         docs, img_map = step_chunking(arrete_file)
