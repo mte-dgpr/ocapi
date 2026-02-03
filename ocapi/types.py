@@ -106,8 +106,6 @@ class ArticleVersion(TypedDict):
     content: Content
     operation_id: str | None
 
-
-ArticlesContentMap = Dict[NodeId, Content]
 ArticleHistory = Dict[NodeId, list[ArticleVersion]]
 
 
