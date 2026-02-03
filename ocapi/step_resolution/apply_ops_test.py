@@ -28,7 +28,7 @@ from ocapi.step_resolution.apply_ops import (
     build_next_subgraph,
 )
 from ocapi.step_resolution.build_op_graph import add_edge, add_node
-from ocapi.types import ArreteFile, NodeId, Operation, OperationType
+from ocapi.types import ArreteFile, ArticleHistory, NodeId, Operation, OperationType
 
 
 class TestApplyReplace(unittest.TestCase):
@@ -72,7 +72,7 @@ class TestBuildSubgraph(unittest.TestCase):
                 operand="very new content",
             ),
         )
-        history = {}
+        history: ArticleHistory = {}
         subG = build_next_subgraph(G, history, arrete_id="1981-01-01")
 
         assert set(subG.nodes) == {
@@ -129,7 +129,7 @@ class TestApplySubgraphOperations(unittest.TestCase):
                 operand="additional content",
             ),
         )
-        history = {
+        history: ArticleHistory = {
             NodeId(arrete_id="1980-01-01", article_id="1"): [
                 {"version": 0, "content": "original content", "operation_id": None}
             ],
