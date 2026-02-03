@@ -38,7 +38,7 @@ def main() -> None:
         "--exclude",
         (
             ".git,__pycache__,venv,.venv,build,dist,data,"
-            "*_test.py,ocapi/step_rendering/exemple_input_main.py"
+            "*_test.py"
         ),
         "--max-line-length",
         "130",
