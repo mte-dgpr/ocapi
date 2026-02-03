@@ -73,7 +73,9 @@ class TestConvertOperationsRawToOperations(unittest.TestCase):
             ),
         ]
         operations = [
-            convert_raw_operation_to_operation(block_html, raw_op, source_arrete_id, {})
+            convert_raw_operation_to_operation(
+                block_html.page_content, raw_op, source_arrete_id, {}
+            )
             for raw_op in raw_operations
         ]
 
