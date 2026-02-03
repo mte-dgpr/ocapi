@@ -37,7 +37,7 @@ class TestBuildOpGraph(unittest.TestCase):
         <section data-spec="section" data-number="1">Article 1 content</section>
         <section data-spec="section" data-number="2">Article 2 content</section>
         """
-        
+
         arrete_files = [
             ArreteFile(
                 id="1980-01-01",
@@ -52,7 +52,7 @@ class TestBuildOpGraph(unittest.TestCase):
                 soup=BeautifulSoup(html_1981, "html.parser"),
             ),
         ]
-        
+
         operations = [
             Operation(
                 id="1",
