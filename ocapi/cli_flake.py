@@ -36,10 +36,7 @@ def main() -> None:
 
     default_args = [
         "--exclude",
-        (
-            ".git,__pycache__,venv,.venv,build,dist,data,"
-            "*_test.py"
-        ),
+        ".git,__pycache__,venv,.venv,build,dist,data",
         "--max-line-length",
         "130",
         "--extend-ignore",
