@@ -19,3 +19,18 @@ pip install .[dev]
 # Activer les hooks pre-commit
 pre-commit install
 ```
+
+## Configuration
+
+OCAPI utilise **Pydantic Settings** pour une configuration typée et validée.
+
+```bash
+# 1. Créer un fichier .env (voir config.env.example)
+cp config.env.example .env
+
+# 2. Ajouter vos clés API
+PIAG_API_KEY=votre-clé
+
+# 3. Utiliser dans le code
+from ocapi.config import settings
+```
