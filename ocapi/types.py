@@ -18,6 +18,7 @@
 #
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import Dict, Optional, TypedDict
 
@@ -40,6 +41,7 @@ class ArreteFile:
     aiot: AiotId
     filename: str
     soup: BeautifulSoup
+    file_type: "FileType"
     status: bool = True
 
 
@@ -109,6 +111,15 @@ class ArticleVersion(TypedDict):
 
 ArticlesContentMap = Dict[NodeId, Content]
 ArticleHistory = Dict[NodeId, list[ArticleVersion]]
+
+
+class FileType(Enum):
+    """Types de fichiers d'arrêtés reconnus."""
+
+    AP_AUTORISATION = "ap d'autorisation"
+    AP_PRESCRIPTIONS_COMPLEMENTAIRES = "ap prescriptions complémentaires"
+    ARRETE_PREFECTORAL = "arrêté préfectoral"
+    AUTRE = "autre"
 
 
 class OperationType(Enum):
@@ -187,3 +198,76 @@ class Operation(_BaseModelWithConfig):
     @classmethod
     def _ensure_operation_type(cls, v: OperationType | str) -> OperationType:
         return v if isinstance(v, OperationType) else OperationType(v)
+
+
+def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
+    """
+    Parse le nom de fichier au format Arrêtify et extrait la date et le type de fichier.
+
+    Format attendu: YYYY-MM-DD_type-fichier_nom.html
+
+    Args:
+        filename: Nom du fichier à parser
+
+    Returns:
+        Tuple (arrete_id, file_type) où arrete_id est au format YYYY-MM-DD
+        et file_type est l'enum correspondant
+
+    Raises:
+        ValueError: Si le format du nom de fichier est invalide
+    """
+    # Retirer l'extension .html
+    if not filename.endswith(".html"):
+        raise ValueError(f"Le fichier doit avoir l'extension .html: {filename}")
+
+    stem = filename[:-5]  # Retirer .html
+
+    # Parser le format: YYYY-MM-DD_type-fichier_nom
+    parts = stem.split("_")
+
+    if len(parts) < 2:
+        raise ValueError(
+            f"Format invalide, attendu: YYYY-MM-DD_type-fichier_nom.html, reçu: {filename}"
+        )
+
+    # Extraire et valider la date (première partie)
+    date_str = parts[0]
+    date_pattern = r"^\d{4}-\d{2}-\d{2}$"
+
+    if not re.match(date_pattern, date_str):
+        raise ValueError(f"Date invalide dans le nom de fichier (attendu: YYYY-MM-DD): {filename}")
+
+    # Valider que c'est une date valide
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError as e:
+        raise ValueError(f"Date invalide dans le nom de fichier: {filename}") from e
+
+    arrete_id = date_str
+
+    # Extraire le type de fichier (deuxième partie)
+    file_type_str = parts[1].lower().strip()
+
+    # Mapper les variantes courantes
+    file_type_mapping = {
+        "ap d'autorisation": FileType.AP_AUTORISATION,
+        "ap prescriptions complémentaires": FileType.AP_PRESCRIPTIONS_COMPLEMENTAIRES,
+        "arrêté préfectoral": FileType.ARRETE_PREFECTORAL,
+        "apc": FileType.AP_PRESCRIPTIONS_COMPLEMENTAIRES,
+        "ap": FileType.ARRETE_PREFECTORAL,
+    }
+
+    # Chercher une correspondance exacte d'abord
+    file_type = file_type_mapping.get(file_type_str)
+
+    if file_type is None:
+        # Essayer de trouver une correspondance partielle
+        for key, value in file_type_mapping.items():
+            if file_type_str.startswith(key):
+                file_type = value
+                break
+
+    if file_type is None:
+        file_type = FileType.AUTRE
+
+    return arrete_id, file_type

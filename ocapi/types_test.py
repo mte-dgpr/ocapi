@@ -18,7 +18,7 @@
 #
 import unittest
 
-from .types import _BaseModelWithConfig
+from .types import FileType, _BaseModelWithConfig, parse_filename
 
 
 class TestBaseModelWithConfig(unittest.TestCase):
@@ -41,3 +41,99 @@ class TestBaseModelWithConfig(unittest.TestCase):
         assert "b" not in serialized_no_none
         assert "c" in serialized_no_none
         assert serialized_no_none["c"] == 3.14
+
+
+class TestParseFilename(unittest.TestCase):
+    """Tests pour la fonction parse_filename."""
+
+    def test_parse_valid_ap_autorisation(self) -> None:
+        """Test avec un fichier AP d'autorisation valide."""
+        arrete_id, file_type = parse_filename("2009-12-08_ap d'autorisation_description.html")
+        assert arrete_id == "2009-12-08"
+        assert file_type == FileType.AP_AUTORISATION
+
+    def test_parse_valid_ap_prescriptions_complementaires(self) -> None:
+        """Test avec un fichier AP prescriptions complémentaires valide."""
+        arrete_id, file_type = parse_filename(
+            "2014-01-09_ap prescriptions complémentaires_details.html"
+        )
+        assert arrete_id == "2014-01-09"
+        assert file_type == FileType.AP_PRESCRIPTIONS_COMPLEMENTAIRES
+
+    def test_parse_valid_arrete_prefectoral(self) -> None:
+        """Test avec un fichier arrêté préfectoral valide."""
+        arrete_id, file_type = parse_filename(
+            "2020-04-20_arrêté préfectoral_portant autorisation.html"
+        )
+        assert arrete_id == "2020-04-20"
+        assert file_type == FileType.ARRETE_PREFECTORAL
+
+    def test_parse_valid_apc_abbreviation(self) -> None:
+        """Test avec l'abréviation APC."""
+        arrete_id, file_type = parse_filename("2023-02-22_apc_modification.html")
+        assert arrete_id == "2023-02-22"
+        assert file_type == FileType.AP_PRESCRIPTIONS_COMPLEMENTAIRES
+
+    def test_parse_valid_ap_abbreviation(self) -> None:
+        """Test avec l'abréviation AP."""
+        arrete_id, file_type = parse_filename("2021-09-24_ap_nouveau document.html")
+        assert arrete_id == "2021-09-24"
+        assert file_type == FileType.ARRETE_PREFECTORAL
+
+    def test_parse_unknown_file_type(self) -> None:
+        """Test avec un type de fichier inconnu (doit retourner AUTRE)."""
+        arrete_id, file_type = parse_filename("2024-01-15_type_inconnu_description.html")
+        assert arrete_id == "2024-01-15"
+        assert file_type == FileType.AUTRE
+
+    def test_parse_invalid_no_html_extension(self) -> None:
+        """Test avec un fichier sans extension .html."""
+        with self.assertRaises(ValueError) as context:
+            parse_filename("2024-01-15_ap_document.pdf")
+        assert "extension .html" in str(context.exception)
+
+    def test_parse_invalid_date_format(self) -> None:
+        """Test avec un format de date invalide."""
+        with self.assertRaises(ValueError) as context:
+            parse_filename("2024-13-45_ap_document.html")
+        assert "Date invalide" in str(context.exception)
+
+    def test_parse_invalid_date_not_iso(self) -> None:
+        """Test avec une date non ISO."""
+        with self.assertRaises(ValueError) as context:
+            parse_filename("15-01-2024_ap_document.html")
+        assert "Date invalide" in str(context.exception)
+
+    def test_parse_invalid_missing_parts(self) -> None:
+        """Test avec un nom de fichier qui n'a pas assez de parties."""
+        with self.assertRaises(ValueError) as context:
+            parse_filename("2024-01-15.html")
+        assert "Format invalide" in str(context.exception)
+
+    def test_parse_complex_filename(self) -> None:
+        """Test avec un nom de fichier complexe avec plusieurs underscores."""
+        filename = (
+            "2023-02-22_ap prescriptions complémentaires_"
+            "13450_2023_02_22_B+T energie_APCmod_.pdf.html"
+        )
+        arrete_id, file_type = parse_filename(filename)
+        assert arrete_id == "2023-02-22"
+        assert file_type == FileType.AP_PRESCRIPTIONS_COMPLEMENTAIRES
+
+    def test_parse_real_example_1(self) -> None:
+        """Test avec un exemple réel du dossier data."""
+        arrete_id, file_type = parse_filename(
+            "2009-12-08_ap d'autorisation_20091208_APpub_UniteRegenerationHuilesUsagees (1).html"
+        )
+        assert arrete_id == "2009-12-08"
+        assert file_type == FileType.AP_AUTORISATION
+
+    def test_parse_real_example_2(self) -> None:
+        """Test avec un autre exemple réel du dossier data."""
+        filename = (
+            "2023-12-04_ap prescriptions complémentaires_"
+            "AP du 04.12.2023_OSILUB à Gonfreville-l'Orcher.html"
+        )
+        arrete_id, file_type = parse_filename(filename)
+        assert arrete_id == "2023-12-04"
+        assert file_type == FileType.AP_PRESCRIPTIONS_COMPLEMENTAIRES
