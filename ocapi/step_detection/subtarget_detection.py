@@ -1,3 +1,21 @@
+#
+# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+#
+# This file is part of OCAPI.
+# See https://github.com/mte-dgpr/ocapi for further info.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 """
 Détection et parsing de sub-targets simples dans les opérations.
 
@@ -72,7 +90,6 @@ def _ensure_subtarget_type(value: SubTargetType | str | None) -> SubTargetType:
 
 
 def parse_subtarget(text: str) -> SubTarget:
-    # TODO: match avec le nouveau prompt
     """
     Détecte le type de sub-target à partir du texte.
 
@@ -88,17 +105,13 @@ def parse_subtarget(text: str) -> SubTarget:
     text_lower = text.lower().strip()
 
     # Cas spécial : "tout" ou variations
-    if re.match(r"contenu entier", text_lower):
+    if re.match(r"contenu entier", text_lower) or text_lower == "all":
         return SubTarget(type=SubTargetType.FULL_SECTION, description=text)
 
     # Tester les patterns simples d'abord
     for pattern, target_type, position in SIMPLE_PATTERNS:
         if re.search(pattern, text_lower, re.IGNORECASE):
-            return SubTarget(
-                type=target_type,
-                position=position,
-                description=text,
-            )
+            return SubTarget(type=target_type, position=position, description=text)
 
     # Tester les combinaisons ordinal + élément
     for ordinal_pattern, position in ORDINAUX.items():
@@ -106,11 +119,7 @@ def parse_subtarget(text: str) -> SubTarget:
             # Construire pattern combiné : "premier alinéa", "deuxième phrase", etc.
             combined_pattern = f"{ordinal_pattern}\\s+{element_pattern}"
             if re.search(combined_pattern, text_lower, re.IGNORECASE):
-                return SubTarget(
-                    type=target_type,
-                    position=position,
-                    description=text,
-                )
+                return SubTarget(type=target_type, position=position, description=text)
 
     # Si aucun pattern ne correspond, marquer comme complexe
     return SubTarget(type=SubTargetType.COMPLEX, description=text)

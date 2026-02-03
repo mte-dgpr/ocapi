@@ -1,7 +1,25 @@
+#
+# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+#
+# This file is part of OCAPI.
+# See https://github.com/mte-dgpr/ocapi for further info.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, Optional, TypedDict
 
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -22,10 +40,21 @@ class ArreteFile:
     aiot: AiotId
     filename: str
     soup: BeautifulSoup
+    status: bool = True
 
 
 class Permis(BaseModel):
-    pass
+    header: str
+    contenu: str
+    other: str
+    aiot: AiotId | None = None
+
+    def to_html(self) -> str:
+        """Concatène le header, le contenu et other pour générer le HTML complet du permis."""
+        return (
+            f'<!DOCTYPE html>\n<html lang="fr">\n'
+            f"{self.header}\n{self.contenu}\n{self.other}\n</html>"
+        )
 
 
 class NodeId(BaseModel):
@@ -39,11 +68,30 @@ class NodeId(BaseModel):
     @field_validator("article_id")
     @classmethod
     def validate_article_id_format(cls, v: str) -> str:
-        """Valide que l'article_id est au format numérique (ex: '1.2', '3.1.4')"""
+        """
+        Valide que l'article_id est au format numérique (ex: '1.2', '3.1.4'),
+        APPENDIX, ALL ou END
+        """
+        # Accepter les valeurs spéciales
+        if v in ("ALL", "END") or v.startswith("APPENDIX") or v.startswith("NEW_ARTICLE:"):
+            return v
+        # Sinon, vérifier le format numérique
         if not re.match(r"^\d+(\.\d+)*$", v):
-            raise ValueError(
-                f"article_id doit être au format numérique (ex: '1.2', '3.1.4'), reçu: '{v}'"
+            msg = (
+                "article_id doit être au format numérique (ex: '1.2', '3.1.4'), "
+                f"APPENDIX, ALL, END ou NEW_ARTICLE:X, reçu: '{v}'"
             )
+            raise ValueError(msg)
+        return v
+
+    @field_validator("arrete_id")
+    @classmethod
+    def validate_arrete_id_format(cls, v: str) -> str:
+        """Valide que l'arrete_id est au format YYYY-MM-DD"""
+        parts = v.split("-")
+        month, day = int(parts[1]), int(parts[2])
+        if not (1 <= day <= 31 and 1 <= month <= 12):
+            raise ValueError(f"Date invalide dans arrete_id: '{v}'")
         return v
 
     def __str__(self) -> str:
@@ -53,7 +101,13 @@ class NodeId(BaseModel):
         return hash((self.arrete_id, self.article_id))
 
 
-ArticlesContentMap = dict[NodeId, Content]  # mapping NodeId -> content str
+class ArticleVersion(TypedDict):
+    version: int
+    content: Content
+    operation_id: str | None
+
+
+ArticleHistory = Dict[NodeId, list[ArticleVersion]]
 
 
 class OperationType(Enum):
