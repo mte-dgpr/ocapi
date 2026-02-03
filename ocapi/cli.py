@@ -54,9 +54,13 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
         return []
 
     for _ordered_index, html_path in enumerate(html_files):
-        # Extraire l'ID de l'arrêté du nom de fichier
-        # ex: 2024-09-27_APC_mistral.html -> 2024-09-27_APC
-        arrete_id = html_path.stem.rsplit("_", 1)[0]
+        # Parser et valider le nom de fichier
+        try:
+            arrete_id, file_type = parse_filename(html_path.name)
+        except ValueError as e:
+            print(f"⚠️  Fichier ignoré (format invalide): {html_path.name}", file=sys.stderr)
+            print(f"   Raison: {e}", file=sys.stderr)
+            continue
 
         with open(html_path, encoding="utf-8") as f:
             html_content = f.read()

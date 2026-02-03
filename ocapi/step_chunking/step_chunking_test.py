@@ -22,7 +22,7 @@ from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 
 from ocapi.step_chunking.step_chunking import _extract_and_strip_images, split_blocs
-from ocapi.types import ArreteFile
+from ocapi.types import ArreteFile, FileType
 from ocapi.utils.utils import _assert_html_equal, minify_html_fragment
 
 
@@ -43,9 +43,9 @@ class TestSplitBlocs(unittest.TestCase):
         arrete_file = ArreteFile(
             id="arrete_1",
             aiot="aiot_1",
-            ordered_index=0,
             filename="test.html",
             soup=BeautifulSoup(minified_html, "html.parser"),
+            file_type=FileType.AUTRE,
         )
         blocs = list(split_blocs(arrete_file.soup, arrete_file, target_per_block=70000))
         assert len(blocs) == 1
@@ -77,9 +77,9 @@ class TestSplitBlocs(unittest.TestCase):
         arrete_file = ArreteFile(
             id="arrete_2",
             aiot="aiot_2",
-            ordered_index=0,
             filename="test.html",
             soup=BeautifulSoup(minified_html, "html.parser"),
+            file_type=FileType.AUTRE,
         )
 
         blocs = list(split_blocs(arrete_file.soup, arrete_file, target_per_block=125))
@@ -110,9 +110,9 @@ class TestSplitBlocs(unittest.TestCase):
         arrete_file = ArreteFile(
             id="arrete_3",
             aiot="aiot_3",
-            ordered_index=0,
             filename="test.html",
             soup=BeautifulSoup(minified_html, "html.parser"),
+            file_type=FileType.AUTRE,
         )
         blocs = list(split_blocs(arrete_file.soup, arrete_file, target_per_block=10))
         assert len(blocs) == 2

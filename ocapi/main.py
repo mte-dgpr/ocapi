@@ -32,7 +32,7 @@ from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
-from ocapi.types import ArreteFile, Operation
+from ocapi.types import ArreteFile, FileType, Operation, parse_filename
 
 # TODO : faire d'abord tous les appels LLM puis convertir en raw ops dans un second temps.
 # comme ça on peut faire du batch et gérer les erreurs après.
@@ -60,14 +60,17 @@ def folder_to_list_of_ArreteFiles(folder_path: Path) -> list[ArreteFile]:
 
 
 def arrete_to_ArreteFile(i: int, html_path: Path) -> ArreteFile:
-    filename = html_path.stem
-
-    # Parser le nom : YYYY-MM-DD_Autresinfos.html
-    parts = filename.split("_")
-    if len(parts) < 2:
-        raise ValueError(f"Format de fichier invalide : {filename}")
-    date_str = parts[0]
-    arrete_id = f"{date_str}"
+    # Parser et valider le nom de fichier
+    try:
+        arrete_id, file_type = parse_filename(html_path.name)
+    except ValueError:
+        # Si le parsing échoue, utiliser l'ancien format comme fallback
+        filename = html_path.stem
+        parts = filename.split("_")
+        if len(parts) < 2:
+            raise ValueError(f"Format de fichier invalide : {filename}")
+        arrete_id = parts[0]
+        file_type = FileType.AUTRE
 
     # Charger et parser le HTML
     html_content = html_path.read_text(encoding="utf-8")
@@ -76,8 +79,9 @@ def arrete_to_ArreteFile(i: int, html_path: Path) -> ArreteFile:
     return ArreteFile(
         id=arrete_id,
         aiot="",
-        filename=filename,
+        filename=html_path.stem,
         soup=soup,
+        file_type=file_type,
     )
 
 
