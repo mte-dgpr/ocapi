@@ -33,7 +33,7 @@ apportées par les opérations.
 import networkx as nx
 from bs4 import BeautifulSoup
 
-from ocapi.constants import DEFAULT_LLM_MODEL
+from ocapi.config import settings
 from ocapi.step_detection.subtarget_detection import is_simple_subtarget, replace_subtarget
 from ocapi.types import (
     ArreteFile,
@@ -48,7 +48,7 @@ from ocapi.types import (
 )
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
 
-_DEFAULT_LLM_CFG = config_model_llm(DEFAULT_LLM_MODEL)
+_DEFAULT_LLM_CFG = config_model_llm(settings.pipeline.default_llm_model)
 
 
 def _to_operation_type(raw_type: OperationType | str) -> OperationType:

@@ -28,7 +28,7 @@ from ocapi.step_resolution.apply_ops import (
     build_next_subgraph,
 )
 from ocapi.step_resolution.build_op_graph import add_edge, add_node
-from ocapi.types import ArreteFile, NodeId, Operation, OperationType
+from ocapi.types import ArreteFile, ArticleHistory, NodeId, Operation, OperationType
 
 
 class TestApplyReplace(unittest.TestCase):
@@ -38,16 +38,16 @@ class TestApplyReplace(unittest.TestCase):
 class TestBuildSubgraph(unittest.TestCase):
     def test_build_subgraph(self) -> None:
         G = nx.MultiDiGraph()
-        add_node(G, NodeId(arrete_id="arreteA", article_id="1"))
-        add_node(G, NodeId(arrete_id="arreteB", article_id="2"))
-        add_node(G, NodeId(arrete_id="arreteB", article_id="3"))
-        add_node(G, NodeId(arrete_id="arreteC", article_id="1"))
+        add_node(G, NodeId(arrete_id="1980-01-01", article_id="1"))
+        add_node(G, NodeId(arrete_id="1981-01-01", article_id="2"))
+        add_node(G, NodeId(arrete_id="1981-01-01", article_id="3"))
+        add_node(G, NodeId(arrete_id="1982-01-01", article_id="1"))
         add_edge(
             G,
             Operation(
                 id="op1",
-                source_id=NodeId(arrete_id="arreteB", article_id="2"),
-                target_id=NodeId(arrete_id="arreteA", article_id="1"),
+                source_id=NodeId(arrete_id="1981-01-01", article_id="2"),
+                target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
                 operation_type=OperationType.REPLACE,
                 operand="very new content",
             ),
@@ -56,8 +56,8 @@ class TestBuildSubgraph(unittest.TestCase):
             G,
             Operation(
                 id="op2",
-                source_id=NodeId(arrete_id="arreteB", article_id="3"),
-                target_id=NodeId(arrete_id="arreteA", article_id="1"),
+                source_id=NodeId(arrete_id="1981-01-01", article_id="3"),
+                target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
                 operation_type=OperationType.ADD,
                 operand="additional content",
             ),
@@ -66,29 +66,29 @@ class TestBuildSubgraph(unittest.TestCase):
             G,
             Operation(
                 id="op3",
-                source_id=NodeId(arrete_id="arreteC", article_id="1"),
-                target_id=NodeId(arrete_id="arreteA", article_id="1"),
+                source_id=NodeId(arrete_id="1982-01-01", article_id="1"),
+                target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
                 operation_type=OperationType.REPLACE,
                 operand="very new content",
             ),
         )
-        history = {}
-        subG = build_next_subgraph(G, history, arrete_id="arreteB")
+        history: ArticleHistory = {}
+        subG = build_next_subgraph(G, history, arrete_id="1981-01-01")
 
         assert set(subG.nodes) == {
-            NodeId(arrete_id="arreteA", article_id="1"),
-            NodeId(arrete_id="arreteB", article_id="2"),
-            NodeId(arrete_id="arreteB", article_id="3"),
+            NodeId(arrete_id="1980-01-01", article_id="1"),
+            NodeId(arrete_id="1981-01-01", article_id="2"),
+            NodeId(arrete_id="1981-01-01", article_id="3"),
         }
         assert set(subG.edges) == {
             (
-                NodeId(arrete_id="arreteB", article_id="2"),
-                NodeId(arrete_id="arreteA", article_id="1"),
+                NodeId(arrete_id="1981-01-01", article_id="2"),
+                NodeId(arrete_id="1980-01-01", article_id="1"),
                 0,
             ),
             (
-                NodeId(arrete_id="arreteB", article_id="3"),
-                NodeId(arrete_id="arreteA", article_id="1"),
+                NodeId(arrete_id="1981-01-01", article_id="3"),
+                NodeId(arrete_id="1980-01-01", article_id="1"),
                 0,
             ),
         }
@@ -105,16 +105,16 @@ class TestApplySubgraphOperations(unittest.TestCase):
         mock_remove.return_value = ""
         mock_replace.return_value = "new content after replace"
         G = nx.MultiDiGraph()
-        add_node(G, NodeId(arrete_id="arreteA", article_id="1"))
-        add_node(G, NodeId(arrete_id="arreteA", article_id="2"))
-        add_node(G, NodeId(arrete_id="arreteB", article_id="2"))
-        add_node(G, NodeId(arrete_id="arreteB", article_id="3"))
+        add_node(G, NodeId(arrete_id="1980-01-01", article_id="1"))
+        add_node(G, NodeId(arrete_id="1980-01-01", article_id="2"))
+        add_node(G, NodeId(arrete_id="1981-01-01", article_id="2"))
+        add_node(G, NodeId(arrete_id="1981-01-01", article_id="3"))
         add_edge(
             G,
             Operation(
                 id="op1",
-                source_id=NodeId(arrete_id="arreteB", article_id="2"),
-                target_id=NodeId(arrete_id="arreteA", article_id="1"),
+                source_id=NodeId(arrete_id="1981-01-01", article_id="2"),
+                target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
                 operation_type=OperationType.REPLACE,
                 operand="very new content",
             ),
@@ -123,17 +123,17 @@ class TestApplySubgraphOperations(unittest.TestCase):
             G,
             Operation(
                 id="op2",
-                source_id=NodeId(arrete_id="arreteB", article_id="3"),
-                target_id=NodeId(arrete_id="arreteA", article_id="2"),
+                source_id=NodeId(arrete_id="1981-01-01", article_id="3"),
+                target_id=NodeId(arrete_id="1980-01-01", article_id="2"),
                 operation_type=OperationType.ADD,
                 operand="additional content",
             ),
         )
-        history = {
-            NodeId(arrete_id="arreteA", article_id="1"): [
+        history: ArticleHistory = {
+            NodeId(arrete_id="1980-01-01", article_id="1"): [
                 {"version": 0, "content": "original content", "operation_id": None}
             ],
-            NodeId(arrete_id="arreteA", article_id="2"): [
+            NodeId(arrete_id="1980-01-01", article_id="2"): [
                 {"version": 0, "content": "original content 2", "operation_id": None}
             ],
         }
@@ -141,11 +141,11 @@ class TestApplySubgraphOperations(unittest.TestCase):
 
         # Check that the last version of each article has the expected content
         assert (
-            output_history[NodeId(arrete_id="arreteA", article_id="1")][-1]["content"]
+            output_history[NodeId(arrete_id="1980-01-01", article_id="1")][-1]["content"]
             == mock_replace.return_value
         )
         assert (
-            output_history[NodeId(arrete_id="arreteA", article_id="2")][-1]["content"]
+            output_history[NodeId(arrete_id="1980-01-01", article_id="2")][-1]["content"]
             == mock_add.return_value
         )
 
@@ -162,17 +162,17 @@ class TestApplyOpsFunctions(unittest.TestCase):
         mock_replace.return_value = "new content after replace"
 
         G = nx.MultiDiGraph()
-        add_node(G, NodeId(arrete_id="arreteA", article_id="1"))
-        add_node(G, NodeId(arrete_id="arreteA", article_id="2"))
-        add_node(G, NodeId(arrete_id="arreteB", article_id="2"))
-        add_node(G, NodeId(arrete_id="arreteB", article_id="3"))
-        add_node(G, NodeId(arrete_id="arreteC", article_id="1"))
+        add_node(G, NodeId(arrete_id="1980-01-01", article_id="1"))
+        add_node(G, NodeId(arrete_id="1980-01-01", article_id="2"))
+        add_node(G, NodeId(arrete_id="1981-01-01", article_id="2"))
+        add_node(G, NodeId(arrete_id="1981-01-01", article_id="3"))
+        add_node(G, NodeId(arrete_id="1982-01-01", article_id="1"))
         add_edge(
             G,
             Operation(
                 id="op1",
-                source_id=NodeId(arrete_id="arreteB", article_id="2"),
-                target_id=NodeId(arrete_id="arreteA", article_id="1"),
+                source_id=NodeId(arrete_id="1981-01-01", article_id="2"),
+                target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
                 operation_type=OperationType.REPLACE,
                 operand="very new content",
             ),
@@ -181,8 +181,8 @@ class TestApplyOpsFunctions(unittest.TestCase):
             G,
             Operation(
                 id="op2",
-                source_id=NodeId(arrete_id="arreteB", article_id="3"),
-                target_id=NodeId(arrete_id="arreteA", article_id="2"),
+                source_id=NodeId(arrete_id="1981-01-01", article_id="3"),
+                target_id=NodeId(arrete_id="1980-01-01", article_id="2"),
                 operation_type=OperationType.ADD,
                 operand="additional content",
             ),
@@ -191,8 +191,8 @@ class TestApplyOpsFunctions(unittest.TestCase):
             G,
             Operation(
                 id="op3",
-                source_id=NodeId(arrete_id="arreteC", article_id="1"),
-                target_id=NodeId(arrete_id="arreteA", article_id="1"),
+                source_id=NodeId(arrete_id="1982-01-01", article_id="1"),
+                target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
                 operation_type=OperationType.ADD,
                 operand="new content",
             ),
@@ -201,30 +201,27 @@ class TestApplyOpsFunctions(unittest.TestCase):
             G,
             Operation(
                 id="op4",
-                source_id=NodeId(arrete_id="arreteC", article_id="1"),
-                target_id=NodeId(arrete_id="arreteA", article_id="2"),
+                source_id=NodeId(arrete_id="1982-01-01", article_id="1"),
+                target_id=NodeId(arrete_id="1980-01-01", article_id="2"),
                 operation_type=OperationType.REMOVE,
             ),
         )
         arrete_list = [
             ArreteFile(
-                id="arreteA",
+                id="1980-01-01",
                 aiot="aiotA",
-                ordered_index=0,
                 filename="a.html",
                 soup=BeautifulSoup("<section/>", "html.parser"),
             ),
             ArreteFile(
-                id="arreteB",
+                id="1981-01-01",
                 aiot="aiotB",
-                ordered_index=1,
                 filename="b.html",
                 soup=BeautifulSoup("<section/>", "html.parser"),
             ),
             ArreteFile(
-                id="arreteC",
+                id="1982-01-01",
                 aiot="aiotC",
-                ordered_index=2,
                 filename="c.html",
                 soup=BeautifulSoup("<section/>", "html.parser"),
             ),
@@ -232,12 +229,12 @@ class TestApplyOpsFunctions(unittest.TestCase):
         history, skipped_ops = apply_all_ops(G, arrete_list)
 
         # Verify the history contains the expected articles
-        assert NodeId(arrete_id="arreteA", article_id="1") in history
-        assert NodeId(arrete_id="arreteA", article_id="2") in history
+        assert NodeId(arrete_id="1980-01-01", article_id="1") in history
+        assert NodeId(arrete_id="1980-01-01", article_id="2") in history
 
         # Check that operations were applied by verifying multiple versions exist
-        assert len(history[NodeId(arrete_id="arreteA", article_id="1")]) > 1
-        assert len(history[NodeId(arrete_id="arreteA", article_id="2")]) > 1
+        assert len(history[NodeId(arrete_id="1980-01-01", article_id="1")]) > 1
+        assert len(history[NodeId(arrete_id="1980-01-01", article_id="2")]) > 1
 
 
 class TestBuildInitialArticlesContentMap(unittest.TestCase):
