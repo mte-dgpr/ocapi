@@ -137,3 +137,10 @@ class TestParseFilename(unittest.TestCase):
         arrete_id, file_type = parse_filename(filename)
         assert arrete_id == "2023-12-04"
         assert file_type == FileType.AP_PRESCRIPTIONS_COMPLEMENTAIRES
+
+    def test_parse_ap_autorisation_not_confused_with_ap(self) -> None:
+        """Test que 'ap d'autorisation' n'est pas confondu avec 'ap'."""
+        # Ce test vérifie que l'ordre de matching est correct
+        arrete_id, file_type = parse_filename("2024-01-01_ap d'autorisation_test.html")
+        assert file_type == FileType.AP_AUTORISATION
+        # Et pas FileType.ARRETE_PREFECTORAL qui serait le cas si "ap" matchait en premier

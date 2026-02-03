@@ -262,9 +262,11 @@ def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
 
     if file_type is None:
         # Essayer de trouver une correspondance partielle
-        for key, value in file_type_mapping.items():
+        # Trier par longueur décroissante pour matcher les plus spécifiques en premier
+        sorted_keys = sorted(file_type_mapping.keys(), key=len, reverse=True)
+        for key in sorted_keys:
             if file_type_str.startswith(key):
-                file_type = value
+                file_type = file_type_mapping[key]
                 break
 
     if file_type is None:
