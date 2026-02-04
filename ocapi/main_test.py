@@ -27,7 +27,10 @@ from ocapi.types import ArreteFile
 class TestArreteToArreteFile:
     def test_valid_filename(self, tmp_path: Path) -> None:
         test_file = tmp_path / "2023-01-15_APC_source.html"
-        test_file.write_text("<html><body>Test</body></html>", encoding="utf-8")
+        test_file.write_text(
+            '<html><body data-arretify_version="0.1.0">Test</body></html>',
+            encoding="utf-8",
+        )
 
         arrete_file = arrete_to_ArreteFile(0, test_file)
 
@@ -37,7 +40,10 @@ class TestArreteToArreteFile:
 
     def test_invalid_filename(self, tmp_path: Path) -> None:
         test_file = tmp_path / "invalidfilename.html"
-        test_file.write_text("<html></html>", encoding="utf-8")
+        test_file.write_text(
+            '<html><body data-arretify_version="0.1.0"></body></html>',
+            encoding="utf-8",
+        )
 
         with pytest.raises(ValueError):
             arrete_to_ArreteFile(0, test_file)

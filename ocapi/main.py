@@ -32,7 +32,7 @@ from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
-from ocapi.types import ArreteFile, FileType, Operation, parse_filename
+from ocapi.types import ArreteFile, FileType, Operation, parse_filename, validate_arretify_version
 
 # TODO : faire d'abord tous les appels LLM puis convertir en raw ops dans un second temps.
 # comme ça on peut faire du batch et gérer les erreurs après.
@@ -75,6 +75,9 @@ def arrete_to_ArreteFile(i: int, html_path: Path) -> ArreteFile:
     # Charger et parser le HTML
     html_content = html_path.read_text(encoding="utf-8")
     soup = BeautifulSoup(html_content, "html.parser")
+
+    # Valider la version Arrêtify
+    validate_arretify_version(soup, html_path.name)
 
     return ArreteFile(
         id=arrete_id,

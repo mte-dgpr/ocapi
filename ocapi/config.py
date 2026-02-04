@@ -21,13 +21,6 @@ Configuration centralisée pour OCAPI.
 
 Ce module utilise Pydantic Settings pour charger et valider
 la configuration depuis les variables d'environnement et fichiers .env.
-
-Exemple d'utilisation:
-    >>> from ocapi.config import settings
-    >>> print(settings.llm.piag_api_url)
-    https://preprod.api.piag.e2.rie.gouv.fr/v1/chat/completions
-    >>> print(settings.pipeline.default_llm_model)
-    mte-api-piag-mistral-medium-latest
 """
 
 from pathlib import Path
@@ -39,6 +32,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # Racine du projet (calculée une seule fois)
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+# Version Arrêtify supportée
+# OCAPI s'appuie sur le format HTML sémantique généré par Arrêtify.
+# Seule la version 0.1.X est actuellement supportée (0.1.0, 0.1.1, etc.)
+# Les versions majeures/mineures différentes peuvent introduire des breaking changes
+# dans le format HTML (attributs data-spec, classes CSS, structure du document).
+SUPPORTED_ARRETIFY_VERSION_PATTERN = r"^0\.1\.\d+$"
+
 
 class LLMConfig(BaseSettings):
     """Configuration des APIs LLM.
@@ -48,11 +48,6 @@ class LLMConfig(BaseSettings):
         piag_api_url: URL de l'API PIAG
         openai_api_key: Clé API pour OpenAI (optionnel)
         openai_api_url: URL de l'API OpenAI
-
-    Example:
-        >>> llm = LLMConfig(piag_api_key="sk-xxx")
-        >>> print(llm.piag_api_url)
-        https://preprod.api.piag.e2.rie.gouv.fr/v1/chat/completions
     """
 
     model_config = SettingsConfigDict(
@@ -242,7 +237,9 @@ class AppConfig(BaseSettings):
         """Valider la cohérence globale de la configuration."""
         # Vérifier que le projet est correctement initialisé
         if not self.paths.project_root.exists():
-            raise ValueError(f"Racine du projet invalide: {self.paths.project_root}")
+            raise ValueError(
+                f"Racine du projet invalide: {self.paths.project_root}"
+            )
         return self
 
     def model_dump_safe(self) -> dict[str, Any]:
@@ -280,4 +277,5 @@ __all__ = [
     "PathsConfig",
     "settings",
     "reload_settings",
+    "SUPPORTED_ARRETIFY_VERSION_PATTERN",
 ]

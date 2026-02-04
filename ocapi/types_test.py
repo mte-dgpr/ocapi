@@ -18,7 +18,9 @@
 #
 import unittest
 
-from .types import FileType, _BaseModelWithConfig, parse_filename
+from bs4 import BeautifulSoup
+
+from .types import FileType, _BaseModelWithConfig, parse_filename, validate_arretify_version
 
 
 class TestBaseModelWithConfig(unittest.TestCase):
@@ -144,3 +146,67 @@ class TestParseFilename(unittest.TestCase):
         arrete_id, file_type = parse_filename("2024-01-01_ap d'autorisation_test.html")
         assert file_type == FileType.AP_AUTORISATION
         # Et pas FileType.ARRETE_PREFECTORAL qui serait le cas si "ap" matchait en premier
+
+
+class TestValidateArretifyVersion(unittest.TestCase):
+    """Tests pour la validation de la version Arrêtify."""
+
+    def test_validate_version_0_1_0(self) -> None:
+        """Test avec version 0.1.0 (valide)."""
+        html = '<html><body data-arretify_version="0.1.0"><p>Contenu</p></body></html>'
+        soup = BeautifulSoup(html, "html.parser")
+        # Ne devrait pas lever d'exception
+        validate_arretify_version(soup, "test.html")
+
+    def test_validate_version_0_1_1(self) -> None:
+        """Test avec version 0.1.1 (valide)."""
+        html = '<html><body data-arretify_version="0.1.1"><p>Contenu</p></body></html>'
+        soup = BeautifulSoup(html, "html.parser")
+        validate_arretify_version(soup, "test.html")
+
+    def test_validate_version_0_1_99(self) -> None:
+        """Test avec version 0.1.99 (valide, patch élevé)."""
+        html = '<html><body data-arretify_version="0.1.99"><p>Contenu</p></body></html>'
+        soup = BeautifulSoup(html, "html.parser")
+        validate_arretify_version(soup, "test.html")
+
+    def test_validate_version_missing_raises_error(self) -> None:
+        """Test sans attribut data-arretify_version."""
+        html = "<html><body><p>Contenu</p></body></html>"
+        soup = BeautifulSoup(html, "html.parser")
+        with self.assertRaises(ValueError) as context:
+            validate_arretify_version(soup, "test.html")
+        assert "Version Arrêtify manquante" in str(context.exception)
+
+    def test_validate_version_0_2_0_raises_error(self) -> None:
+        """Test avec version 0.2.0 (non supportée, minor différente)."""
+        html = '<html><body data-arretify_version="0.2.0"><p>Contenu</p></body></html>'
+        soup = BeautifulSoup(html, "html.parser")
+        with self.assertRaises(ValueError) as context:
+            validate_arretify_version(soup, "test.html")
+        assert "Version Arrêtify non supportée" in str(context.exception)
+        assert "0.2.0" in str(context.exception)
+
+    def test_validate_version_1_0_0_raises_error(self) -> None:
+        """Test avec version 1.0.0 (non supportée, major différente)."""
+        html = '<html><body data-arretify_version="1.0.0"><p>Contenu</p></body></html>'
+        soup = BeautifulSoup(html, "html.parser")
+        with self.assertRaises(ValueError) as context:
+            validate_arretify_version(soup, "test.html")
+        assert "Version Arrêtify non supportée" in str(context.exception)
+
+    def test_validate_invalid_version_format_raises_error(self) -> None:
+        """Test avec un format de version invalide."""
+        html = '<html><body data-arretify_version="invalid"><p>Contenu</p></body></html>'
+        soup = BeautifulSoup(html, "html.parser")
+        with self.assertRaises(ValueError) as context:
+            validate_arretify_version(soup, "test.html")
+        assert "Version Arrêtify non supportée" in str(context.exception)
+
+    def test_validate_no_body_tag_raises_error(self) -> None:
+        """Test avec un document HTML sans balise body."""
+        html = "<html><p>Contenu sans body</p></html>"
+        soup = BeautifulSoup(html, "html.parser")
+        with self.assertRaises(ValueError) as context:
+            validate_arretify_version(soup, "test.html")
+        assert "Document HTML invalide" in str(context.exception)

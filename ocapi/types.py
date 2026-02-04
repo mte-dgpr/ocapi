@@ -24,6 +24,8 @@ from typing import Dict, Optional, TypedDict
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from .config import SUPPORTED_ARRETIFY_VERSION_PATTERN
+
 OperationId = str
 ArreteId = str
 ArticleId = str
@@ -275,3 +277,38 @@ def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
     file_type = categorize_arrete(filename)
     
     return arrete_id, file_type
+
+
+def validate_arretify_version(soup: BeautifulSoup, filename: str = "") -> None:
+    """
+    Valide que la version Arrêtify du document HTML est supportée.
+    
+    Args:
+        soup: Document HTML parsé par BeautifulSoup
+        filename: Nom du fichier (pour les messages d'erreur)
+    
+    Raises:
+        ValueError: Si la version Arrêtify est absente ou non supportée
+    """
+    body = soup.find("body")
+    if not body:
+        raise ValueError(
+            f"Document HTML invalide (pas de balise <body>): {filename}"
+        )
+    
+    arretify_version = body.get("data-arretify_version")
+    
+    if not arretify_version:
+        raise ValueError(
+            f"Version Arrêtify manquante dans le document HTML: {filename}\n"
+            f"L'attribut 'data-arretify_version' doit être présent sur la balise <body>."
+        )
+    
+    if not re.match(SUPPORTED_ARRETIFY_VERSION_PATTERN, str(arretify_version)):
+        raise ValueError(
+            f"Version Arrêtify non supportée: {arretify_version} (fichier: {filename})\n"
+            f"OCAPI supporte uniquement les versions 0.1.X (ex: 0.1.0, 0.1.1, etc.)\n"
+            f"Version détectée: {arretify_version}"
+        )
+    
+    # Version valide - rien à retourner
