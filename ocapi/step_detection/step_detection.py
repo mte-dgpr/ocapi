@@ -29,9 +29,9 @@ from langchain_core.documents import Document
 
 from ocapi.step_detection.extract_operand import extract_operand_with_images
 from ocapi.step_detection.prompts import prompt_detection
-from ocapi.step_detection.subtarget_detection import parse_subtarget
 from ocapi.types import ArreteId, ImageMap, NodeId, Operation, OperationType, RawOperation
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, parse_llm_json_list_response
+from ocapi.utils.subtarget_utils import parse_subtarget
 from ocapi.utils.utils import IdCounter, make_id
 
 _OPERATION_ID_COUNTER = IdCounter()
