@@ -105,7 +105,9 @@ class TestPipelineConfig:
         with pytest.raises(ValidationError) as exc_info:
             PipelineConfig(default_llm_model="")
         # Pydantic valide min_length=1 avant le validateur personnalisé
-        assert "at least 1 character" in str(exc_info.value) or "La valeur ne peut pas être vide" in str(exc_info.value)
+        assert "at least 1 character" in str(
+            exc_info.value
+        ) or "La valeur ne peut pas être vide" in str(exc_info.value)
 
     def test_whitespace_model_name_raises_error(self) -> None:
         """Test qu'un nom de modèle avec uniquement des espaces lève une erreur."""
@@ -184,7 +186,7 @@ class TestPathsConfig:
 
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp_path = Path(tmp.name)
-        
+
         # Fermer le fichier avant de l'utiliser (important sur Windows)
         try:
             with pytest.raises(ValidationError) as exc_info:

@@ -27,7 +27,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-from ocapi.constants import DEFAULT_LLM_MODEL
+from ocapi.config import settings
 from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
@@ -117,7 +117,7 @@ def main(input_dir: Path, output_dir: Path) -> None:
     print("=" * 60)
 
     operations: list[Operation] = []
-    modele = DEFAULT_LLM_MODEL
+    modele = settings.pipeline.default_llm_model
 
     for i, arrete_file in enumerate(arrete_files):
         if i == 0:

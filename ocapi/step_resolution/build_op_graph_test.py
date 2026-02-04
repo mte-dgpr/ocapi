@@ -20,7 +20,15 @@ import unittest
 
 from bs4 import BeautifulSoup
 
-from ocapi.types import ArreteFile, NodeId, Operation, OperationType, SubTarget, SubTargetType
+from ocapi.types import (
+    ArreteFile,
+    FileType,
+    NodeId,
+    Operation,
+    OperationType,
+    SubTarget,
+    SubTargetType,
+)
 
 from .build_op_graph import build_graph
 
@@ -44,12 +52,14 @@ class TestBuildOpGraph(unittest.TestCase):
                 aiot="aiot1",
                 filename="1980-01-01.html",
                 soup=BeautifulSoup(html_1980, "html.parser"),
+                file_type=FileType.AUTRE,
             ),
             ArreteFile(
                 id="1981-01-01",
                 aiot="aiot2",
                 filename="1981-01-01.html",
                 soup=BeautifulSoup(html_1981, "html.parser"),
+                file_type=FileType.AUTRE,
             ),
         ]
 

@@ -58,7 +58,7 @@ class TestParseFilename(unittest.TestCase):
             "2014-01-09_ap prescriptions complémentaires_details.html"
         )
         assert arrete_id == "2014-01-09"
-        assert file_type == FileType.AP_PRESCRIPTIONS_COMPLEMENTAIRES
+        assert file_type == FileType.AP_COMPLEMENTAIRE
 
     def test_parse_valid_arrete_prefectoral(self) -> None:
         """Test avec un fichier arrêté préfectoral valide."""
@@ -68,17 +68,17 @@ class TestParseFilename(unittest.TestCase):
         assert arrete_id == "2020-04-20"
         assert file_type == FileType.ARRETE_PREFECTORAL
 
-    def test_parse_valid_apc_abbreviation(self) -> None:
-        """Test avec l'abréviation APC."""
+    def test_parse_apc_abbreviation_returns_autre(self) -> None:
+        """Test que l'abréviation APC seule retourne AUTRE (ne devrait pas être rencontrée)."""
         arrete_id, file_type = parse_filename("2023-02-22_apc_modification.html")
         assert arrete_id == "2023-02-22"
-        assert file_type == FileType.AP_PRESCRIPTIONS_COMPLEMENTAIRES
+        assert file_type == FileType.AUTRE
 
-    def test_parse_valid_ap_abbreviation(self) -> None:
-        """Test avec l'abréviation AP."""
+    def test_parse_ap_abbreviation_returns_autre(self) -> None:
+        """Test que l'abréviation AP seule retourne AUTRE (ne devrait pas être rencontrée)."""
         arrete_id, file_type = parse_filename("2021-09-24_ap_nouveau document.html")
         assert arrete_id == "2021-09-24"
-        assert file_type == FileType.ARRETE_PREFECTORAL
+        assert file_type == FileType.AUTRE
 
     def test_parse_unknown_file_type(self) -> None:
         """Test avec un type de fichier inconnu (doit retourner AUTRE)."""
@@ -118,7 +118,7 @@ class TestParseFilename(unittest.TestCase):
         )
         arrete_id, file_type = parse_filename(filename)
         assert arrete_id == "2023-02-22"
-        assert file_type == FileType.AP_PRESCRIPTIONS_COMPLEMENTAIRES
+        assert file_type == FileType.AP_COMPLEMENTAIRE
 
     def test_parse_real_example_1(self) -> None:
         """Test avec un exemple réel du dossier data."""
@@ -136,7 +136,7 @@ class TestParseFilename(unittest.TestCase):
         )
         arrete_id, file_type = parse_filename(filename)
         assert arrete_id == "2023-12-04"
-        assert file_type == FileType.AP_PRESCRIPTIONS_COMPLEMENTAIRES
+        assert file_type == FileType.AP_COMPLEMENTAIRE
 
     def test_parse_ap_autorisation_not_confused_with_ap(self) -> None:
         """Test que 'ap d'autorisation' n'est pas confondu avec 'ap'."""

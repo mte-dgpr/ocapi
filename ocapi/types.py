@@ -117,7 +117,7 @@ class FileType(Enum):
     """Types de fichiers d'arrêtés reconnus."""
 
     AP_AUTORISATION = "ap d'autorisation"
-    AP_PRESCRIPTIONS_COMPLEMENTAIRES = "ap prescriptions complémentaires"
+    AP_COMPLEMENTAIRE = "ap prescriptions complémentaires"
     ARRETE_PREFECTORAL = "arrêté préfectoral"
     AUTRE = "autre"
 
@@ -251,10 +251,11 @@ def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
     # Mapper les variantes courantes
     file_type_mapping = {
         "ap d'autorisation": FileType.AP_AUTORISATION,
-        "ap prescriptions complémentaires": FileType.AP_PRESCRIPTIONS_COMPLEMENTAIRES,
+        "ap enregistrement": FileType.AP_AUTORISATION,
+        "ap autorisation temporaire": FileType.AP_AUTORISATION,
+        "ap prescriptions complémentaires": FileType.AP_COMPLEMENTAIRE,
         "arrêté préfectoral": FileType.ARRETE_PREFECTORAL,
-        "apc": FileType.AP_PRESCRIPTIONS_COMPLEMENTAIRES,
-        "ap": FileType.ARRETE_PREFECTORAL,
+        "ap servitude d'utilité publique": FileType.ARRETE_PREFECTORAL,
     }
 
     # Chercher une correspondance exacte d'abord

@@ -28,7 +28,7 @@ from ocapi.step_resolution.apply_ops import (
     build_next_subgraph,
 )
 from ocapi.step_resolution.build_op_graph import add_edge, add_node
-from ocapi.types import ArreteFile, ArticleHistory, NodeId, Operation, OperationType
+from ocapi.types import ArreteFile, ArticleHistory, FileType, NodeId, Operation, OperationType
 
 
 class TestApplyReplace(unittest.TestCase):
@@ -212,18 +212,21 @@ class TestApplyOpsFunctions(unittest.TestCase):
                 aiot="aiotA",
                 filename="a.html",
                 soup=BeautifulSoup("<section/>", "html.parser"),
+                file_type=FileType.AUTRE,
             ),
             ArreteFile(
                 id="1981-01-01",
                 aiot="aiotB",
                 filename="b.html",
                 soup=BeautifulSoup("<section/>", "html.parser"),
+                file_type=FileType.AUTRE,
             ),
             ArreteFile(
                 id="1982-01-01",
                 aiot="aiotC",
                 filename="c.html",
                 soup=BeautifulSoup("<section/>", "html.parser"),
+                file_type=FileType.AUTRE,
             ),
         ]
         history, skipped_ops = apply_all_ops(G, arrete_list)
@@ -235,10 +238,3 @@ class TestApplyOpsFunctions(unittest.TestCase):
         # Check that operations were applied by verifying multiple versions exist
         assert len(history[NodeId(arrete_id="1980-01-01", article_id="1")]) > 1
         assert len(history[NodeId(arrete_id="1980-01-01", article_id="2")]) > 1
-
-
-class TestBuildInitialArticlesContentMap(unittest.TestCase):
-    def test_build_initial_articles_content_map(self) -> None:
-        # This test is disabled as build_initial_articles_content_map is no longer part of the API
-        # The initialization is now handled internally by apply_subgraph_operations
-        pass
