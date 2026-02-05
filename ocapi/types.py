@@ -310,7 +310,7 @@ def validate_arretify_version(soup: BeautifulSoup, filename: str = "") -> None:
     if not re.match(SUPPORTED_ARRETIFY_VERSION_PATTERN, str(arretify_version)):
         raise ValueError(
             f"Version Arrêtify non supportée: {arretify_version} (fichier: {filename})\n"
-            f"OCAPI supporte uniquement les versions {SUPPORTED_ARRETIFY_VERSION} (ex: 0.1.0, 0.1.1, etc.)\n"
+            f"OCAPI supporte uniquement les versions {SUPPORTED_ARRETIFY_VERSION}\n"
             f"Version détectée: {arretify_version}"
         )
 
