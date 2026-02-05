@@ -24,7 +24,7 @@ la configuration depuis les variables d'environnement et fichiers .env.
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pydantic import Field, HttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -37,6 +37,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 # Seule la version 0.1.X est actuellement supportée (0.1.0, 0.1.1, etc.)
 # Les versions majeures/mineures différentes peuvent introduire des breaking changes
 # dans le format HTML (attributs data-spec, classes CSS, structure du document).
+SUPPORTED_ARRETIFY_VERSION = "0.1.X"
 SUPPORTED_ARRETIFY_VERSION_PATTERN = r"^0\.1\.\d+$"
 
 
@@ -61,7 +62,7 @@ class LLMConfig(BaseSettings):
         description="Clé API pour le service PIAG",
     )
     piag_api_url: HttpUrl = Field(
-        default="https://preprod.api.piag.e2.rie.gouv.fr/v1/chat/completions",
+        default=cast(HttpUrl, "https://preprod.api.piag.e2.rie.gouv.fr/v1/chat/completions"),
         description="URL de l'endpoint PIAG",
     )
 
@@ -71,7 +72,7 @@ class LLMConfig(BaseSettings):
         description="Clé API pour OpenAI",
     )
     openai_api_url: HttpUrl = Field(
-        default="https://api.openai.com/v1/chat/completions",
+        default=cast(HttpUrl, "https://api.openai.com/v1/chat/completions"),
         description="URL de l'endpoint OpenAI",
     )
 
@@ -277,5 +278,6 @@ __all__ = [
     "PathsConfig",
     "settings",
     "reload_settings",
+    "SUPPORTED_ARRETIFY_VERSION",
     "SUPPORTED_ARRETIFY_VERSION_PATTERN",
 ]
