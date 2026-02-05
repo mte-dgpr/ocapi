@@ -47,7 +47,9 @@ from ocapi.types import (
     OperationType,
 )
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
+from ocapi.utils.logging_utils import get_logger
 
+logger = get_logger(__name__)
 _DEFAULT_LLM_CFG = config_model_llm(settings.pipeline.default_llm_model)
 
 
@@ -195,8 +197,8 @@ def apply_subgraph_operations(
                 )
                 history[tgt].append(new_version)
             except Exception as e:
-                error_msg = f"⚠️  Opération {op_id or 'inconnue'} ignorée: {str(e)}"
-                print(error_msg)
+                error_msg = f"Opération {op_id or 'inconnue'} ignorée: {str(e)}"
+                logger.warning(error_msg)
                 skipped_ops.append((op_id or "unknown", str(e)))
                 continue
 
@@ -222,7 +224,7 @@ def apply_all_ops(
             all_skipped_ops.extend(skipped_ops)
 
     if all_skipped_ops:
-        print(f"\n⚠️  {len(all_skipped_ops)} opération(s) ignorée(s) lors de l'application")
+        logger.warning(f"{len(all_skipped_ops)} opération(s) ignorée(s) lors de l'application")
 
     return history, all_skipped_ops
 

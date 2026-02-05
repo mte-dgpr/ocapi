@@ -33,6 +33,9 @@ from bs4 import BeautifulSoup
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
 from ocapi.types import ArreteFile, ArreteId, parse_filename, validate_arretify_version
+from ocapi.utils.logging_utils import get_logger, initialize_root_logger
+
+logger = get_logger(__name__)
 
 
 def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
@@ -50,7 +53,7 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
 
     html_files = sorted(input_dir.glob("*.html"))
     if not html_files:
-        print(f"Aucun fichier HTML trouvé dans {input_dir}", file=sys.stderr)
+        logger.error(f"Aucun fichier HTML trouvé dans {input_dir}")
         return []
 
     for _ordered_index, html_path in enumerate(html_files):
@@ -58,8 +61,7 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
         try:
             arrete_id, file_type = parse_filename(html_path.name)
         except ValueError as e:
-            print(f"⚠️  Fichier ignoré (format invalide): {html_path.name}", file=sys.stderr)
-            print(f"   Raison: {e}", file=sys.stderr)
+            logger.warning(f"Fichier ignoré (format invalide): {html_path.name} - Raison: {e}")
             continue
 
         with open(html_path, encoding="utf-8") as f:
@@ -71,8 +73,7 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
         try:
             validate_arretify_version(soup, html_path.name)
         except ValueError as e:
-            print(f"⚠️  Fichier ignoré (version Arrêtify incompatible): {html_path.name}", file=sys.stderr)
-            print(f"   Raison: {e}", file=sys.stderr)
+            logger.warning(f"Fichier ignoré (version Arrêtify incompatible): {html_path.name} - Raison: {e}")
             continue
 
         arrete = ArreteFile(
@@ -83,7 +84,7 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
             file_type=file_type,
         )
         arrete_files.append(arrete)
-        print(f"  Chargé: {html_path.name} (id={arrete_id}, type={file_type.value})")
+        logger.info(f"Chargé: {html_path.name} (id={arrete_id}, type={file_type.value})")
 
     return arrete_files
 
@@ -93,49 +94,49 @@ def cmd_run(args: argparse.Namespace) -> int:
     input_dir = Path(args.input_dir)
 
     if not input_dir.exists():
-        print(f"Erreur: Le répertoire {input_dir} n'existe pas.", file=sys.stderr)
+        logger.error(f"Le répertoire {input_dir} n'existe pas.")
         return 1
 
     if not input_dir.is_dir():
-        print(f"Erreur: {input_dir} n'est pas un répertoire.", file=sys.stderr)
+        logger.error(f"{input_dir} n'est pas un répertoire.")
         return 1
 
     # Déterminer l'AIOT
     aiot = args.aiot or input_dir.parent.name
-    print(f"AIOT: {aiot}")
-    print(f"Modèle LLM: {settings.pipeline.default_llm_model}")
-    print(f"Chargement des arrêtés depuis: {input_dir}")
+    logger.info(f"AIOT: {aiot}")
+    logger.info(f"Modèle LLM: {settings.pipeline.default_llm_model}")
+    logger.info(f"Chargement des arrêtés depuis: {input_dir}")
 
     # Charger les arrêtés
     arrete_files = load_arrete_files(input_dir, aiot)
     if not arrete_files:
         return 1
 
-    print(f"\n{len(arrete_files)} arrêté(s) chargé(s)")
+    logger.info(f"{len(arrete_files)} arrêté(s) chargé(s)")
 
     # Filtrer les arrêtés si demandé
     arrete_ids_included: set[ArreteId] = set()
     if args.include:
         arrete_ids_included = set(args.include)
-        print(f"Filtrage sur: {arrete_ids_included}")
+        logger.info(f"Filtrage sur: {arrete_ids_included}")
 
     # Exécuter le pipeline
-    print("\nExécution du pipeline...")
+    logger.info("Exécution du pipeline...")
     try:
         permis = run_pipeline(arrete_files)
-        print("\nPipeline terminé avec succès.")
+        logger.info("Pipeline terminé avec succès.")
 
         # Sauvegarder le résultat si --output est spécifié
         if args.output:
             output_path = Path(args.output)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(permis.model_dump_json(indent=2), encoding="utf-8")
-            print(f"Résultat sauvegardé dans: {output_path}")
+            logger.info(f"Résultat sauvegardé dans: {output_path}")
 
         return 0
 
     except Exception as e:
-        print(f"\nErreur lors de l'exécution du pipeline: {e}", file=sys.stderr)
+        logger.exception(f"Erreur lors de l'exécution du pipeline: {e}")
         return 1
 
 
@@ -149,6 +150,20 @@ def main(argv: list[str] | None = None) -> int:
         "--version",
         action="version",
         version="%(prog)s 0.1.0",
+    )
+    
+    # Options globales de logging
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Active le mode verbose (niveau DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Mode silencieux (affiche uniquement WARNING, ERROR, CRITICAL)",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Commandes disponibles")
@@ -183,6 +198,25 @@ def main(argv: list[str] | None = None) -> int:
     # Parser les arguments
     args = parser.parse_args(argv)
 
+    # Déterminer le niveau de logging selon les options CLI
+    log_level = settings.logging.level
+    if args.verbose:
+        log_level = "DEBUG"
+    elif args.quiet:
+        log_level = "WARNING"
+
+    # Initialiser le logger racine
+    initialize_root_logger(
+        level=log_level,
+        log_file=settings.logging.log_file,
+        max_bytes=settings.logging.max_bytes,
+        backup_count=settings.logging.backup_count,
+        use_timed_rotation=settings.logging.use_timed_rotation,
+        console_output=settings.logging.console_output,
+    )
+
+    logger.debug(f"Logging initialisé au niveau {log_level}")
+    
     if args.command is None:
         parser.print_help()
         return 0

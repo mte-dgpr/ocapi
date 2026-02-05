@@ -24,13 +24,16 @@ la configuration depuis les variables d'environnement et fichiers .env.
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, HttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Racine du projet (calculée une seule fois)
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+# Type pour les niveaux de logging
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 # Version Arrêtify supportée
 # OCAPI s'appuie sur le format HTML sémantique généré par Arrêtify.
@@ -193,28 +196,90 @@ class PathsConfig(BaseSettings):
         return v
 
 
+class LoggingConfig(BaseSettings):
+    """Configuration du système de logging.
+
+    Attributes:
+        level: Niveau de logging par défaut (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        log_file: Chemin du fichier de log (None pour désactiver le logging fichier)
+        max_bytes: Taille maximale d'un fichier de log avant rotation (en octets)
+        backup_count: Nombre de fichiers de backup à conserver
+        use_timed_rotation: Si True, rotation quotidienne en plus de la rotation par taille
+        console_output: Si True, affiche les logs dans la console
+
+    Example:
+        >>> logging = LoggingConfig(level="DEBUG")
+        >>> print(logging.level)
+        DEBUG
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="LOG_",
+        validate_assignment=True,
+    )
+
+    level: LogLevel = Field(
+        default="INFO",
+        description="Niveau de logging par défaut",
+    )
+    log_file: Path | None = Field(
+        default=None,
+        description="Chemin du fichier de log (None pour désactiver)",
+    )
+    max_bytes: int = Field(
+        default=1024 * 1024,  # 1024 KB
+        ge=1024,  # Minimum 1 KB
+        description="Taille maximale d'un fichier de log avant rotation (octets)",
+    )
+    backup_count: int = Field(
+        default=5,
+        ge=0,
+        le=100,
+        description="Nombre de fichiers de backup à conserver",
+    )
+    use_timed_rotation: bool = Field(
+        default=True,
+        description="Activer la rotation quotidienne",
+    )
+    console_output: bool = Field(
+        default=True,
+        description="Afficher les logs dans la console",
+    )
+
+    @field_validator("log_file")
+    @classmethod
+    def validate_log_file(cls, v: Path | None) -> Path | None:
+        """Valider le chemin du fichier de log."""
+        if v is None:
+            return None
+        # On ne vérifie pas l'existence car le fichier sera créé automatiquement
+        return v
+
+
 class AppConfig(BaseSettings):
     """Configuration principale de l'application.
 
-    Cette classe combine toutes les configurations (LLM, Pipeline, Paths)
+    Cette classe combine toutes les configurations (LLM, Pipeline, Paths, Logging)
     et charge automatiquement les variables d'environnement depuis .env.
 
     Attributes:
         llm: Configuration des APIs LLM
         pipeline: Configuration du pipeline de traitement
         paths: Configuration des chemins de fichiers
+        logging: Configuration du système de logging
 
     Example:
         >>> config = AppConfig()
         >>> print(config.llm.piag_api_url)
         >>> print(config.pipeline.default_llm_model)
         >>> print(config.paths.project_root)
+        >>> print(config.logging.level)
     """
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        env_nested_delimiter="__",  # Permet PIPELINE__MAX_RETRIES=5
+        env_nested_delimiter="__",  # Permet PIPELINE__MAX_RETRIES=5 ou LOG__LEVEL=DEBUG
         extra="ignore",  # Ignorer les variables d'environnement inconnues
         validate_assignment=True,
     )
@@ -230,6 +295,10 @@ class AppConfig(BaseSettings):
     paths: PathsConfig = Field(
         default_factory=PathsConfig,
         description="Configuration des chemins",
+    )
+    logging: LoggingConfig = Field(
+        default_factory=LoggingConfig,
+        description="Configuration du logging",
     )
 
     @model_validator(mode="after")
@@ -275,6 +344,8 @@ __all__ = [
     "LLMConfig",
     "PipelineConfig",
     "PathsConfig",
+    "LoggingConfig",
+    "LogLevel",
     "settings",
     "reload_settings",
     "SUPPORTED_ARRETIFY_VERSION_PATTERN",

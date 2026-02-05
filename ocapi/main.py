@@ -33,6 +33,9 @@ from ocapi.step_detection.step_detection import step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
 from ocapi.types import ArreteFile, FileType, Operation, parse_filename, validate_arretify_version
+from ocapi.utils.logging_utils import get_logger, initialize_root_logger
+
+logger = get_logger(__name__)
 
 # TODO : faire d'abord tous les appels LLM puis convertir en raw ops dans un second temps.
 # comme ça on peut faire du batch et gérer les erreurs après.
@@ -95,29 +98,29 @@ def main(input_dir: Path, output_dir: Path) -> None:
     2. Resolution (avec sauvegarde de l'historique)
     3. Rendering (génération du permis consolidé)
     """
-    print(f"📂 Dossier d'entrée : {input_dir}")
-    print(f"📂 Dossier de sortie : {output_dir}")
+    logger.info(f"Dossier d'entrée : {input_dir}")
+    logger.info(f"Dossier de sortie : {output_dir}")
 
     # Vérifier les fichiers HTML
     html_files = sorted(input_dir.glob("*.html"))
     if not html_files:
-        print("❌ Aucun fichier HTML trouvé")
+        logger.error("Aucun fichier HTML trouvé")
         return
 
-    print(f"Chargement de {len(html_files)} fichiers HTML")
+    logger.info(f"Chargement de {len(html_files)} fichiers HTML")
     arrete_files = folder_to_list_of_ArreteFiles(input_dir)
 
     # Créer le dossier de sortie
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print("\n🚀 Démarrage du pipeline...\n")
+    logger.info("Démarrage du pipeline...")
 
     # ========================================
     # STEP 1-2 : CHUNKING + DETECTION
     # ========================================
-    print("=" * 60)
-    print("STEP 1-2 : CHUNKING + DETECTION")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("STEP 1-2 : CHUNKING + DETECTION")
+    logger.info("=" * 60)
 
     operations: list[Operation] = []
     modele = settings.pipeline.default_llm_model
@@ -125,36 +128,36 @@ def main(input_dir: Path, output_dir: Path) -> None:
     for i, arrete_file in enumerate(arrete_files):
         if i == 0:
             continue  # Skip first file (AP initial)
-        print(f"Traitement de l'arrêté {arrete_file.id}...")
+        logger.info(f"Traitement de l'arrêté {arrete_file.id}...")
         docs, img_map = step_chunking(arrete_file)
-        print(f"  → {len(docs)} documents chunkés")
-        print(f"  → {len(img_map)} images mappées")
+        logger.info(f"  → {len(docs)} documents chunkés")
+        logger.debug(f"  → {len(img_map)} images mappées")
 
         detected_ops = step_detection(docs, arrete_file.id, modele, img_map)
         operations.extend(detected_ops)
-        print(f"  → {len(detected_ops)} opérations détectées")
+        logger.info(f"  → {len(detected_ops)} opérations détectées")
 
-    print(f"\n✓ Total : {len(operations)} opérations\n")
+    logger.info(f"Total : {len(operations)} opérations")
 
     # Sauvegarder les opérations
     operations_path = output_dir / "operations.json"
     operations_dict = [op.model_dump() for op in operations]
     with operations_path.open("w", encoding="utf-8") as f:
         json.dump(operations_dict, f, ensure_ascii=False, indent=2)
-    print(f"💾 Opérations sauvegardées → {operations_path}\n")
+    logger.info(f"Opérations sauvegardées → {operations_path}")
 
     # ========================================
     # STEP 3 : RESOLUTION
     # ========================================
-    print("=" * 60)
-    print("STEP 3 : RESOLUTION")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("STEP 3 : RESOLUTION")
+    logger.info("=" * 60)
 
     history, arrete_files = step_resolution(operations, arrete_files)
     if history:
-        print(f"✓ {len(history)} articles avec historique\n")
+        logger.info(f"{len(history)} articles avec historique")
     else:
-        print("✓ 0 article avec historique\n")
+        logger.info("0 article avec historique")
 
     # Sauvegarder l'historique
     versions_dir = output_dir / "versions"
@@ -172,24 +175,34 @@ def main(input_dir: Path, output_dir: Path) -> None:
 
     with versions_path.open("w", encoding="utf-8") as f:
         json.dump(history_serializable, f, ensure_ascii=False, indent=2)
-    print(f"💾 Historique sauvegardé → {versions_path}\n")
+    logger.info(f"Historique sauvegardé → {versions_path}")
 
     # ========================================
     # STEP 4 : RENDERING
     # ========================================
-    print("=" * 60)
-    print("STEP 4 : RENDERING")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("STEP 4 : RENDERING")
+    logger.info("=" * 60)
 
     permis = step_rendering(history, arrete_files)
     permis_path = output_dir / "permis_consolidé.html"
     with permis_path.open("w", encoding="utf-8") as f:
         f.write(str(permis))
-    print(f"💾 Permis consolidé sauvegardé → {permis_path}")
-    print("\n✅ Pipeline terminé avec succès !")
+    logger.info(f"Permis consolidé sauvegardé → {permis_path}")
+    logger.info("Pipeline terminé avec succès !")
 
 
 if __name__ == "__main__":
+    # Initialiser le logger pour l'exécution directe du main
+    initialize_root_logger(
+        level=settings.logging.level,
+        log_file=settings.logging.log_file,
+        max_bytes=settings.logging.max_bytes,
+        backup_count=settings.logging.backup_count,
+        use_timed_rotation=settings.logging.use_timed_rotation,
+        console_output=settings.logging.console_output,
+    )
+    
     PROJECT_ROOT = Path(__file__).parent.parent
     input_arretes_dir = PROJECT_ROOT / "data" / "0005804239" / "arretes_html"
     output_dir = PROJECT_ROOT / "data" / "0005804239" / "ocapi_output"

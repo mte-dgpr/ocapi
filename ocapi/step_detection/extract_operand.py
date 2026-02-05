@@ -26,6 +26,9 @@ import re
 
 from bs4 import BeautifulSoup
 
+from ocapi.utils.logging_utils import get_logger
+
+logger = get_logger(__name__)
 ImageMap = dict[str, str]  # mapping from placeholder src to real src
 
 
@@ -68,7 +71,7 @@ def pick_arretify_section(html: str, source_article: str) -> str:
         data_number = section.get("data-number")
         if data_number == source_article:
             return str(section)
-    print("Section not found for source_article:", source_article)
+    logger.error(f"Section not found for source_article: {source_article}")
     return "ERROR_EXTRACTING_CONTENT"
 
 
