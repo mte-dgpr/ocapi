@@ -25,8 +25,8 @@ pre-commit install
 OCAPI utilise **Pydantic Settings** pour une configuration typée et validée.
 
 ```bash
-# 1. Créer un fichier .env (voir .env.example)
-cp .env.example .env
+# 1. Créer un fichier .env (voir env.example)
+cp env.example .env
 
 # 2. Ajouter vos clés API
 PIAG_API_KEY=votre-clé
