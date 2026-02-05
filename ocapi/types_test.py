@@ -141,7 +141,6 @@ class TestParseFilename(unittest.TestCase):
         assert file_type == FileType.AP_COMPLEMENTAIRE
 
 
-
 class TestValidateArretifyVersion(unittest.TestCase):
     """Tests pour la validation de la version Arrêtify."""
 

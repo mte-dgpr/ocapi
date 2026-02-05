@@ -66,12 +66,15 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
             html_content = f.read()
 
         soup = BeautifulSoup(html_content, "html.parser")
-        
+
         # Valider la version Arrêtify
         try:
             validate_arretify_version(soup, html_path.name)
         except ValueError as e:
-            print(f"⚠️  Fichier ignoré (version Arrêtify incompatible): {html_path.name}", file=sys.stderr)
+            print(
+                f"⚠️  Fichier ignoré (version Arrêtify incompatible): {html_path.name}",
+                file=sys.stderr,
+            )
             print(f"   Raison: {e}", file=sys.stderr)
             continue
 

@@ -238,9 +238,7 @@ class AppConfig(BaseSettings):
         """Valider la cohérence globale de la configuration."""
         # Vérifier que le projet est correctement initialisé
         if not self.paths.project_root.exists():
-            raise ValueError(
-                f"Racine du projet invalide: {self.paths.project_root}"
-            )
+            raise ValueError(f"Racine du projet invalide: {self.paths.project_root}")
         return self
 
     def model_dump_safe(self) -> dict[str, Any]:
