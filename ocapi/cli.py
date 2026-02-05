@@ -32,7 +32,7 @@ from bs4 import BeautifulSoup
 
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
-from ocapi.types import ArreteFile, ArreteId
+from ocapi.types import ArreteFile, ArreteId, parse_filename, validate_arretify_version
 
 
 def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
@@ -54,21 +54,39 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
         return []
 
     for _ordered_index, html_path in enumerate(html_files):
-        # Extraire l'ID de l'arrêté du nom de fichier
-        # ex: 2024-09-27_APC_mistral.html -> 2024-09-27_APC
-        arrete_id = html_path.stem.rsplit("_", 1)[0]
+        # Parser et valider le nom de fichier
+        try:
+            arrete_id, file_type = parse_filename(html_path.name)
+        except ValueError as e:
+            print(f"⚠️  Fichier ignoré (format invalide): {html_path.name}", file=sys.stderr)
+            print(f"   Raison: {e}", file=sys.stderr)
+            continue
 
         with open(html_path, encoding="utf-8") as f:
             html_content = f.read()
+
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        # Valider la version Arrêtify
+        try:
+            validate_arretify_version(soup, html_path.name)
+        except ValueError as e:
+            print(
+                f"⚠️  Fichier ignoré (version Arrêtify incompatible): {html_path.name}",
+                file=sys.stderr,
+            )
+            print(f"   Raison: {e}", file=sys.stderr)
+            continue
 
         arrete = ArreteFile(
             id=arrete_id,
             aiot=aiot,
             filename=html_path.name,
-            soup=BeautifulSoup(html_content, "html.parser"),
+            soup=soup,
+            file_type=file_type,
         )
         arrete_files.append(arrete)
-        print(f"  Chargé: {html_path.name} (id={arrete_id})")
+        print(f"  Chargé: {html_path.name} (id={arrete_id}, type={file_type.value})")
 
     return arrete_files
 

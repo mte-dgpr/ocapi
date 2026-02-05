@@ -24,6 +24,8 @@ from typing import Dict, Optional, TypedDict
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from .config import SUPPORTED_ARRETIFY_VERSION, SUPPORTED_ARRETIFY_VERSION_PATTERN
+
 OperationId = str
 ArreteId = str
 ArticleId = str
@@ -40,6 +42,7 @@ class ArreteFile:
     aiot: AiotId
     filename: str
     soup: BeautifulSoup
+    file_type: "FileType | None" = None
     status: bool = True
 
 
@@ -123,6 +126,15 @@ class RawOperationType(Enum):
     AUTRE = "AUTRE"
 
 
+class FileType(Enum):
+    """Type de fichier d'arrêté préfectoral."""
+
+    AP_AUTORISATION = "ap d'autorisation"
+    AP_COMPLEMENTAIRE = "ap prescriptions complémentaires"
+    ARRETE_PREFECTORAL = "arrêté préfectoral"
+    AUTRE = "autre"
+
+
 class _BaseModelWithConfig(BaseModel):
     """
     Base class for models with strict extra handling.
@@ -186,3 +198,120 @@ class Operation(_BaseModelWithConfig):
     @classmethod
     def _ensure_operation_type(cls, v: OperationType | str) -> OperationType:
         return v if isinstance(v, OperationType) else OperationType(v)
+
+
+def categorize_arrete(filename: str) -> FileType:
+    """
+    Catégorise un fichier d'arrêté en fonction de son nom.
+
+    Args:
+        filename: Le nom du fichier (format: YYYY-MM-DD_type_description.html)
+
+    Returns:
+        Le type de fichier correspondant
+    """
+    # Normaliser le filename en minuscules pour la comparaison
+    filename_lower = filename.lower()
+
+    # Mapping des types de fichiers (ordre important : du plus spécifique au plus général)
+    file_type_mapping = {
+        "ap d'autorisation": FileType.AP_AUTORISATION,
+        "ap enregistrement": FileType.AP_AUTORISATION,
+        "ap autorisation temporaire": FileType.AP_AUTORISATION,
+        "ap prescriptions complémentaires": FileType.AP_COMPLEMENTAIRE,
+        "ap servitude d'utilité publique": FileType.ARRETE_PREFECTORAL,
+        "arrêté préfectoral": FileType.ARRETE_PREFECTORAL,
+    }
+
+    # Chercher la correspondance la plus longue (plus spécifique) en premier
+    for pattern in sorted(file_type_mapping.keys(), key=len, reverse=True):
+        if pattern in filename_lower:
+            return file_type_mapping[pattern]
+
+    # Par défaut, retourner AUTRE si aucune correspondance
+    return FileType.AUTRE
+
+
+def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
+    """
+    Parse un nom de fichier d'arrêté et retourne l'ID de l'arrêté et son type.
+
+    Format attendu: YYYY-MM-DD_type_description.html
+
+    Args:
+        filename: Le nom du fichier à parser
+
+    Returns:
+        Un tuple (arrete_id, file_type)
+
+    Raises:
+        ValueError: Si le format du fichier est invalide
+    """
+    # Vérifier l'extension .html
+    if not filename.endswith(".html"):
+        raise ValueError(f"Le fichier doit avoir l'extension .html: {filename}")
+
+    # Séparer par underscore
+    parts = filename.split("_")
+    if len(parts) < 2:
+        raise ValueError(
+            f"Format invalide: le fichier doit contenir au moins une date "
+            f"et un type séparés par '_': {filename}"
+        )
+
+    # Extraire la date (première partie)
+    arrete_id = parts[0]
+
+    # Valider le format de la date
+    date_parts = arrete_id.split("-")
+    if len(date_parts) != 3:
+        raise ValueError(f"Date invalide: format attendu YYYY-MM-DD, reçu: {arrete_id}")
+
+    try:
+        year, month, day = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
+        if not (1900 <= year <= 2100):
+            raise ValueError(
+                f"Année invalide: doit être entre 1900 et 2100, reçu: {year} dans {arrete_id}"
+            )
+        if not (1 <= month <= 12 and 1 <= day <= 31):
+            raise ValueError(f"Date invalide: mois ou jour hors limites dans {arrete_id}")
+    except (ValueError, IndexError) as e:
+        raise ValueError(f"Date invalide: format attendu YYYY-MM-DD, reçu: {arrete_id}") from e
+
+    # Catégoriser le fichier
+    file_type = categorize_arrete(filename)
+
+    return arrete_id, file_type
+
+
+def validate_arretify_version(soup: BeautifulSoup, filename: str = "") -> None:
+    """
+    Valide que la version Arrêtify du document HTML est supportée.
+
+    Args:
+        soup: Document HTML parsé par BeautifulSoup
+        filename: Nom du fichier (pour les messages d'erreur)
+
+    Raises:
+        ValueError: Si la version Arrêtify est absente ou non supportée
+    """
+    body = soup.find("body")
+    if not body:
+        raise ValueError(f"Document HTML invalide (pas de balise <body>): {filename}")
+
+    arretify_version = body.get("data-arretify_version")
+
+    if not arretify_version:
+        raise ValueError(
+            f"Version Arrêtify manquante dans le document HTML: {filename}\n"
+            f"L'attribut 'data-arretify_version' doit être présent sur la balise <body>."
+        )
+
+    if not re.match(SUPPORTED_ARRETIFY_VERSION_PATTERN, str(arretify_version)):
+        raise ValueError(
+            f"Version Arrêtify non supportée: {arretify_version} (fichier: {filename})\n"
+            f"OCAPI supporte uniquement les versions {SUPPORTED_ARRETIFY_VERSION}\n"
+            f"Version détectée: {arretify_version}"
+        )
+
+    # Version valide - rien à retourner
