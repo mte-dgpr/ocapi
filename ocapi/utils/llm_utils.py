@@ -35,18 +35,18 @@ def config_model_llm(modele: str) -> Tuple[str, str | None, str]:
         return (
             "gpt-5",
             settings.llm.openai_api_key,
-            settings.llm.openai_api_url,
+            str(settings.llm.openai_api_url),
         )
     if modele == "GPT5mini":
         return (
             "gpt-5-mini",
             settings.llm.openai_api_key,
-            settings.llm.openai_api_url,
+            str(settings.llm.openai_api_url),
         )
     return (
         "mte-api-piag-mistral-medium-latest",
         settings.llm.piag_api_key,
-        settings.llm.piag_api_url,
+        str(settings.llm.piag_api_url),
     )
 
 
