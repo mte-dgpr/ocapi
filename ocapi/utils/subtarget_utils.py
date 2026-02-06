@@ -31,9 +31,9 @@ Exemples de cas simples détectés :
 """
 import re
 from copy import copy
+from typing import TypeVar
 
 from bs4 import BeautifulSoup
-from bs4.element import Tag
 
 from ocapi.types import SubTarget, SubTargetType
 
@@ -127,18 +127,21 @@ def is_simple_subtarget(parsed: SubTarget) -> bool:
     return parsed.type != SubTargetType.COMPLEX
 
 
+T = TypeVar("T")
+
+
 def _find_target_element(
-    elements: list[Tag],
+    elements: list[T],
     position: int | None,
     description: str | None,
     element_name: str,
-) -> Tag:
+) -> T:
     """
     Sélectionne l'élément cible selon la position.
+    Fonctionne avec n'importe quel type d'élément (Tag, str pour les phrases).
     """
-    if not elements and position is not None:
+    if not elements:
         raise ValueError(f"Aucun {element_name} trouvé pour '{description}'.")
-    # TODO : transformer en warning
 
     if position == -1:
         return elements[-1]
@@ -207,12 +210,11 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
             phrases, subtarget.position, subtarget.description, "phrases"
         )
 
-        if target_phrase:
-            for text_node in soup.find_all(string=True):
-                if target_phrase in text_node:
-                    new_text = text_node.replace(target_phrase, operand)
-                    text_node.replace_with(new_text)
-                    break
+        for text_node in soup.find_all(string=True):
+            if target_phrase in text_node:
+                new_text = text_node.replace(target_phrase, operand)
+                text_node.replace_with(new_text)
+                break
         return soup
 
     elif subtarget_type == SubTargetType.ALINEA:
