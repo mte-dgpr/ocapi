@@ -136,8 +136,9 @@ def _find_target_element(
     """
     Sélectionne l'élément cible selon la position.
     """
-    if not elements:
-        return None
+    if not elements and position is not None:
+        raise ValueError(f"Aucun {element_name} trouvé pour '{description}'.")
+    # TODO : transformer en warning
 
     if position == -1:
         return elements[-1]
@@ -150,8 +151,11 @@ def _find_target_element(
             )
     elif position and 1 <= position <= len(elements):
         return elements[position - 1]
-
-    return None
+    else:
+        raise ValueError(
+            f"Position {position} invalide pour '{description}' : "
+            f"{len(elements)} {element_name} disponibles."
+        )
 
 
 def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -> BeautifulSoup:
@@ -190,7 +194,7 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
         tables = soup.find_all("table")
         target_table = _find_target_element(
             tables, subtarget.position, subtarget.description, "tableaux"
-        )[0]
+        )
         if target_table:
             target_table.replace_with(operand_fragment)
         return soup
@@ -213,18 +217,9 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
 
     elif subtarget_type == SubTargetType.ALINEA:
         alineas = soup.find_all("div", class_="arretify-alinea")
-
-        # Cas spécial : si position > 0, chercher par data-number
-        if subtarget.position and subtarget.position > 0:
-            target_alinea = None
-            for alinea in alineas:
-                if alinea.get("data-number") == str(subtarget.position):
-                    target_alinea = alinea
-                    break
-        else:
-            target_alinea = _find_target_element(
-                alineas, subtarget.position, subtarget.description, "alinéas"
-            )[0]
+        target_alinea = _find_target_element(
+            alineas, subtarget.position, subtarget.description, "alinéas"
+        )
 
         if target_alinea:
             new_div = soup.new_tag("div")
@@ -241,7 +236,7 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
             lignes = table.find_all("tr")
             target_ligne = _find_target_element(
                 lignes, subtarget.position, subtarget.description, "lignes"
-            )[0]
+            )
             if target_ligne:
                 target_ligne.replace_with(operand_fragment)
         return soup
@@ -264,7 +259,7 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
                 colonnes = row.find_all(["td", "th"])
                 target_col = _find_target_element(
                     colonnes, subtarget.position, subtarget.description, "colonnes"
-                )[0]
+                )
 
                 if target_col:
                     replacement = (
