@@ -20,12 +20,13 @@
 Utilitaires pour les opérations d'entrée/sortie (input/output).
 """
 import json
+import sys
 from pathlib import Path
 from typing import Any, cast
 
 from bs4 import BeautifulSoup
 
-from ocapi.types import ArreteFile, Permis
+from ocapi.types import ArreteFile, Permis, parse_filename, validate_arretify_version
 
 
 def read_json(p: Path) -> dict[str, Any]:
@@ -74,30 +75,57 @@ def initialize_arrete_files(html_files: list[Path], aiot: str) -> list["ArreteFi
     """
     Initialise les objets ArreteFile à partir d'une liste de fichiers HTML.
     """
-    # Import local pour éviter les imports circulaires
-    from ocapi.types import ArreteFile
-
     arrete_files: list[ArreteFile] = []
 
     for html_path in html_files:
-        # Extraire l'ID de l'arrêté du nom de fichier
-        # ex: 2024-09-27_APC_mistral.html -> 2024-09-27_APC
-        arrete_id = html_path.stem.rsplit("_", 1)[0]
+        arrete_id, file_type = parse_filename(html_path.name)
 
         # Charger le contenu HTML
         with open(html_path, encoding="utf-8") as f:
             html_content = f.read()
+
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        # Valider la version Arrêtify
+        try:
+            validate_arretify_version(soup, html_path.name)
+        except ValueError as e:
+            print(
+                f"⚠️  Fichier ignoré (version Arrêtify incompatible): {html_path.name}",
+                file=sys.stderr,
+            )
+            print(f"   Raison: {e}", file=sys.stderr)
+            continue
 
         # Créer l'objet ArreteFile
         arrete = ArreteFile(
             id=arrete_id,
             aiot=aiot,
             filename=html_path.name,
-            soup=BeautifulSoup(html_content, "html.parser"),
+            soup=soup,
+            file_type=file_type,
         )
         arrete_files.append(arrete)
 
     return arrete_files
+
+
+def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
+    """
+    Charge tous les fichiers HTML d'arrêtés depuis un répertoire.
+
+    Args:
+        input_dir: Répertoire contenant les fichiers HTML
+        aiot: Identifiant AIOT de l'installation
+
+    Returns:
+        Liste des ArreteFile chargés, triés par nom de fichier
+
+    Raises:
+        InputOutputError: Si le chargement échoue
+    """
+    html_files = load_html_files(input_dir)
+    return initialize_arrete_files(html_files, aiot)
 
 
 def write_permis_output(permis: Permis, output_path: Path) -> None:
@@ -108,11 +136,7 @@ def write_permis_output(permis: Permis, output_path: Path) -> None:
         # Créer le répertoire parent si nécessaire
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Écrire le contenu selon l'extension
-        if output_path.suffix == ".json":
-            # Sauvegarder en JSON
-            output_path.write_text(permis.model_dump_json(indent=2), encoding="utf-8")
-        elif output_path.suffix in [".html", ".htm"]:
+        if output_path.suffix in [".html", ".htm"]:
             # Sauvegarder en HTML
             output_path.write_text(permis.to_html(), encoding="utf-8")
         else:

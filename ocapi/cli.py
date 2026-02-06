@@ -30,31 +30,8 @@ from pathlib import Path
 
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
-from ocapi.types import ArreteFile, ArreteId, parse_filename, validate_arretify_version
-from ocapi.utils.io_utils import (
-    InputOutputError,
-    initialize_arrete_files,
-    load_html_files,
-    write_permis_output,
-)
-
-
-def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
-    """
-    Charge tous les fichiers HTML d'arrêtés depuis un répertoire.
-
-    Args:
-        input_dir: Répertoire contenant les fichiers HTML
-        aiot: Identifiant AIOT de l'installation
-
-    Returns:
-        Liste des ArreteFile chargés, triés par nom de fichier
-
-    Raises:
-        InputOutputError: Si le chargement échoue
-    """
-    html_files = load_html_files(input_dir)
-    return initialize_arrete_files(html_files, aiot)
+from ocapi.types import ArreteId
+from ocapi.utils.io_utils import InputOutputError, load_arrete_files, write_permis_output
 
 
 def cmd_run(args: argparse.Namespace) -> int:
