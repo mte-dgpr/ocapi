@@ -184,7 +184,7 @@ def main(input_dir: Path, output_dir: Path) -> None:
     logger.info("STEP 4 : RENDERING")
     logger.info("=" * 60)
 
-    permis = step_rendering(history, arrete_files)
+    permis = step_rendering(history, operations, arrete_files)
     permis_path = output_dir / "permis_consolidé.html"
     with permis_path.open("w", encoding="utf-8") as f:
         f.write(str(permis))

@@ -40,6 +40,7 @@ LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 # Seule la version 0.1.X est actuellement supportée (0.1.0, 0.1.1, etc.)
 # Les versions majeures/mineures différentes peuvent introduire des breaking changes
 # dans le format HTML (attributs data-spec, classes CSS, structure du document).
+SUPPORTED_ARRETIFY_VERSION = "0.1.X"
 SUPPORTED_ARRETIFY_VERSION_PATTERN = r"^0\.1\.\d+$"
 
 
@@ -354,5 +355,6 @@ __all__ = [
     "LogLevel",
     "settings",
     "reload_settings",
+    "SUPPORTED_ARRETIFY_VERSION",
     "SUPPORTED_ARRETIFY_VERSION_PATTERN",
 ]

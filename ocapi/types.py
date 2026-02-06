@@ -24,7 +24,7 @@ from typing import Dict, Optional, TypedDict
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from .config import SUPPORTED_ARRETIFY_VERSION_PATTERN
+from .config import SUPPORTED_ARRETIFY_VERSION, SUPPORTED_ARRETIFY_VERSION_PATTERN
 
 OperationId = str
 ArreteId = str
@@ -268,7 +268,11 @@ def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
         raise ValueError(f"Date invalide: format attendu YYYY-MM-DD, reçu: {arrete_id}")
 
     try:
-        _, month, day = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
+        year, month, day = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
+        if not (1900 <= year <= 2100):
+            raise ValueError(
+                f"Année invalide: doit être entre 1900 et 2100, reçu: {year} dans {arrete_id}"
+            )
         if not (1 <= month <= 12 and 1 <= day <= 31):
             raise ValueError(f"Date invalide: mois ou jour hors limites dans {arrete_id}")
     except (ValueError, IndexError) as e:
@@ -306,7 +310,7 @@ def validate_arretify_version(soup: BeautifulSoup, filename: str = "") -> None:
     if not re.match(SUPPORTED_ARRETIFY_VERSION_PATTERN, str(arretify_version)):
         raise ValueError(
             f"Version Arrêtify non supportée: {arretify_version} (fichier: {filename})\n"
-            f"OCAPI supporte uniquement les versions 0.1.X (ex: 0.1.0, 0.1.1, etc.)\n"
+            f"OCAPI supporte uniquement les versions {SUPPORTED_ARRETIFY_VERSION}\n"
             f"Version détectée: {arretify_version}"
         )
 

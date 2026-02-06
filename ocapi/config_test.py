@@ -19,13 +19,21 @@
 """Tests pour le module de configuration."""
 
 import os
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
 
-from ocapi.config import AppConfig, LLMConfig, PathsConfig, PipelineConfig, settings
+from ocapi.config import (
+    AppConfig,
+    LLMConfig,
+    PathsConfig,
+    PipelineConfig,
+    reload_settings,
+    settings,
+)
 
 
 class TestLLMConfig:
@@ -166,12 +174,6 @@ class TestPathsConfig:
         assert config.project_root.is_dir()
         assert config.catalogue_path.is_absolute()
 
-    def test_project_root_exists(self) -> None:
-        """Test que la racine du projet existe."""
-        config = PathsConfig()
-        assert config.project_root.exists()
-        assert config.project_root.is_absolute()
-
     def test_invalid_project_root_raises_error(self) -> None:
         """Test qu'une racine invalide lève une erreur."""
         invalid_path = Path("/nonexistent/path/to/project")
@@ -182,8 +184,6 @@ class TestPathsConfig:
     def test_project_root_must_be_directory(self) -> None:
         """Test que la racine doit être un répertoire."""
         # Créer un fichier temporaire
-        import tempfile
-
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp_path = Path(tmp.name)
 
@@ -201,8 +201,6 @@ class TestPathsConfig:
 
     def test_custom_paths(self) -> None:
         """Test avec des chemins personnalisés."""
-        import tempfile
-
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
             catalogue_path = tmp_path / "custom" / "catalogue.json"
@@ -323,8 +321,6 @@ class TestReloadSettings:
 
     def test_reload_settings_returns_new_instance(self) -> None:
         """Test que reload_settings retourne une nouvelle instance."""
-        from ocapi.config import reload_settings
-
         new_settings = reload_settings()
         assert isinstance(new_settings, AppConfig)
         # Vérifier que c'est une nouvelle instance
@@ -332,8 +328,6 @@ class TestReloadSettings:
 
     def test_reload_settings_with_env_changes(self) -> None:
         """Test que reload_settings prend en compte les changements d'env."""
-        from ocapi.config import reload_settings
-
         with patch.dict(
             os.environ,
             {"PIAG_API_KEY": "new-test-key"},

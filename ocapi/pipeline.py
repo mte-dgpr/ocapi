@@ -41,7 +41,7 @@ def run_pipeline(arrete_files: list[ArreteFile]) -> Permis:
     history, arrete_files = step_resolution(operations, arrete_files)
 
     logger.info("Rendering du permis")
-    permis = step_rendering(history, arrete_files)
+    permis = step_rendering(history, operations, arrete_files)
 
     logger.info("Pipeline terminé avec succès")
     return permis
