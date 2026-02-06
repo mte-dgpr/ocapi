@@ -21,6 +21,7 @@ Tests pour le module de logging centralisé.
 """
 
 import logging
+import re
 import tempfile
 from pathlib import Path
 
@@ -174,7 +175,6 @@ def test_log_format() -> None:
         assert "INFO" in content
         assert "Test format message" in content
         # Vérifier qu'il y a un timestamp (format: YYYY-MM-DD HH:MM:SS)
-        import re
 
         assert re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", content)
 
