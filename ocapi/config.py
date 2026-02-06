@@ -26,7 +26,7 @@ la configuration depuis les variables d'environnement et fichiers .env.
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field, HttpUrl, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Racine du projet (calculée une seule fois)
@@ -63,7 +63,7 @@ class LLMConfig(BaseSettings):
         default=None,
         description="Clé API pour le service PIAG",
     )
-    piag_api_url: HttpUrl = Field(
+    piag_api_url: str = Field(
         default="https://preprod.api.piag.e2.rie.gouv.fr/v1/chat/completions",
         description="URL de l'endpoint PIAG",
     )
@@ -73,7 +73,7 @@ class LLMConfig(BaseSettings):
         default=None,
         description="Clé API pour OpenAI",
     )
-    openai_api_url: HttpUrl = Field(
+    openai_api_url: str = Field(
         default="https://api.openai.com/v1/chat/completions",
         description="URL de l'endpoint OpenAI",
     )
@@ -84,6 +84,14 @@ class LLMConfig(BaseSettings):
         """Valider le format des clés API (non vide si fournie)."""
         if v is not None and len(v.strip()) == 0:
             raise ValueError("La clé API ne peut pas être vide")
+        return v
+
+    @field_validator("piag_api_url", "openai_api_url")
+    @classmethod
+    def validate_api_url(cls, v: str) -> str:
+        """Valider que l'URL est bien formée."""
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("L'URL de l'API doit commencer par http:// ou https://")
         return v
 
     @model_validator(mode="after")
@@ -306,9 +314,7 @@ class AppConfig(BaseSettings):
         """Valider la cohérence globale de la configuration."""
         # Vérifier que le projet est correctement initialisé
         if not self.paths.project_root.exists():
-            raise ValueError(
-                f"Racine du projet invalide: {self.paths.project_root}"
-            )
+            raise ValueError(f"Racine du projet invalide: {self.paths.project_root}")
         return self
 
     def model_dump_safe(self) -> dict[str, Any]:

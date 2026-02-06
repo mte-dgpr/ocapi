@@ -29,80 +29,78 @@ import pytest
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger, set_level
 
 
-def test_get_logger():
+def test_get_logger() -> None:
     """Test que get_logger retourne un logger avec le bon nom."""
     logger = get_logger("test_module")
     assert logger.name == "test_module"
     assert isinstance(logger, logging.Logger)
 
 
-def test_initialize_root_logger_console_only():
+def test_initialize_root_logger_console_only() -> None:
     """Test l'initialisation du logger avec console uniquement."""
     logger = initialize_root_logger(
         level="INFO",
         log_file=None,
         console_output=True,
     )
-    
+
     assert logger.level == logging.INFO
     assert len(logger.handlers) >= 1
-    
+
     # Vérifier qu'il y a au moins un StreamHandler
-    has_console_handler = any(
-        isinstance(h, logging.StreamHandler) for h in logger.handlers
-    )
+    has_console_handler = any(isinstance(h, logging.StreamHandler) for h in logger.handlers)
     assert has_console_handler
 
 
-def test_initialize_root_logger_with_file(tmp_path):
+def test_initialize_root_logger_with_file(tmp_path: Path) -> None:
     """Test l'initialisation du logger avec fichier."""
     log_file = tmp_path / "test.log"
-    
+
     logger = initialize_root_logger(
         level="DEBUG",
         log_file=log_file,
         console_output=False,
     )
-    
+
     assert logger.level == logging.DEBUG
-    
+
     # Écrire un message de test
     test_logger = get_logger("test")
     test_logger.info("Test message")
-    
+
     # Forcer le flush des handlers
     for handler in logger.handlers:
         handler.flush()
-    
+
     # Vérifier que le fichier existe
     assert log_file.exists()
 
 
-def test_set_level():
+def test_set_level() -> None:
     """Test le changement de niveau de logging."""
     initialize_root_logger(level="INFO")
     root_logger = logging.getLogger()
-    
+
     assert root_logger.level == logging.INFO
-    
+
     set_level("DEBUG")
     assert root_logger.level == logging.DEBUG
-    
+
     set_level("ERROR")
     assert root_logger.level == logging.ERROR
 
 
-def test_logger_levels_in_code(caplog):
+def test_logger_levels_in_code(caplog: pytest.LogCaptureFixture) -> None:
     """Test que les différents niveaux de logging fonctionnent correctement."""
     logger = get_logger("test_levels")
-    
+
     with caplog.at_level(logging.DEBUG):
         logger.debug("Debug message")
         logger.info("Info message")
         logger.warning("Warning message")
         logger.error("Error message")
         logger.critical("Critical message")
-    
+
     # Vérifier que tous les messages sont présents
     assert "Debug message" in caplog.text
     assert "Info message" in caplog.text
@@ -111,26 +109,26 @@ def test_logger_levels_in_code(caplog):
     assert "Critical message" in caplog.text
 
 
-def test_logger_with_exception(caplog):
+def test_logger_with_exception(caplog: pytest.LogCaptureFixture) -> None:
     """Test que l'exception logging fonctionne correctement."""
     logger = get_logger("test_exception")
-    
+
     with caplog.at_level(logging.ERROR):
         try:
             raise ValueError("Test error")
         except ValueError:
             logger.exception("An error occurred")
-    
+
     # Vérifier que le message et la stacktrace sont présents
     assert "An error occurred" in caplog.text
     assert "ValueError" in caplog.text
     assert "Test error" in caplog.text
 
 
-def test_logger_rotation_config(tmp_path):
+def test_logger_rotation_config(tmp_path: Path) -> None:
     """Test la configuration de rotation des fichiers de log."""
     log_file = tmp_path / "rotating.log"
-    
+
     logger = initialize_root_logger(
         level="INFO",
         log_file=log_file,
@@ -139,7 +137,7 @@ def test_logger_rotation_config(tmp_path):
         use_timed_rotation=False,
         console_output=False,
     )
-    
+
     # Vérifier qu'il y a un RotatingFileHandler
     has_rotating_handler = any(
         h.__class__.__name__ == "RotatingFileHandler" for h in logger.handlers
@@ -147,59 +145,60 @@ def test_logger_rotation_config(tmp_path):
     assert has_rotating_handler
 
 
-def test_log_format():
+def test_log_format() -> None:
     """Test que le format des logs contient les informations attendues."""
     with tempfile.NamedTemporaryFile(mode="w+", suffix=".log", delete=False) as f:
         log_file = Path(f.name)
-    
+
     try:
         initialize_root_logger(
             level="INFO",
             log_file=log_file,
             console_output=False,
         )
-        
+
         logger = get_logger("test.module")
         logger.info("Test format message")
-        
+
         # Fermer tous les handlers pour libérer le fichier
         root_logger = logging.getLogger()
         for handler in root_logger.handlers[:]:
             handler.close()
             root_logger.removeHandler(handler)
-        
+
         # Lire le contenu du fichier
         content = log_file.read_text()
-        
+
         # Vérifier le format: timestamp - module - level - message
         assert "test.module" in content
         assert "INFO" in content
         assert "Test format message" in content
         # Vérifier qu'il y a un timestamp (format: YYYY-MM-DD HH:MM:SS)
         import re
+
         assert re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", content)
-        
+
     finally:
         # Supprimer le fichier seulement s'il existe toujours
         if log_file.exists():
             log_file.unlink()
 
 
-def test_multiple_loggers():
+def test_multiple_loggers() -> None:
     """Test que plusieurs loggers peuvent être utilisés simultanément."""
     initialize_root_logger(level="INFO")
-    
+
     logger1 = get_logger("module1")
     logger2 = get_logger("module2")
-    
+
     assert logger1.name == "module1"
     assert logger2.name == "module2"
     assert logger1 is not logger2
 
 
 @pytest.mark.parametrize("level", ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
-def test_all_log_levels(level):
+def test_all_log_levels(level: str) -> None:
     """Test que tous les niveaux de logging sont acceptés."""
-    logger = initialize_root_logger(level=level)
+    logger = initialize_root_logger(level=level)  # type: ignore[arg-type]
     expected_level = getattr(logging, level)
     assert logger.level == expected_level

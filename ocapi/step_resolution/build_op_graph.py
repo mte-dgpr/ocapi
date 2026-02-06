@@ -115,7 +115,9 @@ def build_graph(
             continue
 
     if skipped_ops:
-        logger.warning(f"{len(skipped_ops)} opération(s) ignorée(s) lors de la construction du graphe")
+        logger.warning(
+            f"{len(skipped_ops)} opération(s) ignorée(s) lors de la construction du graphe"
+        )
 
     return G, arrete_files, skipped_ops
 

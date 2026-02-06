@@ -32,7 +32,10 @@ from ocapi.step_detection.prompts import prompt_detection
 from ocapi.step_detection.subtarget_detection import parse_subtarget
 from ocapi.types import ArreteId, ImageMap, NodeId, Operation, OperationType, RawOperation
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, parse_llm_json_list_response
+from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.utils import IdCounter, make_id
+
+logger = get_logger(__name__)
 
 _OPERATION_ID_COUNTER = IdCounter()
 
@@ -40,6 +43,7 @@ _OPERATION_ID_COUNTER = IdCounter()
 def step_detection(
     html_blocks: list[Document], arrete_id: ArreteId, modele: str, img_map: ImageMap
 ) -> list[Operation]:
+    logger.info(f"Détection: traitement de {len(html_blocks)} bloc(s)")
     all_ops: list[Operation] = []
     cfg = config_model_llm(modele)
     for block_html in html_blocks:
@@ -52,6 +56,7 @@ def step_detection(
             convert_raw_operation_to_operation(block_html.page_content, raw_op, arrete_id, img_map)
             for raw_op in raw_operations
         )
+    logger.info(f"Détection: {len(all_ops)} opération(s) détectée(s)")
     return all_ops
 
 

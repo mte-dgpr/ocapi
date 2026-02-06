@@ -17,8 +17,14 @@
 # limitations under the License.
 #
 from ocapi.types import ArreteFile, ArticleHistory, Permis
+from ocapi.utils.logging_utils import get_logger
+
+logger = get_logger(__name__)
 
 
 def step_rendering(history: ArticleHistory, arrete_files: list[ArreteFile]) -> Permis:
+    logger.info(f"Rendering: génération du permis à partir de {len(history)} article(s)")
     # TODO: implémenter le rendering complet
-    return Permis(header="", contenu="", other="")
+    permis = Permis(header="", contenu="", other="")
+    logger.debug("Rendering: permis généré (contenu vide - TODO)")
+    return permis

@@ -68,7 +68,7 @@ def ma_fonction():
     logger.warning("Attention, quelque chose d'inhabituel")
     logger.error("Erreur rencontrée")
     logger.critical("Erreur critique !")
-    
+
     # Pour loguer une exception avec sa stacktrace
     try:
         # ... code qui peut lever une exception

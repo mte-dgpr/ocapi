@@ -68,12 +68,14 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
             html_content = f.read()
 
         soup = BeautifulSoup(html_content, "html.parser")
-        
+
         # Valider la version Arrêtify
         try:
             validate_arretify_version(soup, html_path.name)
         except ValueError as e:
-            logger.warning(f"Fichier ignoré (version Arrêtify incompatible): {html_path.name} - Raison: {e}")
+            logger.warning(
+                f"Fichier ignoré (version Arrêtify incompatible): {html_path.name} - Raison: {e}"
+            )
             continue
 
         arrete = ArreteFile(
@@ -151,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
         action="version",
         version="%(prog)s 0.1.0",
     )
-    
+
     # Options globales de logging
     parser.add_argument(
         "-v",
@@ -216,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     logger.debug(f"Logging initialisé au niveau {log_level}")
-    
+
     if args.command is None:
         parser.print_help()
         return 0

@@ -202,7 +202,7 @@ if __name__ == "__main__":
         use_timed_rotation=settings.logging.use_timed_rotation,
         console_output=settings.logging.console_output,
     )
-    
+
     PROJECT_ROOT = Path(__file__).parent.parent
     input_arretes_dir = PROJECT_ROOT / "data" / "0005804239" / "arretes_html"
     output_dir = PROJECT_ROOT / "data" / "0005804239" / "ocapi_output"

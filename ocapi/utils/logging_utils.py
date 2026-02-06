@@ -101,26 +101,16 @@ def initialize_root_logger(
         log_file.parent.mkdir(parents=True, exist_ok=True)
 
         if use_timed_rotation:
-            # Rotation quotidienne + par taille
-            file_handler = TimedRotatingFileHandler(
+            # Rotation quotidienne uniquement
+            # Note: Ne pas combiner TimedRotatingFileHandler et RotatingFileHandler
+            # sur le même fichier pour éviter les conflits
+            file_handler: logging.Handler = TimedRotatingFileHandler(
                 filename=str(log_file),
                 when="midnight",
                 interval=1,
                 backupCount=backup_count,
                 encoding="utf-8",
             )
-            # Ajouter aussi la rotation par taille
-            # Note: TimedRotatingFileHandler ne supporte pas maxBytes directement
-            # On utilise un RotatingFileHandler en plus
-            size_handler = RotatingFileHandler(
-                filename=str(log_file),
-                maxBytes=max_bytes,
-                backupCount=backup_count,
-                encoding="utf-8",
-            )
-            size_handler.setLevel(log_level)
-            size_handler.setFormatter(formatter)
-            root_logger.addHandler(size_handler)
         else:
             # Rotation par taille uniquement
             file_handler = RotatingFileHandler(
