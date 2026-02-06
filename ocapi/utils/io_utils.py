@@ -145,3 +145,26 @@ def write_permis_output(permis: Permis, output_path: Path) -> None:
 
     except OSError as e:
         raise InputOutputError(f"Impossible d'écrire dans le fichier de sortie: {e}") from e
+
+
+def write_json_output(data: Any, output_path: Path) -> None:
+    """
+    Écrit des données dans un fichier JSON.
+
+    Args:
+        data: Données à sauvegarder (dict, list, ou tout objet sérialisable en JSON)
+        output_path: Chemin du fichier de sortie
+
+    Raises:
+        InputOutputError: Si l'écriture échoue
+    """
+    try:
+        # Créer le répertoire parent si nécessaire
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Sauvegarder en JSON
+        with output_path.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    except OSError as e:
+        raise InputOutputError(f"Impossible d'écrire le fichier JSON: {e}") from e
