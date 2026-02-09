@@ -321,22 +321,22 @@ if __name__ == "__main__":
 Examples:
   # Traiter tous les arrêtés d'un répertoire
   python -m ocapi.main data/0005804239/arretes_html/
-  
+
   # Spécifier un répertoire de sortie personnalisé
   python -m ocapi.main data/0005804239/arretes_html/ --output output/
-  
+
   # Ignorer le premier arrêté (AP initial)
   python -m ocapi.main data/0005804239/arretes_html/ --skip-first
-  
+
   # Filtrer sur des arrêtés spécifiques
   python -m ocapi.main data/0005804239/arretes_html/ --include 2024-09-27 2023-12-04
-  
+
   # Désactiver le rendering (étapes 1-3 uniquement)
   python -m ocapi.main data/0005804239/arretes_html/ --no-rendering
-  
+
   # Spécifier l'AIOT
   python -m ocapi.main data/0005804239/arretes_html/ --aiot 0005804239
-  
+
   # Mode verbose
   python -m ocapi.main data/0005804239/arretes_html/ --verbose
         """,

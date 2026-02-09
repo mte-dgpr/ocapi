@@ -364,18 +364,18 @@ logger = get_logger(__name__)
 def step_nouvelle_etape(input_data):
     """
     Description de l'étape.
-    
+
     Args:
         input_data: Données en entrée
-        
+
     Returns:
         Résultat de l'étape
     """
     logger.info("Début de l'étape...")
-    
+
     # Traitement
     result = process(input_data)
-    
+
     logger.info(f"Étape terminée: {len(result)} éléments")
     return result
 ```

@@ -101,21 +101,37 @@ def call_llm_api(cfg: Tuple[str, str | None, str], prompt: str) -> str:
 
 def parse_llm_json_list_response(raw: str) -> list[dict[str, Any]]:
     """
-    Parse la réponse brute du LLM pour extraire une liste au format JSON
+    Parse la réponse brute du LLM pour extraire une liste au format JSON.
+
+    Note: Cette fonction retourne une liste vide en cas d'erreur de parsing.
+    Les erreurs sont loguées mais ne font pas l'objet d'un retry car le retry
+    doit être géré au niveau de l'appel API, pas au niveau du parsing.
     """
     # Chercher le premier grand tableau JSON dans la réponse
     m = re.search(r"\[[\s\S]*\]", raw)
     if not m:
-        _LOGGER.warning("Aucun tableau JSON trouvé dans la réponse LLM")
+        _LOGGER.warning(
+            f"Aucun tableau JSON trouvé dans la réponse LLM. "
+            f"Réponse brute (premiers 200 chars): {raw[:200]}"
+        )
         return []
 
     # Parser le tableau JSON
     try:
         lst: Any = json.loads(m.group())
         # S'assurer qu'on renvoie bien une liste
-        return lst if isinstance(lst, list) else []
+        if not isinstance(lst, list):
+            _LOGGER.warning(
+                f"Le JSON parsé n'est pas une liste mais un {type(lst).__name__}. "
+                f"Retour d'une liste vide."
+            )
+            return []
+        return lst
     except json.JSONDecodeError as e:
-        _LOGGER.error(f"Erreur parsing JSON LLM: {e}")
+        _LOGGER.error(
+            f"Erreur parsing JSON LLM: {e}. "
+            f"Contenu JSON (premiers 200 chars): {m.group()[:200]}"
+        )
         return []
 
 

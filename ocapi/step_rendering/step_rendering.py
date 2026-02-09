@@ -28,7 +28,7 @@ _LOGGER = get_logger(__name__)
 def step_rendering(
     history: ArticleHistory, operations: list[Operation], arrete_files: list[ArreteFile]
 ) -> Permis:
-    _LOGGER.info(f"Rendering: génération du permis à partir de {len(history)} article(s)")
+    _LOGGER.info(f"Rendering: génération du permis à partir de {len(history)} article(s) modifiés")
     contenu_permis = make_contenu_permis(history, arrete_files, operations)
     header_permis = make_header_permis(arrete_files)
     other_permis = make_other_permis(arrete_files, operations=operations)

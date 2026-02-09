@@ -105,22 +105,22 @@ def main(argv: list[str] | None = None) -> int:
 Examples:
   # Afficher l'aide générale
   ocapi --help
-  
+
   # Afficher l'aide d'une commande
   ocapi run --help
-  
+
   # Traiter tous les arrêtés d'un répertoire
   ocapi run data/0999.99999/arretes/
-  
+
   # Traiter avec un AIOT spécifique
   ocapi run data/0999.99999/arretes/ --aiot 0999.99999
-  
+
   # Sauvegarder le résultat dans un fichier
   ocapi run data/0999.99999/arretes/ --output resultat.json
-  
+
   # Mode verbose pour le debug
   ocapi --verbose run data/0999.99999/arretes/
-  
+
   # Mode silencieux
   ocapi --quiet run data/0999.99999/arretes/
         """,
@@ -157,22 +157,22 @@ Examples:
 Examples:
   # Traiter tous les arrêtés d'un répertoire
   ocapi run data/0999.99999/arretes/
-  
+
   # Traiter avec un AIOT spécifique (par défaut: déduit du chemin parent)
   ocapi run data/0999.99999/arretes/ --aiot 0999.99999
-  
+
   # Filtrer sur des arrêtés spécifiques (par leur date)
   ocapi run data/0999.99999/arretes/ --include 2024-09-27 2023-12-04
-  
+
   # Sauvegarder le résultat dans un fichier JSON
   ocapi run data/0999.99999/arretes/ --output output/resultat.json
-  
+
   # Combinaison: filtrage et sauvegarde
   ocapi run data/0999.99999/arretes/ --include 2024-09-27 --output resultat.json
-  
+
   # Mode verbose pour voir les logs détaillés
   ocapi --verbose run data/0999.99999/arretes/
-  
+
   # Mode silencieux (uniquement erreurs et avertissements)
   ocapi --quiet run data/0999.99999/arretes/
         """,
