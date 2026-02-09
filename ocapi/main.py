@@ -49,6 +49,46 @@ from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 logger = get_logger(__name__)
 
 
+def arrete_to_ArreteFile(ordered_index: int, html_path: Path, aiot: str | None = None) -> ArreteFile:
+    """
+    Convertit un fichier HTML en objet ArreteFile.
+
+    Args:
+        ordered_index: Index du fichier dans l'ordre de traitement (non utilisé, conservé pour compatibilité)
+        html_path: Chemin vers le fichier HTML
+        aiot: Identifiant AIOT (si None, utilise le nom du dossier parent)
+
+    Returns:
+        ArreteFile créé à partir du fichier
+
+    Raises:
+        ValueError: Si le nom de fichier est invalide ou la version Arrêtify incompatible
+    """
+    # Déterminer l'AIOT
+    if aiot is None:
+        aiot = html_path.parent.parent.name
+
+    # Parser et valider le nom de fichier
+    arrete_id, file_type = parse_filename(html_path.name)
+
+    # Lire le contenu HTML
+    with open(html_path, encoding="utf-8") as f:
+        html_content = f.read()
+
+    soup = BeautifulSoup(html_content, "html.parser")
+
+    # Valider la version Arrêtify
+    validate_arretify_version(soup, html_path.name)
+
+    return ArreteFile(
+        id=arrete_id,
+        aiot=aiot,
+        filename=html_path.stem,  # Nom sans extension
+        soup=soup,
+        file_type=file_type,
+    )
+
+
 def load_arrete_files(input_dir: Path, aiot: str | None = None) -> list[ArreteFile]:
     """
     Charge tous les fichiers HTML d'arrêtés depuis un répertoire.
@@ -71,37 +111,14 @@ def load_arrete_files(input_dir: Path, aiot: str | None = None) -> list[ArreteFi
         logger.error(f"Aucun fichier HTML trouvé dans {input_dir}")
         return []
 
-    for _ordered_index, html_path in enumerate(html_files):
-        # Parser et valider le nom de fichier
+    for ordered_index, html_path in enumerate(html_files):
         try:
-            arrete_id, file_type = parse_filename(html_path.name)
+            arrete = arrete_to_ArreteFile(ordered_index, html_path, aiot)
+            arrete_files.append(arrete)
+            logger.info(f"Chargé: {html_path.name} (id={arrete.id}, type={arrete.file_type.value})")
         except ValueError as e:
-            logger.warning(f"Fichier ignoré (format invalide): {html_path.name} - Raison: {e}")
+            logger.warning(f"Fichier ignoré: {html_path.name} - Raison: {e}")
             continue
-
-        with open(html_path, encoding="utf-8") as f:
-            html_content = f.read()
-
-        soup = BeautifulSoup(html_content, "html.parser")
-
-        # Valider la version Arrêtify
-        try:
-            validate_arretify_version(soup, html_path.name)
-        except ValueError as e:
-            logger.warning(
-                f"Fichier ignoré (version Arrêtify incompatible): {html_path.name} - Raison: {e}"
-            )
-            continue
-
-        arrete = ArreteFile(
-            id=arrete_id,
-            aiot=aiot,
-            filename=html_path.name,
-            soup=soup,
-            file_type=file_type,
-        )
-        arrete_files.append(arrete)
-        logger.info(f"Chargé: {html_path.name} (id={arrete_id}, type={file_type.value})")
 
     return arrete_files
 
