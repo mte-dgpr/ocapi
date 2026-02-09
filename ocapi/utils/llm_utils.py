@@ -27,7 +27,7 @@ from ocapi.config import settings
 from ocapi.types import OperationType
 from ocapi.utils.logging_utils import get_logger
 
-logger = get_logger(__name__)
+_LOGGER = get_logger(__name__)
 
 
 def config_model_llm(modele: str) -> Tuple[str, str | None, str]:
@@ -60,7 +60,7 @@ def call_llm_api(cfg: Tuple[str, str | None, str], prompt: str) -> str:
     prompt : texte du prompt à envoyer au modèle
     """
     MODEL_NAME, API_KEY, API_URL = cfg
-    logger.debug(f"Appel API LLM: {MODEL_NAME}")
+    _LOGGER.debug(f"Appel API LLM: {MODEL_NAME}")
     # En-têtes HTTP requis pour l'authentification et le format des données
     HEADERS = {
         "Authorization": f"Bearer {API_KEY}",
@@ -89,7 +89,7 @@ def call_llm_api(cfg: Tuple[str, str | None, str], prompt: str) -> str:
         r = requests.post(API_URL, headers=HEADERS, json=payload, timeout=(40, 120))
         r.raise_for_status()
     except requests.exceptions.RequestException as e:
-        logger.error(f"Échec appel API LLM ({MODEL_NAME}): {e}")
+        _LOGGER.error(f"Échec appel API LLM ({MODEL_NAME}): {e}")
         raise
 
     # Extraction du contenu de la réponse du modèle
@@ -106,7 +106,7 @@ def parse_llm_json_list_response(raw: str) -> list[dict[str, Any]]:
     # Chercher le premier grand tableau JSON dans la réponse
     m = re.search(r"\[[\s\S]*\]", raw)
     if not m:
-        logger.warning("Aucun tableau JSON trouvé dans la réponse LLM")
+        _LOGGER.warning("Aucun tableau JSON trouvé dans la réponse LLM")
         return []
 
     # Parser le tableau JSON
@@ -115,7 +115,7 @@ def parse_llm_json_list_response(raw: str) -> list[dict[str, Any]]:
         # S'assurer qu'on renvoie bien une liste
         return lst if isinstance(lst, list) else []
     except json.JSONDecodeError as e:
-        logger.error(f"Erreur parsing JSON LLM: {e}")
+        _LOGGER.error(f"Erreur parsing JSON LLM: {e}")
         return []
 
 

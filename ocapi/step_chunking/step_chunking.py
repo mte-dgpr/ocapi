@@ -32,7 +32,7 @@ from ocapi.utils.documents import ContentType, make_document_factory
 from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.utils import minify_html_fragment
 
-logger = get_logger(__name__)
+_LOGGER = get_logger(__name__)
 
 _ARRETIFY_SECTION_SELECTOR = '*[data-spec="section"]'
 
@@ -105,7 +105,7 @@ def step_chunking(arrete_file: ArreteFile) -> Tuple[list[Document], ImageMap]:
         )
     )
 
-    logger.info(f"Chunking: {len(blocks)} bloc(s) créé(s), {len(img_map)} image(s)")
+    _LOGGER.info(f"Chunking: {len(blocks)} bloc(s) créé(s), {len(img_map)} image(s)")
     return blocks, img_map
 
 

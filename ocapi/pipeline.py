@@ -24,11 +24,11 @@ from ocapi.step_resolution.step_resolution import step_resolution
 from ocapi.types import ArreteFile, Operation, Permis
 from ocapi.utils.logging_utils import get_logger
 
-logger = get_logger(__name__)
+_LOGGER = get_logger(__name__)
 
 
 def run_pipeline(arrete_files: list[ArreteFile]) -> Permis:
-    logger.info(f"Démarrage du pipeline avec {len(arrete_files)} arrêté(s)")
+    _LOGGER.info(f"Démarrage du pipeline avec {len(arrete_files)} arrêté(s)")
     operations: list[Operation] = []
     modele = settings.pipeline.default_llm_model
     # TODO : valider le type arrete_id
@@ -40,5 +40,5 @@ def run_pipeline(arrete_files: list[ArreteFile]) -> Permis:
 
     permis = step_rendering(history, operations, arrete_files)
 
-    logger.info("Pipeline terminé avec succès")
+    _LOGGER.info("Pipeline terminé avec succès")
     return permis

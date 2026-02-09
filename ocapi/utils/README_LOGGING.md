@@ -60,21 +60,21 @@ Pour utiliser le logger dans un nouveau module :
 ```python
 from ocapi.utils.logging_utils import get_logger
 
-logger = get_logger(__name__)
+_LOGGER = get_logger(__name__)
 
 def ma_fonction():
-    logger.debug("Message de debug détaillé")
-    logger.info("Information générale")
-    logger.warning("Attention, quelque chose d'inhabituel")
-    logger.error("Erreur rencontrée")
-    logger.critical("Erreur critique !")
+    _LOGGER.debug("Message de debug détaillé")
+    _LOGGER.info("Information générale")
+    _LOGGER.warning("Attention, quelque chose d'inhabituel")
+    _LOGGER.error("Erreur rencontrée")
+    _LOGGER.critical("Erreur critique !")
 
     # Pour loguer une exception avec sa stacktrace
     try:
         # ... code qui peut lever une exception
         pass
     except Exception as e:
-        logger.exception("Une erreur s'est produite")
+        _LOGGER.exception("Une erreur s'est produite")
 ```
 
 ### Niveaux de logging
@@ -173,8 +173,8 @@ print(f"Erreur: {e}", file=sys.stderr)
 
 ✅ **À faire** :
 ```python
-logger.info("Message")
-logger.error(f"Erreur: {e}")
+_LOGGER.info("Message")
+_LOGGER.error(f"Erreur: {e}")
 ```
 
 ## Tests
@@ -225,7 +225,7 @@ ocapi -v run data/arretes_html
 1. **Utilisez le bon niveau** : DEBUG pour les détails, INFO pour le déroulement normal, WARNING pour les anomalies
 2. **Messages clairs** : Incluez le contexte (fichiers, IDs, valeurs importantes)
 3. **Pas de données sensibles** : Ne loguez pas de clés API, mots de passe, etc.
-4. **Exception logging** : Utilisez `logger.exception()` dans les blocs except pour capturer la stacktrace
+4. **Exception logging** : Utilisez `_LOGGER.exception()` dans les blocs except pour capturer la stacktrace
 5. **Performance** : Les logs DEBUG ne sont pas évalués si le niveau est plus élevé, mais évitez les opérations coûteuses dans les arguments
 
 ## Ressources
