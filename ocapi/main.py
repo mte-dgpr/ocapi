@@ -22,70 +22,17 @@ Exécute chunking + detection + resolution (sans rendering).
 python -m ocapi.main
 """
 
-import json
 from pathlib import Path
-
-from bs4 import BeautifulSoup
 
 from ocapi.config import settings
 from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
-from ocapi.types import ArreteFile, FileType, Operation, parse_filename, validate_arretify_version
+from ocapi.types import Operation
+from ocapi.utils.io_utils import load_arrete_files, write_json_output, write_permis_output
 
-# TODO : faire d'abord tous les appels LLM puis convertir en raw ops dans un second temps.
-# comme ça on peut faire du batch et gérer les erreurs après.
-# TODO : enlever les blockquote au début.
-# erreurs à gérer : appendice 2024.
-# 6.7 à ajouter : mettre sans objet
-# parser END
-
-
-def folder_to_list_of_ArreteFiles(folder_path: Path) -> list[ArreteFile]:
-    """
-    Charge tous les fichiers HTML d'un dossier et les convertit en ArreteFile.
-    Attention, les arrete_id sont uniquement la date extraite du nom de fichier pour l'instant.
-    """
-    arrete_files: list[ArreteFile] = []
-    html_files = sorted(folder_path.glob("*.html"))
-    aiot = folder_path.name  # Utiliser le nom du dossier comme AIOT
-
-    for i, html_path in enumerate(html_files):
-        arrete_file = arrete_to_ArreteFile(i, html_path)
-        arrete_file.aiot = aiot
-        arrete_files.append(arrete_file)
-
-    return arrete_files
-
-
-def arrete_to_ArreteFile(i: int, html_path: Path) -> ArreteFile:
-    # Parser et valider le nom de fichier
-    try:
-        arrete_id, file_type = parse_filename(html_path.name)
-    except ValueError:
-        # Si le parsing échoue, utiliser l'ancien format comme fallback
-        filename = html_path.stem
-        parts = filename.split("_")
-        if len(parts) < 2:
-            raise ValueError(f"Format de fichier invalide : {filename}")
-        arrete_id = parts[0]
-        file_type = FileType.AUTRE
-
-    # Charger et parser le HTML
-    html_content = html_path.read_text(encoding="utf-8")
-    soup = BeautifulSoup(html_content, "html.parser")
-
-    # Valider la version Arrêtify
-    validate_arretify_version(soup, html_path.name)
-
-    return ArreteFile(
-        id=arrete_id,
-        aiot="",
-        filename=html_path.stem,
-        soup=soup,
-        file_type=file_type,
-    )
+# TODO : enlever les blockquote ?
 
 
 def main(input_dir: Path, output_dir: Path) -> None:
@@ -105,7 +52,8 @@ def main(input_dir: Path, output_dir: Path) -> None:
         return
 
     print(f"Chargement de {len(html_files)} fichiers HTML")
-    arrete_files = folder_to_list_of_ArreteFiles(input_dir)
+    aiot = input_dir.parent.name  # Utiliser le nom du dossier parent comme AIOT
+    arrete_files = load_arrete_files(input_dir, aiot)
 
     # Créer le dossier de sortie
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -139,8 +87,7 @@ def main(input_dir: Path, output_dir: Path) -> None:
     # Sauvegarder les opérations
     operations_path = output_dir / "operations.json"
     operations_dict = [op.model_dump() for op in operations]
-    with operations_path.open("w", encoding="utf-8") as f:
-        json.dump(operations_dict, f, ensure_ascii=False, indent=2)
+    write_json_output(operations_dict, operations_path)
     print(f"💾 Opérations sauvegardées → {operations_path}\n")
 
     # ========================================
@@ -157,11 +104,7 @@ def main(input_dir: Path, output_dir: Path) -> None:
         print("✓ 0 article avec historique\n")
 
     # Sauvegarder l'historique
-    versions_dir = output_dir / "versions"
-    versions_dir.mkdir(parents=True, exist_ok=True)
-    versions_path = versions_dir / "history.json"
-
-    # Convertir NodeId en string et ArticleHistory en format sérialisable
+    history_path = output_dir / "history.json"
     history_serializable = {
         str(node_id): [
             {"version": v["version"], "content": v["content"], "operation_id": v["operation_id"]}
@@ -169,10 +112,8 @@ def main(input_dir: Path, output_dir: Path) -> None:
         ]
         for node_id, versions in history.items()
     }
-
-    with versions_path.open("w", encoding="utf-8") as f:
-        json.dump(history_serializable, f, ensure_ascii=False, indent=2)
-    print(f"💾 Historique sauvegardé → {versions_path}\n")
+    write_json_output(history_serializable, history_path)
+    print(f"💾 Historique sauvegardé → {history_path}\n")
 
     # ========================================
     # STEP 4 : RENDERING
@@ -183,8 +124,7 @@ def main(input_dir: Path, output_dir: Path) -> None:
 
     permis = step_rendering(history, operations, arrete_files)
     permis_path = output_dir / "permis_consolidé.html"
-    with permis_path.open("w", encoding="utf-8") as f:
-        f.write(str(permis))
+    write_permis_output(permis, permis_path)
     print(f"💾 Permis consolidé sauvegardé → {permis_path}")
     print("\n✅ Pipeline terminé avec succès !")
 

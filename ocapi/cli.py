@@ -28,80 +28,15 @@ import argparse
 import sys
 from pathlib import Path
 
-from bs4 import BeautifulSoup
-
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
-from ocapi.types import ArreteFile, ArreteId, parse_filename, validate_arretify_version
-
-
-def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
-    """
-    Charge tous les fichiers HTML d'arrêtés depuis un répertoire.
-
-    Args:
-        input_dir: Répertoire contenant les fichiers HTML
-        aiot: Identifiant AIOT de l'installation
-
-    Returns:
-        Liste des ArreteFile chargés, triés par nom de fichier
-    """
-    arrete_files: list[ArreteFile] = []
-
-    html_files = sorted(input_dir.glob("*.html"))
-    if not html_files:
-        print(f"Aucun fichier HTML trouvé dans {input_dir}", file=sys.stderr)
-        return []
-
-    for _ordered_index, html_path in enumerate(html_files):
-        # Parser et valider le nom de fichier
-        try:
-            arrete_id, file_type = parse_filename(html_path.name)
-        except ValueError as e:
-            print(f"⚠️  Fichier ignoré (format invalide): {html_path.name}", file=sys.stderr)
-            print(f"   Raison: {e}", file=sys.stderr)
-            continue
-
-        with open(html_path, encoding="utf-8") as f:
-            html_content = f.read()
-
-        soup = BeautifulSoup(html_content, "html.parser")
-
-        # Valider la version Arrêtify
-        try:
-            validate_arretify_version(soup, html_path.name)
-        except ValueError as e:
-            print(
-                f"⚠️  Fichier ignoré (version Arrêtify incompatible): {html_path.name}",
-                file=sys.stderr,
-            )
-            print(f"   Raison: {e}", file=sys.stderr)
-            continue
-
-        arrete = ArreteFile(
-            id=arrete_id,
-            aiot=aiot,
-            filename=html_path.name,
-            soup=soup,
-            file_type=file_type,
-        )
-        arrete_files.append(arrete)
-        print(f"  Chargé: {html_path.name} (id={arrete_id}, type={file_type.value})")
-
-    return arrete_files
+from ocapi.types import ArreteId
+from ocapi.utils.io_utils import InputOutputError, load_arrete_files, write_permis_output
 
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Exécute le pipeline OCAPI sur les arrêtés."""
     input_dir = Path(args.input_dir)
-
-    if not input_dir.exists():
-        print(f"Erreur: Le répertoire {input_dir} n'existe pas.", file=sys.stderr)
-        return 1
-
-    if not input_dir.is_dir():
-        print(f"Erreur: {input_dir} n'est pas un répertoire.", file=sys.stderr)
-        return 1
 
     # Déterminer l'AIOT
     aiot = args.aiot or input_dir.parent.name
@@ -110,8 +45,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"Chargement des arrêtés depuis: {input_dir}")
 
     # Charger les arrêtés
-    arrete_files = load_arrete_files(input_dir, aiot)
-    if not arrete_files:
+    try:
+        arrete_files = load_arrete_files(input_dir, aiot)
+    except InputOutputError as e:
+        print(f"Erreur: {e}", file=sys.stderr)
         return 1
 
     print(f"\n{len(arrete_files)} arrêté(s) chargé(s)")
@@ -130,10 +67,12 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         # Sauvegarder le résultat si --output est spécifié
         if args.output:
-            output_path = Path(args.output)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(permis.model_dump_json(indent=2), encoding="utf-8")
-            print(f"Résultat sauvegardé dans: {output_path}")
+            try:
+                output_path = Path(args.output)
+                write_permis_output(permis, output_path)
+            except InputOutputError as e:
+                print(f"Erreur: {e}", file=sys.stderr)
+                return 1
 
         return 0
 
