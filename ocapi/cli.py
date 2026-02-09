@@ -53,7 +53,6 @@ def cmd_run(args: argparse.Namespace) -> int:
     aiot = args.aiot or input_dir.parent.name
     _LOGGER.info(f"AIOT: {aiot}")
     _LOGGER.info(f"Modèle LLM: {settings.pipeline.default_llm_model}")
-    _LOGGER.info(f"Chargement des arrêtés depuis: {input_dir}")
 
     # Charger les arrêtés
     try:
@@ -61,8 +60,6 @@ def cmd_run(args: argparse.Namespace) -> int:
     except InputOutputError as e:
         print(f"Erreur: {e}", file=sys.stderr)
         return 1
-
-    _LOGGER.info(f"{len(arrete_files)} arrêté(s) chargé(s)")
 
     # Filtrer les arrêtés si demandé
     if args.include:
