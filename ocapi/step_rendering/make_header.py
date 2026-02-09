@@ -23,26 +23,6 @@ from bs4 import BeautifulSoup
 from ocapi.types import ArreteFile
 
 
-def get_html_head(arrete_file: ArreteFile) -> str:
-    """
-    Extrait la section <head> complète d'un document HTML.
-
-
-    Args:
-        arrete_file: Un objet ArreteFile contenant le soup HTML.
-
-
-    Returns:
-        La section <head> sous forme de chaîne de caractères.
-    """
-    head = arrete_file.soup.find("head")
-    if head:
-        return str(head)
-    else:
-        # Si pas de head trouvé, retourner une head vide par défaut
-        return "<head></head>"
-
-
 def extract_visa(soup: BeautifulSoup) -> list[str]:
     """
     Extrait les divs 'visa' du header d'un document HTML.
@@ -153,10 +133,9 @@ def make_motif_permis(arrete_files: list[ArreteFile]) -> str:
 def make_header_permis(arrete_files: list[ArreteFile]) -> str:
     """
     Génère le document HTML complet du permis consolidé avec :
-    1. Le head HTML complet (style et scripts)
-    2. La liste des arrêtés sources
-    3. Les visas fusionnés (sans doublons)
-    4. Les considérants groupés par arrêté
+    1. La liste des arrêtés sources
+    2. Les visas fusionnés (sans doublons)
+    3. Les considérants groupés par arrêté
 
 
     Args:
@@ -164,16 +143,13 @@ def make_header_permis(arrete_files: list[ArreteFile]) -> str:
 
 
     Returns:
-        Document HTML complet avec le header du permis
+        HTML du header du permis
     """
-    html_head = get_html_head(arrete_files[0])
     liste_arretes = make_liste_arretes(arrete_files)
     visas_permis = make_visa_permis(arrete_files)
     motifs_permis = make_motif_permis(arrete_files)
 
-    header_html = f"""{html_head}
- <body data-spec="permis">
-  <header data-spec="header">
+    header_html = f"""  <header data-spec="header">
 {liste_arretes}
    <details style="margin-top: var(--spacing-2);">
     <summary style="cursor: pointer; font-size: 1.5rem; font-weight: bold; padding: 0.5rem 0;">

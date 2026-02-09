@@ -24,7 +24,7 @@ from typing import Dict, Optional, TypedDict
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from .config import SUPPORTED_ARRETIFY_VERSION, SUPPORTED_ARRETIFY_VERSION_PATTERN
+from .config import SUPPORTED_ARRETIFY_VERSION, SUPPORTED_ARRETIFY_VERSION_PATTERN, settings
 
 OperationId = str
 ArreteId = str
@@ -53,10 +53,19 @@ class Permis(BaseModel):
     aiot: AiotId | None = None
 
     def to_html(self) -> str:
-        """Concatène le header, le contenu et other pour générer le HTML complet du permis."""
+        """Rend le permis dans le template HTML fixe."""
+        template_path = settings.paths.permis_template_path
+        template = template_path.read_text(encoding="utf-8")
+        required_tokens = ("{{HEADER}}", "{{CONTENT}}", "{{OTHER}}")
+        if not all(token in template for token in required_tokens):
+            raise ValueError(
+                "Template HTML du permis consolidé invalide: "
+                "placeholders {{HEADER}}, {{CONTENT}} et {{OTHER}} requis."
+            )
         return (
-            f'<!DOCTYPE html>\n<html lang="fr">\n'
-            f"{self.header}\n{self.contenu}\n{self.other}\n</html>"
+            template.replace("{{HEADER}}", self.header)
+            .replace("{{CONTENT}}", self.contenu)
+            .replace("{{OTHER}}", self.other)
         )
 
 
