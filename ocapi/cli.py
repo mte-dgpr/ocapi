@@ -28,8 +28,6 @@ import argparse
 import sys
 from pathlib import Path
 
-from bs4 import BeautifulSoup
-
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
 from ocapi.types import ArreteFile, ArreteId, parse_filename, validate_arretify_version
@@ -89,6 +87,8 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
         logger.info(f"Chargé: {html_path.name} (id={arrete_id}, type={file_type.value})")
 
     return arrete_files
+from ocapi.types import ArreteId
+from ocapi.utils.io_utils import InputOutputError, load_arrete_files, write_permis_output
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -110,8 +110,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     logger.info(f"Chargement des arrêtés depuis: {input_dir}")
 
     # Charger les arrêtés
-    arrete_files = load_arrete_files(input_dir, aiot)
-    if not arrete_files:
+    try:
+        arrete_files = load_arrete_files(input_dir, aiot)
+    except InputOutputError as e:
+        print(f"Erreur: {e}", file=sys.stderr)
         return 1
 
     logger.info(f"{len(arrete_files)} arrêté(s) chargé(s)")
@@ -139,6 +141,12 @@ def cmd_run(args: argparse.Namespace) -> int:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(permis.model_dump_json(indent=2), encoding="utf-8")
             logger.info(f"Résultat sauvegardé dans: {output_path}")
+            try:
+                output_path = Path(args.output)
+                write_permis_output(permis, output_path)
+            except InputOutputError as e:
+                print(f"Erreur: {e}", file=sys.stderr)
+                return 1
 
         return 0
 

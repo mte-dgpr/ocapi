@@ -36,8 +36,6 @@ import json
 import sys
 from pathlib import Path
 
-from bs4 import BeautifulSoup
-
 from ocapi.config import settings
 from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
@@ -96,6 +94,10 @@ def arrete_to_ArreteFile(
         soup=soup,
         file_type=file_type,
     )
+from ocapi.types import Operation
+from ocapi.utils.io_utils import load_arrete_files, write_json_output, write_permis_output
+
+# TODO : enlever les blockquote ?
 
 
 def load_arrete_files(input_dir: Path, aiot: str | None = None) -> list[ArreteFile]:
@@ -131,6 +133,9 @@ def load_arrete_files(input_dir: Path, aiot: str | None = None) -> list[ArreteFi
             continue
 
     return arrete_files
+    logger.info(f"Chargement de {len(html_files)} fichiers HTML")
+    aiot = input_dir.parent.name  # Utiliser le nom du dossier parent comme AIOT
+    arrete_files = load_arrete_files(input_dir, aiot)
 
 
 def run_pipeline(
@@ -173,6 +178,11 @@ def run_pipeline(
         logger.info(f"  → {len(detected_ops)} opérations détectées")
 
     logger.info(f"Total : {len(operations)} opération(s) détectée(s)")
+    # Sauvegarder les opérations
+    operations_path = output_dir / "operations.json"
+    operations_dict = [op.model_dump() for op in operations]
+    write_json_output(operations_dict, operations_path)
+    loger.info(f"💾 Opérations sauvegardées → {operations_path}\n")
 
     # ========================================
     # STEP 3 : RESOLUTION
@@ -186,6 +196,18 @@ def run_pipeline(
         logger.info(f"{len(history)} articles avec historique")
     else:
         logger.info("0 article avec historique")
+
+    # Sauvegarder l'historique
+    history_path = output_dir / "history.json"
+    history_serializable = {
+        str(node_id): [
+            {"version": v["version"], "content": v["content"], "operation_id": v["operation_id"]}
+            for v in versions
+        ]
+        for node_id, versions in history.items()
+    }
+    write_json_output(history_serializable, history_path)
+    logger.info(f"💾 Historique sauvegardé → {history_path}\n")
 
     # ========================================
     # STEP 4 : RENDERING (optionnel)
@@ -321,6 +343,11 @@ def main(
     except Exception as e:
         logger.exception(f"Erreur lors de l'exécution du pipeline: {e}")
         return 1
+    permis = step_rendering(history, operations, arrete_files)
+    permis_path = output_dir / "permis_consolidé.html"
+    write_permis_output(permis, permis_path)
+    logger.info(f"💾 Permis consolidé sauvegardé → {permis_path}")
+    logger.info("\n✅ Pipeline terminé avec succès !")
 
 
 if __name__ == "__main__":

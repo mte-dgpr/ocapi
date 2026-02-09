@@ -34,7 +34,6 @@ import networkx as nx
 from bs4 import BeautifulSoup
 
 from ocapi.config import settings
-from ocapi.step_detection.subtarget_detection import is_simple_subtarget, replace_subtarget
 from ocapi.types import (
     ArreteFile,
     ArreteId,
@@ -48,6 +47,7 @@ from ocapi.types import (
 )
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
 from ocapi.utils.logging_utils import get_logger
+from ocapi.utils.subtarget_utils import is_simple_subtarget, replace_subtarget
 
 logger = get_logger(__name__)
 _DEFAULT_LLM_CFG = config_model_llm(settings.pipeline.default_llm_model)
@@ -95,19 +95,24 @@ def apply_replace(operation: Operation, soup_input: Content | BeautifulSoup) -> 
         raise ValueError("REPLACE operations require sub_target and operand.")
     soup = _ensure_soup(soup_input)
     if is_simple_subtarget(operation.sub_target):
-        modified_soup = replace_subtarget(soup, operation.sub_target, operation.operand)
-        return str(modified_soup)
-    else:
-        prompt = query_llm_for_subtarget(
-            OperationType.REPLACE, str(soup), operation.sub_target.description or ""
-        )
-        raw = call_llm_api(_DEFAULT_LLM_CFG, prompt)
-        output = str(soup)
-        for line in raw.splitlines():
-            if "<NEWCONTENT>" in line:
-                output = line.replace("<NEWCONTENT>", operation.operand)
-                break
-        return output
+        try:
+            modified_soup = replace_subtarget(soup, operation.sub_target, operation.operand)
+            return str(modified_soup)
+        except ValueError:
+            # Ambiguïté détectée, fallback vers LLM
+            # TODO : mettre un warning dans les logs
+            pass
+    # Cas complexe ou ambigu : utiliser le LLM
+    prompt = query_llm_for_subtarget(
+        OperationType.REPLACE, str(soup), operation.sub_target.description or ""
+    )
+    raw = call_llm_api(_DEFAULT_LLM_CFG, prompt)
+    output = str(soup)
+    for line in raw.splitlines():
+        if "<NEWCONTENT>" in line:
+            output = line.replace("<NEWCONTENT>", operation.operand)
+            break
+    return output
 
 
 def apply_remove(operation: Operation, soup_input: Content | BeautifulSoup) -> Content:
