@@ -28,67 +28,13 @@ import argparse
 import sys
 from pathlib import Path
 
-from bs4 import BeautifulSoup
-
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
-from ocapi.types import ArreteFile, ArreteId, parse_filename, validate_arretify_version
+from ocapi.types import ArreteId
+from ocapi.utils.io_utils import InputOutputError, load_arrete_files, write_permis_output
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 _LOGGER = get_logger(__name__)
-
-
-def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
-    """
-    Charge tous les fichiers HTML d'arrêtés depuis un répertoire.
-
-    Args:
-        input_dir: Répertoire contenant les fichiers HTML
-        aiot: Identifiant AIOT de l'installation
-
-    Returns:
-        Liste des ArreteFile chargés, triés par nom de fichier
-    """
-    arrete_files: list[ArreteFile] = []
-
-    html_files = sorted(input_dir.glob("*.html"))
-    if not html_files:
-        _LOGGER.error(f"Aucun fichier HTML trouvé dans {input_dir}")
-        return []
-
-    for _ordered_index, html_path in enumerate(html_files):
-        # Parser et valider le nom de fichier
-        try:
-            arrete_id, file_type = parse_filename(html_path.name)
-        except ValueError as e:
-            _LOGGER.warning(f"Fichier ignoré (format invalide): {html_path.name} - Raison: {e}")
-            continue
-
-        with open(html_path, encoding="utf-8") as f:
-            html_content = f.read()
-
-        soup = BeautifulSoup(html_content, "html.parser")
-
-        # Valider la version Arrêtify
-        try:
-            validate_arretify_version(soup, html_path.name)
-        except ValueError as e:
-            _LOGGER.warning(
-                f"Fichier ignoré (version Arrêtify incompatible): {html_path.name} - Raison: {e}"
-            )
-            continue
-
-        arrete = ArreteFile(
-            id=arrete_id,
-            aiot=aiot,
-            filename=html_path.name,
-            soup=soup,
-            file_type=file_type,
-        )
-        arrete_files.append(arrete)
-        _LOGGER.info(f"Chargé: {html_path.name} (id={arrete_id}, type={file_type.value})")
-
-    return arrete_files
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -110,8 +56,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     _LOGGER.info(f"Chargement des arrêtés depuis: {input_dir}")
 
     # Charger les arrêtés
-    arrete_files = load_arrete_files(input_dir, aiot)
-    if not arrete_files:
+    try:
+        arrete_files = load_arrete_files(input_dir, aiot)
+    except InputOutputError as e:
+        print(f"Erreur: {e}", file=sys.stderr)
         return 1
 
     _LOGGER.info(f"{len(arrete_files)} arrêté(s) chargé(s)")
@@ -135,10 +83,13 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         # Sauvegarder le résultat si --output est spécifié
         if args.output:
-            output_path = Path(args.output)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(permis.model_dump_json(indent=2), encoding="utf-8")
-            _LOGGER.info(f"Résultat sauvegardé dans: {output_path}")
+            try:
+                output_path = Path(args.output)
+                write_permis_output(permis, output_path)
+                _LOGGER.info(f"Résultat sauvegardé dans: {output_path}")
+            except InputOutputError as e:
+                print(f"Erreur: {e}", file=sys.stderr)
+                return 1
 
         return 0
 

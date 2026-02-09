@@ -202,7 +202,7 @@ class TestPathsConfig:
     def test_custom_paths(self) -> None:
         """Test avec des chemins personnalisés."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            tmp_path = Path(tmpdir)
+            tmp_path = Path(tmpdir).resolve()
             catalogue_path = tmp_path / "custom" / "catalogue.json"
             config = PathsConfig(
                 project_root=tmp_path,

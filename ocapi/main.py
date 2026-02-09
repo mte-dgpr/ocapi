@@ -51,6 +51,7 @@ from ocapi.types import (
     parse_filename,
     validate_arretify_version,
 )
+from ocapi.utils.io_utils import load_arrete_files, write_json_output, write_permis_output
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 _LOGGER = get_logger(__name__)
@@ -98,43 +99,12 @@ def arrete_to_ArreteFile(
     )
 
 
-def load_arrete_files(input_dir: Path, aiot: str | None = None) -> list[ArreteFile]:
-    """
-    Charge tous les fichiers HTML d'arrêtés depuis un répertoire.
-
-    Args:
-        input_dir: Répertoire contenant les fichiers HTML
-        aiot: Identifiant AIOT (si None, utilise le nom du dossier parent)
-
-    Returns:
-        Liste des ArreteFile chargés, triés par nom de fichier
-    """
-    arrete_files: list[ArreteFile] = []
-
-    # Déterminer l'AIOT
-    if aiot is None:
-        aiot = input_dir.parent.name
-
-    html_files = sorted(input_dir.glob("*.html"))
-    if not html_files:
-        _LOGGER.error(f"Aucun fichier HTML trouvé dans {input_dir}")
-        return []
-
-    for ordered_index, html_path in enumerate(html_files):
-        try:
-            arrete = arrete_to_ArreteFile(ordered_index, html_path, aiot)
-            arrete_files.append(arrete)
-            file_type_str = arrete.file_type.value if arrete.file_type else "unknown"
-            _LOGGER.info(f"Chargé: {html_path.name} (id={arrete.id}, type={file_type_str})")
-        except ValueError as e:
-            _LOGGER.warning(f"Fichier ignoré: {html_path.name} - Raison: {e}")
-            continue
-
-    return arrete_files
+# TODO : enlever les blockquote ?
 
 
 def run_pipeline(
     arrete_files: list[ArreteFile],
+    output_dir: Path,
     skip_first: bool = False,
     enable_rendering: bool = True,
 ) -> tuple[list[Operation], ArticleHistory, list[ArreteFile], str | None]:
@@ -143,6 +113,7 @@ def run_pipeline(
 
     Args:
         arrete_files: Liste des arrêtés à traiter
+        output_dir: Répertoire de sortie pour les fichiers générés
         skip_first: Si True, ignore le premier arrêté (AP initial)
         enable_rendering: Si True, génère le permis consolidé (étape 4)
 
@@ -173,6 +144,11 @@ def run_pipeline(
         _LOGGER.info(f"  → {len(detected_ops)} opérations détectées")
 
     _LOGGER.info(f"Total : {len(operations)} opération(s) détectée(s)")
+    # Sauvegarder les opérations
+    operations_path = output_dir / "operations.json"
+    operations_dict = [op.model_dump() for op in operations]
+    write_json_output(operations_dict, operations_path)
+    _LOGGER.info(f"💾 Opérations sauvegardées → {operations_path}\n")
 
     # ========================================
     # STEP 3 : RESOLUTION
@@ -186,6 +162,18 @@ def run_pipeline(
         _LOGGER.info(f"{len(history)} articles avec historique")
     else:
         _LOGGER.info("0 article avec historique")
+
+    # Sauvegarder l'historique
+    history_path = output_dir / "history.json"
+    history_serializable = {
+        str(node_id): [
+            {"version": v["version"], "content": v["content"], "operation_id": v["operation_id"]}
+            for v in versions
+        ]
+        for node_id, versions in history.items()
+    }
+    write_json_output(history_serializable, history_path)
+    _LOGGER.info(f"💾 Historique sauvegardé → {history_path}\n")
 
     # ========================================
     # STEP 4 : RENDERING (optionnel)
@@ -275,6 +263,7 @@ def main(
         # Exécuter le pipeline
         operations, history, arrete_files, permis_html = run_pipeline(
             arrete_files,
+            output_dir,
             skip_first=skip_first,
             enable_rendering=enable_rendering,
         )
