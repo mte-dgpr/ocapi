@@ -71,6 +71,9 @@ def convert_raw_operation_to_operation(
     if raw_operation.target_article is None:
         raise ValueError("raw operation is missing target_article")
 
+    # Générer l'ID de l'opération en premier pour pouvoir l'utiliser dans le logging
+    operation_id = make_id(_OPERATION_ID_COUNTER)
+
     operand = None
     if raw_operation.new_content_start_marker and raw_operation.new_content_end_marker:
         operand = extract_operand_with_images(
@@ -79,6 +82,7 @@ def convert_raw_operation_to_operation(
             raw_operation.new_content_start_marker,
             raw_operation.new_content_end_marker,
             img_map,
+            operation_id=operation_id,
         )
     sub_target = None
     if raw_operation.sub_target:
@@ -89,7 +93,7 @@ def convert_raw_operation_to_operation(
     op_type = OperationType(op_type_value)
 
     return Operation(
-        id=make_id(_OPERATION_ID_COUNTER),
+        id=operation_id,
         source_id=NodeId(
             arrete_id=source_arrete_id,
             article_id=raw_operation.source_article,
