@@ -43,7 +43,7 @@ from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
-from ocapi.types import ArreteFile, FileType, Operation, parse_filename, validate_arretify_version
+from ocapi.types import ArreteFile, ArticleHistory, FileType, Operation, parse_filename, validate_arretify_version
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 logger = get_logger(__name__)
@@ -115,7 +115,8 @@ def load_arrete_files(input_dir: Path, aiot: str | None = None) -> list[ArreteFi
         try:
             arrete = arrete_to_ArreteFile(ordered_index, html_path, aiot)
             arrete_files.append(arrete)
-            logger.info(f"Chargé: {html_path.name} (id={arrete.id}, type={arrete.file_type.value})")
+            file_type_str = arrete.file_type.value if arrete.file_type else "unknown"
+            logger.info(f"Chargé: {html_path.name} (id={arrete.id}, type={file_type_str})")
         except ValueError as e:
             logger.warning(f"Fichier ignoré: {html_path.name} - Raison: {e}")
             continue
@@ -127,7 +128,7 @@ def run_pipeline(
     arrete_files: list[ArreteFile],
     skip_first: bool = False,
     enable_rendering: bool = True,
-) -> tuple[list[Operation], dict, list[ArreteFile], str | None]:
+) -> tuple[list[Operation], ArticleHistory, list[ArreteFile], str | None]:
     """
     Exécute le pipeline OCAPI complet.
 

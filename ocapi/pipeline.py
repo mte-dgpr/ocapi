@@ -33,14 +33,11 @@ def run_pipeline(arrete_files: list[ArreteFile]) -> Permis:
     modele = settings.pipeline.default_llm_model
     # TODO : valider le type arrete_id
     for arrete_file in arrete_files:
-        logger.debug(f"Traitement arrêté: {arrete_file.id}")
         docs, img_map = step_chunking(arrete_file)
         operations.extend(step_detection(docs, arrete_file.id, modele, img_map))
 
-    logger.info(f"Détection terminée: {len(operations)} opération(s) détectée(s)")
     history, arrete_files = step_resolution(operations, arrete_files)
 
-    logger.info("Rendering du permis")
     permis = step_rendering(history, operations, arrete_files)
 
     logger.info("Pipeline terminé avec succès")
