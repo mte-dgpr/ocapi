@@ -30,7 +30,6 @@ from pathlib import Path
 
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
-from ocapi.types import ArreteId
 from ocapi.utils.io_utils import InputOutputError, load_arrete_files, write_permis_output
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
@@ -40,14 +39,6 @@ _LOGGER = get_logger(__name__)
 def cmd_run(args: argparse.Namespace) -> int:
     """Exécute le pipeline OCAPI sur les arrêtés."""
     input_dir = Path(args.input_dir)
-
-    if not input_dir.exists():
-        _LOGGER.error(f"Le répertoire {input_dir} n'existe pas.")
-        return 1
-
-    if not input_dir.is_dir():
-        _LOGGER.error(f"{input_dir} n'est pas un répertoire.")
-        return 1
 
     # Déterminer l'AIOT
     aiot = args.aiot or input_dir.parent.name
