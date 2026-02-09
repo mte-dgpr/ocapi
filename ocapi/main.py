@@ -36,70 +36,16 @@ import json
 import sys
 from pathlib import Path
 
-from bs4 import BeautifulSoup
-
 from ocapi.config import settings
 from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
-from ocapi.types import (
-    ArreteFile,
-    ArticleHistory,
-    FileType,
-    Operation,
-    parse_filename,
-    validate_arretify_version,
-)
-from ocapi.utils.io_utils import load_arrete_files, write_json_output, write_permis_output
+from ocapi.types import ArreteFile, ArticleHistory, Operation
+from ocapi.utils.io_utils import load_arrete_files, write_json_output
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 _LOGGER = get_logger(__name__)
-
-
-def arrete_to_ArreteFile(
-    ordered_index: int, html_path: Path, aiot: str | None = None
-) -> ArreteFile:
-    """
-    Convertit un fichier HTML en objet ArreteFile.
-
-    Args:
-        ordered_index: Index du fichier dans l'ordre de traitement (non utilisé, conservé pour compatibilité)
-        html_path: Chemin vers le fichier HTML
-        aiot: Identifiant AIOT (si None, utilise le nom du dossier parent)
-
-    Returns:
-        ArreteFile créé à partir du fichier
-
-    Raises:
-        ValueError: Si le nom de fichier est invalide ou la version Arrêtify incompatible
-    """
-    # Déterminer l'AIOT
-    if aiot is None:
-        aiot = html_path.parent.parent.name
-
-    # Parser et valider le nom de fichier
-    arrete_id, file_type = parse_filename(html_path.name)
-
-    # Lire le contenu HTML
-    with open(html_path, encoding="utf-8") as f:
-        html_content = f.read()
-
-    soup = BeautifulSoup(html_content, "html.parser")
-
-    # Valider la version Arrêtify
-    validate_arretify_version(soup, html_path.name)
-
-    return ArreteFile(
-        id=arrete_id,
-        aiot=aiot,
-        filename=html_path.stem,  # Nom sans extension
-        soup=soup,
-        file_type=file_type,
-    )
-
-
-# TODO : enlever les blockquote ?
 
 
 def run_pipeline(
@@ -133,7 +79,7 @@ def run_pipeline(
     _LOGGER.info("=" * 60)
 
     start_index = 1 if skip_first else 0
-    for i, arrete_file in enumerate(arrete_files[start_index:], start=start_index):
+    for _i, arrete_file in enumerate(arrete_files[start_index:], start=start_index):
         _LOGGER.info(f"Traitement de l'arrêté {arrete_file.id}...")
         docs, img_map = step_chunking(arrete_file)
         _LOGGER.info(f"  → {len(docs)} documents chunkés")
