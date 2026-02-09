@@ -41,8 +41,13 @@ from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
-from ocapi.types import ArreteFile, ArticleHistory, Operation
-from ocapi.utils.io_utils import load_arrete_files, write_json_output
+from ocapi.types import ArreteFile, ArticleHistory, Operation, Permis
+from ocapi.utils.io_utils import (
+    InputOutputError,
+    load_arrete_files,
+    write_json_output,
+    write_permis_output,
+)
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 _LOGGER = get_logger(__name__)
@@ -53,7 +58,7 @@ def run_pipeline(
     output_dir: Path,
     skip_first: bool = False,
     enable_rendering: bool = True,
-) -> tuple[list[Operation], ArticleHistory, list[ArreteFile], str | None]:
+) -> tuple[list[Operation], ArticleHistory, list[ArreteFile], Permis | None]:
     """
     Exécute le pipeline OCAPI complet.
 
@@ -64,7 +69,7 @@ def run_pipeline(
         enable_rendering: Si True, génère le permis consolidé (étape 4)
 
     Returns:
-        Tuple (operations, history, arrete_files, permis_html)
+        Tuple (operations, history, arrete_files, permis)
     """
     _LOGGER.info(f"Démarrage du pipeline avec {len(arrete_files)} arrêté(s)")
 
@@ -124,18 +129,17 @@ def run_pipeline(
     # ========================================
     # STEP 4 : RENDERING (optionnel)
     # ========================================
-    permis_html = None
+    permis = None
     if enable_rendering:
         _LOGGER.info("=" * 60)
         _LOGGER.info("STEP 4 : RENDERING")
         _LOGGER.info("=" * 60)
 
         permis = step_rendering(history, operations, arrete_files)
-        permis_html = str(permis)
         _LOGGER.info("Permis consolidé généré")
 
     _LOGGER.info("Pipeline terminé avec succès !")
-    return operations, history, arrete_files, permis_html
+    return operations, history, arrete_files, permis
 
 
 def main(
@@ -160,15 +164,6 @@ def main(
     Returns:
         Code de sortie (0 = succès, 1 = erreur)
     """
-    # Vérifier le répertoire d'entrée
-    if not input_dir.exists():
-        _LOGGER.error(f"Le répertoire {input_dir} n'existe pas.")
-        return 1
-
-    if not input_dir.is_dir():
-        _LOGGER.error(f"{input_dir} n'est pas un répertoire.")
-        return 1
-
     # Déterminer le répertoire de sortie
     if output_dir is None:
         output_dir = input_dir.parent / "ocapi_output"
@@ -183,8 +178,12 @@ def main(
     _LOGGER.info(f"Modèle LLM: {settings.pipeline.default_llm_model}")
 
     # Charger les arrêtés
-    _LOGGER.info(f"Chargement des arrêtés depuis: {input_dir}")
-    arrete_files = load_arrete_files(input_dir, aiot)
+    try:
+        arrete_files = load_arrete_files(input_dir, aiot)
+    except InputOutputError as e:
+        _LOGGER.error(f"Erreur: {e}")
+        return 1
+
     if not arrete_files:
         _LOGGER.error("Aucun arrêté valide trouvé")
         return 1
@@ -207,7 +206,7 @@ def main(
 
     try:
         # Exécuter le pipeline
-        operations, history, arrete_files, permis_html = run_pipeline(
+        operations, history, arrete_files, permis = run_pipeline(
             arrete_files,
             output_dir,
             skip_first=skip_first,
@@ -244,10 +243,9 @@ def main(
         _LOGGER.info(f"Historique sauvegardé → {versions_path}")
 
         # Sauvegarder le permis si généré
-        if permis_html:
+        if permis:
             permis_path = output_dir / "permis_consolidé.html"
-            with permis_path.open("w", encoding="utf-8") as f:
-                f.write(permis_html)
+            write_permis_output(permis, permis_path)
             _LOGGER.info(f"Permis consolidé sauvegardé → {permis_path}")
 
         _LOGGER.info("Pipeline terminé avec succès !")
