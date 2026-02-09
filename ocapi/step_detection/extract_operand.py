@@ -73,7 +73,7 @@ def pick_arretify_section(html: str, source_article: str, operation_id: str | No
             return str(section)
 
     op_info = f" for operation {operation_id}" if operation_id else ""
-    _LOGGER.error(f"Section {source_article} not found when extracting operand{op_info}")
+    _LOGGER.error(f"Section {source_article} not found when extracting operand {op_info}")
     return "ERROR_EXTRACTING_CONTENT"
 
 
