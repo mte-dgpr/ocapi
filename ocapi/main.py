@@ -43,13 +43,22 @@ from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
-from ocapi.types import ArreteFile, ArticleHistory, FileType, Operation, parse_filename, validate_arretify_version
+from ocapi.types import (
+    ArreteFile,
+    ArticleHistory,
+    FileType,
+    Operation,
+    parse_filename,
+    validate_arretify_version,
+)
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 logger = get_logger(__name__)
 
 
-def arrete_to_ArreteFile(ordered_index: int, html_path: Path, aiot: str | None = None) -> ArreteFile:
+def arrete_to_ArreteFile(
+    ordered_index: int, html_path: Path, aiot: str | None = None
+) -> ArreteFile:
     """
     Convertit un fichier HTML en objet ArreteFile.
 
@@ -101,11 +110,11 @@ def load_arrete_files(input_dir: Path, aiot: str | None = None) -> list[ArreteFi
         Liste des ArreteFile chargés, triés par nom de fichier
     """
     arrete_files: list[ArreteFile] = []
-    
+
     # Déterminer l'AIOT
     if aiot is None:
         aiot = input_dir.parent.name
-    
+
     html_files = sorted(input_dir.glob("*.html"))
     if not html_files:
         logger.error(f"Aucun fichier HTML trouvé dans {input_dir}")
@@ -141,7 +150,7 @@ def run_pipeline(
         Tuple (operations, history, arrete_files, permis_html)
     """
     logger.info(f"Démarrage du pipeline avec {len(arrete_files)} arrêté(s)")
-    
+
     operations: list[Operation] = []
     modele = settings.pipeline.default_llm_model
 
@@ -229,10 +238,10 @@ def main(
     # Déterminer le répertoire de sortie
     if output_dir is None:
         output_dir = input_dir.parent / "ocapi_output"
-    
+
     logger.info(f"Dossier d'entrée : {input_dir}")
     logger.info(f"Dossier de sortie : {output_dir}")
-    
+
     # Déterminer l'AIOT
     if aiot is None:
         aiot = input_dir.parent.name
@@ -254,7 +263,7 @@ def main(
         logger.info(f"Filtrage sur: {arrete_ids_included}")
         arrete_files = [af for af in arrete_files if af.id in arrete_ids_included]
         logger.info(f"{len(arrete_files)} arrêté(s) après filtrage")
-        
+
         if not arrete_files:
             logger.error("Aucun arrêté ne correspond aux IDs spécifiés")
             return 1
@@ -343,7 +352,7 @@ Examples:
   python -m ocapi.main data/0005804239/arretes_html/ --verbose
         """,
     )
-    
+
     parser.add_argument(
         "input_dir",
         type=Path,
@@ -418,5 +427,5 @@ Examples:
         skip_first=args.skip_first,
         enable_rendering=not args.no_rendering,
     )
-    
+
     sys.exit(exit_code)

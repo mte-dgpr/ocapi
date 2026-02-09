@@ -122,7 +122,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         logger.info(f"Filtrage sur: {arrete_ids_included}")
         arrete_files = [af for af in arrete_files if af.id in arrete_ids_included]
         logger.info(f"{len(arrete_files)} arrêté(s) après filtrage")
-        
+
         if not arrete_files:
             logger.error("Aucun arrêté ne correspond aux IDs spécifiés")
             return 1
