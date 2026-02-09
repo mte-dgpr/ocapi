@@ -143,7 +143,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 0
 
     except Exception as e:
-        logger.exception(f"Erreur lors de l'exécution du pipeline: {e}")
+        logger.error(f"Erreur lors de l'exécution du pipeline: {e}")
         return 1
 
 
