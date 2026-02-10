@@ -21,17 +21,17 @@ from ocapi.step_resolution.build_op_graph import build_graph
 from ocapi.types import ArreteFile, ArticleHistory, Operation
 from ocapi.utils.logging_utils import get_logger
 
-logger = get_logger(__name__)
+_LOGGER = get_logger(__name__)
 
 
 def step_resolution(
     operations: list[Operation], arrete_files: list[ArreteFile]
 ) -> tuple[ArticleHistory, list[ArreteFile]]:
-    logger.info(f"Résolution: {len(operations)} opération(s) à traiter")
+    _LOGGER.info(f"Résolution: {len(operations)} opération(s) à traiter")
     operations_graph, arrete_files, skipped_ops_graph = build_graph(operations, arrete_files)
     history, skipped_ops_apply = apply_all_ops(
         operations_graph,
         arrete_files,
     )
-    logger.info(f"Résolution: {len(history)} article(s) dans l'historique")
+    _LOGGER.info(f"Résolution: {len(history)} article(s) dans l'historique")
     return history, arrete_files

@@ -33,7 +33,7 @@ from bs4 import BeautifulSoup
 from ocapi.types import ArreteFile, ArreteId, NodeId, Operation, OperationType
 from ocapi.utils.logging_utils import get_logger
 
-logger = get_logger(__name__)
+_LOGGER = get_logger(__name__)
 
 
 def add_node(G: nx.MultiDiGraph, node_id: NodeId) -> None:
@@ -110,12 +110,12 @@ def build_graph(
             add_edge(G, op)
         except Exception as e:
             error_msg = f"Opération {op.id} ignorée: {str(e)}"
-            logger.warning(error_msg)
+            _LOGGER.warning(error_msg)
             skipped_ops.append((op, str(e)))
             continue
 
     if skipped_ops:
-        logger.warning(
+        _LOGGER.warning(
             f"{len(skipped_ops)} opération(s) ignorée(s) lors de la construction du graphe"
         )
 
