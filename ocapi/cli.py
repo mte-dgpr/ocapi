@@ -32,7 +32,7 @@ from bs4 import BeautifulSoup
 
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
-from ocapi.types import ArreteFile, ArreteId, parse_filename, validate_arretify_version
+from ocapi.types import ArreteFile, parse_filename, validate_arretify_version
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 logger = get_logger(__name__)
@@ -122,7 +122,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         logger.info(f"Filtrage sur: {arrete_ids_included}")
         arrete_files = [af for af in arrete_files if af.id in arrete_ids_included]
         logger.info(f"{len(arrete_files)} arrêté(s) après filtrage")
-        
+
         if not arrete_files:
             logger.error("Aucun arrêté ne correspond aux IDs spécifiés")
             return 1
@@ -160,22 +160,22 @@ def main(argv: list[str] | None = None) -> int:
 Examples:
   # Afficher l'aide générale
   ocapi --help
-  
+
   # Afficher l'aide d'une commande
   ocapi run --help
-  
+
   # Traiter tous les arrêtés d'un répertoire
   ocapi run data/0999.99999/arretes/
-  
+
   # Traiter avec un AIOT spécifique
   ocapi run data/0999.99999/arretes/ --aiot 0999.99999
-  
+
   # Sauvegarder le résultat dans un fichier
   ocapi run data/0999.99999/arretes/ --output resultat.json
-  
+
   # Mode verbose pour le debug
   ocapi --verbose run data/0999.99999/arretes/
-  
+
   # Mode silencieux
   ocapi --quiet run data/0999.99999/arretes/
         """,
@@ -212,22 +212,22 @@ Examples:
 Examples:
   # Traiter tous les arrêtés d'un répertoire
   ocapi run data/0999.99999/arretes/
-  
+
   # Traiter avec un AIOT spécifique (par défaut: déduit du chemin parent)
   ocapi run data/0999.99999/arretes/ --aiot 0999.99999
-  
+
   # Filtrer sur des arrêtés spécifiques (par leur date)
   ocapi run data/0999.99999/arretes/ --include 2024-09-27 2023-12-04
-  
+
   # Sauvegarder le résultat dans un fichier JSON
   ocapi run data/0999.99999/arretes/ --output output/resultat.json
-  
+
   # Combinaison: filtrage et sauvegarde
   ocapi run data/0999.99999/arretes/ --include 2024-09-27 --output resultat.json
-  
+
   # Mode verbose pour voir les logs détaillés
   ocapi --verbose run data/0999.99999/arretes/
-  
+
   # Mode silencieux (uniquement erreurs et avertissements)
   ocapi --quiet run data/0999.99999/arretes/
         """,

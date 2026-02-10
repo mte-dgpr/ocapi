@@ -40,19 +40,21 @@ from bs4 import BeautifulSoup
 
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
-from ocapi.step_chunking.step_chunking import step_chunking
-from ocapi.types import ArreteFile, FileType, Operation, parse_filename, validate_arretify_version
+from ocapi.types import ArreteFile, parse_filename, validate_arretify_version
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 logger = get_logger(__name__)
 
 
-def arrete_to_ArreteFile(ordered_index: int, html_path: Path, aiot: str | None = None) -> ArreteFile:
+def arrete_to_ArreteFile(
+    ordered_index: int, html_path: Path, aiot: str | None = None
+) -> ArreteFile:
     """
     Convertit un fichier HTML en objet ArreteFile.
 
     Args:
-        ordered_index: Index du fichier dans l'ordre de traitement (non utilisé, conservé pour compatibilité)
+        ordered_index: Index du fichier dans l'ordre de traitement
+            (non utilisé, conservé pour compatibilité)
         html_path: Chemin vers le fichier HTML
         aiot: Identifiant AIOT (si None, utilise le nom du dossier parent)
 
@@ -99,11 +101,11 @@ def load_arrete_files(input_dir: Path, aiot: str | None = None) -> list[ArreteFi
         Liste des ArreteFile chargés, triés par nom de fichier
     """
     arrete_files: list[ArreteFile] = []
-    
+
     # Déterminer l'AIOT
     if aiot is None:
         aiot = input_dir.parent.name
-    
+
     html_files = sorted(input_dir.glob("*.html"))
     if not html_files:
         logger.error(f"Aucun fichier HTML trouvé dans {input_dir}")
@@ -113,7 +115,8 @@ def load_arrete_files(input_dir: Path, aiot: str | None = None) -> list[ArreteFi
         try:
             arrete = arrete_to_ArreteFile(ordered_index, html_path, aiot)
             arrete_files.append(arrete)
-            logger.info(f"Chargé: {html_path.name} (id={arrete.id}, type={arrete.file_type.value})")
+            file_type_str = arrete.file_type.value if arrete.file_type else "unknown"
+            logger.info(f"Chargé: {html_path.name} (id={arrete.id}, type={file_type_str})")
         except ValueError as e:
             logger.warning(f"Fichier ignoré: {html_path.name} - Raison: {e}")
             continue
@@ -155,10 +158,10 @@ def main(
     # Déterminer le répertoire de sortie
     if output_dir is None:
         output_dir = input_dir.parent / "ocapi_output"
-    
+
     logger.info(f"Dossier d'entrée : {input_dir}")
     logger.info(f"Dossier de sortie : {output_dir}")
-    
+
     # Déterminer l'AIOT
     if aiot is None:
         aiot = input_dir.parent.name
@@ -180,7 +183,7 @@ def main(
         logger.info(f"Filtrage sur: {arrete_ids_included}")
         arrete_files = [af for af in arrete_files if af.id in arrete_ids_included]
         logger.info(f"{len(arrete_files)} arrêté(s) après filtrage")
-        
+
         if not arrete_files:
             logger.error("Aucun arrêté ne correspond aux IDs spécifiés")
             return 1
@@ -249,27 +252,27 @@ if __name__ == "__main__":
 Examples:
   # Traiter tous les arrêtés d'un répertoire
   python -m ocapi.main data/0005804239/arretes_html/
-  
+
   # Spécifier un répertoire de sortie personnalisé
   python -m ocapi.main data/0005804239/arretes_html/ --output output/
-  
+
   # Ignorer le premier arrêté (AP initial)
   python -m ocapi.main data/0005804239/arretes_html/ --skip-first
-  
+
   # Filtrer sur des arrêtés spécifiques
   python -m ocapi.main data/0005804239/arretes_html/ --include 2024-09-27 2023-12-04
-  
+
   # Désactiver le rendering (étapes 1-3 uniquement)
   python -m ocapi.main data/0005804239/arretes_html/ --no-rendering
-  
+
   # Spécifier l'AIOT
   python -m ocapi.main data/0005804239/arretes_html/ --aiot 0005804239
-  
+
   # Mode verbose
   python -m ocapi.main data/0005804239/arretes_html/ --verbose
         """,
     )
-    
+
     parser.add_argument(
         "input_dir",
         type=Path,
@@ -344,5 +347,5 @@ Examples:
         skip_first=args.skip_first,
         enable_rendering=not args.no_rendering,
     )
-    
+
     sys.exit(exit_code)
