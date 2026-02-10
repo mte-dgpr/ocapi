@@ -83,20 +83,20 @@ nano .env  # ou votre éditeur préféré
 
 ```bash
 # API LLM (obligatoire pour la production)
-PIAG_API_KEY=votre-clé-api
-PIAG_API_URL=https://preprod.api.piag.e2.rie.gouv.fr/v1/chat/completions
+LLM__PIAG_API_KEY=votre-clé-api
+LLM__PIAG_API_URL=https://preprod.api.piag.e2.rie.gouv.fr/v1/chat/completions
 
 # Modèle LLM par défaut
-DEFAULT_LLM_MODEL=mte-api-piag-mistral-medium-latest
+PIPELINE__DEFAULT_LLM_MODEL=mte-api-piag-mistral-medium-latest
 
-# Logging (préfixe LOG_)
-LOG_LEVEL=INFO
-LOG_FILE=logs/ocapi.log
-LOG_CONSOLE_OUTPUT=true
+# Logging
+LOGGING__LEVEL=INFO
+LOGGING__LOG_FILE=logs/ocapi.log
+LOGGING__CONSOLE_OUTPUT=true
 
-# Chemins (préfixe PATH_)
-PATH_PROJECT_ROOT=/chemin/vers/le/projet
-PATH_CATALOGUE_PATH=/chemin/vers/catalogue_ap.json
+# Chemins
+PATHS__PROJECT_ROOT=/chemin/vers/le/projet
+PATHS__CATALOGUE_PATH=/chemin/vers/catalogue_ap.json
 ```
 
 ### 3. Utiliser la configuration dans le code
