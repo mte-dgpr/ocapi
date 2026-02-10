@@ -190,7 +190,7 @@ def main(
 
     try:
         # Exécuter le pipeline
-        operations, history, arrete_files, permis_html = run_pipeline(
+        operations, history, arrete_files, permis = run_pipeline(
             arrete_files,
             skip_first=skip_first,
             enable_rendering=enable_rendering,
@@ -226,10 +226,10 @@ def main(
         logger.info(f"Historique sauvegardé → {versions_path}")
 
         # Sauvegarder le permis si généré
-        if permis_html:
+        if permis:
             permis_path = output_dir / "permis_consolidé.html"
             with permis_path.open("w", encoding="utf-8") as f:
-                f.write(permis_html)
+                f.write(str(permis))
             logger.info(f"Permis consolidé sauvegardé → {permis_path}")
 
         logger.info("Pipeline terminé avec succès !")

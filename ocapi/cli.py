@@ -130,11 +130,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     # Exécuter le pipeline
     logger.info("Exécution du pipeline...")
     try:
-        permis = run_pipeline(arrete_files)
+        _operations, _history, _arrete_files, permis = run_pipeline(arrete_files)
         logger.info("Pipeline terminé avec succès.")
 
         # Sauvegarder le résultat si --output est spécifié
         if args.output:
+            if permis is None:
+                logger.error("Aucun permis généré (rendering désactivé?)")
+                return 1
             output_path = Path(args.output)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(permis.model_dump_json(indent=2), encoding="utf-8")
