@@ -75,8 +75,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 _LOGGER.error("Aucun permis généré (rendering désactivé?)")
                 return 1
             output_path = Path(args.output)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(permis.model_dump_json(indent=2), encoding="utf-8")
+            write_permis_output(permis, output_path)
             _LOGGER.info(f"Résultat sauvegardé dans: {output_path}")
 
         return 0
@@ -97,26 +96,20 @@ Examples:
   # Afficher l'aide générale
   ocapi --help
 
-
   # Afficher l'aide d'une commande
   ocapi run --help
-
 
   # Traiter tous les arrêtés d'un répertoire
   ocapi run data/0999.99999/arretes/
 
-
   # Traiter avec un AIOT spécifique
   ocapi run data/0999.99999/arretes/ --aiot 0999.99999
-
 
   # Sauvegarder le résultat dans un fichier
   ocapi run data/0999.99999/arretes/ --output resultat.json
 
-
   # Mode verbose pour le debug
   ocapi --verbose run data/0999.99999/arretes/
-
 
   # Mode silencieux
   ocapi --quiet run data/0999.99999/arretes/
