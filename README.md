@@ -186,12 +186,10 @@ ocapi/
 │   ├── types.py                  # Types et modèles de données
 │   │
 │   ├── step_chunking/            # Étape 1 : Chunking
-│   │   ├── step_chunking.py
-│   │   └── step_chunking_test.py
+│   │   └── step_chunking.py
 │   │
 │   ├── step_detection/           # Étape 2 : Detection
 │   │   ├── step_detection.py
-│   │   ├── step_detection_test.py
 │   │   ├── extract_operand.py
 │   │   ├── subtarget_detection.py
 │   │   └── prompts.py
@@ -199,9 +197,7 @@ ocapi/
 │   ├── step_resolution/          # Étape 3 : Resolution
 │   │   ├── step_resolution.py
 │   │   ├── apply_ops.py
-│   │   ├── apply_ops_test.py
-│   │   ├── build_op_graph.py
-│   │   └── build_op_graph_test.py
+│   │   └── build_op_graph.py
 │   │
 │   ├── step_rendering/           # Étape 4 : Rendering
 │   │   ├── step_rendering.py
@@ -211,9 +207,7 @@ ocapi/
 │   │
 │   └── utils/                    # Utilitaires
 │       ├── logging_utils.py
-│       ├── logging_utils_test.py
 │       ├── llm_utils.py
-│       ├── llm_utils_test.py
 │       ├── arretify_utils.py
 │       ├── documents.py
 │       ├── io_utils.py
@@ -228,8 +222,6 @@ ocapi/
 ├── LICENSE                       # Licence Apache 2.0
 └── README.md                     # Ce fichier
 ```
-
-**Note** : Les tests sont intégrés dans les modules (`*_test.py`) plutôt que dans un dossier séparé.
 
 ## 🧪 Tests
 
