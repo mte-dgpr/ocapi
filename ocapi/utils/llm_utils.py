@@ -25,6 +25,9 @@ import requests  # type: ignore[import-untyped]
 
 from ocapi.config import settings
 from ocapi.types import OperationType
+from ocapi.utils.logging_utils import get_logger
+
+_LOGGER = get_logger(__name__)
 
 
 def config_model_llm(modele: str) -> Tuple[str, str | None, str]:
@@ -57,6 +60,7 @@ def call_llm_api(cfg: Tuple[str, str | None, str], prompt: str) -> str:
     prompt : texte du prompt à envoyer au modèle
     """
     MODEL_NAME, API_KEY, API_URL = cfg
+    _LOGGER.debug(f"Appel API LLM: {MODEL_NAME}")
     # En-têtes HTTP requis pour l'authentification et le format des données
     HEADERS = {
         "Authorization": f"Bearer {API_KEY}",
@@ -81,8 +85,12 @@ def call_llm_api(cfg: Tuple[str, str | None, str], prompt: str) -> str:
         }
 
     # Appel avec gestion des erreurs HTTP
-    r = requests.post(API_URL, headers=HEADERS, json=payload, timeout=(40, 120))
-    r.raise_for_status()
+    try:
+        r = requests.post(API_URL, headers=HEADERS, json=payload, timeout=(40, 120))
+        r.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        _LOGGER.error(f"Échec appel API LLM ({MODEL_NAME}): {e}")
+        raise
 
     # Extraction du contenu de la réponse du modèle
     data: Any = r.json()
@@ -93,17 +101,38 @@ def call_llm_api(cfg: Tuple[str, str | None, str], prompt: str) -> str:
 
 def parse_llm_json_list_response(raw: str) -> list[dict[str, Any]]:
     """
-    Parse la réponse brute du LLM pour extraire une liste au format JSON
+    Parse la réponse brute du LLM pour extraire une liste au format JSON.
+
+    Note: Cette fonction retourne une liste vide en cas d'erreur de parsing.
+    Les erreurs sont loguées mais ne font pas l'objet d'un retry car le retry
+    doit être géré au niveau de l'appel API, pas au niveau du parsing.
     """
     # Chercher le premier grand tableau JSON dans la réponse
     m = re.search(r"\[[\s\S]*\]", raw)
     if not m:
+        _LOGGER.warning(
+            f"Aucun tableau JSON trouvé dans la réponse LLM. "
+            f"Réponse brute (premiers 200 chars): {raw[:200]}"
+        )
         return []
 
     # Parser le tableau JSON
-    lst: Any = json.loads(m.group())
-    # S'assurer qu'on renvoie bien une liste
-    return lst if isinstance(lst, list) else []
+    try:
+        lst: Any = json.loads(m.group())
+        # S'assurer qu'on renvoie bien une liste
+        if not isinstance(lst, list):
+            _LOGGER.warning(
+                f"Le JSON parsé n'est pas une liste mais un {type(lst).__name__}. "
+                f"Retour d'une liste vide."
+            )
+            return []
+        return lst
+    except json.JSONDecodeError as e:
+        _LOGGER.error(
+            f"Erreur parsing JSON LLM: {e}. "
+            f"Contenu JSON (premiers 200 chars): {m.group()[:200]}"
+        )
+        return []
 
 
 def query_llm_for_subtarget(typemodif: OperationType, target_content: str, sub_target: str) -> str:

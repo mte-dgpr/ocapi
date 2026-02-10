@@ -20,13 +20,15 @@
 Utilitaires pour les opérations d'entrée/sortie (input/output).
 """
 import json
-import sys
 from pathlib import Path
 from typing import Any, cast
 
 from bs4 import BeautifulSoup
 
 from ocapi.types import ArreteFile, Permis, parse_filename, validate_arretify_version
+from ocapi.utils.logging_utils import get_logger
+
+_LOGGER = get_logger(__name__)
 
 
 def read_json(p: Path) -> dict[str, Any]:
@@ -78,7 +80,11 @@ def initialize_arrete_files(html_files: list[Path], aiot: str) -> list["ArreteFi
     arrete_files: list[ArreteFile] = []
 
     for html_path in html_files:
-        arrete_id, file_type = parse_filename(html_path.name)
+        try:
+            arrete_id, file_type = parse_filename(html_path.name)
+        except ValueError as e:
+            _LOGGER.warning(f"Fichier ignoré (format invalide): {html_path.name} - Raison: {e}")
+            continue
 
         # Charger le contenu HTML
         with open(html_path, encoding="utf-8") as f:
@@ -90,11 +96,9 @@ def initialize_arrete_files(html_files: list[Path], aiot: str) -> list["ArreteFi
         try:
             validate_arretify_version(soup, html_path.name)
         except ValueError as e:
-            print(
-                f"⚠️  Fichier ignoré (version Arrêtify incompatible): {html_path.name}",
-                file=sys.stderr,
+            _LOGGER.warning(
+                f"Fichier ignoré (version Arrêtify incompatible): {html_path.name} - Raison: {e}"
             )
-            print(f"   Raison: {e}", file=sys.stderr)
             continue
 
         # Créer l'objet ArreteFile
@@ -106,6 +110,8 @@ def initialize_arrete_files(html_files: list[Path], aiot: str) -> list["ArreteFi
             file_type=file_type,
         )
         arrete_files.append(arrete)
+        file_type_str = file_type.value if file_type else "unknown"
+        _LOGGER.info(f"Chargé: {html_path.name} (id={arrete_id}, type={file_type_str})")
 
     return arrete_files
 
@@ -124,8 +130,12 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
     Raises:
         InputOutputError: Si le chargement échoue
     """
+    _LOGGER.info(f"Chargement des arrêtés depuis: {input_dir}")
     html_files = load_html_files(input_dir)
-    return initialize_arrete_files(html_files, aiot)
+    _LOGGER.info(f"Chargement de {len(html_files)} fichiers HTML")
+    arrete_files = initialize_arrete_files(html_files, aiot)
+    _LOGGER.info(f"{len(arrete_files)} arrêté(s) chargé(s)")
+    return arrete_files
 
 
 def write_permis_output(permis: Permis, output_path: Path) -> None:

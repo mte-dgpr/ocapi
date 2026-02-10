@@ -26,6 +26,9 @@ import re
 
 from bs4 import BeautifulSoup
 
+from ocapi.utils.logging_utils import get_logger
+
+_LOGGER = get_logger(__name__)
 ImageMap = dict[str, str]  # mapping from placeholder src to real src
 
 
@@ -42,7 +45,7 @@ def _find_marker(haystack: str, marker: str) -> int:
     return m.start() if m else -1
 
 
-def pick_arretify_section(html: str, source_article: str) -> str:
+def pick_arretify_section(html: str, source_article: str, operation_id: str | None = None) -> str:
     soup = BeautifulSoup(html, "html.parser")
 
     # Cas 1 : "APPENDIX" : retourner tout le footer appendix
@@ -68,7 +71,9 @@ def pick_arretify_section(html: str, source_article: str) -> str:
         data_number = section.get("data-number")
         if data_number == source_article:
             return str(section)
-    print("Section not found for source_article:", source_article)
+
+    op_info = f" for operation {operation_id}" if operation_id else ""
+    _LOGGER.error(f"Section {source_article} not found when extracting operand {op_info}")
     return "ERROR_EXTRACTING_CONTENT"
 
 
@@ -85,10 +90,15 @@ def _rehydrate_images(fragment_html: str, img_map: dict[str, str]) -> str:
 
 
 def extract_operand_with_images(
-    block_html: str, source_article: str, start_marker: str, end_marker: str, img_map: ImageMap
+    block_html: str,
+    source_article: str,
+    start_marker: str,
+    end_marker: str,
+    img_map: ImageMap,
+    operation_id: str | None = None,
 ) -> str:
 
-    section = pick_arretify_section(block_html, source_article)
+    section = pick_arretify_section(block_html, source_article, operation_id)
     working_html = section
     start_idx = _find_marker(working_html, start_marker)
     if start_idx == -1:

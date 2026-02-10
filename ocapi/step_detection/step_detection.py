@@ -31,8 +31,11 @@ from ocapi.step_detection.extract_operand import extract_operand_with_images
 from ocapi.step_detection.prompts import prompt_detection
 from ocapi.types import ArreteId, ImageMap, NodeId, Operation, OperationType, RawOperation
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, parse_llm_json_list_response
+from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.subtarget_utils import parse_subtarget
 from ocapi.utils.utils import IdCounter, make_id
+
+_LOGGER = get_logger(__name__)
 
 _OPERATION_ID_COUNTER = IdCounter()
 
@@ -40,6 +43,7 @@ _OPERATION_ID_COUNTER = IdCounter()
 def step_detection(
     html_blocks: list[Document], arrete_id: ArreteId, modele: str, img_map: ImageMap
 ) -> list[Operation]:
+    _LOGGER.info(f"Détection: traitement de {len(html_blocks)} bloc(s)")
     all_ops: list[Operation] = []
     cfg = config_model_llm(modele)
     for block_html in html_blocks:
@@ -52,6 +56,7 @@ def step_detection(
             convert_raw_operation_to_operation(block_html.page_content, raw_op, arrete_id, img_map)
             for raw_op in raw_operations
         )
+    _LOGGER.info(f"Détection: {len(all_ops)} opération(s) détectée(s)")
     return all_ops
 
 
@@ -66,6 +71,9 @@ def convert_raw_operation_to_operation(
     if raw_operation.target_article is None:
         raise ValueError("raw operation is missing target_article")
 
+    # Générer l'ID de l'opération en premier pour pouvoir l'utiliser dans le logging
+    operation_id = make_id(_OPERATION_ID_COUNTER)
+
     operand = None
     if raw_operation.new_content_start_marker and raw_operation.new_content_end_marker:
         operand = extract_operand_with_images(
@@ -74,6 +82,7 @@ def convert_raw_operation_to_operation(
             raw_operation.new_content_start_marker,
             raw_operation.new_content_end_marker,
             img_map,
+            operation_id=operation_id,
         )
     sub_target = None
     if raw_operation.sub_target:
@@ -84,7 +93,7 @@ def convert_raw_operation_to_operation(
     op_type = OperationType(op_type_value)
 
     return Operation(
-        id=make_id(_OPERATION_ID_COUNTER),
+        id=operation_id,
         source_id=NodeId(
             arrete_id=source_arrete_id,
             article_id=raw_operation.source_article,
