@@ -30,7 +30,7 @@ from pathlib import Path
 
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
-from ocapi.utils.io_utils import InputOutputError, load_arrete_files
+from ocapi.utils.io_utils import InputOutputError, load_arrete_files, write_permis_output
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 _LOGGER = get_logger(__name__)
