@@ -444,7 +444,7 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 
 Vérifiez que :
 - La clé API est configurée dans `.env`
-- Vous avez accès au réseau PIAG
+- Vous avez accès au réseau PIAG (Si vous utilisez le LLM par défaut)
 - Le modèle LLM est disponible
 
 ### Comment traiter uniquement certains arrêtés ?
