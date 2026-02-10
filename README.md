@@ -41,8 +41,14 @@ git clone <repository-url>
 cd ocapi
 
 # Créer un environnement virtuel
-python -m venv venv
-source venv/bin/activate   # Windows : venv\Scripts\activate
+
+# Windows
+py -3.10 -m venv venv
+.\venv\Scripts\Activate.ps1
+
+# Linux
+python3.10 -m venv venv
+source venv/bin/activate
 
 # Installer OCAPI
 pip install --upgrade pip
