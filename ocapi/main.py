@@ -215,7 +215,7 @@ def main(
 
         # Sauvegarder les opérations
         operations_path = output_dir / "operations.json"
-        operations_dict = [op.model_dump() for op in operations]
+        operations_dict = [op.model_dump(mode="json") for op in operations]
         with operations_path.open("w", encoding="utf-8") as f:
             json.dump(operations_dict, f, ensure_ascii=False, indent=2)
         _LOGGER.info(f"Opérations sauvegardées → {operations_path}")
