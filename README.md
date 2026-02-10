@@ -21,7 +21,7 @@ Le pipeline OCAPI se décompose en 4 étapes principales :
    HTML → Docs         Docs → Ops         Ops → History      History → Permis
 ```
 
-1. **Chunking** : Découpe les fichiers HTML en documents structurés
+1. **Chunking** : Découpe les fichiers HTML en documents structurés de taille maximale fixée
 2. **Detection** : Détecte les opérations via LLM (ajout, modification, suppression)
 3. **Resolution** : Résout les conflits et construit l'historique des versions
 4. **Rendering** : Génère le permis consolidé HTML final
