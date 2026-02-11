@@ -66,18 +66,17 @@ def cmd_run(args: argparse.Namespace) -> int:
     # Exécuter le pipeline
     _LOGGER.info("Exécution du pipeline...")
     try:
-        permis = run_pipeline(arrete_files)
+        _operations, _history, _arrete_files, permis = run_pipeline(arrete_files)
         _LOGGER.info("Pipeline terminé avec succès.")
 
         # Sauvegarder le résultat si --output est spécifié
         if args.output:
-            try:
-                output_path = Path(args.output)
-                write_permis_output(permis, output_path)
-                _LOGGER.info(f"Résultat sauvegardé dans: {output_path}")
-            except InputOutputError as e:
-                print(f"Erreur: {e}", file=sys.stderr)
+            if permis is None:
+                _LOGGER.error("Aucun permis généré (rendering désactivé?)")
                 return 1
+            output_path = Path(args.output)
+            write_permis_output(permis, output_path)
+            _LOGGER.info(f"Résultat sauvegardé dans: {output_path}")
 
         return 0
 
@@ -149,20 +148,26 @@ Examples:
   # Traiter tous les arrêtés d'un répertoire
   ocapi run data/0999.99999/arretes/
 
+
   # Traiter avec un AIOT spécifique (par défaut: déduit du chemin parent)
   ocapi run data/0999.99999/arretes/ --aiot 0999.99999
+
 
   # Filtrer sur des arrêtés spécifiques (par leur date)
   ocapi run data/0999.99999/arretes/ --include 2024-09-27 2023-12-04
 
+
   # Sauvegarder le résultat dans un fichier JSON
   ocapi run data/0999.99999/arretes/ --output output/resultat.json
+
 
   # Combinaison: filtrage et sauvegarde
   ocapi run data/0999.99999/arretes/ --include 2024-09-27 --output resultat.json
 
+
   # Mode verbose pour voir les logs détaillés
   ocapi --verbose run data/0999.99999/arretes/
+
 
   # Mode silencieux (uniquement erreurs et avertissements)
   ocapi --quiet run data/0999.99999/arretes/

@@ -21,7 +21,7 @@ Le pipeline OCAPI se décompose en 4 étapes principales :
    HTML → Docs         Docs → Ops         Ops → History      History → Permis
 ```
 
-1. **Chunking** : Découpe les fichiers HTML en documents structurés
+1. **Chunking** : Découpe les fichiers HTML en documents structurés de taille maximale fixée
 2. **Detection** : Détecte les opérations via LLM (ajout, modification, suppression)
 3. **Resolution** : Résout les conflits et construit l'historique des versions
 4. **Rendering** : Génère le permis consolidé HTML final
@@ -41,8 +41,14 @@ git clone <repository-url>
 cd ocapi
 
 # Créer un environnement virtuel
-python -m venv venv
-source venv/bin/activate   # Windows : venv\Scripts\activate
+
+# Windows
+py -3.10 -m venv venv
+.\venv\Scripts\Activate.ps1
+
+# Linux
+python3.10 -m venv venv
+source venv/bin/activate
 
 # Installer OCAPI
 pip install --upgrade pip
@@ -77,20 +83,20 @@ nano .env  # ou votre éditeur préféré
 
 ```bash
 # API LLM (obligatoire pour la production)
-PIAG_API_KEY=votre-clé-api
-PIAG_API_URL=https://preprod.api.piag.e2.rie.gouv.fr/v1/chat/completions
+LLM__PIAG_API_KEY=votre-clé-api
+LLM__PIAG_API_URL=https://preprod.api.piag.e2.rie.gouv.fr/v1/chat/completions
 
 # Modèle LLM par défaut
-DEFAULT_LLM_MODEL=mte-api-piag-mistral-medium-latest
+PIPELINE__DEFAULT_LLM_MODEL=mte-api-piag-mistral-medium-latest
 
-# Logging (préfixe LOG_)
-LOG_LEVEL=INFO
-LOG_FILE=logs/ocapi.log
-LOG_CONSOLE_OUTPUT=true
+# Logging
+LOGGING__LEVEL=INFO
+LOGGING__LOG_FILE=logs/ocapi.log
+LOGGING__CONSOLE_OUTPUT=true
 
-# Chemins (préfixe PATH_)
-PATH_PROJECT_ROOT=/chemin/vers/le/projet
-PATH_CATALOGUE_PATH=/chemin/vers/catalogue_ap.json
+# Chemins
+PATHS__PROJECT_ROOT=/chemin/vers/le/projet
+PATHS__CATALOGUE_PATH=/chemin/vers/catalogue_ap.json
 ```
 
 ### 3. Utiliser la configuration dans le code
@@ -186,12 +192,10 @@ ocapi/
 │   ├── types.py                  # Types et modèles de données
 │   │
 │   ├── step_chunking/            # Étape 1 : Chunking
-│   │   ├── step_chunking.py
-│   │   └── step_chunking_test.py
+│   │   └── step_chunking.py
 │   │
 │   ├── step_detection/           # Étape 2 : Detection
 │   │   ├── step_detection.py
-│   │   ├── step_detection_test.py
 │   │   ├── extract_operand.py
 │   │   ├── subtarget_detection.py
 │   │   └── prompts.py
@@ -199,9 +203,7 @@ ocapi/
 │   ├── step_resolution/          # Étape 3 : Resolution
 │   │   ├── step_resolution.py
 │   │   ├── apply_ops.py
-│   │   ├── apply_ops_test.py
-│   │   ├── build_op_graph.py
-│   │   └── build_op_graph_test.py
+│   │   └── build_op_graph.py
 │   │
 │   ├── step_rendering/           # Étape 4 : Rendering
 │   │   ├── step_rendering.py
@@ -211,9 +213,7 @@ ocapi/
 │   │
 │   └── utils/                    # Utilitaires
 │       ├── logging_utils.py
-│       ├── logging_utils_test.py
 │       ├── llm_utils.py
-│       ├── llm_utils_test.py
 │       ├── arretify_utils.py
 │       ├── documents.py
 │       ├── io_utils.py
@@ -228,8 +228,6 @@ ocapi/
 ├── LICENSE                       # Licence Apache 2.0
 └── README.md                     # Ce fichier
 ```
-
-**Note** : Les tests sont intégrés dans les modules (`*_test.py`) plutôt que dans un dossier séparé.
 
 ## 🧪 Tests
 
@@ -444,7 +442,7 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 
 Vérifiez que :
 - La clé API est configurée dans `.env`
-- Vous avez accès au réseau PIAG
+- Vous avez accès au réseau PIAG (Si vous utilisez le LLM par défaut)
 - Le modèle LLM est disponible
 
 ### Comment traiter uniquement certains arrêtés ?
