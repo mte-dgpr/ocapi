@@ -190,6 +190,10 @@ class PathsConfig(BaseSettings):
         default=_PROJECT_ROOT / "templates" / "permis_consolide.html",
         description="Chemin vers le template HTML du permis consolidé",
     )
+    # Chemin d'entrée par défaut pour les arrêtés HTML
+    input_dir: Path | None = Field(default=None)
+    # Chemin de sortie par défaut pour le permis consolidé
+    output_file: Path | None = Field(default=None)
 
     @field_validator("project_root")
     @classmethod

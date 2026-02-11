@@ -20,8 +20,8 @@ import unittest
 
 from bs4 import BeautifulSoup
 
-from ocapi.step_detection.subtarget_detection import parse_subtarget, replace_subtarget
 from ocapi.types import SubTargetType
+from ocapi.utils.subtarget_utils import parse_subtarget, replace_subtarget
 
 
 class TestSubtargetParsing(unittest.TestCase):

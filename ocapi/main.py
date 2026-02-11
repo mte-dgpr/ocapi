@@ -32,166 +32,20 @@ Examples:
 """
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
-from bs4 import BeautifulSoup
-
 from ocapi.config import settings
-from ocapi.step_chunking.step_chunking import step_chunking
-from ocapi.step_detection.step_detection import step_detection
-from ocapi.step_rendering.step_rendering import step_rendering
-from ocapi.step_resolution.step_resolution import step_resolution
-from ocapi.types import ArreteFile, FileType, Operation, parse_filename, validate_arretify_version
+from ocapi.pipeline import run_pipeline
+from ocapi.utils.io_utils import (
+    InputOutputError,
+    load_arrete_files,
+    write_json_output,
+    write_permis_output,
+)
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
-logger = get_logger(__name__)
-
-
-def arrete_to_ArreteFile(ordered_index: int, html_path: Path, aiot: str | None = None) -> ArreteFile:
-    """
-    Convertit un fichier HTML en objet ArreteFile.
-
-    Args:
-        ordered_index: Index du fichier dans l'ordre de traitement (non utilisé, conservé pour compatibilité)
-        html_path: Chemin vers le fichier HTML
-        aiot: Identifiant AIOT (si None, utilise le nom du dossier parent)
-
-    Returns:
-        ArreteFile créé à partir du fichier
-
-    Raises:
-        ValueError: Si le nom de fichier est invalide ou la version Arrêtify incompatible
-    """
-    # Déterminer l'AIOT
-    if aiot is None:
-        aiot = html_path.parent.parent.name
-
-    # Parser et valider le nom de fichier
-    arrete_id, file_type = parse_filename(html_path.name)
-
-    # Lire le contenu HTML
-    with open(html_path, encoding="utf-8") as f:
-        html_content = f.read()
-
-    soup = BeautifulSoup(html_content, "html.parser")
-
-    # Valider la version Arrêtify
-    validate_arretify_version(soup, html_path.name)
-
-    return ArreteFile(
-        id=arrete_id,
-        aiot=aiot,
-        filename=html_path.stem,  # Nom sans extension
-        soup=soup,
-        file_type=file_type,
-    )
-
-
-def load_arrete_files(input_dir: Path, aiot: str | None = None) -> list[ArreteFile]:
-    """
-    Charge tous les fichiers HTML d'arrêtés depuis un répertoire.
-
-    Args:
-        input_dir: Répertoire contenant les fichiers HTML
-        aiot: Identifiant AIOT (si None, utilise le nom du dossier parent)
-
-    Returns:
-        Liste des ArreteFile chargés, triés par nom de fichier
-    """
-    arrete_files: list[ArreteFile] = []
-    
-    # Déterminer l'AIOT
-    if aiot is None:
-        aiot = input_dir.parent.name
-    
-    html_files = sorted(input_dir.glob("*.html"))
-    if not html_files:
-        logger.error(f"Aucun fichier HTML trouvé dans {input_dir}")
-        return []
-
-    for ordered_index, html_path in enumerate(html_files):
-        try:
-            arrete = arrete_to_ArreteFile(ordered_index, html_path, aiot)
-            arrete_files.append(arrete)
-            logger.info(f"Chargé: {html_path.name} (id={arrete.id}, type={arrete.file_type.value})")
-        except ValueError as e:
-            logger.warning(f"Fichier ignoré: {html_path.name} - Raison: {e}")
-            continue
-
-    return arrete_files
-
-
-def run_pipeline(
-    arrete_files: list[ArreteFile],
-    skip_first: bool = False,
-    enable_rendering: bool = True,
-) -> tuple[list[Operation], dict, list[ArreteFile], str | None]:
-    """
-    Exécute le pipeline OCAPI complet.
-
-    Args:
-        arrete_files: Liste des arrêtés à traiter
-        skip_first: Si True, ignore le premier arrêté (AP initial)
-        enable_rendering: Si True, génère le permis consolidé (étape 4)
-
-    Returns:
-        Tuple (operations, history, arrete_files, permis_html)
-    """
-    logger.info(f"Démarrage du pipeline avec {len(arrete_files)} arrêté(s)")
-    
-    operations: list[Operation] = []
-    modele = settings.pipeline.default_llm_model
-
-    # ========================================
-    # STEP 1-2 : CHUNKING + DETECTION
-    # ========================================
-    logger.info("=" * 60)
-    logger.info("STEP 1-2 : CHUNKING + DETECTION")
-    logger.info("=" * 60)
-
-    start_index = 1 if skip_first else 0
-    for i, arrete_file in enumerate(arrete_files[start_index:], start=start_index):
-        logger.info(f"Traitement de l'arrêté {arrete_file.id}...")
-        docs, img_map = step_chunking(arrete_file)
-        logger.info(f"  → {len(docs)} documents chunkés")
-        logger.debug(f"  → {len(img_map)} images mappées")
-
-        detected_ops = step_detection(docs, arrete_file.id, modele, img_map)
-        operations.extend(detected_ops)
-        logger.info(f"  → {len(detected_ops)} opérations détectées")
-
-    logger.info(f"Total : {len(operations)} opération(s) détectée(s)")
-
-    # ========================================
-    # STEP 3 : RESOLUTION
-    # ========================================
-    logger.info("=" * 60)
-    logger.info("STEP 3 : RESOLUTION")
-    logger.info("=" * 60)
-
-    history, arrete_files = step_resolution(operations, arrete_files)
-    if history:
-        logger.info(f"{len(history)} articles avec historique")
-    else:
-        logger.info("0 article avec historique")
-
-    # ========================================
-    # STEP 4 : RENDERING (optionnel)
-    # ========================================
-    permis_html = None
-    if enable_rendering:
-        logger.info("=" * 60)
-        logger.info("STEP 4 : RENDERING")
-        logger.info("=" * 60)
-
-        permis = step_rendering(history, operations, arrete_files)
-        permis_html = str(permis)
-        logger.info("Permis consolidé généré")
-
-    logger.info("Pipeline terminé avec succès !")
-    return operations, history, arrete_files, permis_html
+_LOGGER = get_logger(__name__)
 
 
 def main(
@@ -216,46 +70,41 @@ def main(
     Returns:
         Code de sortie (0 = succès, 1 = erreur)
     """
-    # Vérifier le répertoire d'entrée
-    if not input_dir.exists():
-        logger.error(f"Le répertoire {input_dir} n'existe pas.")
-        return 1
-
-    if not input_dir.is_dir():
-        logger.error(f"{input_dir} n'est pas un répertoire.")
-        return 1
-
     # Déterminer le répertoire de sortie
     if output_dir is None:
         output_dir = input_dir.parent / "ocapi_output"
-    
-    logger.info(f"Dossier d'entrée : {input_dir}")
-    logger.info(f"Dossier de sortie : {output_dir}")
-    
+
+    _LOGGER.info(f"Dossier d'entrée : {input_dir}")
+    _LOGGER.info(f"Dossier de sortie : {output_dir}")
+
     # Déterminer l'AIOT
     if aiot is None:
         aiot = input_dir.parent.name
-    logger.info(f"AIOT: {aiot}")
-    logger.info(f"Modèle LLM: {settings.pipeline.default_llm_model}")
+    _LOGGER.info(f"AIOT: {aiot}")
+    _LOGGER.info(f"Modèle LLM: {settings.pipeline.default_llm_model}")
 
     # Charger les arrêtés
-    logger.info(f"Chargement des arrêtés depuis: {input_dir}")
-    arrete_files = load_arrete_files(input_dir, aiot)
-    if not arrete_files:
-        logger.error("Aucun arrêté valide trouvé")
+    try:
+        arrete_files = load_arrete_files(input_dir, aiot)
+    except InputOutputError as e:
+        _LOGGER.error(f"Erreur: {e}")
         return 1
 
-    logger.info(f"{len(arrete_files)} arrêté(s) chargé(s)")
+    if not arrete_files:
+        _LOGGER.error("Aucun arrêté valide trouvé")
+        return 1
+
+    _LOGGER.info(f"{len(arrete_files)} arrêté(s) chargé(s)")
 
     # Filtrer les arrêtés si demandé
     if include_ids:
         arrete_ids_included = set(include_ids)
-        logger.info(f"Filtrage sur: {arrete_ids_included}")
+        _LOGGER.info(f"Filtrage sur: {arrete_ids_included}")
         arrete_files = [af for af in arrete_files if af.id in arrete_ids_included]
-        logger.info(f"{len(arrete_files)} arrêté(s) après filtrage")
-        
+        _LOGGER.info(f"{len(arrete_files)} arrêté(s) après filtrage")
+
         if not arrete_files:
-            logger.error("Aucun arrêté ne correspond aux IDs spécifiés")
+            _LOGGER.error("Aucun arrêté ne correspond aux IDs spécifiés")
             return 1
 
     # Créer le dossier de sortie
@@ -263,7 +112,7 @@ def main(
 
     try:
         # Exécuter le pipeline
-        operations, history, arrete_files, permis_html = run_pipeline(
+        operations, history, arrete_files, permis = run_pipeline(
             arrete_files,
             skip_first=skip_first,
             enable_rendering=enable_rendering,
@@ -271,15 +120,12 @@ def main(
 
         # Sauvegarder les opérations
         operations_path = output_dir / "operations.json"
-        operations_dict = [op.model_dump() for op in operations]
-        with operations_path.open("w", encoding="utf-8") as f:
-            json.dump(operations_dict, f, ensure_ascii=False, indent=2)
-        logger.info(f"Opérations sauvegardées → {operations_path}")
+        operations_dict = [op.model_dump(mode="json") for op in operations]
+        write_json_output(operations_dict, operations_path)
+        _LOGGER.info(f"Opérations sauvegardées → {operations_path}")
 
         # Sauvegarder l'historique
-        versions_dir = output_dir / "versions"
-        versions_dir.mkdir(parents=True, exist_ok=True)
-        versions_path = versions_dir / "history.json"
+        history_path = output_dir / "history.json"
 
         # Convertir NodeId en string et ArticleHistory en format sérialisable
         history_serializable = {
@@ -294,22 +140,20 @@ def main(
             for node_id, versions in history.items()
         }
 
-        with versions_path.open("w", encoding="utf-8") as f:
-            json.dump(history_serializable, f, ensure_ascii=False, indent=2)
-        logger.info(f"Historique sauvegardé → {versions_path}")
+        write_json_output(history_serializable, history_path)
+        _LOGGER.info(f"Historique sauvegardé → {history_path}")
 
         # Sauvegarder le permis si généré
-        if permis_html:
+        if permis:
             permis_path = output_dir / "permis_consolidé.html"
-            with permis_path.open("w", encoding="utf-8") as f:
-                f.write(permis_html)
-            logger.info(f"Permis consolidé sauvegardé → {permis_path}")
+            write_permis_output(permis, permis_path)
+            _LOGGER.info(f"Permis consolidé sauvegardé → {permis_path}")
 
-        logger.info("Pipeline terminé avec succès !")
+        _LOGGER.info("Pipeline terminé avec succès !")
         return 0
 
     except Exception as e:
-        logger.exception(f"Erreur lors de l'exécution du pipeline: {e}")
+        _LOGGER.exception(f"Erreur lors de l'exécution du pipeline: {e}")
         return 1
 
 
@@ -322,27 +166,27 @@ if __name__ == "__main__":
 Examples:
   # Traiter tous les arrêtés d'un répertoire
   python -m ocapi.main data/0005804239/arretes_html/
-  
+
   # Spécifier un répertoire de sortie personnalisé
   python -m ocapi.main data/0005804239/arretes_html/ --output output/
-  
+
   # Ignorer le premier arrêté (AP initial)
   python -m ocapi.main data/0005804239/arretes_html/ --skip-first
-  
+
   # Filtrer sur des arrêtés spécifiques
   python -m ocapi.main data/0005804239/arretes_html/ --include 2024-09-27 2023-12-04
-  
+
   # Désactiver le rendering (étapes 1-3 uniquement)
   python -m ocapi.main data/0005804239/arretes_html/ --no-rendering
-  
+
   # Spécifier l'AIOT
   python -m ocapi.main data/0005804239/arretes_html/ --aiot 0005804239
-  
+
   # Mode verbose
   python -m ocapi.main data/0005804239/arretes_html/ --verbose
         """,
     )
-    
+
     parser.add_argument(
         "input_dir",
         type=Path,
@@ -406,7 +250,7 @@ Examples:
         console_output=settings.logging.console_output,
     )
 
-    logger.debug(f"Logging initialisé au niveau {log_level}")
+    _LOGGER.debug(f"Logging initialisé au niveau {log_level}")
 
     # Exécuter le pipeline
     exit_code = main(
@@ -417,5 +261,5 @@ Examples:
         skip_first=args.skip_first,
         enable_rendering=not args.no_rendering,
     )
-    
+
     sys.exit(exit_code)
