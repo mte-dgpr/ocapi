@@ -32,13 +32,17 @@ Examples:
 """
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
-from ocapi.utils.io_utils import InputOutputError, load_arrete_files, write_permis_output
+from ocapi.utils.io_utils import (
+    InputOutputError,
+    load_arrete_files,
+    write_json_output,
+    write_permis_output,
+)
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 _LOGGER = get_logger(__name__)
@@ -117,14 +121,11 @@ def main(
         # Sauvegarder les opérations
         operations_path = output_dir / "operations.json"
         operations_dict = [op.model_dump(mode="json") for op in operations]
-        with operations_path.open("w", encoding="utf-8") as f:
-            json.dump(operations_dict, f, ensure_ascii=False, indent=2)
+        write_json_output(operations_dict, operations_path)
         _LOGGER.info(f"Opérations sauvegardées → {operations_path}")
 
         # Sauvegarder l'historique
-        versions_dir = output_dir / "versions"
-        versions_dir.mkdir(parents=True, exist_ok=True)
-        versions_path = versions_dir / "history.json"
+        history_path = output_dir / "history.json"
 
         # Convertir NodeId en string et ArticleHistory en format sérialisable
         history_serializable = {
@@ -139,9 +140,8 @@ def main(
             for node_id, versions in history.items()
         }
 
-        with versions_path.open("w", encoding="utf-8") as f:
-            json.dump(history_serializable, f, ensure_ascii=False, indent=2)
-        _LOGGER.info(f"Historique sauvegardé → {versions_path}")
+        write_json_output(history_serializable, history_path)
+        _LOGGER.info(f"Historique sauvegardé → {history_path}")
 
         # Sauvegarder le permis si généré
         if permis:
