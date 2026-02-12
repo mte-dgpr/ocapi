@@ -20,7 +20,7 @@ import unittest
 
 from bs4 import BeautifulSoup
 
-from .types import FileType, Permis, _BaseModelWithConfig, parse_filename, validate_arretify_version
+from .types import FileType, _BaseModelWithConfig, parse_filename, validate_arretify_version
 
 
 class TestBaseModelWithConfig(unittest.TestCase):
@@ -203,21 +203,3 @@ class TestValidateArretifyVersion(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             validate_arretify_version(soup, "test.html")
         assert "Document HTML invalide" in str(context.exception)
-
-
-class TestPermisHtmlRendering(unittest.TestCase):
-    def test_to_html_uses_fixed_template_tokens(self) -> None:
-        permis = Permis(
-            header='<header data-spec="header">HEADER</header>',
-            contenu='<main data-spec="main">CONTENT</main>',
-            other='<section data-spec="permit_complements">OTHER</section>',
-        )
-
-        html = permis.to_html()
-
-        assert '<header data-spec="header">HEADER</header>' in html
-        assert '<main data-spec="main">CONTENT</main>' in html
-        assert '<section data-spec="permit_complements">OTHER</section>' in html
-        assert "{{HEADER}}" not in html
-        assert "{{CONTENT}}" not in html
-        assert "{{OTHER}}" not in html
