@@ -17,8 +17,6 @@
 # limitations under the License.
 #
 
-# TODO nowwwwwwww
-
 from bs4 import BeautifulSoup, Tag
 
 from ocapi.types import ArreteFile, ArticleHistory, ArticleVersion, NodeId, Operation, OperationType
@@ -55,44 +53,38 @@ def make_permit_content(
         if not article_id or not isinstance(article_id, str):
             continue
 
-        section.replace_with(
-            make_section_version(
-                original_section=section,
-                article_id=article_id,
-                history=history,
-                ap_initial_id=ap_initial_id,
-                operation_by_id=operation_by_id,
-            )
+        make_section_version(
+            section=section,
+            article_id=article_id,
+            history=history,
+            ap_initial_id=ap_initial_id,
+            operation_by_id=operation_by_id,
         )
 
     return str(main)
 
 
 def make_section_version(
-    original_section: Tag,
+    section: Tag,
     article_id: str,
     history: ArticleHistory,
     ap_initial_id: str,
     operation_by_id: dict[str, Operation],
-) -> Tag:
+) -> None:
     """
-    Construit une SectionVersion contenant le contenu consolidé d'un article.
+    Modifie en place une section en SectionVersion avec contenu consolidé.
     Ajoute les attributs:
     - data-is_modified
     - data-date_version
     """
     key = NodeId(arrete_id=ap_initial_id, article_id=article_id)
-    section_version_soup = BeautifulSoup(str(original_section), "html.parser")
-    section_version = section_version_soup.find("section")
-    if section_version is None:
-        return original_section
 
-    section_version["data-spec"] = "section_version"
+    section["data-spec"] = "section_version"
 
     if key not in history:
-        section_version["data-is_modified"] = "false"
-        section_version["data-date_version"] = ap_initial_id
-        return section_version
+        section["data-is_modified"] = "false"
+        section["data-date_version"] = ap_initial_id
+        return
 
     versions = history[key]
     history_html = _build_section_history_html(versions=versions, operation_by_id=operation_by_id)
@@ -105,9 +97,9 @@ def make_section_version(
         latest_operation.source_id.arrete_id if latest_operation else ap_initial_id
     )
 
-    section_version["data-is_modified"] = "true"
-    section_version["data-date_version"] = latest_date_version
-    section_version.clear()
+    section["data-is_modified"] = "true"
+    section["data-date_version"] = latest_date_version
+    section.clear()
 
     if _is_abrogated(latest_version=latest_version, operation_by_id=operation_by_id):
         consolidated_content = f"{history_html}<p><em>Article abrogé</em></p>"
@@ -119,8 +111,7 @@ def make_section_version(
 
     consolidated_soup = BeautifulSoup(consolidated_content, "html.parser")
     for child in list(consolidated_soup.contents):
-        section_version.append(child)
-    return section_version
+        section.append(child)
 
 
 def _build_section_history_html(

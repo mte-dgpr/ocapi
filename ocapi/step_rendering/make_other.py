@@ -48,7 +48,8 @@ def make_permit_other(arrete_files: list[ArreteFile], operations: list[Operation
         return ""
     return f"""
   <section data-spec="permit_complements">
-   <h2>Compléments non consolidés</h2>
+   <h2>Autres dispositions prévues par des arrêtés préfectoraux
+    qui ne modifient pas l'arrêté préfectoral d'autorisation</h2>
 {''.join(complement_sections)}
   </section>
 """

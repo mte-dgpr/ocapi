@@ -63,7 +63,13 @@ def make_permit_sources(arrete_files: list[ArreteFile]) -> str:
     for arrete_file in _ordered_arretes(arrete_files):
         arrete_title_html = extract_first_spec_html(arrete_file.soup, "arrete_title")
         arrete_title_text = extract_first_spec_text(arrete_file.soup, "arrete_title")
-        source_title = arrete_title_html or f"<div>{arrete_file.filename}</div>"
+        if arrete_title_html:
+            title_soup = BeautifulSoup(arrete_title_html, "html.parser")
+            for h1_tag in title_soup.find_all("h1"):
+                h1_tag.name = "p"
+            source_title = str(title_soup)
+        else:
+            source_title = f"<div>{arrete_file.filename}</div>"
         status = "active" if arrete_file.status else "abroge"
         label = arrete_title_text or arrete_file.filename
         items.append(
