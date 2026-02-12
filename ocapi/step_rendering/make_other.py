@@ -43,13 +43,35 @@ def extract_main(soup: BeautifulSoup) -> str:
     return str(main)
 
 
+def extract_first_header_spec(soup: BeautifulSoup, spec_name: str) -> str:
+    tag = soup.find(attrs={"data-spec": spec_name})
+    if tag is None:
+        return ""
+    return str(tag)
+
+
 def make_other_permis(arrete_files: list[ArreteFile], operations: list[Operation]) -> str:
-    other_str = ""
+    complement_sections: list[str] = []
     for i, arrete_file in enumerate(arrete_files):
         if i > 0:  # Skip first file (AP initial)
             if arrete_file.status and has_no_ops(arrete_file, operations):
+                identification = extract_first_header_spec(arrete_file.soup, "identification")
+                arrete_title = extract_first_header_spec(arrete_file.soup, "arrete_title")
                 main_content = extract_main(arrete_file.soup)
-                other_str += (
-                    f"Contenu de l'arrêté complémentaire {arrete_file.id} : " f"{main_content}"
+                complement_sections.append(
+                    f"""
+   <article data-spec="permit_complement" data-date="{arrete_file.id}">
+    {identification}
+    {arrete_title}
+    {main_content}
+   </article>
+"""
                 )
-    return other_str
+    if not complement_sections:
+        return ""
+    return f"""
+  <section data-spec="permit_complements">
+   <h2>Compléments non consolidés</h2>
+{''.join(complement_sections)}
+  </section>
+"""
