@@ -28,7 +28,8 @@ def _ordered_arretes(arrete_files: list[ArreteFile]) -> list[ArreteFile]:
 
 def _extract_specs(soup: BeautifulSoup, spec: str) -> list[Tag]:
     """Extrait les blocs HTML correspondant à une spec Arrêtify."""
-    return soup.find_all(attrs={"data-spec": spec})
+    return [tag for tag in soup.find_all(attrs={"data-spec": spec}) if isinstance(tag, Tag)]
+
 
 def _extract_visa(soup: BeautifulSoup) -> list[str]:
     """Extrait les VisaSpec d'un arrêté."""
@@ -51,7 +52,7 @@ def _extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
     tags = _extract_specs(soup, spec)
     if not tags:
         return ""
-    return tags[0].get_text(" ", strip=True)
+    return str(tags[0].get_text(" ", strip=True))
 
 
 def make_permit_title_spec(arrete_files: list[ArreteFile]) -> str:

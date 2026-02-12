@@ -21,7 +21,7 @@
 
 from bs4 import BeautifulSoup, Tag
 
-from ocapi.types import ArreteFile, ArticleHistory, NodeId, Operation, OperationType
+from ocapi.types import ArreteFile, ArticleHistory, ArticleVersion, NodeId, Operation, OperationType
 
 
 def make_contenu_permis(
@@ -97,10 +97,13 @@ def make_section_version(
     versions = history[key]
     history_html = _build_section_history_html(versions=versions, operation_by_id=operation_by_id)
     latest_version = versions[-1]
+    latest_operation_id = latest_version.get("operation_id")
     latest_operation = (
-        operation_by_id.get(latest_version["operation_id"]) if latest_version["operation_id"] else None
+        operation_by_id.get(str(latest_operation_id)) if latest_operation_id else None
     )
-    latest_date_version = latest_operation.source_id.arrete_id if latest_operation else ap_initial_id
+    latest_date_version = (
+        latest_operation.source_id.arrete_id if latest_operation else ap_initial_id
+    )
 
     section_version["data-is_modified"] = "true"
     section_version["data-date_version"] = latest_date_version
@@ -109,7 +112,10 @@ def make_section_version(
     if _is_abrogated(latest_version=latest_version, operation_by_id=operation_by_id):
         consolidated_content = f"{history_html}<p><em>Article abrogé</em></p>"
     else:
-        consolidated_content = f"{history_html}{latest_version['content']}"
+        latest_content = latest_version.get("content", "")
+        consolidated_content = (
+            f"{history_html}{latest_content if isinstance(latest_content, str) else ''}"
+        )
 
     consolidated_soup = BeautifulSoup(consolidated_content, "html.parser")
     for child in list(consolidated_soup.contents):
@@ -118,17 +124,22 @@ def make_section_version(
 
 
 def _build_section_history_html(
-    versions: list[dict[str, int | str | None]],
+    versions: list[ArticleVersion],
     operation_by_id: dict[str, Operation],
 ) -> str:
-    history_parts = ['<div data-spec="section_version_history" style="color: red; margin-bottom: 1rem;">']
+    history_parts = [
+        '<div data-spec="section_version_history" style="color: red; margin-bottom: 1rem;">'
+    ]
     for index, version in enumerate(versions):
         operation_id = version.get("operation_id")
         operation = operation_by_id.get(str(operation_id)) if operation_id else None
         if index == 0:
             if operation:
                 history_parts.append(
-                    f"<p><strong>Article créé par l'arrêté {operation.source_id.arrete_id}</strong></p>"
+                    (
+                        "<p><strong>Article créé par l'arrêté "
+                        f"{operation.source_id.arrete_id}</strong></p>"
+                    )
                 )
             else:
                 history_parts.append("<p><strong>Article créé par l'arrêté initial</strong></p>")
@@ -152,7 +163,10 @@ def _build_section_history_html(
             f"""
             <details style="margin-left: 1rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">
              <summary style="cursor: pointer; font-weight: bold;">Voir l'ancienne version</summary>
-             <div style="color: red; border-left: 3px solid red; padding-left: 1rem; margin-top: 0.5rem;">
+             <div
+              style="color: red; border-left: 3px solid red; padding-left: 1rem;
+              margin-top: 0.5rem;"
+             >
               {previous_content}
              </div>
             </details>
@@ -163,7 +177,7 @@ def _build_section_history_html(
 
 
 def _is_abrogated(
-    latest_version: dict[str, int | str | None],
+    latest_version: ArticleVersion,
     operation_by_id: dict[str, Operation],
 ) -> bool:
     operation_id = latest_version.get("operation_id")
