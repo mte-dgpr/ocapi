@@ -16,12 +16,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import cast
+
 import pytest
 from bs4 import BeautifulSoup
 
 from ocapi.step_rendering.make_header import make_permit_header
+from ocapi.step_rendering.make_main_content import make_permit_content, make_section_version
 from ocapi.step_rendering.make_other import make_permit_other
-from ocapi.types import ArreteFile, NodeId, Operation, OperationType
+from ocapi.types import ArreteFile, ArticleVersion, NodeId, Operation, OperationType
 
 
 def _make_arrete_file_from_str(
@@ -146,3 +149,115 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
     assert "TITLE COMPLEMENT A" in html
     assert "MAIN A" in html
     assert "MAIN B" not in html
+
+
+def test_make_section_version_sets_default_attrs_when_article_not_in_history() -> None:
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
+        "html.parser",
+    ).find("section")
+    assert section is not None
+
+    make_section_version(
+        section=section,
+        article_id="1",
+        history={},
+        ap_initial_id="2020-01-01",
+        operation_by_id={},
+    )
+
+    assert section["data-spec"] == "section_version"
+    assert section["data-is_modified"] == "false"
+    assert section["data-date_version"] == "2020-01-01"
+    assert "Texte initial" in str(section)
+
+
+def test_make_section_version_marks_removed_article() -> None:
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
+        "html.parser",
+    ).find("section")
+    assert section is not None
+
+    operation = Operation(
+        id="op-remove",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REMOVE,
+    )
+
+    history = {
+        NodeId(arrete_id="2020-01-01", article_id="1"): [
+            cast(
+                ArticleVersion,
+                {"version": 0, "content": "<p>Texte initial</p>", "operation_id": None},
+            ),
+            cast(ArticleVersion, {"version": 1, "content": "", "operation_id": "op-remove"}),
+        ]
+    }
+
+    make_section_version(
+        section=section,
+        article_id="1",
+        history=history,
+        ap_initial_id="2020-01-01",
+        operation_by_id={"op-remove": operation},
+    )
+
+    assert section["data-spec"] == "section_version"
+    assert section["data-is_modified"] == "true"
+    assert section["data-date_version"] == "2021-01-01"
+    assert "Article abrogé" in str(section)
+
+
+def test_make_permit_content_renders_full_main_with_section_versions() -> None:
+    ap_initial = _make_arrete_file_from_str(
+        arrete_id="2020-01-01",
+        aiot="0001",
+        filename="ap_initial",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><p>Article 1 initial</p></section>
+  <section data-spec="section" data-number="2"><p>Article 2 initial</p></section>
+ </main>
+</body></html>
+""",
+    )
+
+    op_replace = Operation(
+        id="op-replace-1",
+        source_id=NodeId(arrete_id="2021-06-01", article_id="5"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+    )
+
+    history = {
+        NodeId(arrete_id="2020-01-01", article_id="1"): [
+            cast(
+                ArticleVersion,
+                {"version": 0, "content": "<p>Article 1 initial</p>", "operation_id": None},
+            ),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 1,
+                    "content": "<p>Article 1 modifié</p>",
+                    "operation_id": "op-replace-1",
+                },
+            ),
+        ]
+    }
+
+    html = make_permit_content(
+        history=history,
+        arrete_files=[ap_initial],
+        operations=[op_replace],
+    )
+
+    assert 'data-spec="main"' in html
+    assert html.count('data-spec="section_version"') == 2
+    assert "Article 1 modifié" in html
+    assert "Article 2 initial" in html
+    assert 'data-date_version="2021-06-01"' in html
+    assert 'data-date_version="2020-01-01"' in html
