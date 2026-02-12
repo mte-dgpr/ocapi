@@ -187,7 +187,7 @@ def run_pipeline(
         logger.info("=" * 60)
 
         permis = step_rendering(history, operations, arrete_files)
-        permis_html = str(permis)
+        permis_html = permis.to_html()
         logger.info("Permis consolidé généré")
 
     logger.info("Pipeline terminé avec succès !")

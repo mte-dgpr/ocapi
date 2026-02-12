@@ -152,6 +152,60 @@ class _BaseModelWithConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class PermitTitleSpec(_BaseModelWithConfig):
+    """Titre du permis consolidé et code(s) AIOT associés."""
+
+    aiot_codes: list[AiotId]
+
+
+class PermitSourceSpec(_BaseModelWithConfig):
+    """Source utilisée dans le permis (date + titre d'arrêté)."""
+
+    arrete_id: ArreteId
+    arrete_title: str
+    status: bool = True
+
+
+class PermitSources(_BaseModelWithConfig):
+    """Liste des arrêtés sources triés chronologiquement."""
+
+    sources: list[PermitSourceSpec]
+
+
+class PermitVisa(_BaseModelWithConfig):
+    """Ensemble ordonné des VisaSpec consolidés sans doublon."""
+
+    visas: list[str]
+
+
+class PermitMotifEntry(_BaseModelWithConfig):
+    """Motifs extraits pour un arrêté donné."""
+
+    arrete_id: ArreteId
+    motifs: list[str]
+
+
+class PermitMotif(_BaseModelWithConfig):
+    """Motifs consolidés, groupés par arrêté en ordre chronologique."""
+
+    entries: list[PermitMotifEntry]
+
+
+class SectionVersionSpec(_BaseModelWithConfig):
+    """Version consolidée d'une section avec métadonnées de modification."""
+
+    article_id: ArticleId
+    is_modified: bool
+    date_version: ArreteId
+    content: str
+
+
+class PermitComplements(_BaseModelWithConfig):
+    """Mains des AP spécifiques non consolidés."""
+
+    complements: list[str]
+
+
 class RawOperation(_BaseModelWithConfig):
     operation_type: RawOperationType
     source_article: str | None = None
