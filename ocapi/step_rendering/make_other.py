@@ -27,7 +27,7 @@ def detect_additional_prescriptions(arrete_files: list[ArreteFile]) -> str:
     return ""
 
 
-def make_other_permis(arrete_files: list[ArreteFile], operations: list[Operation]) -> str:
+def make_permit_other(arrete_files: list[ArreteFile], operations: list[Operation]) -> str:
     complement_sections: list[str] = []
     for i, arrete_file in enumerate(arrete_files):
         if i > 0:  # Skip first file (AP initial)

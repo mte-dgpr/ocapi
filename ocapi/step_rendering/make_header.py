@@ -133,7 +133,7 @@ def make_permit_motif(arrete_files: list[ArreteFile]) -> str:
 """
 
 
-def make_header_permis(arrete_files: list[ArreteFile]) -> str:
+def make_permit_header(arrete_files: list[ArreteFile]) -> str:
     """Construit le header consolidé au format de sortie stable."""
     permit_title = make_permit_title_spec(arrete_files)
     permit_sources = make_permit_sources(arrete_files)

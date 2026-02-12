@@ -24,7 +24,7 @@ from bs4 import BeautifulSoup, Tag
 from ocapi.types import ArreteFile, ArticleHistory, ArticleVersion, NodeId, Operation, OperationType
 
 
-def make_contenu_permis(
+def make_permit_content(
     history: ArticleHistory, arrete_files: list[ArreteFile], operations: list[Operation]
 ) -> str:
     """

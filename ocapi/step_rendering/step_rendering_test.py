@@ -19,12 +19,12 @@
 import pytest
 from bs4 import BeautifulSoup
 
-from ocapi.step_rendering.make_header import make_header_permis
-from ocapi.step_rendering.make_other import make_other_permis
+from ocapi.step_rendering.make_header import make_permit_header
+from ocapi.step_rendering.make_other import make_permit_other
 from ocapi.types import ArreteFile, NodeId, Operation, OperationType
 
 
-def _make_arrete_file(
+def _make_arrete_file_from_str(
     arrete_id: str,
     aiot: str,
     filename: str,
@@ -40,8 +40,8 @@ def _make_arrete_file(
     )
 
 
-def test_make_header_permis_contains_permit_specs_and_ordering() -> None:
-    arrete_2021 = _make_arrete_file(
+def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
+    arrete_2021 = _make_arrete_file_from_str(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="arrete_2021",
@@ -54,7 +54,7 @@ def test_make_header_permis_contains_permit_specs_and_ordering() -> None:
 </body></html>
 """,
     )
-    arrete_2020 = _make_arrete_file(
+    arrete_2020 = _make_arrete_file_from_str(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="arrete_2020",
@@ -67,7 +67,7 @@ def test_make_header_permis_contains_permit_specs_and_ordering() -> None:
 """,
     )
 
-    html = make_header_permis([arrete_2021, arrete_2020])
+    html = make_permit_header([arrete_2021, arrete_2020])
 
     assert 'data-spec="permit_title"' in html
     assert 'data-spec="permit_sources"' in html
@@ -77,14 +77,14 @@ def test_make_header_permis_contains_permit_specs_and_ordering() -> None:
     assert html.index('data-date="2020-01-01"') < html.index('data-date="2021-01-01"')
 
 
-def test_make_header_permis_raises_when_multiple_aiot_detected() -> None:
-    arrete_1 = _make_arrete_file(
+def test_make_permit_header_raises_when_multiple_aiot_detected() -> None:
+    arrete_1 = _make_arrete_file_from_str(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="arrete_1",
         html='<html><body data-arretify_version="0.1.0"></body></html>',
     )
-    arrete_2 = _make_arrete_file(
+    arrete_2 = _make_arrete_file_from_str(
         arrete_id="2022-01-01",
         aiot="0002",
         filename="arrete_2",
@@ -92,11 +92,11 @@ def test_make_header_permis_raises_when_multiple_aiot_detected() -> None:
     )
 
     with pytest.raises(ValueError, match="multiple AIOT"):
-        make_header_permis([arrete_1, arrete_2])
+        make_permit_header([arrete_1, arrete_2])
 
 
-def test_make_other_permis_contains_only_non_consolidated_complements() -> None:
-    ap_initial = _make_arrete_file(
+def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
+    ap_initial = _make_arrete_file_from_str(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="ap_initial",
@@ -105,7 +105,7 @@ def test_make_other_permis_contains_only_non_consolidated_complements() -> None:
             "</main></body></html>"
         ),
     )
-    complement_no_ops = _make_arrete_file(
+    complement_no_ops = _make_arrete_file_from_str(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="complement_no_ops",
@@ -117,7 +117,7 @@ def test_make_other_permis_contains_only_non_consolidated_complements() -> None:
 </body></html>
 """,
     )
-    complement_with_ops = _make_arrete_file(
+    complement_with_ops = _make_arrete_file_from_str(
         arrete_id="2022-01-01",
         aiot="0001",
         filename="complement_with_ops",
@@ -138,7 +138,7 @@ def test_make_other_permis_contains_only_non_consolidated_complements() -> None:
         )
     ]
 
-    html = make_other_permis([ap_initial, complement_no_ops, complement_with_ops], operations)
+    html = make_permit_other([ap_initial, complement_no_ops, complement_with_ops], operations)
 
     assert 'data-spec="permit_complements"' in html
     assert 'data-spec="permit_complement"' in html
