@@ -56,9 +56,13 @@ def _extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
 
 
 def make_permit_title_spec(arrete_files: list[ArreteFile]) -> str:
-    """Construit PermitTitleSpec avec le(s) code(s) AIOT."""
+    """Construit PermitTitleSpec avec un code AIOT unique."""
     aiot_values = sorted({arrete_file.aiot for arrete_file in arrete_files if arrete_file.aiot})
-    aiot_label = ", ".join(aiot_values) if aiot_values else "non renseigné"
+
+    if len(aiot_values) > 1:
+        raise ValueError(f"Found arretes associated with multiple AIOT: {aiot_values}")
+
+    aiot_label = aiot_values[0] if aiot_values else "non renseigné"
     return f"""
    <div data-spec="permit_title">
     <h1>Permis d'Exploitation Consolidé</h1>

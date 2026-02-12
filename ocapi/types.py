@@ -153,9 +153,9 @@ class _BaseModelWithConfig(BaseModel):
 
 
 class PermitTitleSpec(_BaseModelWithConfig):
-    """Titre du permis consolidé et code(s) AIOT associés."""
+    """Titre du permis consolidé avec un unique code AIOT."""
 
-    aiot_codes: list[AiotId]
+    aiot_code: AiotId | None
 
 
 class PermitSourceSpec(_BaseModelWithConfig):

@@ -16,6 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import pytest
 from bs4 import BeautifulSoup
 
 from ocapi.step_rendering.make_header import make_header_permis
@@ -74,6 +75,24 @@ def test_make_header_permis_contains_permit_specs_and_ordering() -> None:
     assert 'data-spec="permit_motif"' in html
     assert html.count("VISA UNIQUE 1") == 1
     assert html.index('data-date="2020-01-01"') < html.index('data-date="2021-01-01"')
+
+
+def test_make_header_permis_raises_when_multiple_aiot_detected() -> None:
+    arrete_1 = _make_arrete_file(
+        arrete_id="2021-01-01",
+        aiot="0001",
+        filename="arrete_1",
+        html='<html><body data-arretify_version="0.1.0"></body></html>',
+    )
+    arrete_2 = _make_arrete_file(
+        arrete_id="2022-01-01",
+        aiot="0002",
+        filename="arrete_2",
+        html='<html><body data-arretify_version="0.1.0"></body></html>',
+    )
+
+    with pytest.raises(ValueError, match="multiple AIOT"):
+        make_header_permis([arrete_1, arrete_2])
 
 
 def test_make_other_permis_contains_only_non_consolidated_complements() -> None:
