@@ -185,11 +185,6 @@ class PathsConfig(BaseSettings):
         default=_PROJECT_ROOT / "data" / "0005804239" / "journaux" / "catalogue_ap.json",
         description="Chemin vers le catalogue des arrêtés",
     )
-    # Chemin vers le template HTML fixe du permis consolidé
-    permis_template_path: Path = Field(
-        default=_PROJECT_ROOT / "templates" / "permis_consolide.html",
-        description="Chemin vers le template HTML du permis consolidé",
-    )
     # Chemin d'entrée par défaut pour les arrêtés HTML
     input_dir: Path | None = Field(default=None)
     # Chemin de sortie par défaut pour le permis consolidé
@@ -203,7 +198,7 @@ class PathsConfig(BaseSettings):
             raise ValueError(f"Le répertoire racine n'existe pas: {v}")
         if not v.is_dir():
             raise ValueError(f"La racine du projet doit être un répertoire: {v}")
-        return v
+        return v.resolve()
 
     @field_validator("catalogue_path")
     @classmethod
@@ -212,16 +207,6 @@ class PathsConfig(BaseSettings):
         # On vérifie juste que le chemin parent existe ou peut être créé
         # Le fichier lui-même peut ne pas encore exister
         return v
-
-    @field_validator("permis_template_path")
-    @classmethod
-    def validate_permis_template_path(cls, v: Path) -> Path:
-        """Valider que le template HTML du permis consolidé existe."""
-        if not v.exists():
-            raise ValueError(f"Template HTML du permis consolidé introuvable: {v}")
-        if not v.is_file():
-            raise ValueError(f"Le template du permis consolidé doit être un fichier: {v}")
-        return v.resolve()
 
 
 class LoggingConfig(BaseSettings):

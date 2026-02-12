@@ -24,7 +24,7 @@ from typing import Dict, Optional, TypedDict
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from .config import SUPPORTED_ARRETIFY_VERSION, SUPPORTED_ARRETIFY_VERSION_PATTERN, settings
+from .config import SUPPORTED_ARRETIFY_VERSION, SUPPORTED_ARRETIFY_VERSION_PATTERN
 
 OperationId = str
 ArreteId = str
@@ -53,19 +53,10 @@ class Permis(BaseModel):
     aiot: AiotId | None = None
 
     def to_html(self) -> str:
-        """Rend le permis dans le template HTML fixe."""
-        template_path = settings.paths.permis_template_path
-        template = template_path.read_text(encoding="utf-8")
-        required_tokens = ("{{HEADER}}", "{{CONTENT}}", "{{OTHER}}")
-        if not all(token in template for token in required_tokens):
-            raise ValueError(
-                "Template HTML du permis consolidé invalide: "
-                "placeholders {{HEADER}}, {{CONTENT}} et {{OTHER}} requis."
-            )
+        """Concatène le header, le contenu et other pour générer le HTML complet du permis."""
         return (
-            template.replace("{{HEADER}}", self.header)
-            .replace("{{CONTENT}}", self.contenu)
-            .replace("{{OTHER}}", self.other)
+            f'<!DOCTYPE html>\n<html lang="fr">\n'
+            f"{self.header}\n{self.contenu}\n{self.other}\n</html>"
         )
 
 
@@ -150,60 +141,6 @@ class _BaseModelWithConfig(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
-
-
-class PermitTitleSpec(_BaseModelWithConfig):
-    """Titre du permis consolidé et code(s) AIOT associés."""
-
-    aiot_codes: list[AiotId]
-
-
-class PermitSourceSpec(_BaseModelWithConfig):
-    """Source utilisée dans le permis (date + titre d'arrêté)."""
-
-    arrete_id: ArreteId
-    arrete_title: str
-    status: bool = True
-
-
-class PermitSources(_BaseModelWithConfig):
-    """Liste des arrêtés sources triés chronologiquement."""
-
-    sources: list[PermitSourceSpec]
-
-
-class PermitVisa(_BaseModelWithConfig):
-    """Ensemble ordonné des VisaSpec consolidés sans doublon."""
-
-    visas: list[str]
-
-
-class PermitMotifEntry(_BaseModelWithConfig):
-    """Motifs extraits pour un arrêté donné."""
-
-    arrete_id: ArreteId
-    motifs: list[str]
-
-
-class PermitMotif(_BaseModelWithConfig):
-    """Motifs consolidés, groupés par arrêté en ordre chronologique."""
-
-    entries: list[PermitMotifEntry]
-
-
-class SectionVersionSpec(_BaseModelWithConfig):
-    """Version consolidée d'une section avec métadonnées de modification."""
-
-    article_id: ArticleId
-    is_modified: bool
-    date_version: ArreteId
-    content: str
-
-
-class PermitComplements(_BaseModelWithConfig):
-    """Mains des AP spécifiques non consolidés."""
-
-    complements: list[str]
 
 
 class RawOperation(_BaseModelWithConfig):
