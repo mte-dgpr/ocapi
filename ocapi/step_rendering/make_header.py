@@ -16,9 +16,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 
 from ocapi.types import ArreteFile
+from ocapi.utils.arretify_utils import (
+    extract_first_spec_html,
+    extract_first_spec_text,
+    extract_specs,
+)
 
 
 def _ordered_arretes(arrete_files: list[ArreteFile]) -> list[ArreteFile]:
@@ -26,33 +31,14 @@ def _ordered_arretes(arrete_files: list[ArreteFile]) -> list[ArreteFile]:
     return sorted(arrete_files, key=lambda arrete: arrete.id)
 
 
-def _extract_specs(soup: BeautifulSoup, spec: str) -> list[Tag]:
-    """Extrait les blocs HTML correspondant à une spec Arrêtify."""
-    return [tag for tag in soup.find_all(attrs={"data-spec": spec}) if isinstance(tag, Tag)]
-
-
 def _extract_visa(soup: BeautifulSoup) -> list[str]:
     """Extrait les VisaSpec d'un arrêté."""
-    return [str(tag) for tag in _extract_specs(soup, "visa")]
+    return [str(tag) for tag in extract_specs(soup, "visa")]
 
 
 def _extract_motifs(soup: BeautifulSoup) -> list[str]:
     """Extrait les MotifSpec d'un arrêté."""
-    return [str(tag) for tag in _extract_specs(soup, "motifs")]
-
-
-def _extract_first_spec_html(soup: BeautifulSoup, spec: str) -> str:
-    tags = _extract_specs(soup, spec)
-    if not tags:
-        return ""
-    return str(tags[0])
-
-
-def _extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
-    tags = _extract_specs(soup, spec)
-    if not tags:
-        return ""
-    return str(tags[0].get_text(" ", strip=True))
+    return [str(tag) for tag in extract_specs(soup, "motifs")]
 
 
 def make_permit_title_spec(arrete_files: list[ArreteFile]) -> str:
@@ -75,8 +61,8 @@ def make_permit_sources(arrete_files: list[ArreteFile]) -> str:
     """Construit PermitSources trié chronologiquement avec ArreteTitleSpec."""
     items: list[str] = []
     for arrete_file in _ordered_arretes(arrete_files):
-        arrete_title_html = _extract_first_spec_html(arrete_file.soup, "arrete_title")
-        arrete_title_text = _extract_first_spec_text(arrete_file.soup, "arrete_title")
+        arrete_title_html = extract_first_spec_html(arrete_file.soup, "arrete_title")
+        arrete_title_text = extract_first_spec_text(arrete_file.soup, "arrete_title")
         source_title = arrete_title_html or f"<div>{arrete_file.filename}</div>"
         status = "active" if arrete_file.status else "abroge"
         label = arrete_title_text or arrete_file.filename
@@ -128,7 +114,7 @@ def make_permit_motif(arrete_files: list[ArreteFile]) -> str:
         extracted_motifs = _extract_motifs(arrete_file.soup)
         if not extracted_motifs:
             continue
-        title = _extract_first_spec_text(arrete_file.soup, "arrete_title") or arrete_file.filename
+        title = extract_first_spec_text(arrete_file.soup, "arrete_title") or arrete_file.filename
         motifs_html = "\n".join(extracted_motifs)
         motifs_sections.append(
             f"""

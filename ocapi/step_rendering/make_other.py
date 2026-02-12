@@ -17,17 +17,8 @@
 # limitations under the License.
 #
 
-
-from bs4 import BeautifulSoup
-
 from ocapi.types import ArreteFile, Operation
-
-
-def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
-    for op in operations:
-        if op.source_id.arrete_id == arrete_file.id:
-            return False
-    return True
+from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main, has_no_ops
 
 
 def detect_additional_prescriptions(arrete_files: list[ArreteFile]) -> str:
@@ -36,27 +27,13 @@ def detect_additional_prescriptions(arrete_files: list[ArreteFile]) -> str:
     return ""
 
 
-def extract_main(soup: BeautifulSoup) -> str:
-    main = soup.find("main")
-    if main is None:
-        return ""
-    return str(main)
-
-
-def extract_first_header_spec(soup: BeautifulSoup, spec_name: str) -> str:
-    tag = soup.find(attrs={"data-spec": spec_name})
-    if tag is None:
-        return ""
-    return str(tag)
-
-
 def make_other_permis(arrete_files: list[ArreteFile], operations: list[Operation]) -> str:
     complement_sections: list[str] = []
     for i, arrete_file in enumerate(arrete_files):
         if i > 0:  # Skip first file (AP initial)
             if arrete_file.status and has_no_ops(arrete_file, operations):
-                identification = extract_first_header_spec(arrete_file.soup, "identification")
-                arrete_title = extract_first_header_spec(arrete_file.soup, "arrete_title")
+                identification = extract_first_spec_html(arrete_file.soup, "identification")
+                arrete_title = extract_first_spec_html(arrete_file.soup, "arrete_title")
                 main_content = extract_main(arrete_file.soup)
                 complement_sections.append(
                     f"""
