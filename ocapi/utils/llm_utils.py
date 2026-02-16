@@ -19,6 +19,7 @@
 import json
 import random
 import re
+import threading
 import textwrap
 import time
 from dataclasses import dataclass
@@ -36,6 +37,7 @@ _LOGGER = get_logger(__name__)
 
 _MODELS_CONFIG_PATH = settings.paths.project_root / "config" / "llm_models.json"
 _RESILIENCE_CONFIG_PATH = settings.paths.project_root / "config" / "llm_resilience.json"
+_RATE_LIMIT_CONFIG_PATH = settings.paths.project_root / "config" / "llm_rate_limit.json"
 
 _DEFAULT_LLM_MODELS_CONFIG: dict[str, Any] = {
     "primary_model_key": "mistral_medium",
@@ -75,6 +77,14 @@ _DEFAULT_LLM_RESILIENCE_CONFIG: dict[str, Any] = {
     },
 }
 
+_DEFAULT_LLM_RATE_LIMIT_CONFIG: dict[str, Any] = {
+    "enabled": False,
+    "min_interval_ms": 0,
+}
+
+_RATE_LIMIT_LOCK = threading.Lock()
+_RATE_LIMIT_LAST_CALL_MONOTONIC: float | None = None
+
 
 @dataclass(frozen=True)
 class ResolvedLLMModel:
@@ -109,6 +119,10 @@ def _load_llm_models_config() -> dict[str, Any]:
 
 def _load_llm_resilience_config() -> dict[str, Any]:
     return _read_json_config(_RESILIENCE_CONFIG_PATH, _DEFAULT_LLM_RESILIENCE_CONFIG)
+
+
+def _load_llm_rate_limit_config() -> dict[str, Any]:
+    return _read_json_config(_RATE_LIMIT_CONFIG_PATH, _DEFAULT_LLM_RATE_LIMIT_CONFIG)
 
 
 def _to_int(value: Any, default: int, minimum: int) -> int:
@@ -226,8 +240,40 @@ def _retry_delay_seconds(attempt: int, strategy: dict[str, Any]) -> float:
     return max(delay_seconds, 0.0)
 
 
+def _apply_rate_limit(rate_limit_cfg: dict[str, Any]) -> None:
+    enabled = _to_bool(rate_limit_cfg.get("enabled"), default=False)
+    min_interval_ms = _to_int(rate_limit_cfg.get("min_interval_ms"), default=0, minimum=0)
+    if not enabled or min_interval_ms <= 0:
+        return
+
+    min_interval_seconds = min_interval_ms / 1000
+    sleep_seconds = 0.0
+    global _RATE_LIMIT_LAST_CALL_MONOTONIC
+
+    with _RATE_LIMIT_LOCK:
+        now = time.monotonic()
+        if _RATE_LIMIT_LAST_CALL_MONOTONIC is not None:
+            elapsed = now - _RATE_LIMIT_LAST_CALL_MONOTONIC
+            if elapsed < min_interval_seconds:
+                sleep_seconds = min_interval_seconds - elapsed
+        if sleep_seconds == 0.0:
+            _RATE_LIMIT_LAST_CALL_MONOTONIC = now
+
+    if sleep_seconds > 0.0:
+        _LOGGER.debug(
+            f"Rate limiting actif: attente de {sleep_seconds:.3f}s avant appel LLM."
+        )
+        time.sleep(sleep_seconds)
+        with _RATE_LIMIT_LOCK:
+            _RATE_LIMIT_LAST_CALL_MONOTONIC = time.monotonic()
+
+
 def _execute_model_call(
-    model: ResolvedLLMModel, prompt: str, timeout_seconds: int, strategy: dict[str, Any]
+    model: ResolvedLLMModel,
+    prompt: str,
+    timeout_seconds: int,
+    strategy: dict[str, Any],
+    rate_limit_cfg: dict[str, Any],
 ) -> str:
     max_attempts = _to_int(strategy.get("max_attempts"), default=1, minimum=1)
     payload = _build_payload(model, prompt)
@@ -235,6 +281,7 @@ def _execute_model_call(
 
     for attempt in range(1, max_attempts + 1):
         try:
+            _apply_rate_limit(rate_limit_cfg)
             response = requests.post(
                 model.api_url,
                 headers=headers,
@@ -301,6 +348,7 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
     Applique la stratégie de retry primaire + fallback secondaire selon llm_resilience.json.
     """
     resilience_cfg = _load_llm_resilience_config()
+    rate_limit_cfg = _load_llm_rate_limit_config()
     retry_cfg = resilience_cfg.get("retry", {})
     timeout_seconds = _to_int(resilience_cfg.get("timeout_seconds"), default=45, minimum=1)
     primary_retry = (
@@ -316,7 +364,9 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
 
     _LOGGER.debug(f"Appel API LLM primaire: {cfg.model_name}")
     try:
-        return _execute_model_call(cfg, prompt, timeout_seconds, primary_retry)
+        return _execute_model_call(
+            cfg, prompt, timeout_seconds, primary_retry, rate_limit_cfg
+        )
     except requests.exceptions.RequestException as primary_error:
         fallback_enabled = _to_bool(resilience_cfg.get("fallback_enabled"), default=False)
         if not fallback_enabled:
@@ -335,7 +385,9 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
             f"Fallback activé: bascule de {cfg.model_name} vers {fallback_cfg.model_name} "
             f"après erreur primaire: {primary_error}"
         )
-        return _execute_model_call(fallback_cfg, prompt, timeout_seconds, secondary_retry)
+        return _execute_model_call(
+            fallback_cfg, prompt, timeout_seconds, secondary_retry, rate_limit_cfg
+        )
 
 
 def parse_llm_json_list_response(raw: str) -> list[dict[str, Any]]:

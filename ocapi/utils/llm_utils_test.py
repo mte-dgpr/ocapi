@@ -22,6 +22,7 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
+import ocapi.utils.llm_utils as llm_utils_module
 from ocapi.utils.llm_utils import (
     ResolvedLLMModel,
     call_llm_api,
@@ -287,3 +288,70 @@ class TestLLMResilience:
         assert result == "ok"
         assert mocked_post.call_count == 1
         assert mocked_post.call_args.kwargs["timeout"] == 45
+
+    def test_call_llm_api_rate_limit_applies_min_interval(self) -> None:
+        cfg = ResolvedLLMModel(
+            model_key="mistral_medium",
+            provider="mistral",
+            model_name="mte-api-piag-mistral-medium-latest",
+            api_key="piag-key",
+            api_url="https://piag.example",
+        )
+        resilience_cfg = {
+            "fallback_enabled": False,
+            "timeout_seconds": 45,
+            "retry": {"primary": {"max_attempts": 1}},
+        }
+        rate_limit_cfg = {"enabled": True, "min_interval_ms": 500}
+        llm_utils_module._RATE_LIMIT_LAST_CALL_MONOTONIC = None
+
+        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
+            with patch("ocapi.utils.llm_utils._load_llm_rate_limit_config", return_value=rate_limit_cfg):
+                with patch(
+                    "ocapi.utils.llm_utils.requests.post",
+                    return_value=_make_success_response("ok"),
+                ) as mocked_post:
+                    with patch(
+                        "ocapi.utils.llm_utils.time.monotonic",
+                        side_effect=[100.0, 100.1, 100.5],
+                    ):
+                        with patch("ocapi.utils.llm_utils.time.sleep", return_value=None) as mocked_sleep:
+                            first_result = call_llm_api(cfg, "prompt-1")
+                            second_result = call_llm_api(cfg, "prompt-2")
+
+        assert first_result == "ok"
+        assert second_result == "ok"
+        assert mocked_post.call_count == 2
+        assert mocked_sleep.call_count == 1
+        assert mocked_sleep.call_args.args[0] == pytest.approx(0.4, abs=0.001)
+        llm_utils_module._RATE_LIMIT_LAST_CALL_MONOTONIC = None
+
+    def test_call_llm_api_rate_limit_disabled_does_not_sleep(self) -> None:
+        cfg = ResolvedLLMModel(
+            model_key="mistral_medium",
+            provider="mistral",
+            model_name="mte-api-piag-mistral-medium-latest",
+            api_key="piag-key",
+            api_url="https://piag.example",
+        )
+        resilience_cfg = {
+            "fallback_enabled": False,
+            "timeout_seconds": 45,
+            "retry": {"primary": {"max_attempts": 1}},
+        }
+        rate_limit_cfg = {"enabled": False, "min_interval_ms": 500}
+        llm_utils_module._RATE_LIMIT_LAST_CALL_MONOTONIC = None
+
+        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
+            with patch("ocapi.utils.llm_utils._load_llm_rate_limit_config", return_value=rate_limit_cfg):
+                with patch(
+                    "ocapi.utils.llm_utils.requests.post",
+                    return_value=_make_success_response("ok"),
+                ) as mocked_post:
+                    with patch("ocapi.utils.llm_utils.time.sleep", return_value=None) as mocked_sleep:
+                        result = call_llm_api(cfg, "prompt")
+
+        assert result == "ok"
+        assert mocked_post.call_count == 1
+        assert mocked_sleep.call_count == 0
+        llm_utils_module._RATE_LIMIT_LAST_CALL_MONOTONIC = None
