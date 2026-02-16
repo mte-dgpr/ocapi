@@ -97,6 +97,9 @@ class ResolvedLLMModel:
 
 def _read_json_config(path: Path, default_value: dict[str, Any]) -> dict[str, Any]:
     if not path.exists():
+        _LOGGER.warning(
+            f"Fichier de config introuvable ({path}). Utilisation de la configuration par défaut."
+        )
         return default_value
 
     try:
@@ -364,22 +367,47 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
         if isinstance(retry_cfg, dict) and isinstance(retry_cfg.get("secondary", {}), dict)
         else {}
     )
+    fallback_enabled = _to_bool(resilience_cfg.get("fallback_enabled"), default=False)
+    rate_limit_enabled = _to_bool(rate_limit_cfg.get("enabled"), default=False)
+    rate_limit_min_interval_ms = _to_int(
+        rate_limit_cfg.get("min_interval_ms"), default=0, minimum=0
+    )
+
+    _LOGGER.debug(
+        "Stratégie LLM appliquée: "
+        f"timeout={timeout_seconds}s, "
+        f"retry_primary_max={_to_int(primary_retry.get('max_attempts'), default=1, minimum=1)}, "
+        f"retry_secondary_max={_to_int(secondary_retry.get('max_attempts'), default=1, minimum=1)}, "
+        f"fallback_enabled={fallback_enabled}, "
+        f"rate_limit_enabled={rate_limit_enabled}, "
+        f"rate_limit_min_interval_ms={rate_limit_min_interval_ms}"
+    )
 
     _LOGGER.debug(f"Appel API LLM primaire: {cfg.model_name}")
     try:
         return _execute_model_call(cfg, prompt, timeout_seconds, primary_retry, rate_limit_cfg)
     except requests.exceptions.RequestException as primary_error:
-        fallback_enabled = _to_bool(resilience_cfg.get("fallback_enabled"), default=False)
         if not fallback_enabled:
+            _LOGGER.warning(
+                f"Fallback désactivé: échec primaire final sur {cfg.model_name}: {primary_error}"
+            )
             raise
 
         models_cfg = _load_llm_models_config()
         _primary_key, secondary_key = _primary_secondary_keys(models_cfg)
         if secondary_key is None:
+            _LOGGER.warning(
+                "Fallback activé mais aucun secondary_model_key valide n'est configuré. "
+                f"Erreur primaire: {primary_error}"
+            )
             raise
 
         fallback_cfg = config_model_llm("secondary")
         if fallback_cfg.model_key == cfg.model_key:
+            _LOGGER.warning(
+                f"Fallback impossible: modèle secondaire ({fallback_cfg.model_key}) identique "
+                f"au primaire ({cfg.model_key}). Erreur primaire: {primary_error}"
+            )
             raise
 
         _LOGGER.warning(
