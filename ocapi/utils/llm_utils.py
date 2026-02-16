@@ -19,8 +19,8 @@
 import json
 import random
 import re
-import threading
 import textwrap
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -260,9 +260,7 @@ def _apply_rate_limit(rate_limit_cfg: dict[str, Any]) -> None:
             _RATE_LIMIT_LAST_CALL_MONOTONIC = now
 
     if sleep_seconds > 0.0:
-        _LOGGER.debug(
-            f"Rate limiting actif: attente de {sleep_seconds:.3f}s avant appel LLM."
-        )
+        _LOGGER.debug(f"Rate limiting actif: attente de {sleep_seconds:.3f}s avant appel LLM.")
         time.sleep(sleep_seconds)
         with _RATE_LIMIT_LOCK:
             _RATE_LIMIT_LAST_CALL_MONOTONIC = time.monotonic()
@@ -364,9 +362,7 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
 
     _LOGGER.debug(f"Appel API LLM primaire: {cfg.model_name}")
     try:
-        return _execute_model_call(
-            cfg, prompt, timeout_seconds, primary_retry, rate_limit_cfg
-        )
+        return _execute_model_call(cfg, prompt, timeout_seconds, primary_retry, rate_limit_cfg)
     except requests.exceptions.RequestException as primary_error:
         fallback_enabled = _to_bool(resilience_cfg.get("fallback_enabled"), default=False)
         if not fallback_enabled:

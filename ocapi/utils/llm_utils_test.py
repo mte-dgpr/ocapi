@@ -118,7 +118,10 @@ class TestLLMResilience:
         with patch("ocapi.utils.llm_utils._load_llm_models_config", return_value=models_cfg):
             with patch(
                 "ocapi.utils.llm_utils._provider_api_config",
-                side_effect=[("openai-key", "https://openai.example"), ("piag-key", "https://piag.example")],
+                side_effect=[
+                    ("openai-key", "https://openai.example"),
+                    ("piag-key", "https://piag.example"),
+                ],
             ):
                 primary = config_model_llm()
                 secondary = config_model_llm("secondary")
@@ -142,7 +145,9 @@ class TestLLMResilience:
             "retry": {"primary": {"max_attempts": 5, "base_delay_ms": 1, "max_delay_ms": 1}},
         }
 
-        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
+        with patch(
+            "ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg
+        ):
             with patch("ocapi.utils.llm_utils.time.sleep", return_value=None):
                 with patch(
                     "ocapi.utils.llm_utils.requests.post",
@@ -176,7 +181,9 @@ class TestLLMResilience:
         bad_response.status_code = 400
         non_retryable_error = requests.exceptions.HTTPError(response=bad_response)
 
-        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
+        with patch(
+            "ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg
+        ):
             with patch("ocapi.utils.llm_utils.time.sleep", return_value=None):
                 with patch(
                     "ocapi.utils.llm_utils.requests.post",
@@ -214,12 +221,17 @@ class TestLLMResilience:
             "primary_model_key": "mistral_medium",
             "secondary_model_key": "openai_gpt5",
             "models": {
-                "mistral_medium": {"provider": "mistral", "model_id": "mte-api-piag-mistral-medium-latest"},
+                "mistral_medium": {
+                    "provider": "mistral",
+                    "model_id": "mte-api-piag-mistral-medium-latest",
+                },
                 "openai_gpt5": {"provider": "openai", "model_id": "gpt-5"},
             },
         }
 
-        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
+        with patch(
+            "ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg
+        ):
             with patch("ocapi.utils.llm_utils._load_llm_models_config", return_value=models_cfg):
                 with patch("ocapi.utils.llm_utils.config_model_llm", return_value=secondary_cfg):
                     with patch("ocapi.utils.llm_utils.time.sleep", return_value=None):
@@ -253,7 +265,9 @@ class TestLLMResilience:
             "retry": {"primary": {"max_attempts": 1}},
         }
 
-        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
+        with patch(
+            "ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg
+        ):
             with patch(
                 "ocapi.utils.llm_utils.requests.post",
                 return_value=_make_success_response("ok"),
@@ -278,7 +292,9 @@ class TestLLMResilience:
             "retry": {"primary": {"max_attempts": 1}},
         }
 
-        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
+        with patch(
+            "ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg
+        ):
             with patch(
                 "ocapi.utils.llm_utils.requests.post",
                 return_value=_make_success_response("ok"),
@@ -305,8 +321,12 @@ class TestLLMResilience:
         rate_limit_cfg = {"enabled": True, "min_interval_ms": 500}
         llm_utils_module._RATE_LIMIT_LAST_CALL_MONOTONIC = None
 
-        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
-            with patch("ocapi.utils.llm_utils._load_llm_rate_limit_config", return_value=rate_limit_cfg):
+        with patch(
+            "ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg
+        ):
+            with patch(
+                "ocapi.utils.llm_utils._load_llm_rate_limit_config", return_value=rate_limit_cfg
+            ):
                 with patch(
                     "ocapi.utils.llm_utils.requests.post",
                     return_value=_make_success_response("ok"),
@@ -315,7 +335,9 @@ class TestLLMResilience:
                         "ocapi.utils.llm_utils.time.monotonic",
                         side_effect=[100.0, 100.1, 100.5],
                     ):
-                        with patch("ocapi.utils.llm_utils.time.sleep", return_value=None) as mocked_sleep:
+                        with patch(
+                            "ocapi.utils.llm_utils.time.sleep", return_value=None
+                        ) as mocked_sleep:
                             first_result = call_llm_api(cfg, "prompt-1")
                             second_result = call_llm_api(cfg, "prompt-2")
 
@@ -342,13 +364,19 @@ class TestLLMResilience:
         rate_limit_cfg = {"enabled": False, "min_interval_ms": 500}
         llm_utils_module._RATE_LIMIT_LAST_CALL_MONOTONIC = None
 
-        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
-            with patch("ocapi.utils.llm_utils._load_llm_rate_limit_config", return_value=rate_limit_cfg):
+        with patch(
+            "ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg
+        ):
+            with patch(
+                "ocapi.utils.llm_utils._load_llm_rate_limit_config", return_value=rate_limit_cfg
+            ):
                 with patch(
                     "ocapi.utils.llm_utils.requests.post",
                     return_value=_make_success_response("ok"),
                 ) as mocked_post:
-                    with patch("ocapi.utils.llm_utils.time.sleep", return_value=None) as mocked_sleep:
+                    with patch(
+                        "ocapi.utils.llm_utils.time.sleep", return_value=None
+                    ) as mocked_sleep:
                         result = call_llm_api(cfg, "prompt")
 
         assert result == "ok"
