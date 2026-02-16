@@ -126,7 +126,7 @@ class PipelineConfig(BaseSettings):
     )
 
     default_llm_model: str = Field(
-        default="mte-api-piag-mistral-medium-latest",
+        default="primary",
         description="Modèle LLM utilisé par défaut",
         min_length=1,
     )

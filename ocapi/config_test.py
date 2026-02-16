@@ -90,7 +90,7 @@ class TestPipelineConfig:
     def test_default_values(self) -> None:
         """Test des valeurs par défaut."""
         config = PipelineConfig()
-        assert config.default_llm_model == "mte-api-piag-mistral-medium-latest"
+        assert config.default_llm_model == "primary"
         assert config.full_section == "contenu entier"
         assert config.max_retries == 3
         assert config.timeout == 120
@@ -226,7 +226,7 @@ class TestAppConfig:
         """Test de la configuration imbriquée."""
         config = AppConfig()
         assert config.llm.piag_api_key is None
-        assert config.pipeline.default_llm_model == "mte-api-piag-mistral-medium-latest"
+        assert config.pipeline.default_llm_model == "primary"
         assert config.paths.project_root.exists()
 
     def test_model_dump_safe_masks_secrets(self) -> None:
@@ -393,4 +393,4 @@ class TestIntegration:
             # Valeurs par défaut
             assert config.llm.openai_api_key is None
             assert config.pipeline.timeout == 120
-            assert config.pipeline.default_llm_model == "mte-api-piag-mistral-medium-latest"
+            assert config.pipeline.default_llm_model == "primary"

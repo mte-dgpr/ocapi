@@ -17,8 +17,17 @@
 # limitations under the License.
 #
 import unittest
+from unittest.mock import Mock, patch
 
-from ocapi.utils.llm_utils import parse_llm_json_list_response
+import pytest
+import requests
+
+from ocapi.utils.llm_utils import (
+    ResolvedLLMModel,
+    call_llm_api,
+    config_model_llm,
+    parse_llm_json_list_response,
+)
 
 
 class TestLLMUtils(unittest.TestCase):
@@ -82,3 +91,145 @@ class TestLLMUtils(unittest.TestCase):
         expected_output: list[dict[str, object]] = []
         result = parse_llm_json_list_response(raw_response)
         assert result == expected_output
+
+
+def _make_success_response(content: str) -> Mock:
+    response = Mock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = {"choices": [{"message": {"content": content}}]}
+    return response
+
+
+class TestLLMResilience:
+    def test_config_model_llm_uses_primary_and_secondary_keys(self) -> None:
+        models_cfg = {
+            "primary_model_key": "openai_primary",
+            "secondary_model_key": "mistral_secondary",
+            "models": {
+                "openai_primary": {"provider": "openai", "model_id": "gpt-5"},
+                "mistral_secondary": {
+                    "provider": "mistral",
+                    "model_id": "mte-api-piag-mistral-medium-latest",
+                },
+            },
+        }
+
+        with patch("ocapi.utils.llm_utils._load_llm_models_config", return_value=models_cfg):
+            with patch(
+                "ocapi.utils.llm_utils._provider_api_config",
+                side_effect=[("openai-key", "https://openai.example"), ("piag-key", "https://piag.example")],
+            ):
+                primary = config_model_llm()
+                secondary = config_model_llm("secondary")
+
+        assert primary.provider == "openai"
+        assert primary.model_name == "gpt-5"
+        assert secondary.provider == "mistral"
+        assert secondary.model_name == "mte-api-piag-mistral-medium-latest"
+
+    def test_call_llm_api_retries_until_success(self) -> None:
+        cfg = ResolvedLLMModel(
+            model_key="mistral_medium",
+            provider="mistral",
+            model_name="mte-api-piag-mistral-medium-latest",
+            api_key="piag-key",
+            api_url="https://piag.example",
+        )
+        resilience_cfg = {
+            "fallback_enabled": False,
+            "timeout_seconds": 45,
+            "retry": {"primary": {"max_attempts": 5, "base_delay_ms": 1, "max_delay_ms": 1}},
+        }
+
+        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
+            with patch("ocapi.utils.llm_utils.time.sleep", return_value=None):
+                with patch(
+                    "ocapi.utils.llm_utils.requests.post",
+                    side_effect=[
+                        requests.exceptions.Timeout("timeout-1"),
+                        requests.exceptions.Timeout("timeout-2"),
+                        _make_success_response("ok"),
+                    ],
+                ) as mocked_post:
+                    result = call_llm_api(cfg, "prompt")
+
+        assert result == "ok"
+        assert mocked_post.call_count == 3
+
+    def test_call_llm_api_no_retry_for_non_retryable_http_error(self) -> None:
+        cfg = ResolvedLLMModel(
+            model_key="mistral_medium",
+            provider="mistral",
+            model_name="mte-api-piag-mistral-medium-latest",
+            api_key="piag-key",
+            api_url="https://piag.example",
+        )
+        resilience_cfg = {
+            "fallback_enabled": False,
+            "timeout_seconds": 45,
+            "retry": {"primary": {"max_attempts": 5, "base_delay_ms": 1, "max_delay_ms": 1}},
+        }
+        bad_response = Mock()
+        bad_response.status_code = 400
+        non_retryable_error = requests.exceptions.HTTPError(response=bad_response)
+
+        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
+            with patch("ocapi.utils.llm_utils.time.sleep", return_value=None):
+                with patch(
+                    "ocapi.utils.llm_utils.requests.post",
+                    side_effect=[non_retryable_error],
+                ) as mocked_post:
+                    with pytest.raises(requests.exceptions.HTTPError):
+                        call_llm_api(cfg, "prompt")
+
+        assert mocked_post.call_count == 1
+
+    def test_call_llm_api_fallback_uses_secondary_strategy(self) -> None:
+        primary_cfg = ResolvedLLMModel(
+            model_key="mistral_medium",
+            provider="mistral",
+            model_name="mte-api-piag-mistral-medium-latest",
+            api_key="piag-key",
+            api_url="https://piag.example",
+        )
+        secondary_cfg = ResolvedLLMModel(
+            model_key="openai_gpt5",
+            provider="openai",
+            model_name="gpt-5",
+            api_key="openai-key",
+            api_url="https://openai.example",
+        )
+        resilience_cfg = {
+            "fallback_enabled": True,
+            "timeout_seconds": 45,
+            "retry": {
+                "primary": {"max_attempts": 2, "base_delay_ms": 1, "max_delay_ms": 1},
+                "secondary": {"max_attempts": 2, "base_delay_ms": 1, "max_delay_ms": 1},
+            },
+        }
+        models_cfg = {
+            "primary_model_key": "mistral_medium",
+            "secondary_model_key": "openai_gpt5",
+            "models": {
+                "mistral_medium": {"provider": "mistral", "model_id": "mte-api-piag-mistral-medium-latest"},
+                "openai_gpt5": {"provider": "openai", "model_id": "gpt-5"},
+            },
+        }
+
+        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
+            with patch("ocapi.utils.llm_utils._load_llm_models_config", return_value=models_cfg):
+                with patch("ocapi.utils.llm_utils.config_model_llm", return_value=secondary_cfg):
+                    with patch("ocapi.utils.llm_utils.time.sleep", return_value=None):
+                        with patch(
+                            "ocapi.utils.llm_utils.requests.post",
+                            side_effect=[
+                                requests.exceptions.Timeout("p1"),
+                                requests.exceptions.Timeout("p2"),
+                                requests.exceptions.Timeout("s1"),
+                                _make_success_response("fallback-ok"),
+                            ],
+                        ) as mocked_post:
+                            result = call_llm_api(primary_cfg, "prompt")
+
+        assert result == "fallback-ok"
+        assert mocked_post.call_count == 4
