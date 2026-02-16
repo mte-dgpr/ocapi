@@ -298,7 +298,8 @@ def _execute_model_call(
             is_last_attempt = attempt >= max_attempts
             if not retryable or is_last_attempt:
                 _LOGGER.error(
-                    f"Échec appel API LLM ({model.model_name}) tentative {attempt}/{max_attempts}: {exc}"
+                    f"Échec appel API LLM ({model.model_name}) "
+                    f"tentative {attempt}/{max_attempts}: {exc}"
                 )
                 raise
 
