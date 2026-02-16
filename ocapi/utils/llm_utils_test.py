@@ -20,7 +20,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import pytest
-import requests
+import requests  # type: ignore[import-untyped]
 
 import ocapi.utils.llm_utils as llm_utils_module
 from ocapi.utils.llm_utils import (

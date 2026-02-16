@@ -177,7 +177,11 @@ def _resolve_model_key(modele: str | None, models_cfg: dict[str, Any]) -> str:
         return legacy_aliases[modele]
 
     for model_key, model_cfg in models.items():
-        if isinstance(model_cfg, dict) and model_cfg.get("model_id") == modele:
+        if (
+            isinstance(model_key, str)
+            and isinstance(model_cfg, dict)
+            and model_cfg.get("model_id") == modele
+        ):
             return model_key
 
     raise ValueError(f"Modèle LLM inconnu: {modele}")
@@ -234,10 +238,10 @@ def _retry_delay_seconds(attempt: int, strategy: dict[str, Any]) -> float:
     use_jitter = _to_bool(strategy.get("jitter"), default=True)
 
     raw_delay_ms = min(base_ms * (2 ** (attempt - 1)), max_ms)
-    delay_seconds = raw_delay_ms / 1000
+    delay_seconds = float(raw_delay_ms) / 1000.0
     if use_jitter:
         delay_seconds *= random.uniform(0.8, 1.2)
-    return max(delay_seconds, 0.0)
+    return delay_seconds if delay_seconds >= 0.0 else 0.0
 
 
 def _apply_rate_limit(rate_limit_cfg: dict[str, Any]) -> None:
