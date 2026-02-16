@@ -239,7 +239,7 @@ def _execute_model_call(
                 model.api_url,
                 headers=headers,
                 json=payload,
-                timeout=(timeout_seconds, timeout_seconds),
+                timeout=timeout_seconds,
             )
             response.raise_for_status()
             data: Any = response.json()

@@ -155,6 +155,8 @@ class TestLLMResilience:
 
         assert result == "ok"
         assert mocked_post.call_count == 3
+        for call in mocked_post.call_args_list:
+            assert call.kwargs["timeout"] == 45
 
     def test_call_llm_api_no_retry_for_non_retryable_http_error(self) -> None:
         cfg = ResolvedLLMModel(
@@ -233,3 +235,55 @@ class TestLLMResilience:
 
         assert result == "fallback-ok"
         assert mocked_post.call_count == 4
+        for call in mocked_post.call_args_list:
+            assert call.kwargs["timeout"] == 45
+
+    def test_call_llm_api_uses_configured_timeout(self) -> None:
+        cfg = ResolvedLLMModel(
+            model_key="mistral_medium",
+            provider="mistral",
+            model_name="mte-api-piag-mistral-medium-latest",
+            api_key="piag-key",
+            api_url="https://piag.example",
+        )
+        resilience_cfg = {
+            "fallback_enabled": False,
+            "timeout_seconds": 12,
+            "retry": {"primary": {"max_attempts": 1}},
+        }
+
+        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
+            with patch(
+                "ocapi.utils.llm_utils.requests.post",
+                return_value=_make_success_response("ok"),
+            ) as mocked_post:
+                result = call_llm_api(cfg, "prompt")
+
+        assert result == "ok"
+        assert mocked_post.call_count == 1
+        assert mocked_post.call_args.kwargs["timeout"] == 12
+
+    def test_call_llm_api_invalid_timeout_falls_back_to_default(self) -> None:
+        cfg = ResolvedLLMModel(
+            model_key="mistral_medium",
+            provider="mistral",
+            model_name="mte-api-piag-mistral-medium-latest",
+            api_key="piag-key",
+            api_url="https://piag.example",
+        )
+        resilience_cfg = {
+            "fallback_enabled": False,
+            "timeout_seconds": "invalid",
+            "retry": {"primary": {"max_attempts": 1}},
+        }
+
+        with patch("ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg):
+            with patch(
+                "ocapi.utils.llm_utils.requests.post",
+                return_value=_make_success_response("ok"),
+            ) as mocked_post:
+                result = call_llm_api(cfg, "prompt")
+
+        assert result == "ok"
+        assert mocked_post.call_count == 1
+        assert mocked_post.call_args.kwargs["timeout"] == 45
