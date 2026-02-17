@@ -16,9 +16,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 
 from ocapi.types import ArreteFile
+from ocapi.utils.arretify_utils import extract_specs
 
 
 def _ordered_arretes(arrete_files: list[ArreteFile]) -> list[ArreteFile]:
@@ -26,30 +27,25 @@ def _ordered_arretes(arrete_files: list[ArreteFile]) -> list[ArreteFile]:
     return sorted(arrete_files, key=lambda arrete: arrete.id)
 
 
-def _extract_specs(soup: BeautifulSoup, spec: str) -> list[Tag]:
-    """Extrait les blocs HTML correspondant à une spec Arrêtify."""
-    return [tag for tag in soup.find_all(attrs={"data-spec": spec}) if isinstance(tag, Tag)]
-
-
 def _extract_visa(soup: BeautifulSoup) -> list[str]:
     """Extrait les VisaSpec d'un arrêté."""
-    return [str(tag) for tag in _extract_specs(soup, "visa")]
+    return [str(tag) for tag in extract_specs(soup, "visa")]
 
 
 def _extract_motifs(soup: BeautifulSoup) -> list[str]:
     """Extrait les MotifSpec d'un arrêté."""
-    return [str(tag) for tag in _extract_specs(soup, "motifs")]
+    return [str(tag) for tag in extract_specs(soup, "motifs")]
 
 
 def _extract_first_spec_html(soup: BeautifulSoup, spec: str) -> str:
-    tags = _extract_specs(soup, spec)
+    tags = extract_specs(soup, spec)
     if not tags:
         return ""
     return str(tags[0])
 
 
 def _extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
-    tags = _extract_specs(soup, spec)
+    tags = extract_specs(soup, spec)
     if not tags:
         return ""
     return str(tags[0].get_text(" ", strip=True))

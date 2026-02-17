@@ -18,9 +18,25 @@
 #
 from bs4 import BeautifulSoup, Tag
 
+from ocapi.types import ArreteFile, Operation
+
 
 def list_top_sections(soup: BeautifulSoup | Tag) -> list[Tag]:
     """
     Itère sur les sections de plus haut niveau dans le document (sans parent section).
     """
     return [sec for sec in soup.find_all("section") if sec.find_parent("section") is None]
+
+
+def extract_specs(soup: BeautifulSoup, spec: str) -> list[Tag]:
+    """
+    Extrait les blocs HTML correspondant à une spec Arrêtify.
+    """
+    return [tag for tag in soup.find_all(attrs={"data-spec": spec}) if isinstance(tag, Tag)]
+
+
+def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
+    for operation in operations:
+        if operation.source_id.arrete_id == arrete_file.id:
+            return False
+    return True

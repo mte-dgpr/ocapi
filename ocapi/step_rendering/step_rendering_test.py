@@ -18,9 +18,10 @@
 #
 from bs4 import BeautifulSoup
 
+from ocapi.step_rendering.make_main_content import make_section_version
 from ocapi.step_rendering.make_header import make_header_permis
-from ocapi.step_rendering.make_other import make_other_permis
-from ocapi.types import ArreteFile, NodeId, Operation, OperationType
+from ocapi.step_rendering.make_other import has_no_ops, make_other_permis
+from ocapi.types import ArreteFile, ArticleHistory, NodeId, Operation, OperationType
 
 
 def _make_arrete_file(
@@ -73,6 +74,7 @@ def test_make_header_permis_contains_permit_specs_and_ordering() -> None:
     assert 'data-spec="permit_visa"' in html
     assert 'data-spec="permit_motif"' in html
     assert html.count("VISA UNIQUE 1") == 1
+    assert html.count("0001") == 1
     assert html.index('data-date="2020-01-01"') < html.index('data-date="2021-01-01"')
 
 
@@ -127,3 +129,97 @@ def test_make_other_permis_contains_only_non_consolidated_complements() -> None:
     assert "TITLE COMPLEMENT A" in html
     assert "MAIN A" in html
     assert "MAIN B" not in html
+
+
+def test_has_no_ops_returns_true_without_operation() -> None:
+    arrete_file = _make_arrete_file(
+        arrete_id="2021-01-01",
+        aiot="0001",
+        filename="without_ops",
+        html='<html><body data-arretify_version="0.1.0"></body></html>',
+    )
+
+    assert has_no_ops(arrete_file, []) is True
+
+
+def test_has_no_ops_returns_false_with_multiple_operations() -> None:
+    arrete_file = _make_arrete_file(
+        arrete_id="2021-01-01",
+        aiot="0001",
+        filename="with_ops",
+        html='<html><body data-arretify_version="0.1.0"></body></html>',
+    )
+    operations = [
+        Operation(
+            id="op-1",
+            source_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2019-01-01", article_id="1"),
+            operation_type=OperationType.REPLACE,
+        ),
+        Operation(
+            id="op-2",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
+            operation_type=OperationType.ADD,
+        ),
+        Operation(
+            id="op-3",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
+            operation_type=OperationType.REMOVE,
+        ),
+    ]
+
+    assert has_no_ops(arrete_file, operations) is False
+
+
+def test_make_section_version_places_previous_version_in_details_only() -> None:
+    original_section_soup = BeautifulSoup(
+        """
+<section data-spec="section" data-number="1">
+ <p>Article 1 initial</p>
+</section>
+""",
+        "html.parser",
+    )
+    original_section = original_section_soup.find("section")
+    assert original_section is not None
+
+    operation = Operation(
+        id="op-1",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+    )
+    history: ArticleHistory = {
+        NodeId(arrete_id="2020-01-01", article_id="1"): [
+            {
+                "version": 0,
+                "content": "<p>Article 1 version 0</p>",
+                "operation_id": None,
+            },
+            {
+                "version": 1,
+                "content": "<p>Article 1 modifié</p>",
+                "operation_id": "op-1",
+            },
+        ]
+    }
+
+    rendered_section = make_section_version(
+        original_section=original_section,
+        article_id="1",
+        history=history,
+        ap_initial_id="2020-01-01",
+        operation_by_id={"op-1": operation},
+    )
+    rendered_soup = BeautifulSoup(str(rendered_section), "html.parser")
+
+    details = rendered_soup.find("details")
+    assert details is not None
+    details_text = details.get_text(" ", strip=True)
+    assert "Article 1 version 0" in details_text
+    assert "Article 1 modifié" not in details_text
+
+    visible_text = rendered_soup.get_text(" ", strip=True)
+    assert "Article 1 modifié" in visible_text
