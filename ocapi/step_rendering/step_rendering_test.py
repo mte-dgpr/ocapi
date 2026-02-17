@@ -16,15 +16,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import cast
+
+import pytest
 from bs4 import BeautifulSoup
 
-from ocapi.step_rendering.make_main_content import make_section_version
-from ocapi.step_rendering.make_header import make_header_permis
-from ocapi.step_rendering.make_other import has_no_ops, make_other_permis
-from ocapi.types import ArreteFile, ArticleHistory, NodeId, Operation, OperationType
+from ocapi.step_rendering.make_header import make_permit_header
+from ocapi.step_rendering.make_main_content import make_permit_content, make_section_version
+from ocapi.step_rendering.make_other import make_permit_other
+from ocapi.types import ArreteFile, ArticleVersion, NodeId, Operation, OperationType
+from ocapi.utils.arretify_utils import has_no_ops
 
 
-def _make_arrete_file(
+def _make_arrete_file_from_str(
     arrete_id: str,
     aiot: str,
     filename: str,
@@ -40,8 +44,8 @@ def _make_arrete_file(
     )
 
 
-def test_make_header_permis_contains_permit_specs_and_ordering() -> None:
-    arrete_2021 = _make_arrete_file(
+def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
+    arrete_2021 = _make_arrete_file_from_str(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="arrete_2021",
@@ -54,7 +58,7 @@ def test_make_header_permis_contains_permit_specs_and_ordering() -> None:
 </body></html>
 """,
     )
-    arrete_2020 = _make_arrete_file(
+    arrete_2020 = _make_arrete_file_from_str(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="arrete_2020",
@@ -67,7 +71,7 @@ def test_make_header_permis_contains_permit_specs_and_ordering() -> None:
 """,
     )
 
-    html = make_header_permis([arrete_2021, arrete_2020])
+    html = make_permit_header([arrete_2021, arrete_2020])
 
     assert 'data-spec="permit_title"' in html
     assert 'data-spec="permit_sources"' in html
@@ -78,8 +82,26 @@ def test_make_header_permis_contains_permit_specs_and_ordering() -> None:
     assert html.index('data-date="2020-01-01"') < html.index('data-date="2021-01-01"')
 
 
-def test_make_other_permis_contains_only_non_consolidated_complements() -> None:
-    ap_initial = _make_arrete_file(
+def test_make_permit_header_raises_when_multiple_aiot_detected() -> None:
+    arrete_1 = _make_arrete_file_from_str(
+        arrete_id="2021-01-01",
+        aiot="0001",
+        filename="arrete_1",
+        html='<html><body data-arretify_version="0.1.0"></body></html>',
+    )
+    arrete_2 = _make_arrete_file_from_str(
+        arrete_id="2022-01-01",
+        aiot="0002",
+        filename="arrete_2",
+        html='<html><body data-arretify_version="0.1.0"></body></html>',
+    )
+
+    with pytest.raises(ValueError, match="multiple AIOT"):
+        make_permit_header([arrete_1, arrete_2])
+
+
+def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
+    ap_initial = _make_arrete_file_from_str(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="ap_initial",
@@ -88,7 +110,7 @@ def test_make_other_permis_contains_only_non_consolidated_complements() -> None:
             "</main></body></html>"
         ),
     )
-    complement_no_ops = _make_arrete_file(
+    complement_no_ops = _make_arrete_file_from_str(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="complement_no_ops",
@@ -100,7 +122,7 @@ def test_make_other_permis_contains_only_non_consolidated_complements() -> None:
 </body></html>
 """,
     )
-    complement_with_ops = _make_arrete_file(
+    complement_with_ops = _make_arrete_file_from_str(
         arrete_id="2022-01-01",
         aiot="0001",
         filename="complement_with_ops",
@@ -121,7 +143,7 @@ def test_make_other_permis_contains_only_non_consolidated_complements() -> None:
         )
     ]
 
-    html = make_other_permis([ap_initial, complement_no_ops, complement_with_ops], operations)
+    html = make_permit_other([ap_initial, complement_no_ops, complement_with_ops], operations)
 
     assert 'data-spec="permit_complements"' in html
     assert 'data-spec="permit_complement"' in html
@@ -131,8 +153,120 @@ def test_make_other_permis_contains_only_non_consolidated_complements() -> None:
     assert "MAIN B" not in html
 
 
+def test_make_section_version_sets_default_attrs_when_article_not_in_history() -> None:
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
+        "html.parser",
+    ).find("section")
+    assert section is not None
+
+    make_section_version(
+        section=section,
+        article_id="1",
+        history={},
+        ap_initial_id="2020-01-01",
+        operation_by_id={},
+    )
+
+    assert section["data-spec"] == "section_version"
+    assert section["data-is_modified"] == "false"
+    assert section["data-date_version"] == "2020-01-01"
+    assert "Texte initial" in str(section)
+
+
+def test_make_section_version_marks_removed_article() -> None:
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
+        "html.parser",
+    ).find("section")
+    assert section is not None
+
+    operation = Operation(
+        id="op-remove",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REMOVE,
+    )
+
+    history = {
+        NodeId(arrete_id="2020-01-01", article_id="1"): [
+            cast(
+                ArticleVersion,
+                {"version": 0, "content": "<p>Texte initial</p>", "operation_id": None},
+            ),
+            cast(ArticleVersion, {"version": 1, "content": "", "operation_id": "op-remove"}),
+        ]
+    }
+
+    make_section_version(
+        section=section,
+        article_id="1",
+        history=history,
+        ap_initial_id="2020-01-01",
+        operation_by_id={"op-remove": operation},
+    )
+
+    assert section["data-spec"] == "section_version"
+    assert section["data-is_modified"] == "true"
+    assert section["data-date_version"] == "2021-01-01"
+    assert "Article abrogé" in str(section)
+
+
+def test_make_permit_content_renders_full_main_with_section_versions() -> None:
+    ap_initial = _make_arrete_file_from_str(
+        arrete_id="2020-01-01",
+        aiot="0001",
+        filename="ap_initial",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><p>Article 1 initial</p></section>
+  <section data-spec="section" data-number="2"><p>Article 2 initial</p></section>
+ </main>
+</body></html>
+""",
+    )
+
+    op_replace = Operation(
+        id="op-replace-1",
+        source_id=NodeId(arrete_id="2021-06-01", article_id="5"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+    )
+
+    history = {
+        NodeId(arrete_id="2020-01-01", article_id="1"): [
+            cast(
+                ArticleVersion,
+                {"version": 0, "content": "<p>Article 1 initial</p>", "operation_id": None},
+            ),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 1,
+                    "content": "<p>Article 1 modifié</p>",
+                    "operation_id": "op-replace-1",
+                },
+            ),
+        ]
+    }
+
+    html = make_permit_content(
+        history=history,
+        arrete_files=[ap_initial],
+        operations=[op_replace],
+    )
+
+    assert 'data-spec="main"' in html
+    assert html.count('data-spec="section_version"') == 2
+    assert "Article 1 modifié" in html
+    assert "Article 2 initial" in html
+    assert 'data-date_version="2021-06-01"' in html
+    assert 'data-date_version="2020-01-01"' in html
+
+
 def test_has_no_ops_returns_true_without_operation() -> None:
-    arrete_file = _make_arrete_file(
+    arrete_file = _make_arrete_file_from_str(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="without_ops",
@@ -143,7 +277,7 @@ def test_has_no_ops_returns_true_without_operation() -> None:
 
 
 def test_has_no_ops_returns_false_with_multiple_operations() -> None:
-    arrete_file = _make_arrete_file(
+    arrete_file = _make_arrete_file_from_str(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="with_ops",
@@ -174,16 +308,11 @@ def test_has_no_ops_returns_false_with_multiple_operations() -> None:
 
 
 def test_make_section_version_places_previous_version_in_details_only() -> None:
-    original_section_soup = BeautifulSoup(
-        """
-<section data-spec="section" data-number="1">
- <p>Article 1 initial</p>
-</section>
-""",
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Article 1 initial</p></section>',
         "html.parser",
-    )
-    original_section = original_section_soup.find("section")
-    assert original_section is not None
+    ).find("section")
+    assert section is not None
 
     operation = Operation(
         id="op-1",
@@ -191,29 +320,27 @@ def test_make_section_version_places_previous_version_in_details_only() -> None:
         target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
         operation_type=OperationType.REPLACE,
     )
-    history: ArticleHistory = {
+    history = {
         NodeId(arrete_id="2020-01-01", article_id="1"): [
-            {
-                "version": 0,
-                "content": "<p>Article 1 version 0</p>",
-                "operation_id": None,
-            },
-            {
-                "version": 1,
-                "content": "<p>Article 1 modifié</p>",
-                "operation_id": "op-1",
-            },
+            cast(
+                ArticleVersion,
+                {"version": 0, "content": "<p>Article 1 version 0</p>", "operation_id": None},
+            ),
+            cast(
+                ArticleVersion,
+                {"version": 1, "content": "<p>Article 1 modifié</p>", "operation_id": "op-1"},
+            ),
         ]
     }
 
-    rendered_section = make_section_version(
-        original_section=original_section,
+    make_section_version(
+        section=section,
         article_id="1",
         history=history,
         ap_initial_id="2020-01-01",
         operation_by_id={"op-1": operation},
     )
-    rendered_soup = BeautifulSoup(str(rendered_section), "html.parser")
+    rendered_soup = BeautifulSoup(str(section), "html.parser")
 
     details = rendered_soup.find("details")
     assert details is not None

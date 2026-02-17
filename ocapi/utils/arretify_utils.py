@@ -29,14 +29,30 @@ def list_top_sections(soup: BeautifulSoup | Tag) -> list[Tag]:
 
 
 def extract_specs(soup: BeautifulSoup, spec: str) -> list[Tag]:
-    """
-    Extrait les blocs HTML correspondant à une spec Arrêtify.
-    """
+    """Extrait les blocs HTML correspondant à une spec Arrêtify."""
     return [tag for tag in soup.find_all(attrs={"data-spec": spec}) if isinstance(tag, Tag)]
 
 
+def extract_first_spec_html(soup: BeautifulSoup, spec: str) -> str:
+    tags = extract_specs(soup, spec)
+    if not tags:
+        return ""
+    return str(tags[0])
+
+
+def extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
+    tags = extract_specs(soup, spec)
+    if not tags:
+        return ""
+    return str(tags[0].get_text(" ", strip=True))
+
+
+def extract_main(soup: BeautifulSoup) -> str:
+    main = soup.find("main")
+    if main is None:
+        return ""
+    return str(main)
+
+
 def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
-    for operation in operations:
-        if operation.source_id.arrete_id == arrete_file.id:
-            return False
-    return True
+    return all(op.source_id.arrete_id != arrete_file.id for op in operations)

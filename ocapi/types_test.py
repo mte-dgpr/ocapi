@@ -20,7 +20,14 @@ import unittest
 
 from bs4 import BeautifulSoup
 
-from .types import FileType, Permis, _BaseModelWithConfig, parse_filename, validate_arretify_version
+from .types import (
+    FileType,
+    Permis,
+    PermitTitleSpec,
+    _BaseModelWithConfig,
+    parse_filename,
+    validate_arretify_version,
+)
 
 
 class TestBaseModelWithConfig(unittest.TestCase):
@@ -203,6 +210,16 @@ class TestValidateArretifyVersion(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             validate_arretify_version(soup, "test.html")
         assert "Document HTML invalide" in str(context.exception)
+
+
+class TestPermitTitleSpec(unittest.TestCase):
+    def test_aiot_code_is_stored(self) -> None:
+        permit_title = PermitTitleSpec(aiot_code="0001")
+        assert permit_title.aiot_code == "0001"
+
+    def test_aiot_code_can_be_none(self) -> None:
+        permit_title = PermitTitleSpec(aiot_code=None)
+        assert permit_title.aiot_code is None
 
 
 class TestPermisHtmlRendering(unittest.TestCase):

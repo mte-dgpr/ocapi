@@ -19,7 +19,11 @@
 from bs4 import BeautifulSoup
 
 from ocapi.types import ArreteFile
-from ocapi.utils.arretify_utils import extract_specs
+from ocapi.utils.arretify_utils import (
+    extract_first_spec_html,
+    extract_first_spec_text,
+    extract_specs,
+)
 
 
 def _ordered_arretes(arrete_files: list[ArreteFile]) -> list[ArreteFile]:
@@ -52,9 +56,13 @@ def _extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
 
 
 def make_permit_title_spec(arrete_files: list[ArreteFile]) -> str:
-    """Construit PermitTitleSpec avec le(s) code(s) AIOT."""
+    """Construit PermitTitleSpec avec un code AIOT unique."""
     aiot_values = sorted({arrete_file.aiot for arrete_file in arrete_files if arrete_file.aiot})
-    aiot_label = ", ".join(aiot_values) if aiot_values else "non renseigné"
+
+    if len(aiot_values) > 1:
+        raise ValueError(f"Found arretes associated with multiple AIOT: {aiot_values}")
+
+    aiot_label = aiot_values[0] if aiot_values else "non renseigné"
     return f"""
    <div data-spec="permit_title">
     <h1>Permis d'Exploitation Consolidé</h1>
@@ -67,9 +75,15 @@ def make_permit_sources(arrete_files: list[ArreteFile]) -> str:
     """Construit PermitSources trié chronologiquement avec ArreteTitleSpec."""
     items: list[str] = []
     for arrete_file in _ordered_arretes(arrete_files):
-        arrete_title_html = _extract_first_spec_html(arrete_file.soup, "arrete_title")
-        arrete_title_text = _extract_first_spec_text(arrete_file.soup, "arrete_title")
-        source_title = arrete_title_html or f"<div>{arrete_file.filename}</div>"
+        arrete_title_html = extract_first_spec_html(arrete_file.soup, "arrete_title")
+        arrete_title_text = extract_first_spec_text(arrete_file.soup, "arrete_title")
+        if arrete_title_html:
+            title_soup = BeautifulSoup(arrete_title_html, "html.parser")
+            for h1_tag in title_soup.find_all("h1"):
+                h1_tag.name = "p"
+            source_title = str(title_soup)
+        else:
+            source_title = f"<div>{arrete_file.filename}</div>"
         status = "active" if arrete_file.status else "abroge"
         label = arrete_title_text or arrete_file.filename
         items.append(
@@ -120,7 +134,7 @@ def make_permit_motif(arrete_files: list[ArreteFile]) -> str:
         extracted_motifs = _extract_motifs(arrete_file.soup)
         if not extracted_motifs:
             continue
-        title = _extract_first_spec_text(arrete_file.soup, "arrete_title") or arrete_file.filename
+        title = extract_first_spec_text(arrete_file.soup, "arrete_title") or arrete_file.filename
         motifs_html = "\n".join(extracted_motifs)
         motifs_sections.append(
             f"""
@@ -139,7 +153,7 @@ def make_permit_motif(arrete_files: list[ArreteFile]) -> str:
 """
 
 
-def make_header_permis(arrete_files: list[ArreteFile]) -> str:
+def make_permit_header(arrete_files: list[ArreteFile]) -> str:
     """Construit le header consolidé au format de sortie stable."""
     permit_title = make_permit_title_spec(arrete_files)
     permit_sources = make_permit_sources(arrete_files)
