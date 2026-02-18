@@ -109,15 +109,12 @@ class PipelineConfig(BaseSettings):
     """Configuration du pipeline de traitement.
 
     Attributes:
-        default_llm_model: Nom du modèle LLM par défaut
         full_section: Placeholder pour indiquer au LLM d'insérer la section complète
-        max_retries: Nombre maximum de tentatives pour les appels LLM
-        timeout: Timeout en secondes pour les appels LLM
 
     Example:
-        >>> pipeline = PipelineConfig(default_llm_model="gpt-4")
-        >>> print(pipeline.max_retries)
-        3
+        >>> pipeline = PipelineConfig(full_section="contenu entier")
+        >>> print(pipeline.full_section)
+        contenu entier
     """
 
     model_config = SettingsConfigDict(
@@ -125,31 +122,14 @@ class PipelineConfig(BaseSettings):
         validate_assignment=True,
     )
 
-    default_llm_model: str = Field(
-        default="primary",
-        description="Modèle LLM utilisé par défaut",
-        min_length=1,
-    )
     # Placeholder pour indiquer au LLM d'insérer la section complète
     full_section: str = Field(
         default="contenu entier",
         description="Placeholder pour indiquer l'insertion de section complète",
         min_length=1,
     )
-    max_retries: int = Field(
-        default=3,
-        ge=0,
-        le=10,
-        description="Nombre maximum de tentatives pour les appels LLM",
-    )
-    timeout: int = Field(
-        default=120,
-        ge=1,
-        le=600,
-        description="Timeout en secondes pour les appels LLM",
-    )
 
-    @field_validator("default_llm_model", "full_section")
+    @field_validator("full_section")
     @classmethod
     def validate_non_empty_string(cls, v: str) -> str:
         """Valider que les chaînes ne sont pas vides."""
@@ -299,7 +279,7 @@ class AppConfig(BaseSettings):
     Example:
         >>> config = AppConfig()
         >>> print(config.llm.piag_api_url)
-        >>> print(config.pipeline.default_llm_model)
+        >>> print(config.pipeline.full_section)
         >>> print(config.paths.project_root)
         >>> print(config.logging.level)
     """
@@ -307,7 +287,7 @@ class AppConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        env_nested_delimiter="__",  # Permet PIPELINE__MAX_RETRIES=5 ou LOG__LEVEL=DEBUG
+        env_nested_delimiter="__",  # Permet PIPELINE__FULL_SECTION=... ou LOGGING__LEVEL=DEBUG
         extra="ignore",  # Ignorer les variables d'environnement inconnues
         validate_assignment=True,
     )

@@ -16,7 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from ocapi.config import settings
 from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
@@ -46,7 +45,7 @@ def run_pipeline(
     _LOGGER.info(f"Démarrage du pipeline avec {len(arrete_files)} arrêté(s)")
 
     operations: list[Operation] = []
-    model = settings.pipeline.default_llm_model
+    model = "primary"
 
     # ========================================
     # STEP 1-2 : CHUNKING + DETECTION

@@ -37,6 +37,7 @@ from pathlib import Path
 
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
+from ocapi.utils.llm_utils import config_model_llm
 from ocapi.utils.io_utils import (
     InputOutputError,
     load_arrete_files,
@@ -81,7 +82,7 @@ def main(
     if aiot is None:
         aiot = input_dir.parent.name
     _LOGGER.info(f"AIOT: {aiot}")
-    _LOGGER.info(f"Modèle LLM: {settings.pipeline.default_llm_model}")
+    _LOGGER.info(f"Modèle LLM: {config_model_llm().model_name}")
 
     # Charger les arrêtés
     try:

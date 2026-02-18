@@ -33,7 +33,6 @@ apportées par les opérations.
 import networkx as nx
 from bs4 import BeautifulSoup
 
-from ocapi.config import settings
 from ocapi.types import (
     ArreteFile,
     ArreteId,
@@ -50,7 +49,7 @@ from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.subtarget_utils import is_simple_subtarget, replace_subtarget
 
 _LOGGER = get_logger(__name__)
-_DEFAULT_LLM_CFG = config_model_llm(settings.pipeline.default_llm_model)
+_DEFAULT_LLM_CFG = config_model_llm()
 
 
 def _to_operation_type(raw_type: OperationType | str) -> OperationType:

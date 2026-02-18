@@ -90,78 +90,32 @@ class TestPipelineConfig:
     def test_default_values(self) -> None:
         """Test des valeurs par défaut."""
         config = PipelineConfig()
-        assert config.default_llm_model == "primary"
         assert config.full_section == "contenu entier"
-        assert config.max_retries == 3
-        assert config.timeout == 120
 
     def test_custom_values(self) -> None:
         """Test avec des valeurs personnalisées."""
-        config = PipelineConfig(
-            default_llm_model="gpt-4",
-            full_section="contenu complet",
-            max_retries=5,
-            timeout=300,
-        )
-        assert config.default_llm_model == "gpt-4"
+        config = PipelineConfig(full_section="contenu complet")
         assert config.full_section == "contenu complet"
-        assert config.max_retries == 5
-        assert config.timeout == 300
 
-    def test_empty_model_name_raises_error(self) -> None:
-        """Test qu'un nom de modèle vide lève une erreur."""
+    def test_empty_full_section_raises_error(self) -> None:
+        """Test qu'une section full_section vide lève une erreur."""
         with pytest.raises(ValidationError) as exc_info:
-            PipelineConfig(default_llm_model="")
+            PipelineConfig(full_section="")
         # Pydantic valide min_length=1 avant le validateur personnalisé
         assert "at least 1 character" in str(
             exc_info.value
         ) or "La valeur ne peut pas être vide" in str(exc_info.value)
 
-    def test_whitespace_model_name_raises_error(self) -> None:
-        """Test qu'un nom de modèle avec uniquement des espaces lève une erreur."""
+    def test_whitespace_full_section_raises_error(self) -> None:
+        """Test qu'une section full_section avec espaces lève une erreur."""
         with pytest.raises(ValidationError) as exc_info:
-            PipelineConfig(default_llm_model="   ")
+            PipelineConfig(full_section="   ")
         assert "La valeur ne peut pas être vide" in str(exc_info.value)
 
-    def test_model_name_strips_whitespace(self) -> None:
-        """Test que les espaces sont retirés du nom de modèle."""
-        config = PipelineConfig(default_llm_model="  gpt-4  ")
-        assert config.default_llm_model == "gpt-4"
-
-    def test_negative_retries_raises_error(self) -> None:
-        """Test qu'un nombre négatif de tentatives lève une erreur."""
-        with pytest.raises(ValidationError):
-            PipelineConfig(max_retries=-1)
-
-    def test_too_many_retries_raises_error(self) -> None:
-        """Test qu'un nombre trop élevé de tentatives lève une erreur."""
-        with pytest.raises(ValidationError):
-            PipelineConfig(max_retries=100)
-
-    def test_zero_timeout_raises_error(self) -> None:
-        """Test qu'un timeout de zéro lève une erreur."""
-        with pytest.raises(ValidationError):
-            PipelineConfig(timeout=0)
-
-    def test_negative_timeout_raises_error(self) -> None:
-        """Test qu'un timeout négatif lève une erreur."""
-        with pytest.raises(ValidationError):
-            PipelineConfig(timeout=-1)
-
-    def test_too_large_timeout_raises_error(self) -> None:
-        """Test qu'un timeout trop grand lève une erreur."""
-        with pytest.raises(ValidationError):
-            PipelineConfig(timeout=1000)
-
-    def test_boundary_values(self) -> None:
-        """Test des valeurs aux limites."""
-        config = PipelineConfig(max_retries=0, timeout=1)
-        assert config.max_retries == 0
-        assert config.timeout == 1
-
-        config = PipelineConfig(max_retries=10, timeout=600)
-        assert config.max_retries == 10
-        assert config.timeout == 600
+    def test_full_section_strips_whitespace(self) -> None:
+        """Test que les espaces sont retirés de full_section."""
+        config = PipelineConfig(full_section="  contenu complet  ")
+        assert config.full_section == "contenu complet"
 
 
 class TestPathsConfig:
@@ -226,7 +180,7 @@ class TestAppConfig:
         """Test de la configuration imbriquée."""
         config = AppConfig()
         assert config.llm.piag_api_key is None
-        assert config.pipeline.default_llm_model == "primary"
+        assert config.pipeline.full_section == "contenu entier"
         assert config.paths.project_root.exists()
 
     def test_model_dump_safe_masks_secrets(self) -> None:
@@ -253,22 +207,20 @@ class TestAppConfig:
             os.environ,
             {
                 "PIAG_API_KEY": "test-key-from-env",
-                "PIPELINE__MAX_RETRIES": "5",
-                "PIPELINE__TIMEOUT": "200",
+                "PIPELINE__FULL_SECTION": "section complete",
             },
             clear=False,
         ):
             config = AppConfig()
             assert config.llm.piag_api_key == "test-key-from-env"
-            assert config.pipeline.max_retries == 5
-            assert config.pipeline.timeout == 200
+            assert config.pipeline.full_section == "section complete"
 
     def test_validation_on_assignment(self) -> None:
         """Test que la validation fonctionne lors de l'assignation."""
         config = AppConfig()
         # Devrait lever une erreur lors de l'assignation d'une valeur invalide
         with pytest.raises(ValidationError):
-            config.pipeline.max_retries = -1
+            config.pipeline.full_section = "   "
 
     def test_extra_env_vars_ignored(self) -> None:
         """Test que les variables d'environnement inconnues sont ignorées."""
@@ -304,10 +256,7 @@ class TestSettingsSingleton:
 
     def test_settings_pipeline_config(self) -> None:
         """Test de la configuration Pipeline."""
-        assert hasattr(settings.pipeline, "default_llm_model")
         assert hasattr(settings.pipeline, "full_section")
-        assert hasattr(settings.pipeline, "max_retries")
-        assert hasattr(settings.pipeline, "timeout")
 
     def test_settings_paths_config(self) -> None:
         """Test de la configuration Paths."""
@@ -351,7 +300,7 @@ class TestIntegration:
         assert config.paths is not None
 
         # Vérifier que les valeurs par défaut sont cohérentes
-        assert config.pipeline.default_llm_model
+        assert config.pipeline.full_section
         assert config.paths.project_root.exists()
 
     def test_configuration_with_all_env_vars(self) -> None:
@@ -362,9 +311,7 @@ class TestIntegration:
                 "PIAG_API_KEY": "piag-key",
                 "OPENAI_API_KEY": "openai-key",
                 "PIAG_API_URL": "https://custom.piag.example.com/v1/chat",
-                "PIPELINE__DEFAULT_LLM_MODEL": "custom-model",
-                "PIPELINE__MAX_RETRIES": "7",
-                "PIPELINE__TIMEOUT": "300",
+                "PIPELINE__FULL_SECTION": "contenu integral",
             },
             clear=False,
         ):
@@ -372,9 +319,7 @@ class TestIntegration:
             assert config.llm.piag_api_key == "piag-key"
             assert config.llm.openai_api_key == "openai-key"
             assert "custom.piag.example.com" in str(config.llm.piag_api_url)
-            assert config.pipeline.default_llm_model == "custom-model"
-            assert config.pipeline.max_retries == 7
-            assert config.pipeline.timeout == 300
+            assert config.pipeline.full_section == "contenu integral"
 
     def test_partial_configuration(self) -> None:
         """Test avec seulement quelques variables d'environnement."""
@@ -382,15 +327,13 @@ class TestIntegration:
             os.environ,
             {
                 "PIAG_API_KEY": "partial-key",
-                "PIPELINE__MAX_RETRIES": "2",
+                "PIPELINE__FULL_SECTION": "section partielle",
             },
             clear=False,
         ):
             config = AppConfig()
             # Valeurs personnalisées
             assert config.llm.piag_api_key == "partial-key"
-            assert config.pipeline.max_retries == 2
+            assert config.pipeline.full_section == "section partielle"
             # Valeurs par défaut
             assert config.llm.openai_api_key is None
-            assert config.pipeline.timeout == 120
-            assert config.pipeline.default_llm_model == "primary"
