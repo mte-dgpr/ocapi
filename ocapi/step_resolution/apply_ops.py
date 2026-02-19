@@ -49,7 +49,7 @@ from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.subtarget_utils import is_simple_subtarget, replace_subtarget
 
 _LOGGER = get_logger(__name__)
-_DEFAULT_LLM_CFG = config_model_llm()
+LLM_CFG = config_model_llm()
 
 
 def _to_operation_type(raw_type: OperationType | str) -> OperationType:
@@ -105,7 +105,7 @@ def apply_replace(operation: Operation, soup_input: Content | BeautifulSoup) -> 
     prompt = query_llm_for_subtarget(
         OperationType.REPLACE, str(soup), operation.sub_target.description or ""
     )
-    raw = call_llm_api(_DEFAULT_LLM_CFG, prompt)
+    raw = call_llm_api(LLM_CFG, prompt)
     output = str(soup)
     for line in raw.splitlines():
         if "<NEWCONTENT>" in line:
@@ -126,7 +126,7 @@ def apply_remove(operation: Operation, soup_input: Content | BeautifulSoup) -> C
         prompt = query_llm_for_subtarget(
             OperationType.REMOVE, str(soup), sub_target.description or ""
         )
-        raw = call_llm_api(_DEFAULT_LLM_CFG, prompt)
+        raw = call_llm_api(LLM_CFG, prompt)
         output = str(soup)
         for line in raw.splitlines():
             if "<NEWCONTENT>" in line:
@@ -145,7 +145,7 @@ def apply_add(operation: Operation, soup_input: Content | BeautifulSoup) -> Cont
     else:
         desc = sub_target.description or ""
         prompt = query_llm_for_subtarget(OperationType.ADD, str(soup), desc)
-        raw = call_llm_api(_DEFAULT_LLM_CFG, prompt)
+        raw = call_llm_api(LLM_CFG, prompt)
         output = str(soup)
         for line in raw.splitlines():
             if "<NEWCONTENT>" in line:

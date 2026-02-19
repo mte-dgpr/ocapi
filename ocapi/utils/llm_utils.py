@@ -57,6 +57,7 @@ _DEFAULT_LLM_MODELS_CONFIG: dict[str, Any] = {
         },
     },
 }
+_DEFAULT_PRIMARY_MODEL = _DEFAULT_LLM_MODELS_CONFIG["primary_model_key"]
 
 _DEFAULT_LLM_RESILIENCE_CONFIG: dict[str, Any] = {
     "fallback_enabled": False,
@@ -147,7 +148,7 @@ def _primary_secondary_keys(models_cfg: dict[str, Any]) -> tuple[str, str | None
     secondary = models_cfg.get("secondary_model_key")
     models = models_cfg.get("models", {})
     if not isinstance(models, dict) or not models:
-        return "piag_mistral_medium", None
+        return str(_DEFAULT_PRIMARY_MODEL), None
     if not isinstance(primary, str) or primary not in models:
         primary = next(iter(models.keys()))
     if not isinstance(secondary, str) or secondary not in models:
@@ -378,6 +379,10 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
         if isinstance(retry_cfg, dict) and isinstance(retry_cfg.get("secondary", {}), dict)
         else {}
     )
+    primary_retry_max = _to_int_or_default(primary_retry.get("max_attempts"), default=1, minimum=1)
+    secondary_retry_max = _to_int_or_default(
+        secondary_retry.get("max_attempts"), default=1, minimum=1
+    )
     fallback_enabled = _to_bool_or_default(resilience_cfg.get("fallback_enabled"), default=False)
     rate_limit_enabled = _to_bool_or_default(rate_limit_cfg.get("enabled"), default=False)
     rate_limit_min_interval_ms = _to_int_or_default(
@@ -387,8 +392,8 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
     _LOGGER.debug(
         "Stratégie LLM appliquée: "
         f"timeout={timeout_seconds}s, "
-        f"retry_primary_max={_to_int_or_default(primary_retry.get('max_attempts'), default=1, minimum=1)}, "
-        f"retry_secondary_max={_to_int_or_default(secondary_retry.get('max_attempts'), default=1, minimum=1)}, "
+        f"retry_primary_max={primary_retry_max}, "
+        f"retry_secondary_max={secondary_retry_max}, "
         f"fallback_enabled={fallback_enabled}, "
         f"rate_limit_enabled={rate_limit_enabled}, "
         f"rate_limit_min_interval_ms={rate_limit_min_interval_ms}"

@@ -38,6 +38,7 @@ from ocapi.utils.utils import IdCounter, make_id
 _LOGGER = get_logger(__name__)
 
 _OPERATION_ID_COUNTER = IdCounter()
+LLM_CFG = config_model_llm()
 
 
 def step_detection(
@@ -45,11 +46,10 @@ def step_detection(
 ) -> list[Operation]:
     _LOGGER.info(f"Détection: traitement de {len(html_blocks)} bloc(s)")
     all_ops: list[Operation] = []
-    cfg = config_model_llm()
     for block_html in html_blocks:
         # Appel LLM pour détecter les opérations dans le bloc HTML
         # TODO : implémenter un retry en cas d'erreur (sur l'extraction du contenu par ex)
-        raw = call_llm_api(cfg, prompt_detection(block_html.page_content))
+        raw = call_llm_api(LLM_CFG, prompt_detection(block_html.page_content))
         raw_list = parse_llm_json_list_response(raw)
         raw_operations = [RawOperation(**element) for element in raw_list]
         all_ops.extend(
