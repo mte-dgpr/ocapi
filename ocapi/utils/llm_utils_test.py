@@ -109,7 +109,7 @@ class TestLLMResilience:
             "models": {
                 "openai_primary": {"provider": "openai", "model_id": "gpt-5"},
                 "mistral_secondary": {
-                    "provider": "mistral",
+                    "provider": "mte-piag",
                     "model_id": "mte-api-piag-mistral-medium-latest",
                 },
             },
@@ -128,13 +128,13 @@ class TestLLMResilience:
 
         assert primary.provider == "openai"
         assert primary.model_name == "gpt-5"
-        assert secondary.provider == "mistral"
+        assert secondary.provider == "mte-piag"
         assert secondary.model_name == "mte-api-piag-mistral-medium-latest"
 
     def test_call_llm_api_retries_until_success(self) -> None:
         cfg = ResolvedLLMModel(
-            model_key="mistral_medium",
-            provider="mistral",
+            model_key="piag_mistral_medium",
+            provider="mte-piag",
             model_name="mte-api-piag-mistral-medium-latest",
             api_key="piag-key",
             api_url="https://piag.example",
@@ -166,8 +166,8 @@ class TestLLMResilience:
 
     def test_call_llm_api_no_retry_for_non_retryable_http_error(self) -> None:
         cfg = ResolvedLLMModel(
-            model_key="mistral_medium",
-            provider="mistral",
+            model_key="piag_mistral_medium",
+            provider="mte-piag",
             model_name="mte-api-piag-mistral-medium-latest",
             api_key="piag-key",
             api_url="https://piag.example",
@@ -196,8 +196,8 @@ class TestLLMResilience:
 
     def test_call_llm_api_fallback_uses_secondary_strategy(self) -> None:
         primary_cfg = ResolvedLLMModel(
-            model_key="mistral_medium",
-            provider="mistral",
+            model_key="piag_mistral_medium",
+            provider="mte-piag",
             model_name="mte-api-piag-mistral-medium-latest",
             api_key="piag-key",
             api_url="https://piag.example",
@@ -218,11 +218,11 @@ class TestLLMResilience:
             },
         }
         models_cfg = {
-            "primary_model_key": "mistral_medium",
+            "primary_model_key": "piag_mistral_medium",
             "secondary_model_key": "openai_gpt5",
             "models": {
-                "mistral_medium": {
-                    "provider": "mistral",
+                "piag_mistral_medium": {
+                    "provider": "mte-piag",
                     "model_id": "mte-api-piag-mistral-medium-latest",
                 },
                 "openai_gpt5": {"provider": "openai", "model_id": "gpt-5"},
@@ -253,8 +253,8 @@ class TestLLMResilience:
 
     def test_call_llm_api_uses_configured_timeout(self) -> None:
         cfg = ResolvedLLMModel(
-            model_key="mistral_medium",
-            provider="mistral",
+            model_key="piag_mistral_medium",
+            provider="mte-piag",
             model_name="mte-api-piag-mistral-medium-latest",
             api_key="piag-key",
             api_url="https://piag.example",
@@ -280,8 +280,8 @@ class TestLLMResilience:
 
     def test_call_llm_api_invalid_timeout_falls_back_to_default(self) -> None:
         cfg = ResolvedLLMModel(
-            model_key="mistral_medium",
-            provider="mistral",
+            model_key="piag_mistral_medium",
+            provider="mte-piag",
             model_name="mte-api-piag-mistral-medium-latest",
             api_key="piag-key",
             api_url="https://piag.example",
@@ -305,10 +305,34 @@ class TestLLMResilience:
         assert mocked_post.call_count == 1
         assert mocked_post.call_args.kwargs["timeout"] == 45
 
+    def test_call_llm_api_raises_on_invalid_response_shape(self) -> None:
+        cfg = ResolvedLLMModel(
+            model_key="piag_mistral_medium",
+            provider="mte-piag",
+            model_name="mte-api-piag-mistral-medium-latest",
+            api_key="piag-key",
+            api_url="https://piag.example",
+        )
+        resilience_cfg = {
+            "fallback_enabled": False,
+            "timeout_seconds": 45,
+            "retry": {"primary": {"max_attempts": 1}},
+        }
+        bad_response = Mock()
+        bad_response.raise_for_status.return_value = None
+        bad_response.json.return_value = {"unexpected": "shape"}
+
+        with patch(
+            "ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg
+        ):
+            with patch("ocapi.utils.llm_utils.requests.post", return_value=bad_response):
+                with pytest.raises(ValueError, match="Format de réponse LLM invalide"):
+                    call_llm_api(cfg, "prompt")
+
     def test_call_llm_api_rate_limit_applies_min_interval(self) -> None:
         cfg = ResolvedLLMModel(
-            model_key="mistral_medium",
-            provider="mistral",
+            model_key="piag_mistral_medium",
+            provider="mte-piag",
             model_name="mte-api-piag-mistral-medium-latest",
             api_key="piag-key",
             api_url="https://piag.example",
@@ -350,8 +374,8 @@ class TestLLMResilience:
 
     def test_call_llm_api_rate_limit_disabled_does_not_sleep(self) -> None:
         cfg = ResolvedLLMModel(
-            model_key="mistral_medium",
-            provider="mistral",
+            model_key="piag_mistral_medium",
+            provider="mte-piag",
             model_name="mte-api-piag-mistral-medium-latest",
             api_key="piag-key",
             api_url="https://piag.example",

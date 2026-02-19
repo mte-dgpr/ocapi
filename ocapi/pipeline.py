@@ -45,7 +45,6 @@ def run_pipeline(
     _LOGGER.info(f"Démarrage du pipeline avec {len(arrete_files)} arrêté(s)")
 
     operations: list[Operation] = []
-    model = "primary"
 
     # ========================================
     # STEP 1-2 : CHUNKING + DETECTION
@@ -61,7 +60,7 @@ def run_pipeline(
         _LOGGER.info(f"  → {len(docs)} documents chunkés")
         _LOGGER.debug(f"  → {len(img_map)} images mappées")
 
-        detected_ops = step_detection(docs, arrete_file.id, model, img_map)
+        detected_ops = step_detection(docs, arrete_file.id, img_map)
         operations.extend(detected_ops)
         _LOGGER.info(f"  → {len(detected_ops)} opérations détectées")
 

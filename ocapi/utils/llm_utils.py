@@ -40,11 +40,11 @@ _RESILIENCE_CONFIG_PATH = settings.paths.project_root / "config" / "llm_resilien
 _RATE_LIMIT_CONFIG_PATH = settings.paths.project_root / "config" / "llm_rate_limit.json"
 
 _DEFAULT_LLM_MODELS_CONFIG: dict[str, Any] = {
-    "primary_model_key": "mistral_medium",
+    "primary_model_key": "piag_mistral_medium",
     "secondary_model_key": None,
     "models": {
-        "mistral_medium": {
-            "provider": "mistral",
+        "piag_mistral_medium": {
+            "provider": "mte-piag",
             "model_id": "mte-api-piag-mistral-medium-latest",
         },
         "openai_gpt5": {
@@ -79,7 +79,7 @@ _DEFAULT_LLM_RESILIENCE_CONFIG: dict[str, Any] = {
 
 _DEFAULT_LLM_RATE_LIMIT_CONFIG: dict[str, Any] = {
     "enabled": False,
-    "min_interval_ms": 0,
+    "min_interval_ms": 3000,
 }
 
 _RATE_LIMIT_LOCK = threading.Lock()
@@ -128,7 +128,7 @@ def _load_llm_rate_limit_config() -> dict[str, Any]:
     return _read_json_config(_RATE_LIMIT_CONFIG_PATH, _DEFAULT_LLM_RATE_LIMIT_CONFIG)
 
 
-def _to_int(value: Any, default: int, minimum: int) -> int:
+def _to_int_or_default(value: Any, default: int, minimum: int) -> int:
     try:
         parsed = int(value)
     except (TypeError, ValueError):
@@ -136,7 +136,7 @@ def _to_int(value: Any, default: int, minimum: int) -> int:
     return max(parsed, minimum)
 
 
-def _to_bool(value: Any, default: bool) -> bool:
+def _to_bool_or_default(value: Any, default: bool) -> bool:
     if isinstance(value, bool):
         return value
     return default
@@ -147,7 +147,7 @@ def _primary_secondary_keys(models_cfg: dict[str, Any]) -> tuple[str, str | None
     secondary = models_cfg.get("secondary_model_key")
     models = models_cfg.get("models", {})
     if not isinstance(models, dict) or not models:
-        return "mistral_medium", None
+        return "piag_mistral_medium", None
     if not isinstance(primary, str) or primary not in models:
         primary = next(iter(models.keys()))
     if not isinstance(secondary, str) or secondary not in models:
@@ -155,43 +155,43 @@ def _primary_secondary_keys(models_cfg: dict[str, Any]) -> tuple[str, str | None
     return primary, secondary
 
 
-def _resolve_model_key(modele: str | None, models_cfg: dict[str, Any]) -> str:
+def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
     models = models_cfg.get("models", {})
     if not isinstance(models, dict) or not models:
         raise ValueError("Aucun modèle LLM disponible dans la configuration.")
 
     primary_key, secondary_key = _primary_secondary_keys(models_cfg)
 
-    if modele is None or modele.strip() == "" or modele == "primary":
+    if model is None or model.strip() == "" or model == "primary":
         return primary_key
-    if modele == "secondary":
+    if model == "secondary":
         if secondary_key is None:
             raise ValueError("Aucun modèle secondaire configuré.")
         return secondary_key
-    if modele in models:
-        return modele
+    if model in models:
+        return model
 
     legacy_aliases = {
         "GPT5": "openai_gpt5",
         "GPT5mini": "openai_gpt5mini",
-        "mte-api-piag-mistral-medium-latest": "mistral_medium",
+        "mte-api-piag-mistral-medium-latest": "piag_mistral_medium",
     }
-    if modele in legacy_aliases and legacy_aliases[modele] in models:
-        return legacy_aliases[modele]
+    if model in legacy_aliases and legacy_aliases[model] in models:
+        return legacy_aliases[model]
 
     for model_key, model_cfg in models.items():
         if (
             isinstance(model_key, str)
             and isinstance(model_cfg, dict)
-            and model_cfg.get("model_id") == modele
+            and model_cfg.get("model_id") == model
         ):
             return model_key
 
-    raise ValueError(f"Modèle LLM inconnu: {modele}")
+    raise ValueError(f"Modèle LLM inconnu: {model}")
 
 
 def _provider_api_config(provider: str) -> tuple[str | None, str]:
-    if provider == "mistral":
+    if provider == "mte-piag":
         return settings.llm.piag_api_key, str(settings.llm.piag_api_url)
     if provider == "openai":
         return settings.llm.openai_api_key, str(settings.llm.openai_api_url)
@@ -199,7 +199,7 @@ def _provider_api_config(provider: str) -> tuple[str | None, str]:
 
 
 def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
-    if model.provider == "mistral":
+    if model.provider == "mte-piag":
         return {
             "model": model.model_name,
             "messages": [{"role": "user", "content": prompt}],
@@ -236,9 +236,9 @@ def _is_retryable_http_error(error: requests.exceptions.RequestException) -> boo
 
 
 def _retry_delay_seconds(attempt: int, strategy: dict[str, Any]) -> float:
-    base_ms = _to_int(strategy.get("base_delay_ms"), default=300, minimum=1)
-    max_ms = _to_int(strategy.get("max_delay_ms"), default=5000, minimum=base_ms)
-    use_jitter = _to_bool(strategy.get("jitter"), default=True)
+    base_ms = _to_int_or_default(strategy.get("base_delay_ms"), default=300, minimum=1)
+    max_ms = _to_int_or_default(strategy.get("max_delay_ms"), default=5000, minimum=base_ms)
+    use_jitter = _to_bool_or_default(strategy.get("jitter"), default=True)
 
     raw_delay_ms = min(base_ms * (2 ** (attempt - 1)), max_ms)
     delay_seconds = float(raw_delay_ms) / 1000.0
@@ -248,8 +248,10 @@ def _retry_delay_seconds(attempt: int, strategy: dict[str, Any]) -> float:
 
 
 def _apply_rate_limit(rate_limit_cfg: dict[str, Any]) -> None:
-    enabled = _to_bool(rate_limit_cfg.get("enabled"), default=False)
-    min_interval_ms = _to_int(rate_limit_cfg.get("min_interval_ms"), default=0, minimum=0)
+    enabled = _to_bool_or_default(rate_limit_cfg.get("enabled"), default=False)
+    min_interval_ms = _to_int_or_default(
+        rate_limit_cfg.get("min_interval_ms"), default=0, minimum=0
+    )
     if not enabled or min_interval_ms <= 0:
         return
 
@@ -280,7 +282,7 @@ def _execute_model_call(
     strategy: dict[str, Any],
     rate_limit_cfg: dict[str, Any],
 ) -> str:
-    max_attempts = _to_int(strategy.get("max_attempts"), default=1, minimum=1)
+    max_attempts = _to_int_or_default(strategy.get("max_attempts"), default=1, minimum=1)
     payload = _build_payload(model, prompt)
     headers = _make_headers(model.api_key)
 
@@ -295,7 +297,14 @@ def _execute_model_call(
             )
             response.raise_for_status()
             data: Any = response.json()
-            return str(data["choices"][0]["message"]["content"])
+            try:
+                return str(data["choices"][0]["message"]["content"])
+            except (TypeError, KeyError, IndexError) as exc:
+                _LOGGER.error(
+                    f"Réponse API LLM invalide ({model.model_name}): clé choices/message/content "
+                    f"introuvable. Réponse brute: {data}"
+                )
+                raise ValueError("Format de réponse LLM invalide") from exc
         except requests.exceptions.RequestException as exc:
             retryable = _is_retryable_http_error(exc)
             is_last_attempt = attempt >= max_attempts
@@ -316,18 +325,18 @@ def _execute_model_call(
     raise RuntimeError("Boucle de retry terminée sans résultat.")
 
 
-def config_model_llm(modele: str | None = None) -> ResolvedLLMModel:
+def config_model_llm(model: str | None = None) -> ResolvedLLMModel:
     """
     Résout la configuration d'un modèle LLM à partir de la config JSON centralisée.
 
-    Paramètre modele:
+    Paramètre model:
     - None / "primary": modèle principal configuré
     - "secondary": modèle secondaire configuré
     - model_key: clé explicite du modèle dans llm_models.json
     - compat: alias historiques (GPT5, GPT5mini, ancien model_id Mistral)
     """
     models_cfg = _load_llm_models_config()
-    model_key = _resolve_model_key(modele, models_cfg)
+    model_key = _resolve_model_key(model, models_cfg)
     models = models_cfg.get("models", {})
     model_cfg = models.get(model_key, {})
     if not isinstance(model_cfg, dict):
@@ -356,7 +365,9 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
     resilience_cfg = _load_llm_resilience_config()
     rate_limit_cfg = _load_llm_rate_limit_config()
     retry_cfg = resilience_cfg.get("retry", {})
-    timeout_seconds = _to_int(resilience_cfg.get("timeout_seconds"), default=45, minimum=1)
+    timeout_seconds = _to_int_or_default(
+        resilience_cfg.get("timeout_seconds"), default=45, minimum=1
+    )
     primary_retry = (
         retry_cfg.get("primary", {})
         if isinstance(retry_cfg, dict) and isinstance(retry_cfg.get("primary", {}), dict)
@@ -367,17 +378,17 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
         if isinstance(retry_cfg, dict) and isinstance(retry_cfg.get("secondary", {}), dict)
         else {}
     )
-    fallback_enabled = _to_bool(resilience_cfg.get("fallback_enabled"), default=False)
-    rate_limit_enabled = _to_bool(rate_limit_cfg.get("enabled"), default=False)
-    rate_limit_min_interval_ms = _to_int(
+    fallback_enabled = _to_bool_or_default(resilience_cfg.get("fallback_enabled"), default=False)
+    rate_limit_enabled = _to_bool_or_default(rate_limit_cfg.get("enabled"), default=False)
+    rate_limit_min_interval_ms = _to_int_or_default(
         rate_limit_cfg.get("min_interval_ms"), default=0, minimum=0
     )
 
     _LOGGER.debug(
         "Stratégie LLM appliquée: "
         f"timeout={timeout_seconds}s, "
-        f"retry_primary_max={_to_int(primary_retry.get('max_attempts'), default=1, minimum=1)}, "
-        f"retry_secondary_max={_to_int(secondary_retry.get('max_attempts'), default=1, minimum=1)}, "
+        f"retry_primary_max={_to_int_or_default(primary_retry.get('max_attempts'), default=1, minimum=1)}, "
+        f"retry_secondary_max={_to_int_or_default(secondary_retry.get('max_attempts'), default=1, minimum=1)}, "
         f"fallback_enabled={fallback_enabled}, "
         f"rate_limit_enabled={rate_limit_enabled}, "
         f"rate_limit_min_interval_ms={rate_limit_min_interval_ms}"

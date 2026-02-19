@@ -41,11 +41,11 @@ _OPERATION_ID_COUNTER = IdCounter()
 
 
 def step_detection(
-    html_blocks: list[Document], arrete_id: ArreteId, modele: str, img_map: ImageMap
+    html_blocks: list[Document], arrete_id: ArreteId, img_map: ImageMap
 ) -> list[Operation]:
     _LOGGER.info(f"Détection: traitement de {len(html_blocks)} bloc(s)")
     all_ops: list[Operation] = []
-    cfg = config_model_llm(modele)
+    cfg = config_model_llm()
     for block_html in html_blocks:
         # Appel LLM pour détecter les opérations dans le bloc HTML
         # TODO : implémenter un retry en cas d'erreur (sur l'extraction du contenu par ex)
