@@ -28,7 +28,7 @@ from ocapi.types import ArreteFile, ArticleVersion, NodeId, Operation, Operation
 from ocapi.utils.arretify_utils import has_no_ops
 
 
-def _make_arrete_file_from_str(
+def _make_testing_arrete_file(
     arrete_id: str,
     aiot: str,
     filename: str,
@@ -45,7 +45,7 @@ def _make_arrete_file_from_str(
 
 
 def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
-    arrete_2021 = _make_arrete_file_from_str(
+    arrete_2021 = _make_testing_arrete_file(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="arrete_2021",
@@ -58,7 +58,7 @@ def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
 </body></html>
 """,
     )
-    arrete_2020 = _make_arrete_file_from_str(
+    arrete_2020 = _make_testing_arrete_file(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="arrete_2020",
@@ -72,24 +72,29 @@ def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
     )
 
     html = make_permit_header([arrete_2021, arrete_2020])
+    rendered_soup = BeautifulSoup(html, "html.parser")
+    permit_visa = rendered_soup.select_one('[data-spec="permit_visa"]')
+    permit_title = rendered_soup.select_one('[data-spec="permit_title"]')
 
     assert 'data-spec="permit_title"' in html
     assert 'data-spec="permit_sources"' in html
     assert 'data-spec="permit_visa"' in html
     assert 'data-spec="permit_motif"' in html
-    assert html.count("VISA UNIQUE 1") == 1
-    assert html.count("0001") == 1
+    assert permit_visa is not None
+    assert permit_title is not None
+    assert permit_visa.get_text(" ", strip=True).count("VISA UNIQUE 1") == 1
+    assert permit_title.get_text(" ", strip=True).count("0001") == 1
     assert html.index('data-date="2020-01-01"') < html.index('data-date="2021-01-01"')
 
 
 def test_make_permit_header_raises_when_multiple_aiot_detected() -> None:
-    arrete_1 = _make_arrete_file_from_str(
+    arrete_1 = _make_testing_arrete_file(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="arrete_1",
         html='<html><body data-arretify_version="0.1.0"></body></html>',
     )
-    arrete_2 = _make_arrete_file_from_str(
+    arrete_2 = _make_testing_arrete_file(
         arrete_id="2022-01-01",
         aiot="0002",
         filename="arrete_2",
@@ -101,7 +106,7 @@ def test_make_permit_header_raises_when_multiple_aiot_detected() -> None:
 
 
 def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
-    ap_initial = _make_arrete_file_from_str(
+    ap_initial = _make_testing_arrete_file(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="ap_initial",
@@ -110,7 +115,7 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
             "</main></body></html>"
         ),
     )
-    complement_no_ops = _make_arrete_file_from_str(
+    complement_no_ops = _make_testing_arrete_file(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="complement_no_ops",
@@ -122,7 +127,7 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
 </body></html>
 """,
     )
-    complement_with_ops = _make_arrete_file_from_str(
+    complement_with_ops = _make_testing_arrete_file(
         arrete_id="2022-01-01",
         aiot="0001",
         filename="complement_with_ops",
@@ -213,7 +218,7 @@ def test_make_section_version_marks_removed_article() -> None:
 
 
 def test_make_permit_content_renders_full_main_with_section_versions() -> None:
-    ap_initial = _make_arrete_file_from_str(
+    ap_initial = _make_testing_arrete_file(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="ap_initial",
@@ -266,7 +271,7 @@ def test_make_permit_content_renders_full_main_with_section_versions() -> None:
 
 
 def test_has_no_ops_returns_true_without_operation() -> None:
-    arrete_file = _make_arrete_file_from_str(
+    arrete_file = _make_testing_arrete_file(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="without_ops",
@@ -276,8 +281,27 @@ def test_has_no_ops_returns_true_without_operation() -> None:
     assert has_no_ops(arrete_file, []) is True
 
 
+def test_has_no_ops_returns_true_when_operations_apply_to_other_arrete() -> None:
+    arrete_file = _make_testing_arrete_file(
+        arrete_id="2021-01-01",
+        aiot="0001",
+        filename="with_unrelated_ops",
+        html='<html><body data-arretify_version="0.1.0"></body></html>',
+    )
+    operations = [
+        Operation(
+            id="op-1",
+            source_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            operation_type=OperationType.REPLACE,
+        )
+    ]
+
+    assert has_no_ops(arrete_file, operations) is True
+
+
 def test_has_no_ops_returns_false_with_multiple_operations() -> None:
-    arrete_file = _make_arrete_file_from_str(
+    arrete_file = _make_testing_arrete_file(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="with_ops",
@@ -341,12 +365,21 @@ def test_make_section_version_places_previous_version_in_details_only() -> None:
         operation_by_id={"op-1": operation},
     )
     rendered_soup = BeautifulSoup(str(section), "html.parser")
+    history_section = rendered_soup.select_one('[data-spec="section_version_history"]')
 
-    details = rendered_soup.find("details")
-    assert details is not None
-    details_text = details.get_text(" ", strip=True)
+    details = rendered_soup.find_all("details")
+    assert len(details) >= 2
+    assert history_section is not None
+    details_text = details[1].get_text(" ", strip=True)
     assert "Article 1 version 0" in details_text
     assert "Article 1 modifié" not in details_text
 
-    visible_text = rendered_soup.get_text(" ", strip=True)
-    assert "Article 1 modifié" in visible_text
+    assert (
+        history_section.find(
+            string=lambda text: isinstance(text, str) and "Article 1 modifié" in text
+        )
+        is None
+    )
+    assert rendered_soup.find(
+        string=lambda text: isinstance(text, str) and "Article 1 modifié" in text
+    )

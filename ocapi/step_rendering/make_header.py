@@ -41,20 +41,6 @@ def _extract_motifs(soup: BeautifulSoup) -> list[str]:
     return [str(tag) for tag in extract_specs(soup, "motifs")]
 
 
-def _extract_first_spec_html(soup: BeautifulSoup, spec: str) -> str:
-    tags = extract_specs(soup, spec)
-    if not tags:
-        return ""
-    return str(tags[0])
-
-
-def _extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
-    tags = extract_specs(soup, spec)
-    if not tags:
-        return ""
-    return str(tags[0].get_text(" ", strip=True))
-
-
 def make_permit_title_spec(arrete_files: list[ArreteFile]) -> str:
     """Construit PermitTitleSpec avec un code AIOT unique."""
     aiot_values = sorted({arrete_file.aiot for arrete_file in arrete_files if arrete_file.aiot})

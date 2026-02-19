@@ -18,18 +18,7 @@
 #
 from bs4 import BeautifulSoup
 
-from ocapi.types import ArreteFile, NodeId, Operation, OperationType
-from ocapi.utils.arretify_utils import extract_specs, has_no_ops
-
-
-def _make_arrete_file(arrete_id: str) -> ArreteFile:
-    return ArreteFile(
-        id=arrete_id,
-        aiot="0001",
-        filename=f"{arrete_id}.html",
-        soup=BeautifulSoup("<html><body></body></html>", "html.parser"),
-        status=True,
-    )
+from ocapi.utils.arretify_utils import extract_specs
 
 
 def test_extract_specs_returns_only_requested_data_spec() -> None:
@@ -54,43 +43,3 @@ def test_extract_specs_returns_empty_list_when_missing_spec() -> None:
     soup = BeautifulSoup("<html><body><div>sans spec</div></body></html>", "html.parser")
 
     assert extract_specs(soup, "visa") == []
-
-
-def test_has_no_ops_returns_true_without_matching_operation() -> None:
-    arrete = _make_arrete_file("2021-01-01")
-    operations = [
-        Operation(
-            id="op-1",
-            source_id=NodeId(arrete_id="2022-01-01", article_id="1"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
-            operation_type=OperationType.REPLACE,
-        )
-    ]
-
-    assert has_no_ops(arrete, operations) is True
-
-
-def test_has_no_ops_returns_false_with_multiple_operations_from_same_arrete() -> None:
-    arrete = _make_arrete_file("2021-01-01")
-    operations = [
-        Operation(
-            id="op-1",
-            source_id=NodeId(arrete_id="2020-01-01", article_id="1"),
-            target_id=NodeId(arrete_id="2019-01-01", article_id="1"),
-            operation_type=OperationType.REPLACE,
-        ),
-        Operation(
-            id="op-2",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
-            operation_type=OperationType.ADD,
-        ),
-        Operation(
-            id="op-3",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
-            operation_type=OperationType.REMOVE,
-        ),
-    ]
-
-    assert has_no_ops(arrete, operations) is False

@@ -119,46 +119,71 @@ def _build_section_history_html(
     operation_by_id: dict[str, Operation],
 ) -> str:
     history_parts = [
-        '<div data-spec="section_version_history" style="color: red; margin-bottom: 1rem;">'
+        '<div data-spec="section_version_history" style="color: #1b4d89; margin-bottom: 1rem;">'
     ]
-    for index, version in enumerate(versions):
+    if not versions:
+        history_parts.append("</div>")
+        return "".join(history_parts)
+
+    last_version = versions[-1]
+    last_operation_id = last_version.get("operation_id")
+    last_operation = operation_by_id.get(str(last_operation_id)) if last_operation_id else None
+    if last_operation:
+        last_operation_label = (
+            "modification"
+            if last_operation.operation_type == OperationType.REPLACE
+            else (
+                "abrogation"
+                if last_operation.operation_type == OperationType.REMOVE
+                else "création"
+            )
+        )
+        last_text = (
+            "Version actuelle après "
+            f"{last_operation_label} par l'article {last_operation.source_id.article_id} "
+            f"de l'arrêté {last_operation.source_id.arrete_id}"
+        )
+    else:
+        last_text = "Version actuelle de l'arrêté initial"
+
+    history_parts.append(
+        f"""
+            <details style="margin-left: 1rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">
+             <summary style="cursor: pointer; font-weight: bold;">{last_text}</summary>
+            </details>
+"""
+    )
+
+    for index, version in enumerate(versions[:-1]):
         operation_id = version.get("operation_id")
         operation = operation_by_id.get(str(operation_id)) if operation_id else None
-        if index == 0:
-            if operation:
-                history_parts.append(
-                    (
-                        "<p><strong>Article créé par l'arrêté "
-                        f"{operation.source_id.arrete_id}</strong></p>"
-                    )
+        if index == 0 and not operation:
+            text = "Version de l'arrêté initial"
+        elif operation:
+            operation_label = (
+                "modification"
+                if operation.operation_type == OperationType.REPLACE
+                else (
+                    "abrogation" if operation.operation_type == OperationType.REMOVE else "création"
                 )
-            else:
-                history_parts.append("<p><strong>Article créé par l'arrêté initial</strong></p>")
-            continue
+            )
+            text = (
+                f"Version après {operation_label} par l'article "
+                f"{operation.source_id.article_id} de l'arrêté {operation.source_id.arrete_id}"
+            )
+        else:
+            text = "Version précédente"
 
-        if not operation:
-            continue
-        operation_label = (
-            "modifié"
-            if operation.operation_type == OperationType.REPLACE
-            else "abrogé" if operation.operation_type == OperationType.REMOVE else "créé"
-        )
-        history_parts.append(
-            f"<p><strong>Article {operation_label} par l'article "
-            f"{operation.source_id.article_id} de l'arrêté "
-            f"{operation.source_id.arrete_id}</strong></p>"
-        )
-        previous_version = versions[index - 1]
-        previous_content = previous_version.get("content", "")
+        content = version.get("content", "")
         history_parts.append(
             f"""
             <details style="margin-left: 1rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">
-             <summary style="cursor: pointer; font-weight: bold;">Voir l'ancienne version</summary>
+             <summary style="cursor: pointer; font-weight: bold;">{text}</summary>
              <div
-              style="color: red; border-left: 3px solid red; padding-left: 1rem;
+              style="color: #1b4d89; border-left: 3px solid #1b4d89; padding-left: 1rem;
               margin-top: 0.5rem;"
              >
-              {previous_content}
+              {content}
              </div>
             </details>
 """
