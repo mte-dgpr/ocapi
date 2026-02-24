@@ -17,9 +17,14 @@
 # limitations under the License.
 #
 import json
+import random
 import re
 import textwrap
-from typing import Any, Tuple
+import threading
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 import requests  # type: ignore[import-untyped]
 
@@ -30,73 +35,404 @@ from ocapi.utils.logging_utils import get_logger
 _LOGGER = get_logger(__name__)
 
 
-def config_model_llm(modele: str) -> Tuple[str, str | None, str]:
-    """
-    Retourne (MODEL_NAME, API_KEY, API_URL) selon le nom logique du modèle.
-    """
-    if modele == "GPT5":
-        return (
-            "gpt-5",
-            settings.llm.openai_api_key,
-            str(settings.llm.openai_api_url),
-        )
-    if modele == "GPT5mini":
-        return (
-            "gpt-5-mini",
-            settings.llm.openai_api_key,
-            str(settings.llm.openai_api_url),
-        )
-    return (
-        "mte-api-piag-mistral-medium-latest",
-        settings.llm.piag_api_key,
-        str(settings.llm.piag_api_url),
-    )
+_MODELS_CONFIG_PATH = settings.paths.project_root / "config" / "llm_models.json"
+_RESILIENCE_CONFIG_PATH = settings.paths.project_root / "config" / "llm_resilience.json"
+_RATE_LIMIT_CONFIG_PATH = settings.paths.project_root / "config" / "llm_rate_limit.json"
+
+_DEFAULT_LLM_MODELS_CONFIG: dict[str, Any] = {
+    "primary_model_key": "piag_mistral_medium",
+    "secondary_model_key": None,
+    "models": {
+        "piag_mistral_medium": {
+            "provider": "mte-piag",
+            "model_id": "mte-api-piag-mistral-medium-latest",
+        },
+        "openai_gpt5": {
+            "provider": "openai",
+            "model_id": "gpt-5",
+        },
+        "openai_gpt5mini": {
+            "provider": "openai",
+            "model_id": "gpt-5-mini",
+        },
+    },
+}
+_DEFAULT_PRIMARY_MODEL = _DEFAULT_LLM_MODELS_CONFIG["primary_model_key"]
+
+_DEFAULT_LLM_RESILIENCE_CONFIG: dict[str, Any] = {
+    "fallback_enabled": False,
+    "timeout_seconds": 45,
+    "retry": {
+        "primary": {
+            "max_attempts": 5,
+            "base_delay_ms": 300,
+            "max_delay_ms": 5000,
+            "jitter": True,
+        },
+        "secondary": {
+            "max_attempts": 2,
+            "base_delay_ms": 300,
+            "max_delay_ms": 3000,
+            "jitter": True,
+        },
+    },
+}
+
+_DEFAULT_LLM_RATE_LIMIT_CONFIG: dict[str, Any] = {
+    "enabled": False,
+    "min_interval_ms": 3000,
+}
+
+_RATE_LIMIT_LOCK = threading.Lock()
+_RATE_LIMIT_LAST_CALL_MONOTONIC: float | None = None
 
 
-def call_llm_api(cfg: Tuple[str, str | None, str], prompt: str) -> str:
-    """
-    Appelle le modèle LLM avec le prompt donné et retourne la réponse au format JSON.
-    cfg : tuple (MODEL_NAME, API_KEY, API_URL)
-    prompt : texte du prompt à envoyer au modèle
-    """
-    MODEL_NAME, API_KEY, API_URL = cfg
-    _LOGGER.debug(f"Appel API LLM: {MODEL_NAME}")
-    # En-têtes HTTP requis pour l'authentification et le format des données
-    HEADERS = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json",
+@dataclass(frozen=True)
+class ResolvedLLMModel:
+    model_key: str
+    provider: str
+    model_name: str
+    api_key: str | None
+    api_url: str
+
+
+def _read_json_config(path: Path, default_value: dict[str, Any]) -> dict[str, Any]:
+    if not path.exists():
+        _LOGGER.warning(
+            f"Fichier de config introuvable ({path}). Utilisation de la configuration par défaut."
+        )
+        return default_value
+
+    try:
+        with path.open(encoding="utf-8") as handle:
+            payload: Any = json.load(handle)
+    except (OSError, json.JSONDecodeError) as exc:
+        _LOGGER.warning(f"Config JSON invalide ({path}): {exc}. Fallback sur défaut.")
+        return default_value
+
+    if not isinstance(payload, dict):
+        _LOGGER.warning(f"Config JSON invalide ({path}): objet attendu. Fallback sur défaut.")
+        return default_value
+
+    return payload
+
+
+def _load_llm_models_config() -> dict[str, Any]:
+    return _read_json_config(_MODELS_CONFIG_PATH, _DEFAULT_LLM_MODELS_CONFIG)
+
+
+def _load_llm_resilience_config() -> dict[str, Any]:
+    return _read_json_config(_RESILIENCE_CONFIG_PATH, _DEFAULT_LLM_RESILIENCE_CONFIG)
+
+
+def _load_llm_rate_limit_config() -> dict[str, Any]:
+    return _read_json_config(_RATE_LIMIT_CONFIG_PATH, _DEFAULT_LLM_RATE_LIMIT_CONFIG)
+
+
+def _to_int_or_default(value: Any, default: int, minimum: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(parsed, minimum)
+
+
+def _to_bool_or_default(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    return default
+
+
+def _primary_secondary_keys(models_cfg: dict[str, Any]) -> tuple[str, str | None]:
+    primary = models_cfg.get("primary_model_key")
+    secondary = models_cfg.get("secondary_model_key")
+    models = models_cfg.get("models", {})
+    if not isinstance(models, dict) or not models:
+        return str(_DEFAULT_PRIMARY_MODEL), None
+    if not isinstance(primary, str) or primary not in models:
+        primary = next(iter(models.keys()))
+    if not isinstance(secondary, str) or secondary not in models:
+        secondary = None
+    return primary, secondary
+
+
+def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
+    models = models_cfg.get("models", {})
+    if not isinstance(models, dict) or not models:
+        raise ValueError("Aucun modèle LLM disponible dans la configuration.")
+
+    primary_key, secondary_key = _primary_secondary_keys(models_cfg)
+
+    if model is None or model.strip() == "" or model == "primary":
+        return primary_key
+    if model == "secondary":
+        if secondary_key is None:
+            raise ValueError("Aucun modèle secondaire configuré.")
+        return secondary_key
+    if model in models:
+        return model
+
+    legacy_aliases = {
+        "GPT5": "openai_gpt5",
+        "GPT5mini": "openai_gpt5mini",
+        "mte-api-piag-mistral-medium-latest": "piag_mistral_medium",
     }
+    if model in legacy_aliases and legacy_aliases[model] in models:
+        return legacy_aliases[model]
 
-    # payload minimal compatible Mistral / GPT
-    if MODEL_NAME == "mte-api-piag-mistral-medium-latest":
-        payload = {
-            "model": MODEL_NAME,
+    for model_key, model_cfg in models.items():
+        if (
+            isinstance(model_key, str)
+            and isinstance(model_cfg, dict)
+            and model_cfg.get("model_id") == model
+        ):
+            return model_key
+
+    raise ValueError(f"Modèle LLM inconnu: {model}")
+
+
+def _provider_api_config(provider: str) -> tuple[str | None, str]:
+    if provider == "mte-piag":
+        return settings.llm.piag_api_key, str(settings.llm.piag_api_url)
+    if provider == "openai":
+        return settings.llm.openai_api_key, str(settings.llm.openai_api_url)
+    raise ValueError(f"Provider LLM non supporté: {provider}")
+
+
+def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
+    if model.provider == "mte-piag":
+        return {
+            "model": model.model_name,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0,
             "n": 1,
         }
-    else:
-        payload = {
-            "model": MODEL_NAME,
+
+    if model.provider == "openai":
+        return {
+            "model": model.model_name,
             "messages": [{"role": "user", "content": prompt}],
             "verbosity": "low",
             "reasoning_effort": "minimal",
             "n": 1,
         }
 
-    # Appel avec gestion des erreurs HTTP
+    raise ValueError(f"Provider LLM non supporté: {model.provider}")
+
+
+def _make_headers(api_key: str | None) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+
+def _is_retryable_http_error(error: requests.exceptions.RequestException) -> bool:
+    if isinstance(error, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)):
+        return True
+    if isinstance(error, requests.exceptions.HTTPError):
+        status_code = error.response.status_code if error.response is not None else None
+        return status_code == 429 or (status_code is not None and 500 <= status_code <= 599)
+    return isinstance(error, requests.exceptions.RequestException)
+
+
+def _retry_delay_seconds(attempt: int, strategy: dict[str, Any]) -> float:
+    base_ms = _to_int_or_default(strategy.get("base_delay_ms"), default=300, minimum=1)
+    max_ms = _to_int_or_default(strategy.get("max_delay_ms"), default=5000, minimum=base_ms)
+    use_jitter = _to_bool_or_default(strategy.get("jitter"), default=True)
+
+    raw_delay_ms = min(base_ms * (2 ** (attempt - 1)), max_ms)
+    delay_seconds = float(raw_delay_ms) / 1000.0
+    if use_jitter:
+        delay_seconds *= random.uniform(0.8, 1.2)
+    return delay_seconds if delay_seconds >= 0.0 else 0.0
+
+
+def _apply_rate_limit(rate_limit_cfg: dict[str, Any]) -> None:
+    enabled = _to_bool_or_default(rate_limit_cfg.get("enabled"), default=False)
+    min_interval_ms = _to_int_or_default(
+        rate_limit_cfg.get("min_interval_ms"), default=0, minimum=0
+    )
+    if not enabled or min_interval_ms <= 0:
+        return
+
+    min_interval_seconds = min_interval_ms / 1000
+    sleep_seconds = 0.0
+    global _RATE_LIMIT_LAST_CALL_MONOTONIC
+
+    with _RATE_LIMIT_LOCK:
+        now = time.monotonic()
+        if _RATE_LIMIT_LAST_CALL_MONOTONIC is not None:
+            elapsed = now - _RATE_LIMIT_LAST_CALL_MONOTONIC
+            if elapsed < min_interval_seconds:
+                sleep_seconds = min_interval_seconds - elapsed
+        if sleep_seconds == 0.0:
+            _RATE_LIMIT_LAST_CALL_MONOTONIC = now
+
+    if sleep_seconds > 0.0:
+        _LOGGER.debug(f"Rate limiting actif: attente de {sleep_seconds:.3f}s avant appel LLM.")
+        time.sleep(sleep_seconds)
+        with _RATE_LIMIT_LOCK:
+            _RATE_LIMIT_LAST_CALL_MONOTONIC = time.monotonic()
+
+
+def _execute_model_call(
+    model: ResolvedLLMModel,
+    prompt: str,
+    timeout_seconds: int,
+    strategy: dict[str, Any],
+    rate_limit_cfg: dict[str, Any],
+) -> str:
+    max_attempts = _to_int_or_default(strategy.get("max_attempts"), default=1, minimum=1)
+    payload = _build_payload(model, prompt)
+    headers = _make_headers(model.api_key)
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            _apply_rate_limit(rate_limit_cfg)
+            response = requests.post(
+                model.api_url,
+                headers=headers,
+                json=payload,
+                timeout=timeout_seconds,
+            )
+            response.raise_for_status()
+            data: Any = response.json()
+            try:
+                return str(data["choices"][0]["message"]["content"])
+            except (TypeError, KeyError, IndexError) as exc:
+                _LOGGER.error(
+                    f"Réponse API LLM invalide ({model.model_name}): clé choices/message/content "
+                    f"introuvable. Réponse brute: {data}"
+                )
+                raise ValueError("Format de réponse LLM invalide") from exc
+        except requests.exceptions.RequestException as exc:
+            retryable = _is_retryable_http_error(exc)
+            is_last_attempt = attempt >= max_attempts
+            if not retryable or is_last_attempt:
+                _LOGGER.error(
+                    f"Échec appel API LLM ({model.model_name}) "
+                    f"tentative {attempt}/{max_attempts}: {exc}"
+                )
+                raise
+
+            delay_seconds = _retry_delay_seconds(attempt, strategy)
+            _LOGGER.warning(
+                f"Retry appel API LLM ({model.model_name}) tentative {attempt}/{max_attempts} "
+                f"dans {delay_seconds:.2f}s: {exc}"
+            )
+            time.sleep(delay_seconds)
+
+    raise RuntimeError("Boucle de retry terminée sans résultat.")
+
+
+def config_model_llm(model: str | None = None) -> ResolvedLLMModel:
+    """
+    Résout la configuration d'un modèle LLM à partir de la config JSON centralisée.
+
+    Paramètre model:
+    - None / "primary": modèle principal configuré
+    - "secondary": modèle secondaire configuré
+    - model_key: clé explicite du modèle dans llm_models.json
+    - compat: alias historiques (GPT5, GPT5mini, ancien model_id Mistral)
+    """
+    models_cfg = _load_llm_models_config()
+    model_key = _resolve_model_key(model, models_cfg)
+    models = models_cfg.get("models", {})
+    model_cfg = models.get(model_key, {})
+    if not isinstance(model_cfg, dict):
+        raise ValueError(f"Configuration invalide pour le modèle: {model_key}")
+
+    provider = model_cfg.get("provider")
+    model_name = model_cfg.get("model_id")
+    if not isinstance(provider, str) or not isinstance(model_name, str):
+        raise ValueError(f"Configuration invalide pour le modèle: {model_key}")
+
+    api_key, api_url = _provider_api_config(provider)
+    return ResolvedLLMModel(
+        model_key=model_key,
+        provider=provider,
+        model_name=model_name,
+        api_key=api_key,
+        api_url=api_url,
+    )
+
+
+def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
+    """
+    Appelle le modèle LLM avec le prompt donné et retourne la réponse au format JSON.
+    Applique la stratégie de retry primaire + fallback secondaire selon llm_resilience.json.
+    """
+    resilience_cfg = _load_llm_resilience_config()
+    rate_limit_cfg = _load_llm_rate_limit_config()
+    retry_cfg = resilience_cfg.get("retry", {})
+    timeout_seconds = _to_int_or_default(
+        resilience_cfg.get("timeout_seconds"), default=45, minimum=1
+    )
+    primary_retry = (
+        retry_cfg.get("primary", {})
+        if isinstance(retry_cfg, dict) and isinstance(retry_cfg.get("primary", {}), dict)
+        else {}
+    )
+    secondary_retry = (
+        retry_cfg.get("secondary", {})
+        if isinstance(retry_cfg, dict) and isinstance(retry_cfg.get("secondary", {}), dict)
+        else {}
+    )
+    primary_retry_max = _to_int_or_default(primary_retry.get("max_attempts"), default=1, minimum=1)
+    secondary_retry_max = _to_int_or_default(
+        secondary_retry.get("max_attempts"), default=1, minimum=1
+    )
+    fallback_enabled = _to_bool_or_default(resilience_cfg.get("fallback_enabled"), default=False)
+    rate_limit_enabled = _to_bool_or_default(rate_limit_cfg.get("enabled"), default=False)
+    rate_limit_min_interval_ms = _to_int_or_default(
+        rate_limit_cfg.get("min_interval_ms"), default=0, minimum=0
+    )
+
+    _LOGGER.debug(
+        "Stratégie LLM appliquée: "
+        f"timeout={timeout_seconds}s, "
+        f"retry_primary_max={primary_retry_max}, "
+        f"retry_secondary_max={secondary_retry_max}, "
+        f"fallback_enabled={fallback_enabled}, "
+        f"rate_limit_enabled={rate_limit_enabled}, "
+        f"rate_limit_min_interval_ms={rate_limit_min_interval_ms}"
+    )
+
+    _LOGGER.debug(f"Appel API LLM primaire: {cfg.model_name}")
     try:
-        r = requests.post(API_URL, headers=HEADERS, json=payload, timeout=(40, 120))
-        r.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        _LOGGER.error(f"Échec appel API LLM ({MODEL_NAME}): {e}")
-        raise
+        return _execute_model_call(cfg, prompt, timeout_seconds, primary_retry, rate_limit_cfg)
+    except requests.exceptions.RequestException as primary_error:
+        if not fallback_enabled:
+            _LOGGER.warning(
+                f"Fallback désactivé: échec primaire final sur {cfg.model_name}: {primary_error}"
+            )
+            raise
 
-    # Extraction du contenu de la réponse du modèle
-    data: Any = r.json()
-    raw = str(data["choices"][0]["message"]["content"])
+        models_cfg = _load_llm_models_config()
+        _primary_key, secondary_key = _primary_secondary_keys(models_cfg)
+        if secondary_key is None:
+            _LOGGER.warning(
+                "Fallback activé mais aucun secondary_model_key valide n'est configuré. "
+                f"Erreur primaire: {primary_error}"
+            )
+            raise
 
-    return raw
+        fallback_cfg = config_model_llm("secondary")
+        if fallback_cfg.model_key == cfg.model_key:
+            _LOGGER.warning(
+                f"Fallback impossible: modèle secondaire ({fallback_cfg.model_key}) identique "
+                f"au primaire ({cfg.model_key}). Erreur primaire: {primary_error}"
+            )
+            raise
+
+        _LOGGER.warning(
+            f"Fallback activé: bascule de {cfg.model_name} vers {fallback_cfg.model_name} "
+            f"après erreur primaire: {primary_error}"
+        )
+        return _execute_model_call(
+            fallback_cfg, prompt, timeout_seconds, secondary_retry, rate_limit_cfg
+        )
 
 
 def parse_llm_json_list_response(raw: str) -> list[dict[str, Any]]:

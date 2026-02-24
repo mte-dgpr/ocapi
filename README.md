@@ -86,8 +86,8 @@ nano .env  # ou votre éditeur préféré
 LLM__PIAG_API_KEY=votre-clé-api
 LLM__PIAG_API_URL=https://preprod.api.piag.e2.rie.gouv.fr/v1/chat/completions
 
-# Modèle LLM par défaut
-PIPELINE__DEFAULT_LLM_MODEL=mte-api-piag-mistral-medium-latest
+# Placeholder pipeline
+PIPELINE__FULL_SECTION=contenu entier
 
 # Logging
 LOGGING__LEVEL=INFO
@@ -106,9 +106,18 @@ from ocapi.config import settings
 
 # Accéder aux paramètres
 api_key = settings.llm.piag_api_key
-model = settings.pipeline.default_llm_model
+full_section = settings.pipeline.full_section
 log_level = settings.logging.level
 ```
+
+### 4. Configuration centralisée des modèles/résilience LLM
+
+La sélection de modèle, le retry, le timeout et le rate limiting sont centralisés
+dans des fichiers JSON sous `config/` :
+
+- `config/llm_models.json` (`primary_model_key`, `secondary_model_key`, `models`)
+- `config/llm_resilience.json` (`timeout_seconds`, stratégie de retry/fallback)
+- `config/llm_rate_limit.json` (throttling optionnel)
 
 ## 🚀 Usage
 
