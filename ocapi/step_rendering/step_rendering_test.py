@@ -23,7 +23,7 @@ from bs4 import BeautifulSoup
 
 from ocapi.step_rendering.make_header import make_permit_header
 from ocapi.step_rendering.make_main_content import make_permit_content, make_section_version
-from ocapi.step_rendering.make_other import has_no_ops, make_permit_other
+from ocapi.step_rendering.make_other import has_not_out_ops, make_permit_other
 from ocapi.types import ArreteFile, ArticleVersion, NodeId, Operation, OperationType
 
 
@@ -269,7 +269,7 @@ def test_make_permit_content_renders_full_main_with_section_versions() -> None:
     assert 'data-date_version="2020-01-01"' in html
 
 
-def test_has_no_ops_returns_true_without_operation() -> None:
+def test_has_not_out_ops_returns_true_without_operation() -> None:
     arrete_file = _make_testing_arrete_file(
         arrete_id="2021-01-01",
         aiot="0001",
@@ -277,10 +277,10 @@ def test_has_no_ops_returns_true_without_operation() -> None:
         html='<html><body data-arretify_version="0.1.0"></body></html>',
     )
 
-    assert has_no_ops(arrete_file, []) is True
+    assert has_not_out_ops(arrete_file, []) is True
 
 
-def test_has_no_ops_returns_true_when_operations_apply_to_other_arrete() -> None:
+def test_has_not_out_ops_returns_true_when_operations_apply_to_other_arrete() -> None:
     arrete_file = _make_testing_arrete_file(
         arrete_id="2021-01-01",
         aiot="0001",
@@ -296,10 +296,10 @@ def test_has_no_ops_returns_true_when_operations_apply_to_other_arrete() -> None
         )
     ]
 
-    assert has_no_ops(arrete_file, operations) is True
+    assert has_not_out_ops(arrete_file, operations) is True
 
 
-def test_has_no_ops_returns_false_with_multiple_operations() -> None:
+def test_has_not_out_ops_returns_false_with_multiple_operations() -> None:
     arrete_file = _make_testing_arrete_file(
         arrete_id="2021-01-01",
         aiot="0001",
@@ -327,7 +327,7 @@ def test_has_no_ops_returns_false_with_multiple_operations() -> None:
         ),
     ]
 
-    assert has_no_ops(arrete_file, operations) is False
+    assert has_not_out_ops(arrete_file, operations) is False
 
 
 def test_make_section_version_places_previous_version_in_details_only() -> None:
