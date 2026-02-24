@@ -17,14 +17,12 @@
 # limitations under the License.
 #
 
-# TODO nowwwwwwww
-
 from bs4 import BeautifulSoup, Tag
 
-from ocapi.types import ArreteFile, ArticleHistory, NodeId, Operation, OperationType
+from ocapi.types import ArreteFile, ArticleHistory, ArticleVersion, NodeId, Operation, OperationType
 
 
-def make_contenu_permis(
+def make_permit_content(
     history: ArticleHistory, arrete_files: list[ArreteFile], operations: list[Operation]
 ) -> str:
     """
@@ -48,111 +46,160 @@ def make_contenu_permis(
 
     # Trouver toutes les sections (articles) dans le body
     sections = main.find_all("section", attrs={"data-spec": "section"})
+    operation_by_id = {operation.id: operation for operation in operations}
 
     for section in sections:
         article_id = section.get("data-number")
         if not article_id or not isinstance(article_id, str):
             continue
 
-        section.replace_with(
-            make_consolidated_section(section, article_id, operations, history, ap_initial_id)
+        make_section_version(
+            section=section,
+            article_id=article_id,
+            history=history,
+            ap_initial_id=ap_initial_id,
+            operation_by_id=operation_by_id,
         )
 
     return str(main)
 
 
-def make_consolidated_section(
-    original_section: Tag,
+def make_section_version(
+    section: Tag,
     article_id: str,
-    operations: list[Operation],
     history: ArticleHistory,
-    arrete_id: str,
-) -> BeautifulSoup:
+    ap_initial_id: str,
+    operation_by_id: dict[str, Operation],
+) -> None:
     """
-    Génère la section consolidée pour un article donné en utilisant l'historique.
-    Affiche en rouge l'historique des modifications puis le contenu actuel.
+    Modifie en place une section en SectionVersion avec contenu consolidé.
+    Ajoute les attributs:
+    - data-is_modified
+    - data-date_version
     """
-    key = NodeId(arrete_id=arrete_id, article_id=article_id)
+    key = NodeId(arrete_id=ap_initial_id, article_id=article_id)
+
+    section["data-spec"] = "section_version"
+
     if key not in history:
-        # Pas de modifications, retourner l'original converti en BeautifulSoup
-        return BeautifulSoup(str(original_section), "html.parser")
+        section["data-is_modified"] = "false"
+        section["data-date_version"] = ap_initial_id
+        return
 
-    # Récupérer toutes les versions de l'article
     versions = history[key]
-
-    # Construire l'historique des modifications
-    history_html = '<div style="color: red; margin-bottom: 1rem;">'
-
-    for i, version in enumerate(versions):
-        op_id = version["operation_id"]
-
-        if i == 0:
-            # Première version = création
-            if op_id:
-                op = next((o for o in operations if o.id == op_id), None)
-                if op:
-                    history_html += (
-                        f"<p><strong>Article créé par l'arrêté "
-                        f"{op.source_id.arrete_id}</strong></p>"
-                    )
-                else:
-                    history_html += "<p><strong>Article créé par l'arrêté initial</strong></p>"
-            else:
-                history_html += "<p><strong>Article créé par l'arrêté initial</strong></p>"
-        else:
-            # Versions suivantes = modifications
-            if op_id:
-                op = next((o for o in operations if o.id == op_id), None)
-                if op:
-                    op_type_text = (
-                        "modifié"
-                        if op.operation_type == OperationType.REPLACE
-                        else "abrogé" if op.operation_type == OperationType.REMOVE else "créé"
-                    )
-                    source_article = (
-                        f"Article {op.source_id.article_id}"
-                        if op.source_id.article_id
-                        else "l'arrêté"
-                    )
-                    history_html += (
-                        f"<p><strong>Article {op_type_text} par {source_article} "
-                        f"de l'arrêté {op.source_id.arrete_id}</strong></p>"
-                    )
-
-                    # Ajouter un menu déroulant avec l'ancienne version
-                    if i > 0:  # Il y a une version précédente
-                        previous_version = versions[i - 1]
-                        history_html += f"""
-                        <details style="margin-left: 1rem; margin-top: 0.5rem;
-                                        margin-bottom: 0.5rem;">
-                         <summary style="cursor: pointer; font-weight: bold;">
-                          Voir l'ancienne version
-                         </summary>
-                         <div style="color: red; border-left: 3px solid red;
-                                     padding-left: 1rem; margin-top: 0.5rem;">
-                          {previous_version['content']}
-                         </div>
-                        </details>
-                        """
-
-    history_html += "</div>"
-
-    # Récupérer la dernière version de l'article
+    history_html = _build_section_history_html(versions=versions, operation_by_id=operation_by_id)
     latest_version = versions[-1]
+    latest_operation_id = latest_version.get("operation_id")
+    latest_operation = (
+        operation_by_id.get(str(latest_operation_id)) if latest_operation_id else None
+    )
+    latest_date_version = (
+        latest_operation.source_id.arrete_id if latest_operation else ap_initial_id
+    )
 
-    # Vérifier si l'article est abrogé (dernière opération est REMOVE)
-    last_op_id = latest_version["operation_id"]
-    is_abrogated = False
-    if last_op_id:
-        last_op = next((o for o in operations if o.id == last_op_id), None)
-        if last_op and last_op.operation_type == OperationType.REMOVE:
-            is_abrogated = True
+    section["data-is_modified"] = "true"
+    section["data-date_version"] = latest_date_version
+    section.clear()
 
-    # Construire le contenu consolidé
-    if is_abrogated:
+    if _is_abrogated(latest_version=latest_version, operation_by_id=operation_by_id):
         consolidated_content = f"{history_html}<p><em>Article abrogé</em></p>"
     else:
-        consolidated_content = f"{history_html}{latest_version['content']}"
+        latest_content = latest_version.get("content", "")
+        consolidated_content = (
+            f"{history_html}{latest_content if isinstance(latest_content, str) else ''}"
+        )
 
-    # Retourner le contenu consolidé sous forme de BeautifulSoup
-    return BeautifulSoup(consolidated_content, "html.parser")
+    consolidated_soup = BeautifulSoup(consolidated_content, "html.parser")
+    for child in list(consolidated_soup.contents):
+        section.append(child)
+
+
+def _build_section_history_html(
+    versions: list[ArticleVersion],
+    operation_by_id: dict[str, Operation],
+) -> str:
+    history_parts = [
+        '<div data-spec="section_version_history" style="color: #1b4d89; margin-bottom: 1rem;">'
+    ]
+    if not versions:
+        history_parts.append("</div>")
+        return "".join(history_parts)
+
+    last_version = versions[-1]
+    last_operation_id = last_version.get("operation_id")
+    last_operation = operation_by_id.get(str(last_operation_id)) if last_operation_id else None
+    if last_operation:
+        last_operation_label = (
+            "modification"
+            if last_operation.operation_type == OperationType.REPLACE
+            else (
+                "abrogation"
+                if last_operation.operation_type == OperationType.REMOVE
+                else "création"
+            )
+        )
+        last_text = (
+            "Version actuelle après "
+            f"{last_operation_label} par l'article {last_operation.source_id.article_id} "
+            f"de l'arrêté {last_operation.source_id.arrete_id}"
+        )
+    else:
+        last_text = "Version actuelle de l'arrêté initial"
+
+    history_parts.append(
+        f"""
+            <details style="margin-left: 1rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">
+             <summary style="cursor: pointer; font-weight: bold;">{last_text}</summary>
+            </details>
+"""
+    )
+
+    for index, version in enumerate(versions[:-1]):
+        operation_id = version.get("operation_id")
+        operation = operation_by_id.get(str(operation_id)) if operation_id else None
+        if index == 0 and not operation:
+            text = "Version de l'arrêté initial"
+        elif operation:
+            operation_label = (
+                "modification"
+                if operation.operation_type == OperationType.REPLACE
+                else (
+                    "abrogation" if operation.operation_type == OperationType.REMOVE else "création"
+                )
+            )
+            text = (
+                f"Version après {operation_label} par l'article "
+                f"{operation.source_id.article_id} de l'arrêté {operation.source_id.arrete_id}"
+            )
+        else:
+            text = "Version précédente"
+
+        content = version.get("content", "")
+        history_parts.append(
+            f"""
+            <details style="margin-left: 1rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">
+             <summary style="cursor: pointer; font-weight: bold;">{text}</summary>
+             <div
+              style="color: #1b4d89; border-left: 3px solid #1b4d89; padding-left: 1rem;
+              margin-top: 0.5rem;"
+             >
+              {content}
+             </div>
+            </details>
+"""
+        )
+    history_parts.append("</div>")
+    return "".join(history_parts)
+
+
+def _is_abrogated(
+    latest_version: ArticleVersion,
+    operation_by_id: dict[str, Operation],
+) -> bool:
+    operation_id = latest_version.get("operation_id")
+    if not operation_id:
+        return False
+    latest_operation = operation_by_id.get(str(operation_id))
+    if not latest_operation:
+        return False
+    return latest_operation.operation_type == OperationType.REMOVE

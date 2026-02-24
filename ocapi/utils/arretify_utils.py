@@ -24,3 +24,29 @@ def list_top_sections(soup: BeautifulSoup | Tag) -> list[Tag]:
     Itère sur les sections de plus haut niveau dans le document (sans parent section).
     """
     return [sec for sec in soup.find_all("section") if sec.find_parent("section") is None]
+
+
+def extract_specs(soup: BeautifulSoup, spec: str) -> list[Tag]:
+    """Extrait les blocs HTML correspondant à une spec Arrêtify."""
+    return [tag for tag in soup.find_all(attrs={"data-spec": spec}) if isinstance(tag, Tag)]
+
+
+def extract_first_spec_html(soup: BeautifulSoup, spec: str) -> str:
+    tags = extract_specs(soup, spec)
+    if not tags:
+        return ""
+    return str(tags[0])
+
+
+def extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
+    tags = extract_specs(soup, spec)
+    if not tags:
+        return ""
+    return str(tags[0].get_text(" ", strip=True))
+
+
+def extract_main(soup: BeautifulSoup) -> str:
+    main = soup.find("main")
+    if main is None:
+        return ""
+    return str(main)

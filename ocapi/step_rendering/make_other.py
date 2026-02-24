@@ -17,17 +17,12 @@
 # limitations under the License.
 #
 
-
-from bs4 import BeautifulSoup
-
 from ocapi.types import ArreteFile, Operation
+from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main
 
 
-def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
-    for op in operations:
-        if op.source_id.arrete_id == arrete_file.id:
-            return False
-    return True
+def has_not_out_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
+    return all(op.source_id.arrete_id != arrete_file.id for op in operations)
 
 
 def detect_additional_prescriptions(arrete_files: list[ArreteFile]) -> str:
@@ -36,20 +31,29 @@ def detect_additional_prescriptions(arrete_files: list[ArreteFile]) -> str:
     return ""
 
 
-def extract_main(soup: BeautifulSoup) -> str:
-    main = soup.find("main")
-    if main is None:
-        return ""
-    return str(main)
-
-
-def make_other_permis(arrete_files: list[ArreteFile], operations: list[Operation]) -> str:
-    other_str = ""
+def make_permit_other(arrete_files: list[ArreteFile], operations: list[Operation]) -> str:
+    complement_sections: list[str] = []
     for i, arrete_file in enumerate(arrete_files):
         if i > 0:  # Skip first file (AP initial)
-            if arrete_file.status and has_no_ops(arrete_file, operations):
+            if arrete_file.status and has_not_out_ops(arrete_file, operations):
+                identification = extract_first_spec_html(arrete_file.soup, "identification")
+                arrete_title = extract_first_spec_html(arrete_file.soup, "arrete_title")
                 main_content = extract_main(arrete_file.soup)
-                other_str += (
-                    f"Contenu de l'arrêté complémentaire {arrete_file.id} : " f"{main_content}"
+                complement_sections.append(
+                    f"""
+   <article data-spec="permit_complement" data-date="{arrete_file.id}">
+    {identification}
+    {arrete_title}
+    {main_content}
+   </article>
+"""
                 )
-    return other_str
+    if not complement_sections:
+        return ""
+    return f"""
+  <section data-spec="permit_complements">
+   <h2>Autres dispositions prévues par des arrêtés préfectoraux
+    qui ne modifient pas l'arrêté préfectoral d'autorisation</h2>
+{''.join(complement_sections)}
+  </section>
+"""
