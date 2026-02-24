@@ -53,7 +53,11 @@ def pick_arretify_section(html: str, source_article: str, operation_id: str | No
         footer = soup.find("footer", attrs={"data-spec": "appendix"})
         if footer:
             return str(footer)
-        raise ValueError("No appendix footer found")
+        _LOGGER.error(
+            f"No appendix footer found when extracting operand"
+            f"{f' for operation {operation_id}' if operation_id else ''}"
+        )
+        return "ERROR_EXTRACTING_CONTENT"
 
     # Cas 2 : "APPENDIX:X" ou "APPENDIX:X.Y.Z" → chercher dans le footer appendix
     if source_article.startswith("APPENDIX:"):
@@ -64,7 +68,11 @@ def pick_arretify_section(html: str, source_article: str, operation_id: str | No
                 data_number = section.get("data-number")
                 if data_number == appendix_number:
                     return str(section)
-            raise ValueError(f"No section with data-number={appendix_number} found in appendix")
+        _LOGGER.error(
+            f"Section {source_article} not found in appendix"
+            f"{f' for operation {operation_id}' if operation_id else ''}"
+        )
+        return "ERROR_EXTRACTING_CONTENT"
 
     # Cas 3 : Article normal (ex: "2.1.3")
     for section in soup.find_all("section", attrs={"data-spec": "section"}):
