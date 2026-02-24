@@ -18,8 +18,6 @@
 #
 from bs4 import BeautifulSoup, Tag
 
-from ocapi.types import ArreteFile, Operation
-
 
 def list_top_sections(soup: BeautifulSoup | Tag) -> list[Tag]:
     """
@@ -52,7 +50,3 @@ def extract_main(soup: BeautifulSoup) -> str:
     if main is None:
         return ""
     return str(main)
-
-
-def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
-    return all(op.source_id.arrete_id != arrete_file.id for op in operations)

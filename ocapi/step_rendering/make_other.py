@@ -18,7 +18,11 @@
 #
 
 from ocapi.types import ArreteFile, Operation
-from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main, has_no_ops
+from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main
+
+
+def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
+    return all(op.source_id.arrete_id != arrete_file.id for op in operations)
 
 
 def detect_additional_prescriptions(arrete_files: list[ArreteFile]) -> str:

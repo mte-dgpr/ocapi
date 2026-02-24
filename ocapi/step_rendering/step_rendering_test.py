@@ -23,9 +23,8 @@ from bs4 import BeautifulSoup
 
 from ocapi.step_rendering.make_header import make_permit_header
 from ocapi.step_rendering.make_main_content import make_permit_content, make_section_version
-from ocapi.step_rendering.make_other import make_permit_other
+from ocapi.step_rendering.make_other import has_no_ops, make_permit_other
 from ocapi.types import ArreteFile, ArticleVersion, NodeId, Operation, OperationType
-from ocapi.utils.arretify_utils import has_no_ops
 
 
 def _make_testing_arrete_file(
