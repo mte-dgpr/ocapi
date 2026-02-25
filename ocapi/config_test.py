@@ -195,7 +195,7 @@ class TestAppConfig:
 
     def test_model_dump_safe_preserves_none(self) -> None:
         """Test que model_dump_safe préserve les valeurs None."""
-        config = AppConfig()
+        config = AppConfig(_env_file=None)
         safe_dump = config.model_dump_safe()
         assert safe_dump["llm"]["piag_api_key"] is None
         assert safe_dump["llm"]["openai_api_key"] is None
@@ -315,7 +315,7 @@ class TestIntegration:
             },
             clear=False,
         ):
-            config = AppConfig()
+            config = AppConfig(_env_file=None)
             assert config.llm.piag_api_key == "piag-key"
             assert config.llm.openai_api_key == "openai-key"
             assert "custom.piag.example.com" in str(config.llm.piag_api_url)
@@ -331,7 +331,7 @@ class TestIntegration:
             },
             clear=False,
         ):
-            config = AppConfig()
+            config = AppConfig(_env_file=None)
             # Valeurs personnalisées
             assert config.llm.piag_api_key == "partial-key"
             assert config.pipeline.full_section == "section partielle"
