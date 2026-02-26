@@ -52,10 +52,15 @@ def step_detection(
         raw = call_llm_api(LLM_CFG, prompt_detection(block_html.page_content))
         raw_list = parse_llm_json_list_response(raw)
         raw_operations = [RawOperation(**element) for element in raw_list]
-        all_ops.extend(
-            convert_raw_operation_to_operation(block_html.page_content, raw_op, arrete_id, img_map)
-            for raw_op in raw_operations
-        )
+        for raw_op in raw_operations:
+            try:
+                op = convert_raw_operation_to_operation(
+                    block_html.page_content, raw_op, arrete_id, img_map
+                )
+                all_ops.append(op)
+            except ValueError as exc:
+                _LOGGER.warning(f"Opération ignorée (données LLM incomplètes): {exc}")
+                continue
     _LOGGER.info(f"Détection: {len(all_ops)} opération(s) détectée(s)")
     return all_ops
 

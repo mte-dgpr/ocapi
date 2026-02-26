@@ -194,6 +194,8 @@ def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
 def _provider_api_config(provider: str) -> tuple[str | None, str]:
     if provider == "mte-piag":
         return settings.llm.piag_api_key, str(settings.llm.piag_api_url)
+    if provider == "mistral":
+        return settings.llm.mistral_api_key, str(settings.llm.mistral_api_url)
     if provider == "openai":
         return settings.llm.openai_api_key, str(settings.llm.openai_api_url)
     raise ValueError(f"Provider LLM non supporté: {provider}")
@@ -201,6 +203,14 @@ def _provider_api_config(provider: str) -> tuple[str | None, str]:
 
 def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
     if model.provider == "mte-piag":
+        return {
+            "model": model.model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+            "n": 1,
+        }
+
+    if model.provider == "mistral":
         return {
             "model": model.model_name,
             "messages": [{"role": "user", "content": prompt}],

@@ -69,6 +69,16 @@ class LLMConfig(BaseSettings):
         description="URL de l'endpoint PIAG",
     )
 
+    # Mistral API (optionnel)
+    mistral_api_key: str | None = Field(
+        default=None,
+        description="Clé API pour Mistral",
+    )
+    mistral_api_url: str = Field(
+        default="https://api.mistral.ai/v1/chat/completions",
+        description="URL de l'endpoint Mistral",
+    )
+
     # OpenAI API (optionnel)
     openai_api_key: str | None = Field(
         default=None,
