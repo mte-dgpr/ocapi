@@ -59,7 +59,22 @@ def step_detection(
                 )
                 all_ops.append(op)
             except ValueError as exc:
-                _LOGGER.warning(f"Opération ignorée (données LLM incomplètes): {exc}")
+                missing = []
+                if raw_op.source_article is None:
+                    missing.append("source_article")
+                if raw_op.target_article is None:
+                    missing.append("target_article")
+                detail = (
+                    f"champs manquants: {', '.join(missing)}"
+                    if missing
+                    else str(exc)
+                )
+                _LOGGER.warning(
+                    f"Opération ignorée pour l'arrêté {arrete_id} "
+                    f"(type={raw_op.operation_type}, "
+                    f"source={raw_op.source_article}, "
+                    f"target={raw_op.target_article}): {detail}"
+                )
                 continue
     _LOGGER.info(f"Détection: {len(all_ops)} opération(s) détectée(s)")
     return all_ops
