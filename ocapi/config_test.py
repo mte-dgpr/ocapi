@@ -178,7 +178,7 @@ class TestAppConfig:
 
     def test_nested_configuration(self) -> None:
         """Test de la configuration imbriquée."""
-        config = AppConfig()
+        config = AppConfig(_env_file=None)
         assert config.llm.piag_api_key is None
         assert config.pipeline.full_section == "contenu entier"
         assert config.paths.project_root.exists()
@@ -202,16 +202,15 @@ class TestAppConfig:
 
     def test_env_file_loading(self) -> None:
         """Test du chargement depuis un fichier .env."""
-        # Simuler des variables d'environnement
         with patch.dict(
             os.environ,
             {
-                "PIAG_API_KEY": "test-key-from-env",
+                "LLM__PIAG_API_KEY": "test-key-from-env",
                 "PIPELINE__FULL_SECTION": "section complete",
             },
             clear=False,
         ):
-            config = AppConfig()
+            config = AppConfig(_env_file=None)
             assert config.llm.piag_api_key == "test-key-from-env"
             assert config.pipeline.full_section == "section complete"
 
@@ -279,10 +278,10 @@ class TestReloadSettings:
         """Test que reload_settings prend en compte les changements d'env."""
         with patch.dict(
             os.environ,
-            {"PIAG_API_KEY": "new-test-key"},
+            {"LLM__PIAG_API_KEY": "new-test-key"},
             clear=False,
         ):
-            new_settings = reload_settings()
+            new_settings = AppConfig(_env_file=None)
             assert new_settings.llm.piag_api_key == "new-test-key"
 
 

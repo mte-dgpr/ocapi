@@ -52,10 +52,26 @@ def step_detection(
         raw = call_llm_api(LLM_CFG, prompt_detection(block_html.page_content))
         raw_list = parse_llm_json_list_response(raw)
         raw_operations = [RawOperation(**element) for element in raw_list]
-        all_ops.extend(
-            convert_raw_operation_to_operation(block_html.page_content, raw_op, arrete_id, img_map)
-            for raw_op in raw_operations
-        )
+        for raw_op in raw_operations:
+            try:
+                op = convert_raw_operation_to_operation(
+                    block_html.page_content, raw_op, arrete_id, img_map
+                )
+                all_ops.append(op)
+            except ValueError as exc:
+                missing = []
+                if raw_op.source_article is None:
+                    missing.append("source_article")
+                if raw_op.target_article is None:
+                    missing.append("target_article")
+                detail = f"champs manquants: {', '.join(missing)}" if missing else str(exc)
+                _LOGGER.warning(
+                    f"Opération ignorée pour l'arrêté {arrete_id} "
+                    f"(type={raw_op.operation_type}, "
+                    f"source={raw_op.source_article}, "
+                    f"target={raw_op.target_article}): {detail}"
+                )
+                continue
     _LOGGER.info(f"Détection: {len(all_ops)} opération(s) détectée(s)")
     return all_ops
 
