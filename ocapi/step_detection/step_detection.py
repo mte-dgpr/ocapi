@@ -25,13 +25,19 @@ Chaque opération est extraite en appelant un LLM avec un prompt spécifique.
 # TODO modifier les opérations pour prendre en compte les changements de titre
 # ou deplacement d'article.
 
-import re
-
 from langchain_core.documents import Document
 
 from ocapi.step_detection.extract_operand import extract_operand_with_images
 from ocapi.step_detection.prompts import prompt_detection
-from ocapi.types import ArreteId, ImageMap, NodeId, Operation, OperationType, RawOperation
+from ocapi.types import (
+    ArreteId,
+    ImageMap,
+    NodeId,
+    Operation,
+    OperationType,
+    RawOperation,
+    is_valid_article_id,
+)
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, parse_llm_json_list_response
 from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.subtarget_utils import parse_subtarget
@@ -41,15 +47,6 @@ _LOGGER = get_logger(__name__)
 
 _OPERATION_ID_COUNTER = IdCounter()
 LLM_CFG = config_model_llm()
-
-
-def _is_valid_article_id(article_id: str) -> bool:
-    """Vérifie si un article_id est au format valide pour NodeId."""
-    # Accepter les valeurs spéciales
-    if article_id in ("ALL", "END") or article_id.startswith("APPENDIX") or article_id.startswith("NEW_ARTICLE:"):
-        return True
-    # Sinon, vérifier le format numérique
-    return bool(re.match(r"^\d+(\.\d+)*$", article_id))
 
 
 def step_detection(
@@ -63,8 +60,9 @@ def step_detection(
         raw = call_llm_api(LLM_CFG, prompt_detection(block_html.page_content))
         raw_list = parse_llm_json_list_response(raw)
         raw_operations = [RawOperation(**element) for element in raw_list]
-        
-        # Filtrer les opérations invalides (sans source_article ou target_article requis, ou format invalide)
+
+        # Filtrer les opérations invalides
+        # (sans source_article ou target_article requis, ou format invalide)
         valid_operations = []
         for raw_op in raw_operations:
             if raw_op.source_article is None:
@@ -82,14 +80,14 @@ def step_detection(
                 )
                 continue
             # Valider le format des article_id
-            if not _is_valid_article_id(raw_op.source_article):
+            if not is_valid_article_id(raw_op.source_article):
                 _LOGGER.warning(
                     f"Opération ignorée (format source_article invalide): "
                     f"type={raw_op.operation_type}, source_article={raw_op.source_article}, "
                     f"target_arrete={raw_op.target_arrete}, target_article={raw_op.target_article}"
                 )
                 continue
-            if not _is_valid_article_id(raw_op.target_article):
+            if not is_valid_article_id(raw_op.target_article):
                 _LOGGER.warning(
                     f"Opération ignorée (format target_article invalide): "
                     f"type={raw_op.operation_type}, source_article={raw_op.source_article}, "
@@ -97,7 +95,7 @@ def step_detection(
                 )
                 continue
             valid_operations.append(raw_op)
-        
+
         all_ops.extend(
             convert_raw_operation_to_operation(block_html.page_content, raw_op, arrete_id, img_map)
             for raw_op in valid_operations

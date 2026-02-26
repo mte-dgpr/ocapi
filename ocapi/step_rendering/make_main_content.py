@@ -151,9 +151,7 @@ def _build_section_history_html(
     else:
         last_text = "Version actuelle de l'arrêté initial"
 
-    history_parts.append(
-        f'<p style="font-weight: bold; margin-top: 0.5rem;">{last_text}</p>'
-    )
+    history_parts.append(f'<p style="font-weight: bold; margin-top: 0.5rem;">{last_text}</p>')
 
     for index, version in enumerate(versions[:-1]):
         operation_id = version.get("operation_id")
