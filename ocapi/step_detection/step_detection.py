@@ -64,11 +64,7 @@ def step_detection(
                     missing.append("source_article")
                 if raw_op.target_article is None:
                     missing.append("target_article")
-                detail = (
-                    f"champs manquants: {', '.join(missing)}"
-                    if missing
-                    else str(exc)
-                )
+                detail = f"champs manquants: {', '.join(missing)}" if missing else str(exc)
                 _LOGGER.warning(
                     f"Opération ignorée pour l'arrêté {arrete_id} "
                     f"(type={raw_op.operation_type}, "
