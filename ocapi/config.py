@@ -69,6 +69,16 @@ class LLMConfig(BaseSettings):
         description="URL de l'endpoint PIAG",
     )
 
+    # Mistral API (optionnel)
+    mistral_api_key: str | None = Field(
+        default=None,
+        description="Clé API pour Mistral",
+    )
+    mistral_api_url: str = Field(
+        default="https://api.mistral.ai/v1/chat/completions",
+        description="URL de l'endpoint Mistral",
+    )
+
     # OpenAI API (optionnel)
     openai_api_key: str | None = Field(
         default=None,
@@ -79,7 +89,7 @@ class LLMConfig(BaseSettings):
         description="URL de l'endpoint OpenAI",
     )
 
-    @field_validator("piag_api_key", "openai_api_key")
+    @field_validator("piag_api_key", "mistral_api_key", "openai_api_key")
     @classmethod
     def validate_api_key(cls, v: str | None) -> str | None:
         """Valider le format des clés API (non vide si fournie)."""
@@ -87,7 +97,7 @@ class LLMConfig(BaseSettings):
             raise ValueError("La clé API ne peut pas être vide")
         return v
 
-    @field_validator("piag_api_url", "openai_api_url")
+    @field_validator("piag_api_url", "mistral_api_url", "openai_api_url")
     @classmethod
     def validate_api_url(cls, v: str) -> str:
         """Valider que l'URL est bien formée."""
@@ -323,6 +333,8 @@ class AppConfig(BaseSettings):
         # Masquer les clés API
         if data.get("llm", {}).get("piag_api_key"):
             data["llm"]["piag_api_key"] = "***MASKED***"
+        if data.get("llm", {}).get("mistral_api_key"):
+            data["llm"]["mistral_api_key"] = "***MASKED***"
         if data.get("llm", {}).get("openai_api_key"):
             data["llm"]["openai_api_key"] = "***MASKED***"
         return data
