@@ -68,6 +68,7 @@ def step_detection(
                     f"Opération brute ignorée pour l'arrêté {arrete_id} "
                     f"(parsing LLM invalide): {exc}"
                 )
+        valid_operations: list[RawOperation] = []
         for raw_op in raw_operations:
             if raw_op.source_article is None:
                 _LOGGER.warning(
