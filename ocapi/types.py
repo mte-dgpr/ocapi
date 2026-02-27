@@ -34,6 +34,17 @@ AiotId = str
 ImageMap = Dict[str, str]  # mapping token -> original src
 
 
+def is_valid_article_id(article_id: str) -> bool:
+    """Vérifie si un article_id est au format valide pour NodeId."""
+    if (
+        article_id in ("ALL", "END")
+        or article_id.startswith("APPENDIX")
+        or article_id.startswith("NEW_ARTICLE:")
+    ):
+        return True
+    return bool(re.match(r"^\d+(\.\d+)*$", article_id))
+
+
 @dataclass
 class ArreteFile:
     """Représente un arrêté avec son ID et son contenu."""
@@ -84,11 +95,7 @@ class NodeId(BaseModel):
         Valide que l'article_id est au format numérique (ex: '1.2', '3.1.4'),
         APPENDIX, ALL ou END
         """
-        # Accepter les valeurs spéciales
-        if v in ("ALL", "END") or v.startswith("APPENDIX") or v.startswith("NEW_ARTICLE:"):
-            return v
-        # Sinon, vérifier le format numérique
-        if not re.match(r"^\d+(\.\d+)*$", v):
+        if not is_valid_article_id(v):
             msg = (
                 "article_id doit être au format numérique (ex: '1.2', '3.1.4'), "
                 f"APPENDIX, ALL, END ou NEW_ARTICLE:X, reçu: '{v}'"

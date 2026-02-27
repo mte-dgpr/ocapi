@@ -367,9 +367,9 @@ def test_make_section_version_places_previous_version_in_details_only() -> None:
     history_section = rendered_soup.select_one('[data-spec="section_version_history"]')
 
     details = rendered_soup.find_all("details")
-    assert len(details) >= 2
+    assert len(details) == 1
     assert history_section is not None
-    details_text = details[1].get_text(" ", strip=True)
+    details_text = details[0].get_text(" ", strip=True)
     assert "Article 1 version 0" in details_text
     assert "Article 1 modifié" not in details_text
 
