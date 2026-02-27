@@ -99,14 +99,19 @@ def make_section_version(
 
     section["data-is_modified"] = "true"
     section["data-date_version"] = latest_date_version
+
+    section_title = section.find(attrs={"data-spec": "section_title"})
+    title_html = str(section_title) if section_title else ""
+
     section.clear()
 
     if _is_abrogated(latest_version=latest_version, operation_by_id=operation_by_id):
-        consolidated_content = f"{history_html}<p><em>Article abrogé</em></p>"
+        consolidated_content = f"{title_html}{history_html}<p><em>Article abrogé</em></p>"
     else:
         latest_content = latest_version.get("content", "")
         consolidated_content = (
-            f"{history_html}{latest_content if isinstance(latest_content, str) else ''}"
+            f"{title_html}{history_html}"
+            f"{latest_content if isinstance(latest_content, str) else ''}"
         )
 
     consolidated_soup = BeautifulSoup(consolidated_content, "html.parser")
@@ -146,13 +151,7 @@ def _build_section_history_html(
     else:
         last_text = "Version actuelle de l'arrêté initial"
 
-    history_parts.append(
-        f"""
-            <details style="margin-left: 1rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">
-             <summary style="cursor: pointer; font-weight: bold;">{last_text}</summary>
-            </details>
-"""
-    )
+    history_parts.append(f'<p style="font-weight: bold; margin-top: 0.5rem;">{last_text}</p>')
 
     for index, version in enumerate(versions[:-1]):
         operation_id = version.get("operation_id")

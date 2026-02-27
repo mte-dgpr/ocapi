@@ -29,7 +29,15 @@ from langchain_core.documents import Document
 
 from ocapi.step_detection.extract_operand import extract_operand_with_images
 from ocapi.step_detection.prompts import prompt_detection
-from ocapi.types import ArreteId, ImageMap, NodeId, Operation, OperationType, RawOperation
+from ocapi.types import (
+    ArreteId,
+    ImageMap,
+    NodeId,
+    Operation,
+    OperationType,
+    RawOperation,
+    is_valid_article_id,
+)
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, parse_llm_json_list_response
 from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.subtarget_utils import parse_subtarget
@@ -52,26 +60,46 @@ def step_detection(
         raw = call_llm_api(LLM_CFG, prompt_detection(block_html.page_content))
         raw_list = parse_llm_json_list_response(raw)
         raw_operations = [RawOperation(**element) for element in raw_list]
+
+        # Filtrer les opérations invalides
+        # (sans source_article ou target_article requis, ou format invalide)
+        valid_operations = []
         for raw_op in raw_operations:
-            try:
-                op = convert_raw_operation_to_operation(
-                    block_html.page_content, raw_op, arrete_id, img_map
-                )
-                all_ops.append(op)
-            except ValueError as exc:
-                missing = []
-                if raw_op.source_article is None:
-                    missing.append("source_article")
-                if raw_op.target_article is None:
-                    missing.append("target_article")
-                detail = f"champs manquants: {', '.join(missing)}" if missing else str(exc)
+            if raw_op.source_article is None:
                 _LOGGER.warning(
-                    f"Opération ignorée pour l'arrêté {arrete_id} "
-                    f"(type={raw_op.operation_type}, "
-                    f"source={raw_op.source_article}, "
-                    f"target={raw_op.target_article}): {detail}"
+                    f"Opération ignorée (source_article manquant): "
+                    f"type={raw_op.operation_type}, target_arrete={raw_op.target_arrete}, "
+                    f"target_article={raw_op.target_article}"
                 )
                 continue
+            if raw_op.target_article is None:
+                _LOGGER.warning(
+                    f"Opération ignorée (target_article manquant): "
+                    f"type={raw_op.operation_type}, source_article={raw_op.source_article}, "
+                    f"target_arrete={raw_op.target_arrete}"
+                )
+                continue
+            # Valider le format des article_id
+            if not is_valid_article_id(raw_op.source_article):
+                _LOGGER.warning(
+                    f"Opération ignorée (format source_article invalide): "
+                    f"type={raw_op.operation_type}, source_article={raw_op.source_article}, "
+                    f"target_arrete={raw_op.target_arrete}, target_article={raw_op.target_article}"
+                )
+                continue
+            if not is_valid_article_id(raw_op.target_article):
+                _LOGGER.warning(
+                    f"Opération ignorée (format target_article invalide): "
+                    f"type={raw_op.operation_type}, source_article={raw_op.source_article}, "
+                    f"target_arrete={raw_op.target_arrete}, target_article={raw_op.target_article}"
+                )
+                continue
+            valid_operations.append(raw_op)
+
+        all_ops.extend(
+            convert_raw_operation_to_operation(block_html.page_content, raw_op, arrete_id, img_map)
+            for raw_op in valid_operations
+        )
     _LOGGER.info(f"Détection: {len(all_ops)} opération(s) détectée(s)")
     return all_ops
 
