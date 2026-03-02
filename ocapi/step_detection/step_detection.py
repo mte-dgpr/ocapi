@@ -59,11 +59,16 @@ def step_detection(
         # TODO : implémenter un retry en cas d'erreur (sur l'extraction du contenu par ex)
         raw = call_llm_api(LLM_CFG, prompt_detection(block_html.page_content))
         raw_list = parse_llm_json_list_response(raw)
-        raw_operations = [RawOperation(**element) for element in raw_list]
-
-        # Filtrer les opérations invalides
-        # (sans source_article ou target_article requis, ou format invalide)
-        valid_operations = []
+        raw_operations: list[RawOperation] = []
+        for element in raw_list:
+            try:
+                raw_operations.append(RawOperation(**element))
+            except Exception as exc:
+                _LOGGER.warning(
+                    f"Opération brute ignorée pour l'arrêté {arrete_id} "
+                    f"(parsing LLM invalide): {exc}"
+                )
+        valid_operations: list[RawOperation] = []
         for raw_op in raw_operations:
             if raw_op.source_article is None:
                 _LOGGER.warning(
