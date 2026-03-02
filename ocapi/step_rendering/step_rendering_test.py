@@ -22,9 +22,21 @@ import pytest
 from bs4 import BeautifulSoup
 
 from ocapi.step_rendering.make_header import make_permit_header
-from ocapi.step_rendering.make_main_content import make_permit_content, make_section_version
+from ocapi.step_rendering.make_main_content import (
+    _is_abrogated,
+    make_permit_content,
+    make_section_version,
+)
 from ocapi.step_rendering.make_other import has_not_out_ops, make_permit_other
-from ocapi.types import ArreteFile, ArticleVersion, NodeId, Operation, OperationType
+from ocapi.types import (
+    ArreteFile,
+    ArticleVersion,
+    NodeId,
+    Operation,
+    OperationType,
+    SubTarget,
+    SubTargetType,
+)
 
 
 def _make_testing_arrete_file(
@@ -84,6 +96,94 @@ def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
     assert permit_visa.get_text(" ", strip=True).count("VISA UNIQUE 1") == 1
     assert permit_title.get_text(" ", strip=True).count("0001") == 1
     assert html.index('data-date="2020-01-01"') < html.index('data-date="2021-01-01"')
+
+
+def test_make_permit_sources_marks_abrogated_arretes() -> None:
+    """#26: Les arrêtés abrogés doivent porter la mention (ABROGE)."""
+    from ocapi.step_rendering.make_header import make_permit_sources
+
+    active = _make_testing_arrete_file(
+        arrete_id="2020-01-01",
+        aiot="0001",
+        filename="ap_initial",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <div data-spec="arrete_title"><h1>AP Initial</h1></div>
+</body></html>
+""",
+        status=True,
+    )
+    abroge = _make_testing_arrete_file(
+        arrete_id="2021-01-01",
+        aiot="0001",
+        filename="ap_abroge",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <div data-spec="arrete_title"><h1>AP Abrogé</h1></div>
+</body></html>
+""",
+        status=False,
+    )
+
+    html = make_permit_sources([active, abroge])
+    soup = BeautifulSoup(html, "html.parser")
+
+    sources = soup.find_all("li", attrs={"data-spec": "permit_source"})
+    assert len(sources) == 2
+
+    active_source = soup.find("li", attrs={"data-status": "active"})
+    abroge_source = soup.find("li", attrs={"data-status": "abroge"})
+    assert active_source is not None
+    assert abroge_source is not None
+    assert "(ABROGE)" not in active_source.get_text()
+    assert "(ABROGE)" in abroge_source.get_text()
+
+
+def test_make_permit_visa_is_collapsible() -> None:
+    """#25: Les visas consolidés doivent être dans un <details>."""
+    from ocapi.step_rendering.make_header import make_permit_visa
+
+    arrete = _make_testing_arrete_file(
+        arrete_id="2020-01-01",
+        aiot="0001",
+        filename="arrete",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <div data-spec="visa">VISA 1</div>
+</body></html>
+""",
+    )
+
+    html = make_permit_visa([arrete])
+    soup = BeautifulSoup(html, "html.parser")
+    details = soup.find("details")
+    assert details is not None
+    assert "Visas consolidés" in details.get_text()
+    assert "VISA 1" in details.get_text()
+
+
+def test_make_permit_motif_is_collapsible() -> None:
+    """#25: Les considérants doivent être dans un <details>."""
+    from ocapi.step_rendering.make_header import make_permit_motif
+
+    arrete = _make_testing_arrete_file(
+        arrete_id="2020-01-01",
+        aiot="0001",
+        filename="arrete",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <div data-spec="arrete_title"><h1>Titre</h1></div>
+ <div data-spec="motifs">MOTIF 1</div>
+</body></html>
+""",
+    )
+
+    html = make_permit_motif([arrete])
+    soup = BeautifulSoup(html, "html.parser")
+    details = soup.find("details")
+    assert details is not None
+    assert "Considérants" in details.get_text()
+    assert "MOTIF 1" in details.get_text()
 
 
 def test_make_permit_header_raises_when_multiple_aiot_detected() -> None:
@@ -216,6 +316,99 @@ def test_make_section_version_marks_removed_article() -> None:
     assert "Article abrogé" in str(section)
 
 
+def test_make_section_version_partial_remove_does_not_mark_abrogated() -> None:
+    """#30: Un REMOVE avec sub_target partiel ne doit pas marquer l'article comme abrogé."""
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
+        "html.parser",
+    ).find("section")
+    assert section is not None
+
+    operation = Operation(
+        id="op-partial-remove",
+        source_id=NodeId(arrete_id="2024-09-27", article_id="APPENDIX:3.1"),
+        target_id=NodeId(arrete_id="2009-12-08", article_id="1"),
+        operation_type=OperationType.REMOVE,
+        sub_target=SubTarget(
+            type=SubTargetType.TABLEAU,
+            description="premier alinéa après le tableau",
+        ),
+    )
+
+    history = {
+        NodeId(arrete_id="2009-12-08", article_id="1"): [
+            cast(
+                ArticleVersion,
+                {"version": 0, "content": "<p>Texte initial</p>", "operation_id": None},
+            ),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 1,
+                    "content": "<p>Texte après suppression partielle</p>",
+                    "operation_id": "op-partial-remove",
+                },
+            ),
+        ]
+    }
+
+    make_section_version(
+        section=section,
+        article_id="1",
+        history=history,
+        ap_initial_id="2009-12-08",
+        operation_by_id={"op-partial-remove": operation},
+    )
+
+    assert section["data-is_modified"] == "true"
+    assert "Article abrogé" not in str(section)
+    assert "Texte après suppression partielle" in str(section)
+
+
+def test_make_section_version_full_remove_marks_abrogated() -> None:
+    """#30: Un REMOVE avec sub_target FULL_SECTION/ALL doit marquer l'article comme abrogé."""
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
+        "html.parser",
+    ).find("section")
+    assert section is not None
+
+    operation = Operation(
+        id="op-full-remove",
+        source_id=NodeId(arrete_id="2024-09-27", article_id="APPENDIX:3.1"),
+        target_id=NodeId(arrete_id="2009-12-08", article_id="1"),
+        operation_type=OperationType.REMOVE,
+        sub_target=SubTarget(
+            type=SubTargetType.FULL_SECTION,
+            description="ALL",
+        ),
+    )
+
+    history = {
+        NodeId(arrete_id="2009-12-08", article_id="1"): [
+            cast(
+                ArticleVersion,
+                {"version": 0, "content": "<p>Texte initial</p>", "operation_id": None},
+            ),
+            cast(
+                ArticleVersion,
+                {"version": 1, "content": "", "operation_id": "op-full-remove"},
+            ),
+        ]
+    }
+
+    make_section_version(
+        section=section,
+        article_id="1",
+        history=history,
+        ap_initial_id="2009-12-08",
+        operation_by_id={"op-full-remove": operation},
+    )
+
+    assert section["data-is_modified"] == "true"
+    assert "Article abrogé" in str(section)
+
+
 def test_make_permit_content_renders_full_main_with_section_versions() -> None:
     ap_initial = _make_testing_arrete_file(
         arrete_id="2020-01-01",
@@ -328,6 +521,120 @@ def test_has_not_out_ops_returns_false_with_multiple_operations() -> None:
     ]
 
     assert has_not_out_ops(arrete_file, operations) is False
+
+
+class TestIsAbrogated:
+    """Direct unit tests for _is_abrogated edge cases (#30)."""
+
+    @staticmethod
+    def _make_version(operation_id: str | None) -> ArticleVersion:
+        return cast(
+            ArticleVersion,
+            {"version": 1, "content": "", "operation_id": operation_id},
+        )
+
+    def test_no_operation_id_returns_false(self) -> None:
+        assert _is_abrogated(self._make_version(None), {}) is False
+
+    def test_unknown_operation_id_returns_false(self) -> None:
+        assert _is_abrogated(self._make_version("unknown"), {}) is False
+
+    def test_replace_operation_returns_false(self) -> None:
+        op = Operation(
+            id="op-r",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            operation_type=OperationType.REPLACE,
+        )
+        assert _is_abrogated(self._make_version("op-r"), {"op-r": op}) is False
+
+    def test_add_operation_returns_false(self) -> None:
+        op = Operation(
+            id="op-a",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            operation_type=OperationType.ADD,
+        )
+        assert _is_abrogated(self._make_version("op-a"), {"op-a": op}) is False
+
+    def test_remove_no_sub_target_returns_true(self) -> None:
+        op = Operation(
+            id="op-rm",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            operation_type=OperationType.REMOVE,
+        )
+        assert _is_abrogated(self._make_version("op-rm"), {"op-rm": op}) is True
+
+    def test_remove_full_section_all_returns_true(self) -> None:
+        op = Operation(
+            id="op-fs",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            operation_type=OperationType.REMOVE,
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="ALL"),
+        )
+        assert _is_abrogated(self._make_version("op-fs"), {"op-fs": op}) is True
+
+    def test_remove_full_section_contenu_entier_returns_true(self) -> None:
+        op = Operation(
+            id="op-ce",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            operation_type=OperationType.REMOVE,
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="contenu entier"),
+        )
+        assert _is_abrogated(self._make_version("op-ce"), {"op-ce": op}) is True
+
+    def test_remove_tableau_returns_false(self) -> None:
+        op = Operation(
+            id="op-tab",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            operation_type=OperationType.REMOVE,
+            sub_target=SubTarget(type=SubTargetType.TABLEAU, description="tableau X"),
+        )
+        assert _is_abrogated(self._make_version("op-tab"), {"op-tab": op}) is False
+
+    def test_remove_alinea_returns_false(self) -> None:
+        op = Operation(
+            id="op-al",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            operation_type=OperationType.REMOVE,
+            sub_target=SubTarget(type=SubTargetType.ALINEA, description="premier alinéa"),
+        )
+        assert _is_abrogated(self._make_version("op-al"), {"op-al": op}) is False
+
+    def test_remove_phrase_returns_false(self) -> None:
+        op = Operation(
+            id="op-ph",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            operation_type=OperationType.REMOVE,
+            sub_target=SubTarget(type=SubTargetType.PHRASE, description="phrase Y"),
+        )
+        assert _is_abrogated(self._make_version("op-ph"), {"op-ph": op}) is False
+
+    def test_remove_complex_returns_false(self) -> None:
+        op = Operation(
+            id="op-cx",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            operation_type=OperationType.REMOVE,
+            sub_target=SubTarget(type=SubTargetType.COMPLEX, description="desc"),
+        )
+        assert _is_abrogated(self._make_version("op-cx"), {"op-cx": op}) is False
+
+    def test_remove_full_section_other_description_returns_false(self) -> None:
+        op = Operation(
+            id="op-other",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            operation_type=OperationType.REMOVE,
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="titre uniquement"),
+        )
+        assert _is_abrogated(self._make_version("op-other"), {"op-other": op}) is False
 
 
 def test_make_section_version_places_previous_version_in_details_only() -> None:

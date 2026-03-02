@@ -72,10 +72,11 @@ def make_permit_sources(arrete_files: list[ArreteFile]) -> str:
             source_title = f"<div>{arrete_file.filename}</div>"
         status = "active" if arrete_file.status else "abroge"
         label = arrete_title_text or arrete_file.filename
+        abroge_mention = " (ABROGE)" if not arrete_file.status else ""
         items.append(
             f"""
     <li data-spec="permit_source" data-date="{arrete_file.id}" data-status="{status}">
-     <p><strong>Date arrêté :</strong> {arrete_file.id}</p>
+     <p><strong>Date arrêté :</strong> {arrete_file.id}{abroge_mention}</p>
      <div data-spec="permit_source_title" aria-label="{label}">
       {source_title}
      </div>
@@ -105,10 +106,12 @@ def make_permit_visa(arrete_files: list[ArreteFile]) -> str:
     visas_html = "\n".join(ordered_unique_visas)
     return f"""
    <section data-spec="permit_visa" style="margin-top: var(--spacing-2);">
-    <h2>Visas consolidés</h2>
-    <div style="margin-left: 1rem; margin-top: 1rem;">
+    <details>
+     <summary><h2 style="display: inline;">Visas consolidés</h2></summary>
+     <div style="margin-left: 1rem; margin-top: 1rem;">
 {visas_html}
-    </div>
+     </div>
+    </details>
    </section>
 """
 
@@ -133,8 +136,10 @@ def make_permit_motif(arrete_files: list[ArreteFile]) -> str:
         )
     return f"""
    <section data-spec="permit_motif" style="margin-top: var(--spacing-2);">
-    <h2>Considérants</h2>
+    <details>
+     <summary><h2 style="display: inline;">Considérants</h2></summary>
 {''.join(motifs_sections)}
+    </details>
    </section>
 """
 

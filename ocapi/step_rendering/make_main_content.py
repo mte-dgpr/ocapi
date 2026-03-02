@@ -19,7 +19,15 @@
 
 from bs4 import BeautifulSoup, Tag
 
-from ocapi.types import ArreteFile, ArticleHistory, ArticleVersion, NodeId, Operation, OperationType
+from ocapi.types import (
+    ArreteFile,
+    ArticleHistory,
+    ArticleVersion,
+    NodeId,
+    Operation,
+    OperationType,
+    SubTargetType,
+)
 
 
 def make_permit_content(
@@ -201,4 +209,9 @@ def _is_abrogated(
     latest_operation = operation_by_id.get(str(operation_id))
     if not latest_operation:
         return False
-    return latest_operation.operation_type == OperationType.REMOVE
+    if latest_operation.operation_type != OperationType.REMOVE:
+        return False
+    sub = latest_operation.sub_target
+    if sub is None:
+        return True
+    return sub.type == SubTargetType.FULL_SECTION and sub.description in ("ALL", "contenu entier")

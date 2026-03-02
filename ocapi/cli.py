@@ -67,7 +67,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     # Exécuter le pipeline
     _LOGGER.info("Exécution du pipeline...")
     try:
-        _operations, _history, _arrete_files, permis = run_pipeline(arrete_files)
+        start_date = getattr(args, "start_date", None)
+        _operations, _history, _arrete_files, permis = run_pipeline(
+            arrete_files, start_date=start_date
+        )
         _LOGGER.info("Pipeline terminé avec succès.")
 
         # Sauvegarder le résultat si --output est spécifié
@@ -187,6 +190,11 @@ Examples:
         nargs="*",
         metavar="ID",
         help="IDs des arrêtés à inclure (défaut: tous)",
+    )
+    run_parser.add_argument(
+        "--start-date",
+        metavar="YYYY-MM-DD",
+        help="Date de démarrage : seuls les arrêtés >= cette date passent par la détection",
     )
     run_parser.add_argument(
         "-o",

@@ -108,11 +108,13 @@ def extract_operand_with_images(
 
     section = pick_arretify_section(block_html, source_article, operation_id)
     working_html = section
+    op_info = f" for operation {operation_id}" if operation_id else ""
     start_idx = _find_marker(working_html, start_marker)
     if start_idx == -1:
         working_html = block_html
         start_idx = _find_marker(working_html, start_marker)
         if start_idx == -1:
+            _LOGGER.warning(f"Start marker not found{op_info}: {start_marker[:80]!r}")
             return "ERROR_EXTRACTING_CONTENT"
 
     end_idx = _find_marker(working_html, end_marker)
@@ -121,4 +123,5 @@ def extract_operand_with_images(
         fragment = _rehydrate_images(fragment, img_map)
         return fragment
     else:
+        _LOGGER.warning(f"End marker not found{op_info}: {end_marker[:80]!r}")
         return "ERROR_EXTRACTING_CONTENT"
