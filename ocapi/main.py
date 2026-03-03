@@ -135,6 +135,7 @@ def main(
                     "version": v["version"],
                     "content": v["content"],
                     "operation_id": v["operation_id"],
+                    "status_code": v.get("status_code", "RESOLVED"),
                 }
                 for v in versions
             ]

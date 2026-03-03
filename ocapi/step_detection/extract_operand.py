@@ -30,6 +30,7 @@ from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
 ImageMap = dict[str, str]  # mapping from placeholder src to real src
+ERROR_EXTRACTING_CONTENT = "ERROR_EXTRACTING_CONTENT"
 
 
 def _find_marker(haystack: str, marker: str) -> int:
@@ -57,7 +58,7 @@ def pick_arretify_section(html: str, source_article: str, operation_id: str | No
             f"No appendix footer found when extracting operand"
             f"{f' for operation {operation_id}' if operation_id else ''}"
         )
-        return "ERROR_EXTRACTING_CONTENT"
+        return ERROR_EXTRACTING_CONTENT
 
     # Cas 2 : "APPENDIX:X" ou "APPENDIX:X.Y.Z" → chercher dans le footer appendix
     if source_article.startswith("APPENDIX:"):
@@ -72,7 +73,7 @@ def pick_arretify_section(html: str, source_article: str, operation_id: str | No
             f"Section {source_article} not found in appendix"
             f"{f' for operation {operation_id}' if operation_id else ''}"
         )
-        return "ERROR_EXTRACTING_CONTENT"
+        return ERROR_EXTRACTING_CONTENT
 
     # Cas 3 : Article normal (ex: "2.1.3")
     for section in soup.find_all("section", attrs={"data-spec": "section"}):
@@ -82,7 +83,7 @@ def pick_arretify_section(html: str, source_article: str, operation_id: str | No
 
     op_info = f" for operation {operation_id}" if operation_id else ""
     _LOGGER.error(f"Section {source_article} not found when extracting operand {op_info}")
-    return "ERROR_EXTRACTING_CONTENT"
+    return ERROR_EXTRACTING_CONTENT
 
 
 def _rehydrate_images(fragment_html: str, img_map: dict[str, str]) -> str:
@@ -114,8 +115,7 @@ def extract_operand_with_images(
         working_html = block_html
         start_idx = _find_marker(working_html, start_marker)
         if start_idx == -1:
-            _LOGGER.warning(f"Start marker not found{op_info}: {start_marker[:80]!r}")
-            return "ERROR_EXTRACTING_CONTENT"
+            return ERROR_EXTRACTING_CONTENT
 
     end_idx = _find_marker(working_html, end_marker)
     if end_idx != -1:
@@ -123,5 +123,4 @@ def extract_operand_with_images(
         fragment = _rehydrate_images(fragment, img_map)
         return fragment
     else:
-        _LOGGER.warning(f"End marker not found{op_info}: {end_marker[:80]!r}")
-        return "ERROR_EXTRACTING_CONTENT"
+        return ERROR_EXTRACTING_CONTENT

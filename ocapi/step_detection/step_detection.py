@@ -27,7 +27,10 @@ Chaque opération est extraite en appelant un LLM avec un prompt spécifique.
 
 from langchain_core.documents import Document
 
-from ocapi.step_detection.extract_operand import extract_operand_with_images
+from ocapi.step_detection.extract_operand import (
+    ERROR_EXTRACTING_CONTENT,
+    extract_operand_with_images,
+)
 from ocapi.step_detection.prompts import prompt_detection
 from ocapi.types import (
     ArreteId,
@@ -124,6 +127,7 @@ def convert_raw_operation_to_operation(
     operation_id = make_id(_OPERATION_ID_COUNTER)
 
     operand = None
+    extractable_content = True
     if raw_operation.new_content_start_marker and raw_operation.new_content_end_marker:
         operand = extract_operand_with_images(
             block_html,
@@ -133,6 +137,9 @@ def convert_raw_operation_to_operation(
             img_map,
             operation_id=operation_id,
         )
+        if operand == ERROR_EXTRACTING_CONTENT:
+            extractable_content = False
+            operand = None
     sub_target = None
     if raw_operation.sub_target:
         sub_target = parse_subtarget(raw_operation.sub_target)
@@ -154,4 +161,5 @@ def convert_raw_operation_to_operation(
         operation_type=op_type,
         operand=operand,
         sub_target=sub_target,
+        extractable_content=extractable_content,
     )

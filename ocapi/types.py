@@ -19,7 +19,7 @@
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional, TypedDict
+from typing import Dict, Literal, Optional, TypedDict
 
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -124,6 +124,7 @@ class ArticleVersion(TypedDict):
     version: int
     content: Content
     operation_id: str | None
+    status_code: Literal["RESOLVED", "ERROR_EXTRACTING_CONTENT"]
 
 
 ArticleHistory = Dict[NodeId, list[ArticleVersion]]
@@ -263,6 +264,7 @@ class Operation(_BaseModelWithConfig):
     operation_type: OperationType
     operand: str | None = None
     sub_target: SubTarget | None = None
+    extractable_content: bool = True
 
     @field_validator("operation_type", mode="before")
     @classmethod

@@ -688,3 +688,52 @@ def test_make_section_version_places_previous_version_in_details_only() -> None:
     assert rendered_soup.find(
         string=lambda text: isinstance(text, str) and "Article 1 modifié" in text
     )
+
+
+def test_make_section_version_displays_unresolved_operation_message() -> None:
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Article 1 initial</p></section>',
+        "html.parser",
+    ).find("section")
+    assert section is not None
+
+    operation = Operation(
+        id="op-1",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+        extractable_content=False,
+    )
+    history = {
+        NodeId(arrete_id="2020-01-01", article_id="1"): [
+            cast(
+                ArticleVersion,
+                {
+                    "version": 0,
+                    "content": "<p>Article 1 version 0</p>",
+                    "operation_id": None,
+                    "status_code": "RESOLVED",
+                },
+            ),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 1,
+                    "content": "<p>Article 1 version 0</p>",
+                    "operation_id": "op-1",
+                    "status_code": "ERROR_EXTRACTING_CONTENT",
+                },
+            ),
+        ]
+    }
+
+    make_section_version(
+        section=section,
+        article_id="1",
+        history=history,
+        ap_initial_id="2020-01-01",
+        operation_by_id={"op-1": operation},
+    )
+
+    rendered = str(section)
+    assert "Opération non résolue modification de l'article 2 de l'arrêté 2021-01-01" in rendered

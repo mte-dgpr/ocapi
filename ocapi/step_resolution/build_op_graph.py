@@ -48,7 +48,10 @@ def update_node_content(G: nx.MultiDiGraph, node_id: NodeId, node_content: Conte
 
 def add_edge(G: nx.MultiDiGraph, operation: Operation) -> None:
     edge_data = operation.model_dump(
-        exclude={"source_id", "target_id"}, exclude_none=True, mode="json"
+        exclude={"source_id", "target_id"},
+        exclude_none=True,
+        exclude_defaults=True,
+        mode="json",
     )
     G.add_edge(operation.source_id, operation.target_id, **edge_data)
 
