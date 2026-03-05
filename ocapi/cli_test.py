@@ -16,63 +16,90 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from ocapi.cli import main
 
 
 @patch("ocapi.cli.initialize_root_logger")
-@patch("ocapi.cli.config_model_llm")
-@patch("ocapi.cli.load_arrete_files", return_value=[])
-@patch("ocapi.cli.run_pipeline", return_value=([], {}, [], None))
-def test_cli_start_date_is_forwarded(
-    mock_pipeline: MagicMock,
-    mock_load: MagicMock,
-    mock_llm: MagicMock,
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_no_detection_is_forwarded(
+    mock_main: MagicMock,
     mock_logger: MagicMock,
 ) -> None:
-    """--start-date is parsed and forwarded to run_pipeline."""
-    mock_llm.return_value = MagicMock(model_name="test-model")
-    main(["run", "some/dir", "--start-date", "2014-01-09"])
-    mock_pipeline.assert_called_once()
-    _args, kwargs = mock_pipeline.call_args
-    assert kwargs.get("start_date") == "2014-01-09" or (len(_args) > 1 and _args[1] == "2014-01-09")
+    """--no-detection is parsed and forwarded to run_main."""
+    main(["run", "some/arretes_html/0005804239", "--no-detection"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("enable_detection") is False
+    assert kwargs.get("enable_rendering") is True
 
 
 @patch("ocapi.cli.initialize_root_logger")
-@patch("ocapi.cli.config_model_llm")
-@patch("ocapi.cli.load_arrete_files", return_value=[])
-@patch("ocapi.cli.run_pipeline", return_value=([], {}, [], None))
-def test_cli_no_start_date_defaults_to_none(
-    mock_pipeline: MagicMock,
-    mock_load: MagicMock,
-    mock_llm: MagicMock,
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_no_rendering_is_forwarded(
+    mock_main: MagicMock,
     mock_logger: MagicMock,
 ) -> None:
-    """Without --start-date, start_date is None."""
-    mock_llm.return_value = MagicMock(model_name="test-model")
-    main(["run", "some/dir"])
-    mock_pipeline.assert_called_once()
-    _args, kwargs = mock_pipeline.call_args
-    assert kwargs.get("start_date") is None
+    """--no-rendering is parsed and forwarded to run_main."""
+    main(["run", "some/arretes_html/0005804239", "--no-rendering"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("enable_detection") is True
+    assert kwargs.get("enable_rendering") is False
 
 
 @patch("ocapi.cli.initialize_root_logger")
-@patch("ocapi.cli.config_model_llm")
-@patch("ocapi.cli.load_arrete_files")
-@patch("ocapi.cli.run_pipeline", return_value=([], {}, [], None))
-def test_cli_include_and_start_date_coexist(
-    mock_pipeline: MagicMock,
-    mock_load: MagicMock,
-    mock_llm: MagicMock,
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_include_is_forwarded(
+    mock_main: MagicMock,
     mock_logger: MagicMock,
 ) -> None:
-    """--include and --start-date can be used together."""
-    mock_llm.return_value = MagicMock(model_name="test-model")
-    fake_arrete = MagicMock()
-    fake_arrete.id = "2024-09-27"
-    mock_load.return_value = [fake_arrete]
-    main(["run", "some/dir", "--include", "2024-09-27", "--start-date", "2014-01-09"])
-    mock_pipeline.assert_called_once()
-    _args, kwargs = mock_pipeline.call_args
-    assert kwargs.get("start_date") == "2014-01-09"
+    """--include IDs are forwarded to run_main."""
+    main(["run", "some/arretes_html/0005804239", "--include", "2024-09-27", "2023-12-04"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("include_ids") == ["2024-09-27", "2023-12-04"]
+
+
+@patch("ocapi.cli.initialize_root_logger")
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_aiot_is_forwarded(
+    mock_main: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
+    """--aiot is forwarded to run_main."""
+    main(["run", "some/arretes_html/0005804239", "--aiot", "0005804239"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("aiot") == "0005804239"
+
+
+@patch("ocapi.cli.initialize_root_logger")
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_output_is_forwarded(
+    mock_main: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
+    """--output dir is forwarded to run_main as Path."""
+    main(["run", "some/arretes_html/0005804239", "--output", "out/"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("output_dir") == Path("out/")
+
+
+@patch("ocapi.cli.initialize_root_logger")
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_defaults(
+    mock_main: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
+    """Without flags, detection and rendering are both enabled by default."""
+    main(["run", "some/arretes_html/0005804239"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("enable_detection") is True
+    assert kwargs.get("enable_rendering") is True
+    assert kwargs.get("output_dir") is None
+    assert kwargs.get("aiot") is None
