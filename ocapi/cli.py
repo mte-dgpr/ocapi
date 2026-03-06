@@ -29,7 +29,15 @@ import sys
 from pathlib import Path
 
 from ocapi.config import settings
-from ocapi.main import main as run_main
+from ocapi.exceptions import OcapiError
+from ocapi.pipeline import run_pipeline
+from ocapi.utils.io_utils import (
+    InputOutputError,
+    load_arrete_files,
+    write_json_output,
+    write_permis_output,
+)
+from ocapi.utils.llm_utils import config_model_llm
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 _LOGGER = get_logger(__name__)
@@ -37,15 +45,83 @@ _LOGGER = get_logger(__name__)
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Exécute le pipeline OCAPI sur les arrêtés."""
-    return run_main(
-        input_dir=Path(args.input_dir),
-        output_dir=Path(args.output) if args.output else None,
-        aiot=args.aiot,
-        include_ids=args.include,
-        start_date=args.start_date,
-        enable_detection=not getattr(args, "no_detection", False),
-        enable_rendering=not getattr(args, "no_rendering", False),
-    )
+    input_dir = Path(args.input_dir)
+
+    # Déterminer le répertoire de sortie
+    output_dir = Path(args.output) if args.output else input_dir.parent / "ocapi_output"
+    _LOGGER.info(f"Dossier de sortie : {output_dir}")
+
+    # Déterminer l'AIOT
+    aiot = args.aiot or input_dir.parent.name
+    _LOGGER.info(f"AIOT: {aiot}")
+    _LOGGER.info(f"Modèle LLM: {config_model_llm().model_name}")
+
+    # Charger les arrêtés
+    try:
+        arrete_files = load_arrete_files(input_dir, aiot)
+    except InputOutputError as e:
+        print(f"Erreur: {e}", file=sys.stderr)
+        return 1
+
+    # Filtrer les arrêtés si demandé
+    if args.include:
+        arrete_ids_included = set(args.include)
+        _LOGGER.info(f"Filtrage sur: {arrete_ids_included}")
+        arrete_files = [af for af in arrete_files if af.id in arrete_ids_included]
+        _LOGGER.info(f"{len(arrete_files)} arrêté(s) après filtrage")
+
+        if not arrete_files:
+            _LOGGER.error("Aucun arrêté ne correspond aux IDs spécifiés")
+            return 1
+
+    # Créer le dossier de sortie
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Exécuter le pipeline
+    _LOGGER.info("Exécution du pipeline...")
+    try:
+        start_date = getattr(args, "start_date", None)
+        operations, history, _arrete_files, permis = run_pipeline(
+            arrete_files, start_date=start_date
+        )
+        _LOGGER.info("Pipeline terminé avec succès.")
+
+        # Sauvegarder les opérations
+        operations_path = output_dir / "operations.json"
+        operations_dict = [op.model_dump(mode="json") for op in operations]
+        write_json_output(operations_dict, operations_path)
+        _LOGGER.info(f"Opérations sauvegardées → {operations_path}")
+
+        # Sauvegarder l'historique
+        history_path = output_dir / "history.json"
+        history_serializable = {
+            str(node_id): [
+                {
+                    "version": v["version"],
+                    "content": v["content"],
+                    "operation_id": v["operation_id"],
+                }
+                for v in versions
+            ]
+            for node_id, versions in history.items()
+        }
+        write_json_output(history_serializable, history_path)
+        _LOGGER.info(f"Historique sauvegardé → {history_path}")
+
+        # Sauvegarder le permis
+        if permis:
+            permis_path = output_dir / "permis.html"
+            write_permis_output(permis, permis_path)
+            _LOGGER.info(f"Permis consolidé sauvegardé → {permis_path}")
+
+        return 0
+
+    except OcapiError as e:
+        _LOGGER.error(f"Erreur OCAPI: {e}")
+        return 1
+    except Exception as e:
+        _LOGGER.exception(f"Erreur inattendue lors de l'exécution du pipeline: {e}")
+        return 1
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -38,6 +38,7 @@ import sys
 from pathlib import Path
 
 from ocapi.config import settings
+from ocapi.exceptions import OcapiError
 from ocapi.pipeline import run_pipeline
 from ocapi.utils.io_utils import InputOutputError, load_arrete_files
 from ocapi.utils.llm_utils import config_model_llm
@@ -121,11 +122,11 @@ def main(
         )
         return 0
 
-    except InputOutputError as e:
-        _LOGGER.error(f"Erreur d'entrée/sortie: {e}")
+    except OcapiError as e:
+        _LOGGER.error(f"Erreur OCAPI: {e}")
         return 1
     except Exception as e:
-        _LOGGER.exception(f"Erreur lors de l'exécution du pipeline: {e}")
+        _LOGGER.exception(f"Erreur inattendue lors de l'exécution du pipeline: {e}")
         return 1
 
 

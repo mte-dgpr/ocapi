@@ -21,6 +21,7 @@ import unittest
 from bs4 import BeautifulSoup
 from pydantic import ValidationError
 
+from .exceptions import InvalidArreteIdError, InvalidFileFormatError
 from .types import (
     FileType,
     NodeId,
@@ -85,42 +86,42 @@ class TestParseArreteId(unittest.TestCase):
         assert parse_arrete_id("2023-01-31") == "2023-01-31"
 
     def test_invalid_too_few_parts(self) -> None:
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(InvalidArreteIdError) as ctx:
             parse_arrete_id("2024-01")
         assert "Date invalide" in str(ctx.exception)
 
     def test_invalid_too_many_parts(self) -> None:
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(InvalidArreteIdError) as ctx:
             parse_arrete_id("2024-01-15-extra")
         assert "Date invalide" in str(ctx.exception)
 
     def test_invalid_non_numeric(self) -> None:
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(InvalidArreteIdError) as ctx:
             parse_arrete_id("YYYY-MM-DD")
         assert "Date invalide" in str(ctx.exception)
 
     def test_invalid_year_too_old(self) -> None:
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(InvalidArreteIdError) as ctx:
             parse_arrete_id("1800-01-15")
         assert "Date invalide" in str(ctx.exception)
 
     def test_invalid_year_too_recent(self) -> None:
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(InvalidArreteIdError) as ctx:
             parse_arrete_id("2200-01-15")
         assert "Date invalide" in str(ctx.exception)
 
     def test_invalid_month_out_of_range(self) -> None:
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(InvalidArreteIdError) as ctx:
             parse_arrete_id("2024-13-01")
         assert "Date invalide" in str(ctx.exception)
 
     def test_invalid_day_out_of_range(self) -> None:
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(InvalidArreteIdError) as ctx:
             parse_arrete_id("2024-01-45")
         assert "Date invalide" in str(ctx.exception)
 
     def test_reversed_date_format(self) -> None:
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(InvalidArreteIdError) as ctx:
             parse_arrete_id("15-01-2024")
         assert "Date invalide" in str(ctx.exception)
 
@@ -299,25 +300,25 @@ class TestParseFilename(unittest.TestCase):
 
     def test_parse_invalid_no_html_extension(self) -> None:
         """Test avec un fichier sans extension .html."""
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(InvalidFileFormatError) as context:
             parse_filename("2024-01-15_ap_document.pdf")
         assert "extension .html" in str(context.exception)
 
     def test_parse_invalid_date_format(self) -> None:
         """Test avec un format de date invalide."""
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(InvalidFileFormatError) as context:
             parse_filename("2024-13-45_ap_document.html")
         assert "Date invalide" in str(context.exception)
 
     def test_parse_invalid_date_not_iso(self) -> None:
         """Test avec une date non ISO."""
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(InvalidFileFormatError) as context:
             parse_filename("15-01-2024_ap_document.html")
         assert "Date invalide" in str(context.exception)
 
     def test_parse_invalid_missing_parts(self) -> None:
         """Test avec un nom de fichier qui n'a pas assez de parties."""
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(InvalidFileFormatError) as context:
             parse_filename("2024-01-15.html")
         assert "Format invalide" in str(context.exception)
 
@@ -376,7 +377,7 @@ class TestValidateArretifyVersion(unittest.TestCase):
         """Test sans attribut data-arretify_version."""
         html = "<html><body><p>Contenu</p></body></html>"
         soup = BeautifulSoup(html, "html.parser")
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(InvalidFileFormatError) as context:
             validate_arretify_version(soup, "test.html")
         assert "Version Arrêtify manquante" in str(context.exception)
 
@@ -384,7 +385,7 @@ class TestValidateArretifyVersion(unittest.TestCase):
         """Test avec version 0.2.0 (non supportée, minor différente)."""
         html = '<html><body data-arretify_version="0.2.0"><p>Contenu</p></body></html>'
         soup = BeautifulSoup(html, "html.parser")
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(InvalidFileFormatError) as context:
             validate_arretify_version(soup, "test.html")
         assert "Version Arrêtify non supportée" in str(context.exception)
         assert "0.2.0" in str(context.exception)
@@ -393,7 +394,7 @@ class TestValidateArretifyVersion(unittest.TestCase):
         """Test avec version 1.0.0 (non supportée, major différente)."""
         html = '<html><body data-arretify_version="1.0.0"><p>Contenu</p></body></html>'
         soup = BeautifulSoup(html, "html.parser")
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(InvalidFileFormatError) as context:
             validate_arretify_version(soup, "test.html")
         assert "Version Arrêtify non supportée" in str(context.exception)
 
@@ -401,7 +402,7 @@ class TestValidateArretifyVersion(unittest.TestCase):
         """Test avec un format de version invalide."""
         html = '<html><body data-arretify_version="invalid"><p>Contenu</p></body></html>'
         soup = BeautifulSoup(html, "html.parser")
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(InvalidFileFormatError) as context:
             validate_arretify_version(soup, "test.html")
         assert "Version Arrêtify non supportée" in str(context.exception)
 
@@ -409,7 +410,7 @@ class TestValidateArretifyVersion(unittest.TestCase):
         """Test avec un document HTML sans balise body."""
         html = "<html><p>Contenu sans body</p></html>"
         soup = BeautifulSoup(html, "html.parser")
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(InvalidFileFormatError) as context:
             validate_arretify_version(soup, "test.html")
         assert "Document HTML invalide" in str(context.exception)
 

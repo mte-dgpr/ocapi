@@ -27,6 +27,7 @@ Chaque opération est extraite en appelant un LLM avec un prompt spécifique.
 
 from langchain_core.documents import Document
 
+from ocapi.exceptions import OperationError
 from ocapi.step_detection.extract_operand import (
     ERROR_EXTRACTING_CONTENT,
     extract_operand_with_images,
@@ -119,9 +120,9 @@ def convert_raw_operation_to_operation(
     img_map: ImageMap,
 ) -> Operation:
     if raw_operation.source_article is None:
-        raise ValueError("raw operation is missing source_article")
+        raise OperationError("raw operation is missing source_article")
     if raw_operation.target_article is None:
-        raise ValueError("raw operation is missing target_article")
+        raise OperationError("raw operation is missing target_article")
 
     # Générer l'ID de l'opération en premier pour pouvoir l'utiliser dans le logging
     operation_id = make_id(_OPERATION_ID_COUNTER)

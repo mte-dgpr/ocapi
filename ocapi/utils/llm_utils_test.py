@@ -23,6 +23,7 @@ import pytest
 import requests  # type: ignore[import-untyped]
 
 import ocapi.utils.llm_utils as llm_utils_module
+from ocapi.exceptions import LLMNetworkError, LLMResponseError
 from ocapi.utils.llm_utils import (
     ResolvedLLMModel,
     call_llm_api,
@@ -189,7 +190,7 @@ class TestLLMResilience:
                     "ocapi.utils.llm_utils.requests.post",
                     side_effect=[non_retryable_error],
                 ) as mocked_post:
-                    with pytest.raises(requests.exceptions.HTTPError):
+                    with pytest.raises(LLMNetworkError):
                         call_llm_api(cfg, "prompt")
 
         assert mocked_post.call_count == 1
@@ -326,7 +327,7 @@ class TestLLMResilience:
             "ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg
         ):
             with patch("ocapi.utils.llm_utils.requests.post", return_value=bad_response):
-                with pytest.raises(ValueError, match="Format de réponse LLM invalide"):
+                with pytest.raises(LLMResponseError, match="Format de réponse LLM invalide"):
                     call_llm_api(cfg, "prompt")
 
     def test_call_llm_api_rate_limit_applies_min_interval(self) -> None:

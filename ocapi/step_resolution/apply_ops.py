@@ -35,6 +35,7 @@ from typing import Literal
 import networkx as nx
 from bs4 import BeautifulSoup
 
+from ocapi.exceptions import OperationError
 from ocapi.types import (
     ArreteFile,
     ArreteId,
@@ -94,7 +95,7 @@ def _ensure_soup(soup_input: Content | BeautifulSoup) -> BeautifulSoup:
 
 def apply_replace(operation: Operation, soup_input: Content | BeautifulSoup) -> Content:
     if operation.sub_target is None or operation.operand is None:
-        raise ValueError("REPLACE operations require sub_target and operand.")
+        raise OperationError("REPLACE operations require sub_target and operand.")
     soup = _ensure_soup(soup_input)
     if is_simple_subtarget(operation.sub_target):
         try:
@@ -119,7 +120,7 @@ def apply_replace(operation: Operation, soup_input: Content | BeautifulSoup) -> 
 
 def apply_remove(operation: Operation, soup_input: Content | BeautifulSoup) -> Content:
     if operation.sub_target is None:
-        raise ValueError("REMOVE operations require sub_target.")
+        raise OperationError("REMOVE operations require sub_target.")
     sub_target = operation.sub_target
     soup = _ensure_soup(soup_input)
     if is_simple_subtarget(sub_target):
@@ -140,7 +141,7 @@ def apply_remove(operation: Operation, soup_input: Content | BeautifulSoup) -> C
 
 def apply_add(operation: Operation, soup_input: Content | BeautifulSoup) -> Content:
     if operation.sub_target is None or operation.operand is None:
-        raise ValueError("ADD operations require sub_target and operand.")
+        raise OperationError("ADD operations require sub_target and operand.")
     sub_target = operation.sub_target
     soup = _ensure_soup(soup_input)
     if is_simple_subtarget(sub_target):
@@ -209,7 +210,7 @@ def apply_subgraph_operations(
                     new_content = apply_add(op, BeautifulSoup(current_content, "html.parser"))
                     status_code = "RESOLVED"
                 else:
-                    raise ValueError(f"Type d'opération inconnu: {op.operation_type}")
+                    raise OperationError(f"Type d'opération inconnu: {op.operation_type}")
 
                 # Ajouter la nouvelle version à l'historique
                 new_version = ArticleVersion(

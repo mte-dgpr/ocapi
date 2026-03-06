@@ -26,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from typing_extensions import NotRequired
 
 from .config import SUPPORTED_ARRETIFY_VERSION, SUPPORTED_ARRETIFY_VERSION_PATTERN, settings
+from .exceptions import InvalidArreteIdError, InvalidArticleIdError, InvalidFileFormatError
 
 OperationId = str
 ArreteId = str
@@ -59,21 +60,21 @@ def parse_arrete_id(v: str) -> str:
         L'arrete_id validé.
 
     Raises:
-        ValueError: Si le format est invalide.
+        InvalidArreteIdError: Si le format est invalide.
     """
     date_parts = v.split("-")
     if len(date_parts) != 3:
-        raise ValueError(f"Date invalide: format attendu YYYY-MM-DD, reçu: {v}")
+        raise InvalidArreteIdError(f"Date invalide: format attendu YYYY-MM-DD, reçu: {v}")
     try:
         year, month, day = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
     except (ValueError, IndexError) as e:
-        raise ValueError(f"Date invalide: format attendu YYYY-MM-DD, reçu: {v}") from e
+        raise InvalidArreteIdError(f"Date invalide: format attendu YYYY-MM-DD, reçu: {v}") from e
     if not (1900 <= year <= 2100):
-        raise ValueError(
+        raise InvalidArreteIdError(
             f"Date invalide: année doit être entre 1900 et 2100, reçu: {year} dans {v}"
         )
     if not (1 <= month <= 12 and 1 <= day <= 31):
-        raise ValueError(f"Date invalide: mois ou jour hors limites dans {v}")
+        raise InvalidArreteIdError(f"Date invalide: mois ou jour hors limites dans {v}")
     return v
 
 
@@ -128,11 +129,10 @@ class NodeId(BaseModel):
         APPENDIX, ALL ou END
         """
         if not is_valid_article_id(v):
-            msg = (
+            raise InvalidArticleIdError(
                 "article_id doit être au format numérique (ex: '1.2', '3.1.4'), "
                 f"APPENDIX, ALL, END ou NEW_ARTICLE:X, reçu: '{v}'"
             )
-            raise ValueError(msg)
         return v
 
     @field_validator("arrete_id")
@@ -249,11 +249,10 @@ class SectionVersionSpec(_BaseModelWithConfig):
     @classmethod
     def validate_article_id_format(cls, v: str) -> str:
         if not is_valid_article_id(v):
-            msg = (
+            raise InvalidArticleIdError(
                 "article_id doit être au format numérique (ex: '1.2', '3.1.4'), "
                 f"APPENDIX, ALL, END ou NEW_ARTICLE:X, reçu: '{v}'"
             )
-            raise ValueError(msg)
         return v
 
     @field_validator("date_version")
@@ -371,22 +370,25 @@ def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
         Un tuple (arrete_id, file_type)
 
     Raises:
-        ValueError: Si le format du fichier est invalide
+        InvalidFileFormatError: Si le format du fichier est invalide
     """
     # Vérifier l'extension .html
     if not filename.endswith(".html"):
-        raise ValueError(f"Le fichier doit avoir l'extension .html: {filename}")
+        raise InvalidFileFormatError(f"Le fichier doit avoir l'extension .html: {filename}")
 
     # Séparer par underscore
     parts = filename.split("_")
     if len(parts) < 2:
-        raise ValueError(
+        raise InvalidFileFormatError(
             f"Format invalide: le fichier doit contenir au moins une date "
             f"et un type séparés par '_': {filename}"
         )
 
     # Extraire et valider la date (première partie)
-    arrete_id = parse_arrete_id(parts[0])
+    try:
+        arrete_id = parse_arrete_id(parts[0])
+    except InvalidArreteIdError as e:
+        raise InvalidFileFormatError(str(e)) from e
 
     # Catégoriser le fichier
     file_type = categorize_arrete(filename)
@@ -403,22 +405,22 @@ def validate_arretify_version(soup: BeautifulSoup, filename: str = "") -> None:
         filename: Nom du fichier (pour les messages d'erreur)
 
     Raises:
-        ValueError: Si la version Arrêtify est absente ou non supportée
+        InvalidFileFormatError: Si la version Arrêtify est absente ou non supportée
     """
     body = soup.find("body")
     if not body:
-        raise ValueError(f"Document HTML invalide (pas de balise <body>): {filename}")
+        raise InvalidFileFormatError(f"Document HTML invalide (pas de balise <body>): {filename}")
 
     arretify_version = body.get("data-arretify_version")
 
     if not arretify_version:
-        raise ValueError(
+        raise InvalidFileFormatError(
             f"Version Arrêtify manquante dans le document HTML: {filename}\n"
             f"L'attribut 'data-arretify_version' doit être présent sur la balise <body>."
         )
 
     if not re.match(SUPPORTED_ARRETIFY_VERSION_PATTERN, str(arretify_version)):
-        raise ValueError(
+        raise InvalidFileFormatError(
             f"Version Arrêtify non supportée: {arretify_version} (fichier: {filename})\n"
             f"OCAPI supporte uniquement les versions {SUPPORTED_ARRETIFY_VERSION}\n"
             f"Version détectée: {arretify_version}"

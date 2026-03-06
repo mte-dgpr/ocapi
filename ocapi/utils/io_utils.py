@@ -25,6 +25,7 @@ from typing import Any, cast
 
 from bs4 import BeautifulSoup
 
+from ocapi.exceptions import InputOutputError, InvalidFileFormatError
 from ocapi.types import (
     ArreteFile,
     ArticleHistory,
@@ -37,15 +38,20 @@ from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
 
+# Re-export pour la compatibilité avec les imports existants
+__all__ = [
+    "InputOutputError",
+    "load_html_files",
+    "initialize_arrete_files",
+    "load_arrete_files",
+    "write_permis_output",
+    "write_json_output",
+    "read_json",
+]
+
 
 def read_json(p: Path) -> dict[str, Any]:
     return cast(dict[str, Any], json.loads(p.read_text(encoding="utf-8")))
-
-
-class InputOutputError(Exception):
-    """Exception levée en cas d'erreur sur les chemins input/output."""
-
-    pass
 
 
 def load_html_files(input_dir: Path) -> list[Path]:
@@ -89,7 +95,7 @@ def initialize_arrete_files(html_files: list[Path], aiot: str) -> list["ArreteFi
     for html_path in html_files:
         try:
             arrete_id, file_type = parse_filename(html_path.name)
-        except ValueError as e:
+        except InvalidFileFormatError as e:
             _LOGGER.warning(f"Fichier ignoré (format invalide): {html_path.name} - Raison: {e}")
             continue
 
@@ -102,7 +108,7 @@ def initialize_arrete_files(html_files: list[Path], aiot: str) -> list["ArreteFi
         # Valider la version Arrêtify
         try:
             validate_arretify_version(soup, html_path.name)
-        except ValueError as e:
+        except InvalidFileFormatError as e:
             _LOGGER.warning(
                 f"Fichier ignoré (version Arrêtify incompatible): {html_path.name} - Raison: {e}"
             )

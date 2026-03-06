@@ -29,6 +29,7 @@ from typing import Any
 import requests  # type: ignore[import-untyped]
 
 from ocapi.config import settings
+from ocapi.exceptions import LLMConfigError, LLMNetworkError, LLMResponseError
 from ocapi.types import OperationType
 from ocapi.utils.logging_utils import get_logger
 
@@ -159,7 +160,7 @@ def _primary_secondary_keys(models_cfg: dict[str, Any]) -> tuple[str, str | None
 def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
     models = models_cfg.get("models", {})
     if not isinstance(models, dict) or not models:
-        raise ValueError("Aucun modèle LLM disponible dans la configuration.")
+        raise LLMConfigError("Aucun modèle LLM disponible dans la configuration.")
 
     primary_key, secondary_key = _primary_secondary_keys(models_cfg)
 
@@ -167,7 +168,7 @@ def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
         return primary_key
     if model == "secondary":
         if secondary_key is None:
-            raise ValueError("Aucun modèle secondaire configuré.")
+            raise LLMConfigError("Aucun modèle secondaire configuré.")
         return secondary_key
     if model in models:
         return model
@@ -188,7 +189,7 @@ def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
         ):
             return model_key
 
-    raise ValueError(f"Modèle LLM inconnu: {model}")
+    raise LLMConfigError(f"Modèle LLM inconnu: {model}")
 
 
 def _provider_api_config(provider: str) -> tuple[str | None, str]:
@@ -198,7 +199,7 @@ def _provider_api_config(provider: str) -> tuple[str | None, str]:
         return settings.llm.mistral_api_key, str(settings.llm.mistral_api_url)
     if provider == "openai":
         return settings.llm.openai_api_key, str(settings.llm.openai_api_url)
-    raise ValueError(f"Provider LLM non supporté: {provider}")
+    raise LLMConfigError(f"Provider LLM non supporté: {provider}")
 
 
 def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
@@ -227,7 +228,7 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
             "n": 1,
         }
 
-    raise ValueError(f"Provider LLM non supporté: {model.provider}")
+    raise LLMConfigError(f"Provider LLM non supporté: {model.provider}")
 
 
 def _make_headers(api_key: str | None) -> dict[str, str]:
@@ -315,7 +316,7 @@ def _execute_model_call(
                     f"Réponse API LLM invalide ({model.model_name}): clé choices/message/content "
                     f"introuvable. Réponse brute: {data}"
                 )
-                raise ValueError("Format de réponse LLM invalide") from exc
+                raise LLMResponseError("Format de réponse LLM invalide") from exc
         except requests.exceptions.RequestException as exc:
             retryable = _is_retryable_http_error(exc)
             is_last_attempt = attempt >= max_attempts
@@ -324,7 +325,7 @@ def _execute_model_call(
                     f"Échec appel API LLM ({model.model_name}) "
                     f"tentative {attempt}/{max_attempts}: {exc}"
                 )
-                raise
+                raise LLMNetworkError(f"Échec appel API LLM ({model.model_name}): {exc}") from exc
 
             delay_seconds = _retry_delay_seconds(attempt, strategy)
             _LOGGER.warning(
@@ -333,7 +334,7 @@ def _execute_model_call(
             )
             time.sleep(delay_seconds)
 
-    raise RuntimeError("Boucle de retry terminée sans résultat.")
+    raise LLMNetworkError("Boucle de retry terminée sans résultat.")
 
 
 def config_model_llm(model: str | None = None) -> ResolvedLLMModel:
@@ -351,12 +352,12 @@ def config_model_llm(model: str | None = None) -> ResolvedLLMModel:
     models = models_cfg.get("models", {})
     model_cfg = models.get(model_key, {})
     if not isinstance(model_cfg, dict):
-        raise ValueError(f"Configuration invalide pour le modèle: {model_key}")
+        raise LLMConfigError(f"Configuration invalide pour le modèle: {model_key}")
 
     provider = model_cfg.get("provider")
     model_name = model_cfg.get("model_id")
     if not isinstance(provider, str) or not isinstance(model_name, str):
-        raise ValueError(f"Configuration invalide pour le modèle: {model_key}")
+        raise LLMConfigError(f"Configuration invalide pour le modèle: {model_key}")
 
     api_key, api_url = _provider_api_config(provider)
     return ResolvedLLMModel(
@@ -412,7 +413,7 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
     _LOGGER.debug(f"Appel API LLM primaire: {cfg.model_name}")
     try:
         return _execute_model_call(cfg, prompt, timeout_seconds, primary_retry, rate_limit_cfg)
-    except requests.exceptions.RequestException as primary_error:
+    except LLMNetworkError as primary_error:
         if not fallback_enabled:
             _LOGGER.warning(
                 f"Fallback désactivé: échec primaire final sur {cfg.model_name}: {primary_error}"
