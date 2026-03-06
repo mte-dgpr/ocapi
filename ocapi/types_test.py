@@ -19,15 +19,217 @@
 import unittest
 
 from bs4 import BeautifulSoup
+from pydantic import ValidationError
 
 from .types import (
     FileType,
+    NodeId,
     Permis,
+    PermitMotifEntry,
+    PermitSourceSpec,
     PermitTitleSpec,
+    SectionVersionSpec,
     _BaseModelWithConfig,
+    is_valid_article_id,
+    parse_arrete_id,
     parse_filename,
     validate_arretify_version,
 )
+
+
+class TestIsValidArticleId(unittest.TestCase):
+
+    def test_numeric_simple(self) -> None:
+        assert is_valid_article_id("1") is True
+
+    def test_numeric_dotted(self) -> None:
+        assert is_valid_article_id("1.2") is True
+        assert is_valid_article_id("3.1.4") is True
+
+    def test_special_values(self) -> None:
+        assert is_valid_article_id("ALL") is True
+        assert is_valid_article_id("END") is True
+
+    def test_appendix_alone(self) -> None:
+        assert is_valid_article_id("APPENDIX") is True
+
+    def test_appendix_with_numeric_suffix(self) -> None:
+        assert is_valid_article_id("APPENDIX:1") is True
+        assert is_valid_article_id("APPENDIX:1.2") is True
+        assert is_valid_article_id("APPENDIX:3.1.4") is True
+
+    def test_appendix_invalid_suffix(self) -> None:
+        assert is_valid_article_id("APPENDIX:abc") is False
+        assert is_valid_article_id("APPENDIX:") is False
+        assert is_valid_article_id("APPENDIX_extra") is False
+
+    def test_new_article_with_numeric_suffix(self) -> None:
+        assert is_valid_article_id("NEW_ARTICLE:4.1") is True
+        assert is_valid_article_id("NEW_ARTICLE:1.2.3") is True
+
+    def test_new_article_invalid_suffix(self) -> None:
+        assert is_valid_article_id("NEW_ARTICLE:abc") is False
+        assert is_valid_article_id("NEW_ARTICLE:") is False
+        assert is_valid_article_id("NEW_ARTICLE") is False
+
+    def test_invalid_values(self) -> None:
+        assert is_valid_article_id("") is False
+        assert is_valid_article_id("abc") is False
+        assert is_valid_article_id("1.2.") is False
+
+
+class TestParseArreteId(unittest.TestCase):
+
+    def test_valid_date(self) -> None:
+        assert parse_arrete_id("2009-12-08") == "2009-12-08"
+        assert parse_arrete_id("2023-01-31") == "2023-01-31"
+
+    def test_invalid_too_few_parts(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            parse_arrete_id("2024-01")
+        assert "Date invalide" in str(ctx.exception)
+
+    def test_invalid_too_many_parts(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            parse_arrete_id("2024-01-15-extra")
+        assert "Date invalide" in str(ctx.exception)
+
+    def test_invalid_non_numeric(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            parse_arrete_id("YYYY-MM-DD")
+        assert "Date invalide" in str(ctx.exception)
+
+    def test_invalid_year_too_old(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            parse_arrete_id("1800-01-15")
+        assert "Date invalide" in str(ctx.exception)
+
+    def test_invalid_year_too_recent(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            parse_arrete_id("2200-01-15")
+        assert "Date invalide" in str(ctx.exception)
+
+    def test_invalid_month_out_of_range(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            parse_arrete_id("2024-13-01")
+        assert "Date invalide" in str(ctx.exception)
+
+    def test_invalid_day_out_of_range(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            parse_arrete_id("2024-01-45")
+        assert "Date invalide" in str(ctx.exception)
+
+    def test_reversed_date_format(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            parse_arrete_id("15-01-2024")
+        assert "Date invalide" in str(ctx.exception)
+
+
+class TestNodeIdValidation(unittest.TestCase):
+
+    def test_valid_node_id(self) -> None:
+        node = NodeId(arrete_id="2009-12-08", article_id="1.2")
+        assert node.arrete_id == "2009-12-08"
+        assert node.article_id == "1.2"
+
+    def test_invalid_arrete_id_raises(self) -> None:
+        with self.assertRaises(ValidationError):
+            NodeId(arrete_id="invalid-date", article_id="1.2")
+
+    def test_invalid_article_id_raises(self) -> None:
+        with self.assertRaises(ValidationError):
+            NodeId(arrete_id="2009-12-08", article_id="invalid")
+
+    def test_valid_appendix_article_id(self) -> None:
+        node = NodeId(arrete_id="2009-12-08", article_id="APPENDIX:1.2")
+        assert node.article_id == "APPENDIX:1.2"
+
+    def test_invalid_appendix_article_id(self) -> None:
+        with self.assertRaises(ValidationError):
+            NodeId(arrete_id="2009-12-08", article_id="APPENDIX_invalid")
+
+    def test_valid_new_article_id(self) -> None:
+        node = NodeId(arrete_id="2009-12-08", article_id="NEW_ARTICLE:4.1")
+        assert node.article_id == "NEW_ARTICLE:4.1"
+
+    def test_invalid_new_article_id(self) -> None:
+        with self.assertRaises(ValidationError):
+            NodeId(arrete_id="2009-12-08", article_id="NEW_ARTICLE:abc")
+
+
+class TestPermitSourceSpecValidation(unittest.TestCase):
+
+    def test_valid_arrete_id(self) -> None:
+        spec = PermitSourceSpec(arrete_id="2023-06-15", arrete_title="AP d'autorisation")
+        assert spec.arrete_id == "2023-06-15"
+
+    def test_invalid_arrete_id_raises(self) -> None:
+        with self.assertRaises(ValidationError):
+            PermitSourceSpec(arrete_id="not-a-date", arrete_title="titre")
+
+    def test_invalid_date_month_raises(self) -> None:
+        with self.assertRaises(ValidationError):
+            PermitSourceSpec(arrete_id="2023-13-01", arrete_title="titre")
+
+
+class TestPermitMotifEntryValidation(unittest.TestCase):
+
+    def test_valid_arrete_id(self) -> None:
+        entry = PermitMotifEntry(arrete_id="2020-04-20", motifs=["motif 1"])
+        assert entry.arrete_id == "2020-04-20"
+
+    def test_invalid_arrete_id_raises(self) -> None:
+        with self.assertRaises(ValidationError):
+            PermitMotifEntry(arrete_id="invalid", motifs=["motif 1"])
+
+
+class TestSectionVersionSpecValidation(unittest.TestCase):
+
+    def test_valid_spec(self) -> None:
+        spec = SectionVersionSpec(
+            article_id="1.2",
+            is_modified=True,
+            date_version="2023-06-15",
+            content="contenu",
+        )
+        assert spec.article_id == "1.2"
+        assert spec.date_version == "2023-06-15"
+
+    def test_invalid_article_id_raises(self) -> None:
+        with self.assertRaises(ValidationError):
+            SectionVersionSpec(
+                article_id="invalid",
+                is_modified=False,
+                date_version="2023-06-15",
+                content="contenu",
+            )
+
+    def test_invalid_date_version_raises(self) -> None:
+        with self.assertRaises(ValidationError):
+            SectionVersionSpec(
+                article_id="1.2",
+                is_modified=False,
+                date_version="not-a-date",
+                content="contenu",
+            )
+
+    def test_valid_appendix_article_id(self) -> None:
+        spec = SectionVersionSpec(
+            article_id="APPENDIX:2.1",
+            is_modified=False,
+            date_version="2020-01-01",
+            content="contenu",
+        )
+        assert spec.article_id == "APPENDIX:2.1"
+
+    def test_valid_special_article_id_all(self) -> None:
+        spec = SectionVersionSpec(
+            article_id="ALL",
+            is_modified=False,
+            date_version="2020-01-01",
+            content="contenu",
+        )
+        assert spec.article_id == "ALL"
 
 
 class TestBaseModelWithConfig(unittest.TestCase):

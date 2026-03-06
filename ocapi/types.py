@@ -35,15 +35,46 @@ AiotId = str
 ImageMap = Dict[str, str]  # mapping token -> original src
 
 
+_NUMERIC_ID_PATTERN = re.compile(r"^\d+(\.\d+)*$")
+
+
 def is_valid_article_id(article_id: str) -> bool:
     """Vérifie si un article_id est au format valide pour NodeId."""
-    if (
-        article_id in ("ALL", "END")
-        or article_id.startswith("APPENDIX")
-        or article_id.startswith("NEW_ARTICLE:")
-    ):
+    if article_id in ("ALL", "END", "APPENDIX"):
         return True
-    return bool(re.match(r"^\d+(\.\d+)*$", article_id))
+    if article_id.startswith("APPENDIX:"):
+        suffix = article_id[len("APPENDIX:") :]
+        return bool(_NUMERIC_ID_PATTERN.match(suffix))
+    if article_id.startswith("NEW_ARTICLE:"):
+        suffix = article_id[len("NEW_ARTICLE:") :]
+        return bool(_NUMERIC_ID_PATTERN.match(suffix))
+    return bool(_NUMERIC_ID_PATTERN.match(article_id))
+
+
+def parse_arrete_id(v: str) -> str:
+    """
+    Valide qu'un arrete_id est au format YYYY-MM-DD.
+
+    Returns:
+        L'arrete_id validé.
+
+    Raises:
+        ValueError: Si le format est invalide.
+    """
+    date_parts = v.split("-")
+    if len(date_parts) != 3:
+        raise ValueError(f"Date invalide: format attendu YYYY-MM-DD, reçu: {v}")
+    try:
+        year, month, day = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
+    except (ValueError, IndexError) as e:
+        raise ValueError(f"Date invalide: format attendu YYYY-MM-DD, reçu: {v}") from e
+    if not (1900 <= year <= 2100):
+        raise ValueError(
+            f"Date invalide: année doit être entre 1900 et 2100, reçu: {year} dans {v}"
+        )
+    if not (1 <= month <= 12 and 1 <= day <= 31):
+        raise ValueError(f"Date invalide: mois ou jour hors limites dans {v}")
+    return v
 
 
 @dataclass
@@ -108,11 +139,7 @@ class NodeId(BaseModel):
     @classmethod
     def validate_arrete_id_format(cls, v: str) -> str:
         """Valide que l'arrete_id est au format YYYY-MM-DD"""
-        parts = v.split("-")
-        month, day = int(parts[1]), int(parts[2])
-        if not (1 <= day <= 31 and 1 <= month <= 12):
-            raise ValueError(f"Date invalide dans arrete_id: '{v}'")
-        return v
+        return parse_arrete_id(v)
 
     def __str__(self) -> str:
         return f"{self.arrete_id}#{self.article_id}"
@@ -174,6 +201,11 @@ class PermitSourceSpec(_BaseModelWithConfig):
     arrete_title: str
     status: bool = True
 
+    @field_validator("arrete_id")
+    @classmethod
+    def validate_arrete_id_format(cls, v: str) -> str:
+        return parse_arrete_id(v)
+
 
 class PermitSources(_BaseModelWithConfig):
     """Liste des arrêtés sources triés chronologiquement."""
@@ -193,6 +225,11 @@ class PermitMotifEntry(_BaseModelWithConfig):
     arrete_id: ArreteId
     motifs: list[str]
 
+    @field_validator("arrete_id")
+    @classmethod
+    def validate_arrete_id_format(cls, v: str) -> str:
+        return parse_arrete_id(v)
+
 
 class PermitMotif(_BaseModelWithConfig):
     """Motifs consolidés, groupés par arrêté en ordre chronologique."""
@@ -207,6 +244,22 @@ class SectionVersionSpec(_BaseModelWithConfig):
     is_modified: bool
     date_version: ArreteId
     content: str
+
+    @field_validator("article_id")
+    @classmethod
+    def validate_article_id_format(cls, v: str) -> str:
+        if not is_valid_article_id(v):
+            msg = (
+                "article_id doit être au format numérique (ex: '1.2', '3.1.4'), "
+                f"APPENDIX, ALL, END ou NEW_ARTICLE:X, reçu: '{v}'"
+            )
+            raise ValueError(msg)
+        return v
+
+    @field_validator("date_version")
+    @classmethod
+    def validate_date_version_format(cls, v: str) -> str:
+        return parse_arrete_id(v)
 
 
 class PermitComplements(_BaseModelWithConfig):
@@ -332,24 +385,8 @@ def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
             f"et un type séparés par '_': {filename}"
         )
 
-    # Extraire la date (première partie)
-    arrete_id = parts[0]
-
-    # Valider le format de la date
-    date_parts = arrete_id.split("-")
-    if len(date_parts) != 3:
-        raise ValueError(f"Date invalide: format attendu YYYY-MM-DD, reçu: {arrete_id}")
-
-    try:
-        year, month, day = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
-        if not (1900 <= year <= 2100):
-            raise ValueError(
-                f"Année invalide: doit être entre 1900 et 2100, reçu: {year} dans {arrete_id}"
-            )
-        if not (1 <= month <= 12 and 1 <= day <= 31):
-            raise ValueError(f"Date invalide: mois ou jour hors limites dans {arrete_id}")
-    except (ValueError, IndexError) as e:
-        raise ValueError(f"Date invalide: format attendu YYYY-MM-DD, reçu: {arrete_id}") from e
+    # Extraire et valider la date (première partie)
+    arrete_id = parse_arrete_id(parts[0])
 
     # Catégoriser le fichier
     file_type = categorize_arrete(filename)
