@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import unittest
+import pytest
 
 from .exceptions import (
     GraphError,
@@ -34,7 +34,7 @@ from .exceptions import (
 )
 
 
-class TestOcapiErrorHierarchy(unittest.TestCase):
+class TestOcapiErrorHierarchy:
     """Vérifie que la hiérarchie d'héritage est correcte."""
 
     def test_all_errors_inherit_from_ocapi_error(self) -> None:
@@ -80,64 +80,26 @@ class TestOcapiErrorHierarchy(unittest.TestCase):
         ):
             assert not issubclass(cls, ValueError), f"{cls.__name__} should NOT inherit ValueError"
 
-
-class TestOcapiErrorCatchAll(unittest.TestCase):
-    """Vérifie que toutes les exceptions se catchent via OcapiError."""
-
-    def _assert_caught_as_ocapi_error(self, exc_class: type, msg: str = "test") -> None:
-        with self.assertRaises(OcapiError):
-            raise exc_class(msg)
-
-    def test_invalid_article_id_caught_as_ocapi_error(self) -> None:
-        self._assert_caught_as_ocapi_error(InvalidArticleIdError)
-
-    def test_invalid_arrete_id_caught_as_ocapi_error(self) -> None:
-        self._assert_caught_as_ocapi_error(InvalidArreteIdError)
-
-    def test_invalid_file_format_caught_as_ocapi_error(self) -> None:
-        self._assert_caught_as_ocapi_error(InvalidFileFormatError)
-
-    def test_llm_config_error_caught_as_ocapi_error(self) -> None:
-        self._assert_caught_as_ocapi_error(LLMConfigError)
-
-    def test_llm_network_error_caught_as_ocapi_error(self) -> None:
-        self._assert_caught_as_ocapi_error(LLMNetworkError)
-
-    def test_llm_response_error_caught_as_ocapi_error(self) -> None:
-        self._assert_caught_as_ocapi_error(LLMResponseError)
-
-    def test_operation_error_caught_as_ocapi_error(self) -> None:
-        self._assert_caught_as_ocapi_error(OperationError)
-
-    def test_node_not_found_caught_as_ocapi_error(self) -> None:
-        self._assert_caught_as_ocapi_error(NodeNotFoundError)
-
     def test_node_not_found_caught_as_graph_error(self) -> None:
-        with self.assertRaises(GraphError):
+        with pytest.raises(GraphError):
             raise NodeNotFoundError("section 1.2 not found")
 
-    def test_input_output_error_caught_as_ocapi_error(self) -> None:
-        self._assert_caught_as_ocapi_error(InputOutputError)
-
-    def test_id_errors_also_caught_as_value_error(self) -> None:
-        with self.assertRaises(ValueError):
+    def test_id_errors_caught_as_value_error(self) -> None:
+        with pytest.raises(ValueError):
             raise InvalidArticleIdError("bad article id")
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             raise InvalidArreteIdError("bad arrete id")
 
 
-class TestOcapiErrorMessages(unittest.TestCase):
-    """Vérifie que les messages d'erreur sont conservés."""
+def test_error_message_preserved() -> None:
+    msg = "format invalide pour l'identifiant"
+    assert str(InvalidArreteIdError(msg)) == msg
 
-    def test_message_preserved(self) -> None:
-        msg = "format invalide pour l'identifiant"
-        exc = InvalidArreteIdError(msg)
-        assert str(exc) == msg
 
-    def test_chained_exception(self) -> None:
-        cause = ValueError("cause originale")
-        exc = InvalidFileFormatError("wrapper")
-        try:
-            raise exc from cause
-        except InvalidFileFormatError as caught:
-            assert caught.__cause__ is cause
+def test_chained_exception() -> None:
+    cause = ValueError("cause originale")
+    exc = InvalidFileFormatError("wrapper")
+    try:
+        raise exc from cause
+    except InvalidFileFormatError as caught:
+        assert caught.__cause__ is cause
