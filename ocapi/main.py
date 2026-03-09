@@ -146,7 +146,7 @@ def main(
 
         # Sauvegarder le permis si généré
         if permis:
-            permis_path = output_dir / "permis_consolidé.html"
+            permis_path = output_dir / "permis.html"
             write_permis_output(permis, permis_path)
             _LOGGER.info(f"Permis consolidé sauvegardé → {permis_path}")
 

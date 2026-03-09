@@ -30,7 +30,12 @@ from pathlib import Path
 
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
-from ocapi.utils.io_utils import InputOutputError, load_arrete_files, write_permis_output
+from ocapi.utils.io_utils import (
+    InputOutputError,
+    load_arrete_files,
+    write_json_output,
+    write_permis_output,
+)
 from ocapi.utils.llm_utils import config_model_llm
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
@@ -40,6 +45,10 @@ _LOGGER = get_logger(__name__)
 def cmd_run(args: argparse.Namespace) -> int:
     """Exécute le pipeline OCAPI sur les arrêtés."""
     input_dir = Path(args.input_dir)
+
+    # Déterminer le répertoire de sortie
+    output_dir = Path(args.output) if args.output else input_dir.parent / "ocapi_output"
+    _LOGGER.info(f"Dossier de sortie : {output_dir}")
 
     # Déterminer l'AIOT
     aiot = args.aiot or input_dir.parent.name
@@ -64,23 +73,45 @@ def cmd_run(args: argparse.Namespace) -> int:
             _LOGGER.error("Aucun arrêté ne correspond aux IDs spécifiés")
             return 1
 
+    # Créer le dossier de sortie
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     # Exécuter le pipeline
     _LOGGER.info("Exécution du pipeline...")
     try:
         start_date = getattr(args, "start_date", None)
-        _operations, _history, _arrete_files, permis = run_pipeline(
+        operations, history, _arrete_files, permis = run_pipeline(
             arrete_files, start_date=start_date
         )
         _LOGGER.info("Pipeline terminé avec succès.")
 
-        # Sauvegarder le résultat si --output est spécifié
-        if args.output:
-            if permis is None:
-                _LOGGER.error("Aucun permis généré (rendering désactivé?)")
-                return 1
-            output_path = Path(args.output)
-            write_permis_output(permis, output_path)
-            _LOGGER.info(f"Résultat sauvegardé dans: {output_path}")
+        # Sauvegarder les opérations
+        operations_path = output_dir / "operations.json"
+        operations_dict = [op.model_dump(mode="json") for op in operations]
+        write_json_output(operations_dict, operations_path)
+        _LOGGER.info(f"Opérations sauvegardées → {operations_path}")
+
+        # Sauvegarder l'historique
+        history_path = output_dir / "history.json"
+        history_serializable = {
+            str(node_id): [
+                {
+                    "version": v["version"],
+                    "content": v["content"],
+                    "operation_id": v["operation_id"],
+                }
+                for v in versions
+            ]
+            for node_id, versions in history.items()
+        }
+        write_json_output(history_serializable, history_path)
+        _LOGGER.info(f"Historique sauvegardé → {history_path}")
+
+        # Sauvegarder le permis
+        if permis:
+            permis_path = output_dir / "permis.html"
+            write_permis_output(permis, permis_path)
+            _LOGGER.info(f"Permis consolidé sauvegardé → {permis_path}")
 
         return 0
 
@@ -161,12 +192,12 @@ Examples:
   ocapi run data/0999.99999/arretes/ --include 2024-09-27 2023-12-04
 
 
-  # Sauvegarder le résultat dans un fichier JSON
-  ocapi run data/0999.99999/arretes/ --output output/resultat.json
+  # Sauvegarder les résultats dans un répertoire spécifique
+  ocapi run data/0999.99999/arretes/ --output output/
 
 
   # Combinaison: filtrage et sauvegarde
-  ocapi run data/0999.99999/arretes/ --include 2024-09-27 --output resultat.json
+  ocapi run data/0999.99999/arretes/ --include 2024-09-27 --output output/
 
 
   # Mode verbose pour voir les logs détaillés
@@ -199,7 +230,7 @@ Examples:
     run_parser.add_argument(
         "-o",
         "--output",
-        help="Fichier de sortie pour le résultat (JSON)",
+        help="Répertoire de sortie (défaut: <input_dir>/../ocapi_output)",
     )
     run_parser.set_defaults(func=cmd_run)
 

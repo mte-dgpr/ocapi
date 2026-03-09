@@ -58,7 +58,7 @@ def run_pipeline(
     _LOGGER.info("=" * 60)
 
     for _i, arrete_file in enumerate(arrete_files):
-        if start_date and arrete_file.id < start_date:
+        if start_date and arrete_file.id <= start_date:
             _LOGGER.info(f"Arrêté {arrete_file.id} antérieur à {start_date}, détection ignorée")
             continue
         _LOGGER.info(f"Traitement de l'arrêté {arrete_file.id}...")

@@ -45,6 +45,7 @@ def _make_arrete(arrete_id: str) -> ArreteFile:
 def test_start_date_skips_earlier_arretes(  # type: ignore[no-untyped-def]
     mock_chunking, mock_detection
 ) -> None:
+    """start_date exclut l'arrêté initial (<=) : seuls les arrêtés strictement postérieurs sont détectés."""  # noqa: E501
     arretes = [
         _make_arrete("2009-12-08"),
         _make_arrete("2014-01-09"),
@@ -55,9 +56,9 @@ def test_start_date_skips_earlier_arretes(  # type: ignore[no-untyped-def]
 
     chunked_ids = [call.args[0].id for call in mock_chunking.call_args_list]
     assert "2009-12-08" not in chunked_ids
-    assert "2014-01-09" in chunked_ids
+    assert "2014-01-09" not in chunked_ids
     assert "2023-12-04" in chunked_ids
-    assert mock_chunking.call_count == 2
+    assert mock_chunking.call_count == 1
 
 
 @patch("ocapi.pipeline.step_detection", return_value=[])
@@ -100,7 +101,7 @@ def test_start_date_passes_all_arretes_to_resolution(  # type: ignore[no-untyped
 
     run_pipeline(arretes, start_date="2014-01-09", enable_rendering=False)
 
-    assert mock_chunking.call_count == 2
+    assert mock_chunking.call_count == 1
     mock_resolution.assert_called_once()
     resolved_arretes = mock_resolution.call_args[0][1]
     resolved_ids = [a.id for a in resolved_arretes]
@@ -111,12 +112,15 @@ def test_start_date_passes_all_arretes_to_resolution(  # type: ignore[no-untyped
 
 @patch("ocapi.pipeline.step_detection", return_value=[])
 @patch("ocapi.pipeline.step_chunking", return_value=([], {}))
-def test_start_date_equal_to_first_arrete_processes_all(  # type: ignore[no-untyped-def]
+def test_start_date_equal_to_first_arrete_skips_it(  # type: ignore[no-untyped-def]
     mock_chunking, mock_detection
 ) -> None:
-    """Boundary: start_date == earliest arrêté means all are detected."""
+    """Boundary: start_date == earliest arrêté exclut cet arrêté de la détection (<=)."""
     arretes = [_make_arrete("2009-12-08"), _make_arrete("2014-01-09")]
 
     run_pipeline(arretes, start_date="2009-12-08", enable_rendering=False)
 
-    assert mock_chunking.call_count == 2
+    chunked_ids = [call.args[0].id for call in mock_chunking.call_args_list]
+    assert "2009-12-08" not in chunked_ids
+    assert "2014-01-09" in chunked_ids
+    assert mock_chunking.call_count == 1
