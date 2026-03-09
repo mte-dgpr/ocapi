@@ -45,6 +45,8 @@ def run_pipeline(
         Tuple (operations, history, arrete_files, permis)
     """
     _LOGGER.info(f"Démarrage du pipeline avec {len(arrete_files)} arrêté(s)")
+    if start_date is None and arrete_files:
+        start_date = arrete_files[0].id
     if start_date:
         _LOGGER.info(f"Date de démarrage de la détection : {start_date}")
 

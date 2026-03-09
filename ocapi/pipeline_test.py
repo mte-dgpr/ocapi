@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from bs4 import BeautifulSoup
 
@@ -42,8 +42,8 @@ def _make_arrete(arrete_id: str) -> ArreteFile:
 
 @patch("ocapi.pipeline.step_detection", return_value=[])
 @patch("ocapi.pipeline.step_chunking", return_value=([], {}))
-def test_start_date_skips_earlier_arretes(  # type: ignore[no-untyped-def]
-    mock_chunking, mock_detection
+def test_start_date_skips_earlier_arretes(
+    mock_chunking: MagicMock, mock_detection: MagicMock
 ) -> None:
     """start_date exclut l'arrêté initial (<=) : seuls les arrêtés strictement postérieurs sont détectés."""  # noqa: E501
     arretes = [
@@ -63,20 +63,24 @@ def test_start_date_skips_earlier_arretes(  # type: ignore[no-untyped-def]
 
 @patch("ocapi.pipeline.step_detection", return_value=[])
 @patch("ocapi.pipeline.step_chunking", return_value=([], {}))
-def test_start_date_none_processes_all(  # type: ignore[no-untyped-def]
-    mock_chunking, mock_detection
+def test_start_date_none_defaults_to_first_arrete(
+    mock_chunking: MagicMock, mock_detection: MagicMock
 ) -> None:
+    """Sans start_date, le premier arrêté est exclu de la détection par défaut."""
     arretes = [_make_arrete("2009-12-08"), _make_arrete("2014-01-09")]
 
     run_pipeline(arretes, start_date=None, enable_rendering=False)
 
-    assert mock_chunking.call_count == 2
+    chunked_ids = [call.args[0].id for call in mock_chunking.call_args_list]
+    assert "2009-12-08" not in chunked_ids
+    assert "2014-01-09" in chunked_ids
+    assert mock_chunking.call_count == 1
 
 
 @patch("ocapi.pipeline.step_detection", return_value=[])
 @patch("ocapi.pipeline.step_chunking", return_value=([], {}))
-def test_start_date_after_all_arretes_processes_none(  # type: ignore[no-untyped-def]
-    mock_chunking, mock_detection
+def test_start_date_after_all_arretes_processes_none(
+    mock_chunking: MagicMock, mock_detection: MagicMock
 ) -> None:
     arretes = [_make_arrete("2009-12-08"), _make_arrete("2014-01-09")]
 
@@ -89,8 +93,11 @@ def test_start_date_after_all_arretes_processes_none(  # type: ignore[no-untyped
 @patch("ocapi.pipeline.step_resolution", return_value=({}, []))
 @patch("ocapi.pipeline.step_detection", return_value=[])
 @patch("ocapi.pipeline.step_chunking", return_value=([], {}))
-def test_start_date_passes_all_arretes_to_resolution(  # type: ignore[no-untyped-def]
-    mock_chunking, mock_detection, mock_resolution, mock_rendering
+def test_start_date_passes_all_arretes_to_resolution(
+    mock_chunking: MagicMock,
+    mock_detection: MagicMock,
+    mock_resolution: MagicMock,
+    mock_rendering: MagicMock,
 ) -> None:
     """start_date filters detection, but all arrêtés must still reach resolution."""
     arretes = [
@@ -112,8 +119,8 @@ def test_start_date_passes_all_arretes_to_resolution(  # type: ignore[no-untyped
 
 @patch("ocapi.pipeline.step_detection", return_value=[])
 @patch("ocapi.pipeline.step_chunking", return_value=([], {}))
-def test_start_date_equal_to_first_arrete_skips_it(  # type: ignore[no-untyped-def]
-    mock_chunking, mock_detection
+def test_start_date_equal_to_first_arrete_skips_it(
+    mock_chunking: MagicMock, mock_detection: MagicMock
 ) -> None:
     """Boundary: start_date == earliest arrêté exclut cet arrêté de la détection (<=)."""
     arretes = [_make_arrete("2009-12-08"), _make_arrete("2014-01-09")]

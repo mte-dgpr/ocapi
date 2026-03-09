@@ -21,7 +21,12 @@ from typing import cast
 import pytest
 from bs4 import BeautifulSoup
 
-from ocapi.step_rendering.make_header import make_permit_header
+from ocapi.step_rendering.make_header import (
+    make_permit_header,
+    make_permit_motif,
+    make_permit_sources,
+    make_permit_visa,
+)
 from ocapi.step_rendering.make_main_content import (
     _is_abrogated,
     make_permit_content,
@@ -99,9 +104,7 @@ def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
 
 
 def test_make_permit_sources_marks_abrogated_arretes() -> None:
-    """#26: Les arrêtés abrogés doivent porter la mention (ABROGE)."""
-    from ocapi.step_rendering.make_header import make_permit_sources
-
+    """Les arrêtés abrogés doivent porter la mention (ABROGE)."""
     active = _make_testing_arrete_file(
         arrete_id="2020-01-01",
         aiot="0001",
@@ -140,9 +143,7 @@ def test_make_permit_sources_marks_abrogated_arretes() -> None:
 
 
 def test_make_permit_visa_is_collapsible() -> None:
-    """#25: Les visas consolidés doivent être dans un <details>."""
-    from ocapi.step_rendering.make_header import make_permit_visa
-
+    """Les visas consolidés doivent être dans un <details>."""
     arrete = _make_testing_arrete_file(
         arrete_id="2020-01-01",
         aiot="0001",
@@ -163,9 +164,7 @@ def test_make_permit_visa_is_collapsible() -> None:
 
 
 def test_make_permit_motif_is_collapsible() -> None:
-    """#25: Les considérants doivent être dans un <details>."""
-    from ocapi.step_rendering.make_header import make_permit_motif
-
+    """Les considérants doivent être dans un <details>."""
     arrete = _make_testing_arrete_file(
         arrete_id="2020-01-01",
         aiot="0001",
@@ -317,7 +316,7 @@ def test_make_section_version_marks_removed_article() -> None:
 
 
 def test_make_section_version_partial_remove_does_not_mark_abrogated() -> None:
-    """#30: Un REMOVE avec sub_target partiel ne doit pas marquer l'article comme abrogé."""
+    """Un REMOVE avec sub_target partiel ne doit pas marquer l'article comme abrogé."""
     section = BeautifulSoup(
         '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
         "html.parser",
@@ -366,7 +365,7 @@ def test_make_section_version_partial_remove_does_not_mark_abrogated() -> None:
 
 
 def test_make_section_version_full_remove_marks_abrogated() -> None:
-    """#30: Un REMOVE avec sub_target FULL_SECTION/ALL doit marquer l'article comme abrogé."""
+    """Un REMOVE avec sub_target FULL_SECTION/ALL doit marquer l'article comme abrogé."""
     section = BeautifulSoup(
         '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
         "html.parser",
@@ -524,7 +523,7 @@ def test_has_not_out_ops_returns_false_with_multiple_operations() -> None:
 
 
 class TestIsAbrogated:
-    """Direct unit tests for _is_abrogated edge cases (#30)."""
+    """Direct unit tests for _is_abrogated edge cases."""
 
     @staticmethod
     def _make_version(operation_id: str | None) -> ArticleVersion:
