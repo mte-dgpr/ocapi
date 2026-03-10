@@ -61,7 +61,10 @@ def run_pipeline(
 
     for _i, arrete_file in enumerate(arrete_files):
         if start_date and arrete_file.id <= start_date:
-            _LOGGER.info(f"Arrêté {arrete_file.id} antérieur à {start_date}, détection ignorée")
+            _LOGGER.info(
+                f"Arrêté {arrete_file.id} de date antérieure ou égale à {start_date},"
+                " pas de détection des opérations"
+            )
             continue
         _LOGGER.info(f"Traitement de l'arrêté {arrete_file.id}...")
         docs, img_map = step_chunking(arrete_file)

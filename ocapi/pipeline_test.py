@@ -45,7 +45,9 @@ def _make_arrete(arrete_id: str) -> ArreteFile:
 def test_start_date_skips_earlier_arretes(
     mock_chunking: MagicMock, mock_detection: MagicMock
 ) -> None:
-    """start_date exclut l'arrêté initial (<=) : seuls les arrêtés strictement postérieurs sont détectés."""  # noqa: E501
+    """start_date exclut l'arrêté initial (<=) : seuls les arrêtés
+    strictement postérieurs sont détectés.
+    """
     arretes = [
         _make_arrete("2009-12-08"),
         _make_arrete("2014-01-09"),
