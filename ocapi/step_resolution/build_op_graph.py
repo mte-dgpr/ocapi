@@ -40,8 +40,10 @@ def add_node(G: nx.MultiDiGraph, node_id: NodeId, node_content: Content | None =
     if not G.has_node(node_id):
         node_data = {"content": node_content} if node_content is not None else {}
         G.add_node(node_id, **node_data)
-    elif node_content is not None:
-        G.nodes[node_id]["content"] = node_content
+
+
+def update_node_content(G: nx.MultiDiGraph, node_id: NodeId, node_content: Content) -> None:
+    G.nodes[node_id]["content"] = node_content
 
 
 def add_edge(G: nx.MultiDiGraph, operation: Operation) -> None:
