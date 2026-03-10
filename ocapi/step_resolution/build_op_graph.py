@@ -17,8 +17,8 @@
 # limitations under the License.
 #
 """
-Functions to build a directed graph of operations from a list of operations.
-Each node in the graph represents an arrete article, and each edge represents an operation
+Functions to build a directed operations graph from a list of operations.
+Each node in the graph represents an article, and each edge represents an operation
 between two articles.
 """
 
@@ -58,10 +58,10 @@ def update_node_content(G: nx.MultiDiGraph, node_id: NodeId, node_content: Conte
 
 
 def add_edge(G: nx.MultiDiGraph, operation: Operation) -> None:
-    """Add an edge to the graph from an `Operation`.
+    """Add an edge to the graph from an ``Operation``.
 
-    The edge goes from `source_id` to `target_id` and carries all operation data
-    (type, operand, sub_target) as edge attributes.
+    The edge goes from ``source_id`` to ``target_id`` and carries all operation
+    data (type, operand, sub_target) as edge attributes.
 
     Parameters
     ----------
@@ -83,11 +83,11 @@ def get_node_content(node: NodeId, soup: BeautifulSoup) -> str:
     """Retrieve the HTML content of an article from its NodeId."""
     arrete_id, article_id = node.arrete_id, node.article_id
 
-    # Special case: NEW_ARTICLE (article that does not yet exist, will be created by the operation)
+    # Special case: NEW_ARTICLE (article does not yet exist, will be created by the operation)
     if article_id.startswith("NEW_ARTICLE"):
         return ""
 
-    # If article_id starts with APPENDIX, try to retrieve the appendix content
+    # If article_id starts with APPENDIX, look inside the appendix footer
     if article_id.startswith("APPENDIX"):
         article_id = article_id.split("APPENDIX:", 1)[1]
         appendix_tag = soup.select_one('footer[data-spec="appendix"]')
@@ -112,20 +112,20 @@ def get_node_content(node: NodeId, soup: BeautifulSoup) -> str:
 def build_graph(
     ops: list[Operation], arrete_files: list[ArreteFile]
 ) -> Tuple[nx.MultiDiGraph, list[ArreteFile], list[tuple[Operation, str]]]:
-    """
-    Build the operations graph.
-    Returns the graph, the list of arretes, and the list of operations that failed.
+    """Build the operations graph.
+
+    Returns the graph, the list of arrêtés, and the list of failed operations.
     """
     G = nx.MultiDiGraph()
     soups: dict[ArreteId, BeautifulSoup] = {
         arrete_file.id: arrete_file.soup for arrete_file in arrete_files
     }
-    skipped_ops: list[tuple[Operation, str]] = []
+    skipped_ops: list[tuple[Operation, str]] = []  # (operation, reason) for each failure
 
     for op in ops:
         try:
             if _is_abrogation_arrete(op):
-                # Find the arrete in the list and mark its status as False
+                # Find the arrêté and mark its status as False (abrogated)
                 for arrete_file in arrete_files:
                     if arrete_file.id == op.target_id.arrete_id:
                         arrete_file.status = False
@@ -144,9 +144,7 @@ def build_graph(
             continue
 
     if skipped_ops:
-        _LOGGER.warning(
-            f"{len(skipped_ops)} operation(s) skipped during graph construction"
-        )
+        _LOGGER.warning(f"{len(skipped_ops)} operation(s) skipped while building the graph")
 
     return G, arrete_files, skipped_ops
 

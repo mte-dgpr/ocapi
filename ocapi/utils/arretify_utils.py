@@ -20,31 +20,29 @@ from bs4 import BeautifulSoup, Tag
 
 
 def list_top_sections(soup: BeautifulSoup | Tag) -> list[Tag]:
-    """
-    Itère sur les sections de plus haut niveau dans le document (sans parent section).
-    """
+    """Return top-level sections in the document (with no parent section)."""
     return [sec for sec in soup.find_all("section") if sec.find_parent("section") is None]
 
 
 def extract_specs(soup: BeautifulSoup, spec: str) -> list[Tag]:
-    """Extrait les blocs HTML correspondant à une spec Arrêtify."""
+    """Extract all HTML elements matching an Arrêtify spec."""
     return [tag for tag in soup.find_all(attrs={"data-spec": spec}) if isinstance(tag, Tag)]
 
 
 def extract_first_spec_html(soup: BeautifulSoup, spec: str) -> str:
-    """Retourne le HTML du premier élément ayant la spec Arrêtify donnée.
+    """Return the HTML of the first element matching the given Arrêtify spec.
 
     Parameters
     ----------
     soup : BeautifulSoup
-        Document HTML parsé.
+        Parsed HTML document.
     spec : str
-        Valeur de l'attribut `data-spec` à rechercher (ex. `"visa"`, `"motifs"`).
+        Value of the ``data-spec`` attribute to look for (e.g. ``"visa"``, ``"motifs"``).
 
     Returns
     -------
     str
-        HTML serialisé du premier élément trouvé, ou chaîne vide si absent.
+        Serialised HTML of the first matching element, or empty string if absent.
     """
     tags = extract_specs(soup, spec)
     if not tags:
@@ -53,19 +51,19 @@ def extract_first_spec_html(soup: BeautifulSoup, spec: str) -> str:
 
 
 def extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
-    """Retourne le texte brut du premier élément ayant la spec Arrêtify donnée.
+    """Return the plain text of the first element matching the given Arrêtify spec.
 
     Parameters
     ----------
     soup : BeautifulSoup
-        Document HTML parsé.
+        Parsed HTML document.
     spec : str
-        Valeur de l'attribut `data-spec` à rechercher.
+        Value of the ``data-spec`` attribute to look for.
 
     Returns
     -------
     str
-        Texte extrait avec les espaces normalisés, ou chaîne vide si absent.
+        Extracted text with normalised whitespace, or empty string if absent.
     """
     tags = extract_specs(soup, spec)
     if not tags:
@@ -74,17 +72,17 @@ def extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
 
 
 def extract_main(soup: BeautifulSoup) -> str:
-    """Retourne le HTML de la balise `<main>` du document.
+    """Return the HTML of the ``<main>`` tag from the document.
 
     Parameters
     ----------
     soup : BeautifulSoup
-        Document HTML parsé.
+        Parsed HTML document.
 
     Returns
     -------
     str
-        HTML serialisé de la balise `<main>`, ou chaîne vide si absente.
+        Serialised HTML of the ``<main>`` tag, or empty string if absent.
     """
     main = soup.find("main")
     if main is None:

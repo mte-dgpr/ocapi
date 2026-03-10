@@ -40,7 +40,7 @@ _NUMERIC_ID_PATTERN = re.compile(r"^\d+(\.\d+)*$")
 
 
 def is_valid_article_id(article_id: str) -> bool:
-    """Vérifie si un article_id est au format valide pour NodeId."""
+    """Return True if article_id is in a valid format for NodeId."""
     if article_id in ("ALL", "END", "APPENDIX"):
         return True
     if article_id.startswith("APPENDIX:"):
@@ -53,34 +53,37 @@ def is_valid_article_id(article_id: str) -> bool:
 
 
 def parse_arrete_id(v: str) -> str:
-    """
-    Valide qu'un arrete_id est au format YYYY-MM-DD.
+    """Validate that an arrete_id is in YYYY-MM-DD format.
 
-    Returns:
-        L'arrete_id validé.
+    Returns
+    -------
+    str
+        The validated arrete_id.
 
-    Raises:
-        InvalidArreteIdError: Si le format est invalide.
+    Raises
+    ------
+    InvalidArreteIdError
+        If the format is invalid.
     """
     date_parts = v.split("-")
     if len(date_parts) != 3:
-        raise InvalidArreteIdError(f"Date invalide: format attendu YYYY-MM-DD, reçu: {v}")
+        raise InvalidArreteIdError(f"Invalid date: expected format YYYY-MM-DD, got: {v}")
     try:
         year, month, day = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
     except (ValueError, IndexError) as e:
-        raise InvalidArreteIdError(f"Date invalide: format attendu YYYY-MM-DD, reçu: {v}") from e
+        raise InvalidArreteIdError(f"Invalid date: expected format YYYY-MM-DD, got: {v}") from e
     if not (1900 <= year <= 2100):
         raise InvalidArreteIdError(
-            f"Date invalide: année doit être entre 1900 et 2100, reçu: {year} dans {v}"
+            f"Invalid date: year must be between 1900 and 2100, got: {year} in {v}"
         )
     if not (1 <= month <= 12 and 1 <= day <= 31):
-        raise InvalidArreteIdError(f"Date invalide: mois ou jour hors limites dans {v}")
+        raise InvalidArreteIdError(f"Invalid date: month or day out of range in {v}")
     return v
 
 
 @dataclass
 class ArreteFile:
-    """Représente un arrêté avec son ID et son contenu."""
+    """Represents an arrêté with its ID and content."""
 
     id: ArreteId
     aiot: AiotId
@@ -97,14 +100,14 @@ class Permis(BaseModel):
     aiot: AiotId | None = None
 
     def to_html(self) -> str:
-        """Rend le permis dans le template HTML fixe."""
+        """Render the permit using the fixed HTML template."""
         template_path = settings.paths.permis_template_path
         template = template_path.read_text(encoding="utf-8")
         required_tokens = ("{{HEADER}}", "{{CONTENT}}", "{{OTHER}}")
         if not all(token in template for token in required_tokens):
             raise ValueError(
-                "Template HTML du permis consolidé invalide: "
-                "placeholders {{HEADER}}, {{CONTENT}} et {{OTHER}} requis."
+                "Invalid consolidated permit HTML template: "
+                "placeholders {{HEADER}}, {{CONTENT}} and {{OTHER}} are required."
             )
         return (
             template.replace("{{HEADER}}", self.header)
@@ -114,7 +117,7 @@ class Permis(BaseModel):
 
 
 class NodeId(BaseModel):
-    """Identifiant unique d'un nœud composé de l'ID de l'arrêté et de l'ID de l'article"""
+    """Unique node identifier made up of the arrêté ID and the article ID."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -124,21 +127,19 @@ class NodeId(BaseModel):
     @field_validator("article_id")
     @classmethod
     def validate_article_id_format(cls, v: str) -> str:
-        """
-        Valide que l'article_id est au format numérique (ex: '1.2', '3.1.4'),
-        APPENDIX, ALL ou END
-        """
+        """Validate that article_id is in numeric format (e.g. '1.2', '3.1.4'),
+        APPENDIX, ALL or END."""
         if not is_valid_article_id(v):
             raise InvalidArticleIdError(
-                "article_id doit être au format numérique (ex: '1.2', '3.1.4'), "
-                f"APPENDIX, ALL, END ou NEW_ARTICLE:X, reçu: '{v}'"
+                "article_id must be in numeric format (e.g. '1.2', '3.1.4'), "
+                f"APPENDIX, ALL, END or NEW_ARTICLE:X, got: '{v}'"
             )
         return v
 
     @field_validator("arrete_id")
     @classmethod
     def validate_arrete_id_format(cls, v: str) -> str:
-        """Valide que l'arrete_id est au format YYYY-MM-DD"""
+        """Validate that arrete_id is in YYYY-MM-DD format."""
         return parse_arrete_id(v)
 
     def __str__(self) -> str:
@@ -172,7 +173,7 @@ class RawOperationType(Enum):
 
 
 class FileType(Enum):
-    """Type de fichier d'arrêté préfectoral."""
+    """Prefectoral decree file type."""
 
     AP_AUTORISATION = "ap d'autorisation"
     AP_COMPLEMENTAIRE = "ap prescriptions complémentaires"
@@ -189,13 +190,13 @@ class _BaseModelWithConfig(BaseModel):
 
 
 class PermitTitleSpec(_BaseModelWithConfig):
-    """Titre du permis consolidé avec un unique code AIOT."""
+    """Consolidated permit title with a unique AIOT code."""
 
     aiot_code: AiotId | None
 
 
 class PermitSourceSpec(_BaseModelWithConfig):
-    """Source utilisée dans le permis (date + titre d'arrêté)."""
+    """Source used in the permit (date + arrêté title)."""
 
     arrete_id: ArreteId
     arrete_title: str
@@ -208,19 +209,19 @@ class PermitSourceSpec(_BaseModelWithConfig):
 
 
 class PermitSources(_BaseModelWithConfig):
-    """Liste des arrêtés sources triés chronologiquement."""
+    """List of source arrêtés sorted chronologically."""
 
     sources: list[PermitSourceSpec]
 
 
 class PermitVisa(_BaseModelWithConfig):
-    """Ensemble ordonné des VisaSpec consolidés sans doublon."""
+    """Ordered set of consolidated visas without duplicates."""
 
     visas: list[str]
 
 
 class PermitMotifEntry(_BaseModelWithConfig):
-    """Motifs extraits pour un arrêté donné."""
+    """Grounds extracted for a given arrêté."""
 
     arrete_id: ArreteId
     motifs: list[str]
@@ -232,13 +233,13 @@ class PermitMotifEntry(_BaseModelWithConfig):
 
 
 class PermitMotif(_BaseModelWithConfig):
-    """Motifs consolidés, groupés par arrêté en ordre chronologique."""
+    """Consolidated grounds, grouped by arrêté in chronological order."""
 
     entries: list[PermitMotifEntry]
 
 
 class SectionVersionSpec(_BaseModelWithConfig):
-    """Version consolidée d'une section avec métadonnées de modification."""
+    """Consolidated version of a section with modification metadata."""
 
     article_id: ArticleId
     is_modified: bool
@@ -250,8 +251,8 @@ class SectionVersionSpec(_BaseModelWithConfig):
     def validate_article_id_format(cls, v: str) -> str:
         if not is_valid_article_id(v):
             raise InvalidArticleIdError(
-                "article_id doit être au format numérique (ex: '1.2', '3.1.4'), "
-                f"APPENDIX, ALL, END ou NEW_ARTICLE:X, reçu: '{v}'"
+                "article_id must be in numeric format (e.g. '1.2', '3.1.4'), "
+                f"APPENDIX, ALL, END or NEW_ARTICLE:X, got: '{v}'"
             )
         return v
 
@@ -262,7 +263,7 @@ class SectionVersionSpec(_BaseModelWithConfig):
 
 
 class PermitComplements(_BaseModelWithConfig):
-    """Mains des AP spécifiques non consolidés."""
+    """Main content of non-consolidated specific APs."""
 
     complements: list[str]
 
@@ -279,7 +280,7 @@ class RawOperation(_BaseModelWithConfig):
 
 
 class SubTargetType(Enum):
-    """Types de sub-targets détectables."""
+    """Detectable sub-target types."""
 
     FULL_SECTION = "FULL_SECTION"
     TABLEAU = "TABLEAU"
@@ -287,16 +288,16 @@ class SubTargetType(Enum):
     ALINEA = "ALINEA"
     PARAGRAPHE = "PARAGRAPHE"
     LIGNE_TABLEAU = "LIGNE_TABLEAU"
-    COLONNE_TABLEAU = "COLONNE_TABLEAU"  # Ligne et colonne à supprimer si mauvaise détection ?
-    COMPLEX = "COMPLEX"  # Nécessite LLM
+    COLONNE_TABLEAU = "COLONNE_TABLEAU"  # Row and column to remove if detection is wrong?
+    COMPLEX = "COMPLEX"  # Requires LLM
 
 
 class SubTarget(_BaseModelWithConfig):
-    """Représente un sub-target parsé."""
+    """Represents a parsed sub-target."""
 
     type: SubTargetType
-    position: Optional[int] = None  # 0 = dernière, 1 = première, 2 = deuxième, etc.
-    description: Optional[str] = None  # Texte original du sub-target
+    position: Optional[int] = None  # -1 = last, 1 = first, 2 = second, etc.
+    description: Optional[str] = None  # Original sub-target text
 
     @field_validator("type", mode="before")
     @classmethod
@@ -309,8 +310,8 @@ class SubTarget(_BaseModelWithConfig):
 
 
 class Operation(_BaseModelWithConfig):
-    # TODO : conserver ref vers arrete source et index qui incrémente
-    # pour chaque tgt identique dans cet arrete
+    # TODO: keep a reference to source arrêté and an incrementing index
+    # for each identical target in that arrêté
     id: OperationId
     source_id: NodeId
     target_id: NodeId
@@ -326,19 +327,22 @@ class Operation(_BaseModelWithConfig):
 
 
 def categorize_arrete(filename: str) -> FileType:
-    """
-    Catégorise un fichier d'arrêté en fonction de son nom.
+    """Categorise an arrêté file based on its filename.
 
-    Args:
-        filename: Le nom du fichier (format: YYYY-MM-DD_type_description.html)
+    Parameters
+    ----------
+    filename : str
+        Filename in the format YYYY-MM-DD_type_description.html.
 
-    Returns:
-        Le type de fichier correspondant
+    Returns
+    -------
+    FileType
+        The corresponding file type.
     """
-    # Normaliser le filename en minuscules pour la comparaison
+    # Normalize filename to lowercase for comparison
     filename_lower = filename.lower()
 
-    # Mapping des types de fichiers (ordre important : du plus spécifique au plus général)
+    # File type mapping (order matters: most specific first)
     file_type_mapping = {
         "ap d'autorisation": FileType.AP_AUTORISATION,
         "ap enregistrement": FileType.AP_AUTORISATION,
@@ -348,82 +352,91 @@ def categorize_arrete(filename: str) -> FileType:
         "arrêté préfectoral": FileType.ARRETE_PREFECTORAL,
     }
 
-    # Chercher la correspondance la plus longue (plus spécifique) en premier
+    # Find the longest (most specific) match first
     for pattern in sorted(file_type_mapping.keys(), key=len, reverse=True):
         if pattern in filename_lower:
             return file_type_mapping[pattern]
 
-    # Par défaut, retourner AUTRE si aucune correspondance
+    # Default to AUTRE if no match found
     return FileType.AUTRE
 
 
 def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
+    """Parse an arrêté filename and return the arrêté ID and its type.
+
+    Expected format: YYYY-MM-DD_type_description.html
+
+    Parameters
+    ----------
+    filename : str
+        Filename to parse.
+
+    Returns
+    -------
+    tuple[ArreteId, FileType]
+        A (arrete_id, file_type) tuple.
+
+    Raises
+    ------
+    InvalidFileFormatError
+        If the filename format is invalid.
     """
-    Parse un nom de fichier d'arrêté et retourne l'ID de l'arrêté et son type.
-
-    Format attendu: YYYY-MM-DD_type_description.html
-
-    Args:
-        filename: Le nom du fichier à parser
-
-    Returns:
-        Un tuple (arrete_id, file_type)
-
-    Raises:
-        InvalidFileFormatError: Si le format du fichier est invalide
-    """
-    # Vérifier l'extension .html
+    # Check .html extension
     if not filename.endswith(".html"):
-        raise InvalidFileFormatError(f"Le fichier doit avoir l'extension .html: {filename}")
+        raise InvalidFileFormatError(f"File must have .html extension: {filename}")
 
-    # Séparer par underscore
+    # Split by underscore
     parts = filename.split("_")
     if len(parts) < 2:
         raise InvalidFileFormatError(
-            f"Format invalide: le fichier doit contenir au moins une date "
-            f"et un type séparés par '_': {filename}"
+            f"Invalid format: filename must contain at least a date "
+            f"and a type separated by '_': {filename}"
         )
 
-    # Extraire et valider la date (première partie)
+    # Extract and validate the date (first part)
     try:
         arrete_id = parse_arrete_id(parts[0])
     except InvalidArreteIdError as e:
         raise InvalidFileFormatError(str(e)) from e
 
-    # Catégoriser le fichier
+    # Categorize the file
     file_type = categorize_arrete(filename)
 
     return arrete_id, file_type
 
 
 def validate_arretify_version(soup: BeautifulSoup, filename: str = "") -> None:
-    """
-    Valide que la version Arrêtify du document HTML est supportée.
+    """Validate that the Arrêtify version of an HTML document is supported.
 
-    Args:
-        soup: Document HTML parsé par BeautifulSoup
-        filename: Nom du fichier (pour les messages d'erreur)
+    Parameters
+    ----------
+    soup : BeautifulSoup
+        Parsed HTML document.
+    filename : str
+        Filename used in error messages.
 
-    Raises:
-        InvalidFileFormatError: Si la version Arrêtify est absente ou non supportée
+    Raises
+    ------
+    InvalidFileFormatError
+        If the Arrêtify version is missing or not supported.
     """
     body = soup.find("body")
     if not body:
-        raise InvalidFileFormatError(f"Document HTML invalide (pas de balise <body>): {filename}")
+        raise InvalidFileFormatError(f"Invalid HTML document (missing <body> tag): {filename}")
 
     arretify_version = body.get("data-arretify_version")
 
     if not arretify_version:
         raise InvalidFileFormatError(
-            f"Version Arrêtify manquante dans le document HTML: {filename}\n"
-            f"L'attribut 'data-arretify_version' doit être présent sur la balise <body>."
+            f"Missing Arrêtify version in HTML document: {filename}\n"
+            f"The 'data-arretify_version' attribute must be present on the <body> tag."
         )
 
     if not re.match(SUPPORTED_ARRETIFY_VERSION_PATTERN, str(arretify_version)):
         raise InvalidFileFormatError(
-            f"Version Arrêtify non supportée: {arretify_version} (fichier: {filename})\n"
-            f"OCAPI supporte uniquement les versions {SUPPORTED_ARRETIFY_VERSION}\n"
-            f"Version détectée: {arretify_version}"
+            f"Unsupported Arrêtify version: {arretify_version} (file: {filename})\n"
+            f"OCAPI supports only versions {SUPPORTED_ARRETIFY_VERSION}\n"
+            f"Detected version: {arretify_version}"
         )
 
-    # Version valide - rien à retourner
+    # Valid version - nothing to return

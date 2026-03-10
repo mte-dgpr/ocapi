@@ -22,22 +22,22 @@ from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main
 
 
 def has_not_out_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
-    """Indique si un arrêté ne génère aucune opération sortante.
+    """Return True if an arrêté generates no outgoing operations.
 
-    Un arrêté sans opération sortante est un arrêté complémentaire non
-    modificatif (il ne modifie aucun article de l'AP initial).
+    An arrêté without outgoing operations is a non-modifying complementary
+    arrêté (it does not modify any article of the initial AP).
 
     Parameters
     ----------
     arrete_file : ArreteFile
-        Arrêté à tester.
+        Arrêté to test.
     operations : list[Operation]
-        Liste de toutes les opérations détectées.
+        List of all detected operations.
 
     Returns
     -------
     bool
-        `True` si l'arrêté ne génère aucune opération sortante.
+        ``True`` if the arrêté generates no outgoing operations.
     """
     return all(op.source_id.arrete_id != arrete_file.id for op in operations)
 
@@ -49,27 +49,27 @@ def detect_additional_prescriptions(arrete_files: list[ArreteFile]) -> str:
 
 
 def make_permit_other(arrete_files: list[ArreteFile], operations: list[Operation]) -> str:
-    """Génère la section HTML des arrêtés complémentaires non modificatifs.
+    """Generate the HTML section of non-modifying complementary arrêtés.
 
-    Inclut uniquement les arrêtés actifs (non abrogés) qui ne génèrent aucune
-    opération sortante, c'est-à-dire les arrêtés qui ajoutent des prescriptions
-    sans modifier l'AP d'autorisation.
+    Includes only active (non-abrogated) arrêtés that generate no outgoing
+    operations, i.e. arrêtés that add prescriptions without modifying the
+    initial authorisation AP.
 
     Parameters
     ----------
     arrete_files : list[ArreteFile]
-        Tous les arrêtés ; `arrete_files[0]` (AP initial) est ignoré.
+        All arrêtés; ``arrete_files[0]`` (initial AP) is skipped.
     operations : list[Operation]
-        Toutes les opérations détectées, pour filtrer les arrêtés modificatifs.
+        All detected operations, used to filter out modifying arrêtés.
 
     Returns
     -------
     str
-        HTML de la section `permit_complements`, ou chaîne vide si aucun complément.
+        HTML of the ``permit_complements`` section, or empty string if none.
     """
     complement_sections: list[str] = []
     for i, arrete_file in enumerate(arrete_files):
-        if i > 0:  # Skip first file (AP initial)
+        if i > 0:  # Skip first file (initial AP)
             if arrete_file.status and has_not_out_ops(arrete_file, operations):
                 identification = extract_first_spec_html(arrete_file.soup, "identification")
                 arrete_title = extract_first_spec_html(arrete_file.soup, "arrete_title")

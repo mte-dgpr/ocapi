@@ -17,13 +17,12 @@
 # limitations under the License.
 #
 """
-Ce step prend une liste de blocs HTML (Document) et leurs ArreteId correspondant
-et retourne une liste d'opérations détectées (Operation).
-Chaque opération est extraite en appelant un LLM avec un prompt spécifique.
+This step takes a list of HTML blocks (Document) with their corresponding ArreteId
+and returns a list of detected operations (Operation).
+Each operation is extracted by calling a LLM with a specific prompt.
 """
 
-# TODO modifier les opérations pour prendre en compte les changements de titre
-# ou deplacement d'article.
+# TODO: handle title changes and article moves in operation detection.
 
 from langchain_core.documents import Document
 
@@ -56,31 +55,31 @@ LLM_CFG = config_model_llm()
 def step_detection(
     html_blocks: list[Document], arrete_id: ArreteId, img_map: ImageMap
 ) -> list[Operation]:
-    """Détecte les opérations dans un arrêté via LLM.
+    """Detect operations in an arrêté via the LLM.
 
-    Pour chaque bloc HTML, interroge le LLM, parse la réponse JSON,
-    filtre les opérations invalides et les convertit en `Operation` typées.
+    For each HTML block, queries the LLM, parses the JSON response,
+    filters invalid operations and converts them into typed ``Operation`` objects.
 
     Parameters
     ----------
     html_blocks : list[Document]
-        Blocs HTML produits par `step_chunking`.
+        HTML blocks produced by ``step_chunking``.
     arrete_id : ArreteId
-        Identifiant de l'arrêté source (date YYYY-MM-DD).
+        Source arrêté identifier (YYYY-MM-DD date).
     img_map : ImageMap
-        Correspondance tokens → URLs d'images pour réhydrater les operands.
+        Token → image URL mapping for rehydrating operands.
 
     Returns
     -------
     list[Operation]
-        Opérations détectées et validées, prêtes pour la résolution.
+        Detected and validated operations, ready for resolution.
     """
-    _LOGGER.info(f"Détection: traitement de {len(html_blocks)} bloc(s)")
+    _LOGGER.info(f"Detection: processing {len(html_blocks)} block(s)")
     all_ops: list[Operation] = []
-    for block_html in html_blocks:
-        # Appel LLM pour détecter les opérations dans le bloc HTML
-        # TODO : implémenter un retry en cas d'erreur (sur l'extraction du contenu par ex)
-        raw = call_llm_api(LLM_CFG, prompt_detection(block_html.page_content))
+    for html_block in html_blocks:
+        # LLM call to detect operations in the HTML block
+        # TODO: implement a retry on error (e.g. content extraction failure)
+        raw = call_llm_api(LLM_CFG, prompt_detection(html_block.page_content))
         raw_list = parse_llm_json_list_response(raw)
         raw_operations: list[RawOperation] = []
         for element in raw_list:
@@ -88,36 +87,35 @@ def step_detection(
                 raw_operations.append(RawOperation(**element))
             except Exception as exc:
                 _LOGGER.warning(
-                    f"Opération brute ignorée pour l'arrêté {arrete_id} "
-                    f"(parsing LLM invalide): {exc}"
+                    f"Raw operation skipped for arrêté {arrete_id} " f"(invalid LLM parsing): {exc}"
                 )
         valid_operations: list[RawOperation] = []
         for raw_op in raw_operations:
             if raw_op.source_article is None:
                 _LOGGER.warning(
-                    f"Opération ignorée (source_article manquant): "
+                    f"Operation skipped (missing source_article): "
                     f"type={raw_op.operation_type}, target_arrete={raw_op.target_arrete}, "
                     f"target_article={raw_op.target_article}"
                 )
                 continue
             if raw_op.target_article is None:
                 _LOGGER.warning(
-                    f"Opération ignorée (target_article manquant): "
+                    f"Operation skipped (missing target_article): "
                     f"type={raw_op.operation_type}, source_article={raw_op.source_article}, "
                     f"target_arrete={raw_op.target_arrete}"
                 )
                 continue
-            # Valider le format des article_id
+            # Validate article_id formats
             if not is_valid_article_id(raw_op.source_article):
                 _LOGGER.warning(
-                    f"Opération ignorée (format source_article invalide): "
+                    f"Operation skipped (invalid source_article format): "
                     f"type={raw_op.operation_type}, source_article={raw_op.source_article}, "
                     f"target_arrete={raw_op.target_arrete}, target_article={raw_op.target_article}"
                 )
                 continue
             if not is_valid_article_id(raw_op.target_article):
                 _LOGGER.warning(
-                    f"Opération ignorée (format target_article invalide): "
+                    f"Operation skipped (invalid target_article format): "
                     f"type={raw_op.operation_type}, source_article={raw_op.source_article}, "
                     f"target_arrete={raw_op.target_arrete}, target_article={raw_op.target_article}"
                 )
@@ -125,58 +123,58 @@ def step_detection(
             valid_operations.append(raw_op)
 
         all_ops.extend(
-            convert_raw_operation_to_operation(block_html.page_content, raw_op, arrete_id, img_map)
+            convert_raw_operation_to_operation(html_block.page_content, raw_op, arrete_id, img_map)
             for raw_op in valid_operations
         )
-    _LOGGER.info(f"Détection: {len(all_ops)} opération(s) détectée(s)")
+    _LOGGER.info(f"Detection: {len(all_ops)} operation(s) detected")
     return all_ops
 
 
 def convert_raw_operation_to_operation(
-    block_html: str,
+    html_block: str,
     raw_operation: RawOperation,
     source_arrete_id: ArreteId,
     img_map: ImageMap,
 ) -> Operation:
-    """Convertit une `RawOperation` LLM en `Operation` complète et typée.
+    """Convert a LLM ``RawOperation`` into a fully typed ``Operation``.
 
-    Extrait l'operand entre les marqueurs de contenu, parse le sub_target,
-    assigne un ID unique et construit les `NodeId` source et cible.
+    Extracts the operand between content markers, parses the sub_target,
+    assigns a unique ID and builds the source and target ``NodeId``.
 
     Parameters
     ----------
-    block_html : str
-        HTML brut du bloc dans lequel l'opération a été détectée.
+    html_block : str
+        Raw HTML of the block in which the operation was detected.
     raw_operation : RawOperation
-        Opération brute parsée depuis la réponse JSON du LLM.
+        Raw operation parsed from the LLM JSON response.
     source_arrete_id : ArreteId
-        Identifiant de l'arrêté dont provient cette opération.
+        Identifier of the arrêté from which this operation originates.
     img_map : ImageMap
-        Correspondance tokens → URLs pour réhydrater les images dans l'operand.
+        Token → URL mapping for rehydrating images in the operand.
 
     Returns
     -------
     Operation
-        Opération typée avec ID, source, cible, type, operand et sub_target.
+        Typed operation with ID, source, target, type, operand and sub_target.
 
     Raises
     ------
     OperationError
-        Si `source_article` ou `target_article` est absent de la `RawOperation`.
+        If ``source_article`` or ``target_article`` is missing from the ``RawOperation``.
     """
     if raw_operation.source_article is None:
         raise OperationError("raw operation is missing source_article")
     if raw_operation.target_article is None:
         raise OperationError("raw operation is missing target_article")
 
-    # Générer l'ID de l'opération en premier pour pouvoir l'utiliser dans le logging
+    # Generate the operation ID first so it can be used in logging
     operation_id = make_id(_OPERATION_ID_COUNTER)
 
     operand = None
     extractable_content = True
     if raw_operation.new_content_start_marker and raw_operation.new_content_end_marker:
         operand = extract_operand_with_images(
-            block_html,
+            html_block,
             raw_operation.source_article,
             raw_operation.new_content_start_marker,
             raw_operation.new_content_end_marker,

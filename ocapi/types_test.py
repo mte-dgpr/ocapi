@@ -85,35 +85,35 @@ class TestParseArreteId:
         assert parse_arrete_id("2023-01-31") == "2023-01-31"
 
     def test_invalid_too_few_parts(self) -> None:
-        with pytest.raises(InvalidArreteIdError, match="Date invalide"):
+        with pytest.raises(InvalidArreteIdError, match="Invalid date"):
             parse_arrete_id("2024-01")
 
     def test_invalid_too_many_parts(self) -> None:
-        with pytest.raises(InvalidArreteIdError, match="Date invalide"):
+        with pytest.raises(InvalidArreteIdError, match="Invalid date"):
             parse_arrete_id("2024-01-15-extra")
 
     def test_invalid_non_numeric(self) -> None:
-        with pytest.raises(InvalidArreteIdError, match="Date invalide"):
+        with pytest.raises(InvalidArreteIdError, match="Invalid date"):
             parse_arrete_id("YYYY-MM-DD")
 
     def test_invalid_year_too_old(self) -> None:
-        with pytest.raises(InvalidArreteIdError, match="Date invalide"):
+        with pytest.raises(InvalidArreteIdError, match="Invalid date"):
             parse_arrete_id("1800-01-15")
 
     def test_invalid_year_too_recent(self) -> None:
-        with pytest.raises(InvalidArreteIdError, match="Date invalide"):
+        with pytest.raises(InvalidArreteIdError, match="Invalid date"):
             parse_arrete_id("2200-01-15")
 
     def test_invalid_month_out_of_range(self) -> None:
-        with pytest.raises(InvalidArreteIdError, match="Date invalide"):
+        with pytest.raises(InvalidArreteIdError, match="Invalid date"):
             parse_arrete_id("2024-13-01")
 
     def test_invalid_day_out_of_range(self) -> None:
-        with pytest.raises(InvalidArreteIdError, match="Date invalide"):
+        with pytest.raises(InvalidArreteIdError, match="Invalid date"):
             parse_arrete_id("2024-01-45")
 
     def test_reversed_date_format(self) -> None:
-        with pytest.raises(InvalidArreteIdError, match="Date invalide"):
+        with pytest.raises(InvalidArreteIdError, match="Invalid date"):
             parse_arrete_id("15-01-2024")
 
 
@@ -279,19 +279,19 @@ class TestParseFilename:
         assert file_type == FileType.AUTRE
 
     def test_parse_invalid_no_html_extension(self) -> None:
-        with pytest.raises(InvalidFileFormatError, match="extension .html"):
+        with pytest.raises(InvalidFileFormatError, match=r"\.html extension"):
             parse_filename("2024-01-15_ap_document.pdf")
 
     def test_parse_invalid_date_format(self) -> None:
-        with pytest.raises(InvalidFileFormatError, match="Date invalide"):
+        with pytest.raises(InvalidFileFormatError, match="Invalid date"):
             parse_filename("2024-13-45_ap_document.html")
 
     def test_parse_invalid_date_not_iso(self) -> None:
-        with pytest.raises(InvalidFileFormatError, match="Date invalide"):
+        with pytest.raises(InvalidFileFormatError, match="Invalid date"):
             parse_filename("15-01-2024_ap_document.html")
 
     def test_parse_invalid_missing_parts(self) -> None:
-        with pytest.raises(InvalidFileFormatError, match="Format invalide"):
+        with pytest.raises(InvalidFileFormatError, match="Invalid format"):
             parse_filename("2024-01-15.html")
 
     def test_parse_complex_filename(self) -> None:
@@ -346,7 +346,7 @@ class TestValidateArretifyVersion:
 
     def test_validate_version_missing_raises_error(self) -> None:
         soup = BeautifulSoup("<html><body><p>Contenu</p></body></html>", "html.parser")
-        with pytest.raises(InvalidFileFormatError, match="Version Arrêtify manquante"):
+        with pytest.raises(InvalidFileFormatError, match="Missing Arrêtify version"):
             validate_arretify_version(soup, "test.html")
 
     def test_validate_version_0_2_0_raises_error(self) -> None:
@@ -354,7 +354,7 @@ class TestValidateArretifyVersion:
             '<html><body data-arretify_version="0.2.0"><p>Contenu</p></body></html>',
             "html.parser",
         )
-        with pytest.raises(InvalidFileFormatError, match="Version Arrêtify non supportée"):
+        with pytest.raises(InvalidFileFormatError, match="Unsupported Arrêtify version"):
             validate_arretify_version(soup, "test.html")
 
     def test_validate_version_1_0_0_raises_error(self) -> None:
@@ -362,7 +362,7 @@ class TestValidateArretifyVersion:
             '<html><body data-arretify_version="1.0.0"><p>Contenu</p></body></html>',
             "html.parser",
         )
-        with pytest.raises(InvalidFileFormatError, match="Version Arrêtify non supportée"):
+        with pytest.raises(InvalidFileFormatError, match="Unsupported Arrêtify version"):
             validate_arretify_version(soup, "test.html")
 
     def test_validate_invalid_version_format_raises_error(self) -> None:
@@ -370,12 +370,12 @@ class TestValidateArretifyVersion:
             '<html><body data-arretify_version="invalid"><p>Contenu</p></body></html>',
             "html.parser",
         )
-        with pytest.raises(InvalidFileFormatError, match="Version Arrêtify non supportée"):
+        with pytest.raises(InvalidFileFormatError, match="Unsupported Arrêtify version"):
             validate_arretify_version(soup, "test.html")
 
     def test_validate_no_body_tag_raises_error(self) -> None:
         soup = BeautifulSoup("<html><p>Contenu sans body</p></html>", "html.parser")
-        with pytest.raises(InvalidFileFormatError, match="Document HTML invalide"):
+        with pytest.raises(InvalidFileFormatError, match="Invalid HTML document"):
             validate_arretify_version(soup, "test.html")
 
 

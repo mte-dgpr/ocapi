@@ -47,52 +47,52 @@ def cmd_run(args: argparse.Namespace) -> int:
     """Exécute le pipeline OCAPI sur les arrêtés."""
     input_dir = Path(args.input_dir)
 
-    # Déterminer le répertoire de sortie
+    # Determine output directory
     output_dir = Path(args.output) if args.output else input_dir.parent / "ocapi_output"
-    _LOGGER.info(f"Dossier de sortie : {output_dir}")
+    _LOGGER.info(f"Output directory: {output_dir}")
 
-    # Déterminer l'AIOT
+    # Determine AIOT
     aiot = args.aiot or input_dir.parent.name
     _LOGGER.info(f"AIOT: {aiot}")
-    _LOGGER.info(f"Modèle LLM: {config_model_llm().model_name}")
+    _LOGGER.info(f"LLM model: {config_model_llm().model_name}")
 
-    # Charger les arrêtés
+    # Load arrêtés
     try:
         arrete_files = load_arrete_files(input_dir, aiot)
     except InputOutputError as e:
-        print(f"Erreur: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    # Filtrer les arrêtés si demandé
+    # Filter arrêtés if requested
     if args.include:
         arrete_ids_included = set(args.include)
-        _LOGGER.info(f"Filtrage sur: {arrete_ids_included}")
+        _LOGGER.info(f"Filtering on: {arrete_ids_included}")
         arrete_files = [af for af in arrete_files if af.id in arrete_ids_included]
-        _LOGGER.info(f"{len(arrete_files)} arrêté(s) après filtrage")
+        _LOGGER.info(f"{len(arrete_files)} arrêté(s) after filtering")
 
         if not arrete_files:
-            _LOGGER.error("Aucun arrêté ne correspond aux IDs spécifiés")
+            _LOGGER.error("No arrêté matches the specified IDs")
             return 1
 
-    # Créer le dossier de sortie
+    # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Exécuter le pipeline
-    _LOGGER.info("Exécution du pipeline...")
+    # Run the pipeline
+    _LOGGER.info("Running pipeline...")
     try:
         start_date = getattr(args, "start_date", None)
         operations, history, _arrete_files, permis = run_pipeline(
             arrete_files, start_date=start_date
         )
-        _LOGGER.info("Pipeline terminé avec succès.")
+        _LOGGER.info("Pipeline completed successfully.")
 
-        # Sauvegarder les opérations
+        # Save operations
         operations_path = output_dir / "operations.json"
         operations_dict = [op.model_dump(mode="json") for op in operations]
         write_json_output(operations_dict, operations_path)
-        _LOGGER.info(f"Opérations sauvegardées → {operations_path}")
+        _LOGGER.info(f"Operations saved → {operations_path}")
 
-        # Sauvegarder l'historique
+        # Save history
         history_path = output_dir / "history.json"
         history_serializable = {
             str(node_id): [
@@ -106,26 +106,26 @@ def cmd_run(args: argparse.Namespace) -> int:
             for node_id, versions in history.items()
         }
         write_json_output(history_serializable, history_path)
-        _LOGGER.info(f"Historique sauvegardé → {history_path}")
+        _LOGGER.info(f"History saved → {history_path}")
 
-        # Sauvegarder le permis
+        # Save permit
         if permis:
             permis_path = output_dir / "permis.html"
             write_permis_output(permis, permis_path)
-            _LOGGER.info(f"Permis consolidé sauvegardé → {permis_path}")
+            _LOGGER.info(f"Consolidated permit saved → {permis_path}")
 
         return 0
 
     except OcapiError as e:
-        _LOGGER.error(f"Erreur OCAPI: {e}")
+        _LOGGER.error(f"OCAPI error: {e}")
         return 1
     except Exception as e:
-        _LOGGER.exception(f"Erreur inattendue lors de l'exécution du pipeline: {e}")
+        _LOGGER.exception(f"Unexpected error while running the pipeline: {e}")
         return 1
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Point d'entrée principal du CLI."""
+    """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="ocapi",
         description="OCAPI - Pipeline de détection, résolution et rendu des arrêtés",
@@ -270,7 +270,7 @@ Examples:
         console_output=settings.logging.console_output,
     )
 
-    _LOGGER.debug(f"Logging initialisé au niveau {log_level}")
+    _LOGGER.debug(f"Logging initialised at level {log_level}")
 
     if args.command is None:
         parser.print_help()

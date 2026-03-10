@@ -323,7 +323,7 @@ class TestLLMResilience:
             "ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg
         ):
             with patch("ocapi.utils.llm_utils.requests.post", return_value=bad_response):
-                with pytest.raises(LLMResponseError, match="Format de réponse LLM invalide"):
+                with pytest.raises(LLMResponseError, match="Invalid LLM response format"):
                     call_llm_api(cfg, "prompt")
 
     def test_call_llm_api_rate_limit_applies_min_interval(self) -> None:

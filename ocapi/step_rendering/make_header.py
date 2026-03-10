@@ -27,22 +27,22 @@ from ocapi.utils.arretify_utils import (
 
 
 def _ordered_arretes(arrete_files: list[ArreteFile]) -> list[ArreteFile]:
-    """Trie les arrêtés par date (ID YYYY-MM-DD)."""
+    """Sort arrêtés by date (YYYY-MM-DD ID)."""
     return sorted(arrete_files, key=lambda arrete: arrete.id)
 
 
 def _extract_visa(soup: BeautifulSoup) -> list[str]:
-    """Extrait les VisaSpec d'un arrêté."""
+    """Extract VisaSpec entries from an arrêté."""
     return [str(tag) for tag in extract_specs(soup, "visa")]
 
 
 def _extract_motifs(soup: BeautifulSoup) -> list[str]:
-    """Extrait les MotifSpec d'un arrêté."""
+    """Extract MotifSpec entries from an arrêté."""
     return [str(tag) for tag in extract_specs(soup, "motifs")]
 
 
 def make_permit_title_spec(arrete_files: list[ArreteFile]) -> str:
-    """Construit PermitTitleSpec avec un code AIOT unique."""
+    """Build PermitTitleSpec with a unique AIOT code."""
     aiot_values = sorted({arrete_file.aiot for arrete_file in arrete_files if arrete_file.aiot})
 
     if len(aiot_values) > 1:
@@ -58,7 +58,7 @@ def make_permit_title_spec(arrete_files: list[ArreteFile]) -> str:
 
 
 def make_permit_sources(arrete_files: list[ArreteFile]) -> str:
-    """Construit PermitSources trié chronologiquement avec ArreteTitleSpec."""
+    """Build PermitSources sorted chronologically with ArreteTitleSpec."""
     items: list[str] = []
     for arrete_file in _ordered_arretes(arrete_files):
         arrete_title_html = extract_first_spec_html(arrete_file.soup, "arrete_title")
@@ -95,7 +95,7 @@ def make_permit_sources(arrete_files: list[ArreteFile]) -> str:
 
 
 def make_permit_visa(arrete_files: list[ArreteFile]) -> str:
-    """Construit PermitVisa par union ordonnée (set puis liste)."""
+    """Build PermitVisa by ordered union (set then list) of all visas."""
     seen: set[str] = set()
     ordered_unique_visas: list[str] = []
     for arrete_file in _ordered_arretes(arrete_files):
@@ -117,7 +117,7 @@ def make_permit_visa(arrete_files: list[ArreteFile]) -> str:
 
 
 def make_permit_motif(arrete_files: list[ArreteFile]) -> str:
-    """Construit PermitMotif en concaténant les MotifSpec par arrêté (ordre chrono)."""
+    """Build PermitMotif by concatenating MotifSpec entries per arrêté (chronological order)."""
     motifs_sections: list[str] = []
     for arrete_file in _ordered_arretes(arrete_files):
         extracted_motifs = _extract_motifs(arrete_file.soup)
@@ -145,7 +145,7 @@ def make_permit_motif(arrete_files: list[ArreteFile]) -> str:
 
 
 def make_permit_header(arrete_files: list[ArreteFile]) -> str:
-    """Construit le header consolidé au format de sortie stable."""
+    """Build the consolidated header in the stable output format."""
     permit_title = make_permit_title_spec(arrete_files)
     permit_sources = make_permit_sources(arrete_files)
     permit_visa = make_permit_visa(arrete_files)

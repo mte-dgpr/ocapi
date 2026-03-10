@@ -17,8 +17,8 @@
 # limitations under the License.
 #
 """
-Découpe un arrêté (`ArreteFile`) en blocs (= liste de `Document`) et une map des images.
-Chaque bloc (= `Document`) correspond à un extrait de taille limitée du HTML d'origine.
+Split an arrêté (``ArreteFile``) into blocks (= list of ``Document``) and an image map.
+Each block (= ``Document``) corresponds to a size-limited excerpt of the original HTML.
 """
 
 import math
@@ -40,25 +40,24 @@ _ARRETIFY_SECTION_SELECTOR = '*[data-spec="section"]'
 def split_blocs(
     minified_soup: BeautifulSoup, arrete_file: ArreteFile, target_per_block: int
 ) -> Iterator[Document]:
-    """Découpe un soup Arrêtify en blocs de taille contrôlée.
+    """Split an Arrêtify soup into size-controlled blocks.
 
-    Sélectionne les sections de niveau feuille (sans sous-sections) et les
-    regroupe en blocs dont la taille totale ne dépasse pas `target_per_block`
-    caractères.
+    Selects leaf-level sections (without sub-sections) and groups them
+    into blocks whose total size does not exceed ``target_per_block`` characters.
 
     Parameters
     ----------
     minified_soup : BeautifulSoup
-        Soup minifié du HTML Arrêtify (images déjà remplacées par tokens).
+        Minified Arrêtify HTML soup (images already replaced by tokens).
     arrete_file : ArreteFile
-        Arrêté source, utilisé pour annoter les documents produits.
+        Source arrêté, used to annotate the produced documents.
     target_per_block : int
-        Taille cible maximale d'un bloc (en nombre de caractères HTML).
+        Maximum target size of a block (in number of HTML characters).
 
     Yields
     ------
     Document
-        Bloc HTML annoté avec l'identifiant de l'arrêté source.
+        HTML block annotated with the source arrêté identifier.
     """
     document_factory = make_document_factory(ContentType.HTML, parent=arrete_file.id)
 
@@ -93,9 +92,9 @@ def split_blocs(
 
 
 def _extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
-    """
-    Remplace les src des <img> par des tokens __IMG_n__ et retourne (html_modifié, img_map).
-    img_map : { "__IMG_n__": original_src }
+    """Replace <img> src attributes with IMG_n tokens and return (modified_html, img_map).
+
+    img_map: { "IMG_n": original_src }
     """
     soup = BeautifulSoup(html, "html.parser")
     img_map: ImageMap = {}
@@ -104,28 +103,28 @@ def _extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
         key = f"IMG_{i:03d}"
         if src:
             img_map[key] = src
-        # remplacer src par token (garde la balise pour le LLM mais réduit la charge)
+        # Replace src with token (keeps the tag for the LLM but reduces payload size)
         img["src"] = key
     return str(soup), img_map
 
 
 def step_chunking(arrete_file: ArreteFile) -> Tuple[list[Document], ImageMap]:
-    """Découpe un arrêté HTML en blocs prêts pour la détection LLM.
+    """Split an HTML arrêté into blocks ready for LLM detection.
 
-    Minifie le HTML, extrait les images (remplacées par tokens), puis découpe
-    les sections Arrêtify en blocs de taille maximale ~70 000 caractères.
+    Minifies the HTML, extracts images (replaced by tokens), then splits
+    Arrêtify sections into blocks of at most ~70 000 characters.
 
     Parameters
     ----------
     arrete_file : ArreteFile
-        Arrêté à découper.
+        Arrêté to split.
 
     Returns
     -------
     list[Document]
-        Blocs HTML prêts à être envoyés au LLM.
+        HTML blocks ready to be sent to the LLM.
     ImageMap
-        Correspondance `{token_img: url_originale}` pour réhydrater les images.
+        ``{token: original_url}`` mapping for rehydrating images.
     """
     minified = minify_html_fragment(str(arrete_file.soup))
     minified, img_map = _extract_and_strip_images(minified)
@@ -142,7 +141,7 @@ def step_chunking(arrete_file: ArreteFile) -> Tuple[list[Document], ImageMap]:
         )
     )
 
-    _LOGGER.info(f"Chunking: {len(blocks)} bloc(s) créé(s), {len(img_map)} image(s)")
+    _LOGGER.info(f"Chunking: {len(blocks)} block(s) created, {len(img_map)} image(s)")
     return blocks, img_map
 
 

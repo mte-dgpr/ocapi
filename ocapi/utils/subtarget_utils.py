@@ -17,11 +17,11 @@
 # limitations under the License.
 #
 """
-Détection et parsing de sub-targets simples dans les opérations.
+Detection and parsing of simple sub-targets in operations.
 
-Gère les cas simples par regex, délègue les cas complexes au LLM.
+Handles simple cases via regex, delegates complex cases to the LLM.
 
-Exemples de cas simples détectés :
+Examples of simple cases detected:
 - "le tableau"
 - "première phrase", "deuxième phrase", "dernière phrase"
 - "l'alinéa", "premier alinéa", "deuxième alinéa"
@@ -37,7 +37,7 @@ from bs4 import BeautifulSoup
 
 from ocapi.types import SubTarget, SubTargetType
 
-# Patterns pour les ordinaux (masculin/féminin)
+# Ordinal patterns (masculine/feminine)
 ORDINAUX = {
     r"\bpremier\b": 1,
     r"\bpremi[eè]re\b": 1,
@@ -65,7 +65,7 @@ ORDINAUX = {
     r"\bdernier[eè]\b": -1,
 }
 
-# Patterns pour les éléments cibles
+# Target element patterns
 ELEMENTS = {
     r"\bphrase\b": SubTargetType.PHRASE,
     r"\balin[ée]a\b": SubTargetType.ALINEA,
@@ -73,14 +73,12 @@ ELEMENTS = {
     r"\bcolonne(?:\s+du\s+tableau)?\b": SubTargetType.COLONNE_TABLEAU,
 }
 
-# Patterns simples sans ordinal
+# Simple patterns without ordinal
 SIMPLE_PATTERNS = [(r"\ble\s+tableau\b", SubTargetType.TABLEAU, None)]
 
 
 def _ensure_subtarget_type(value: SubTargetType | str | None) -> SubTargetType:
-    """
-    Convertit une valeur potentiellement sérialisée en SubTargetType.
-    """
+    """Convert a potentially serialised value to a SubTargetType."""
     if isinstance(value, SubTargetType):
         return value
     try:
@@ -90,39 +88,57 @@ def _ensure_subtarget_type(value: SubTargetType | str | None) -> SubTargetType:
 
 
 def parse_subtarget(text: str) -> SubTarget:
-    """
-    Convertit un texte de sub-target détecté par LLM en objet SubTarget.
-    Gère les cas simples par regex, indique COMPLEX sinon.
+    """Convert a sub-target text detected by the LLM into a SubTarget object.
+
+    Handles simple cases via regex; returns COMPLEX otherwise.
+
+    Parameters
+    ----------
+    text : str
+        Raw sub-target description string from the LLM.
+
+    Returns
+    -------
+    SubTarget
+        Parsed sub-target with type, optional position and original description.
     """
     if not text or text.strip() == "":
         return SubTarget(type=SubTargetType.FULL_SECTION, description=text)
 
     text_lower = text.lower().strip()
 
-    # Cas spécial : "tout" ou variations
+    # Special case: "tout" or variations
     if re.match(r"contenu entier", text_lower) or text_lower == "all":
         return SubTarget(type=SubTargetType.FULL_SECTION, description=text)
 
-    # Tester les patterns simples d'abord
+    # Try simple patterns first
     for pattern, target_type, position in SIMPLE_PATTERNS:
         if re.search(pattern, text_lower, re.IGNORECASE):
             return SubTarget(type=target_type, position=position, description=text)
 
-    # Tester les combinaisons ordinal + élément
+    # Try ordinal + element combinations
     for ordinal_pattern, position in ORDINAUX.items():
         for element_pattern, target_type in ELEMENTS.items():
-            # Construire pattern combiné : "premier alinéa", "deuxième phrase", etc.
             combined_pattern = f"{ordinal_pattern}\\s+{element_pattern}"
             if re.search(combined_pattern, text_lower, re.IGNORECASE):
                 return SubTarget(type=target_type, position=position, description=text)
 
-    # Si aucun pattern ne correspond, marquer comme complexe
+    # No pattern matched: mark as complex
     return SubTarget(type=SubTargetType.COMPLEX, description=text)
 
 
 def is_simple_subtarget(parsed: SubTarget) -> bool:
-    """
-    Vérifie si le sub-target peut être traité sans LLM.
+    """Return True if the sub-target can be resolved without the LLM.
+
+    Parameters
+    ----------
+    parsed : SubTarget
+        Parsed sub-target object.
+
+    Returns
+    -------
+    bool
+        True if the sub-target type is not COMPLEX.
     """
     return parsed.type != SubTargetType.COMPLEX
 
@@ -136,12 +152,33 @@ def _find_target_element(
     description: str | None,
     element_name: str,
 ) -> T:
-    """
-    Sélectionne l'élément cible selon la position.
-    Fonctionne avec n'importe quel type d'élément (Tag, str pour les phrases).
+    """Select the target element according to the given position.
+
+    Works with any element type (Tag, str for sentences, etc.).
+
+    Parameters
+    ----------
+    elements : list[T]
+        Available elements to pick from.
+    position : int | None
+        1-based position, -1 for last, None for unique.
+    description : str | None
+        Original sub-target description, used in error messages.
+    element_name : str
+        Human-readable name for the element type, used in error messages.
+
+    Returns
+    -------
+    T
+        The selected element.
+
+    Raises
+    ------
+    ValueError
+        If no elements found, position is out of range, or ambiguous (None with multiple elements).
     """
     if not elements:
-        raise ValueError(f"Aucun {element_name} trouvé pour '{description}'.")
+        raise ValueError(f"No {element_name} found for '{description}'.")
 
     if position == -1:
         return elements[-1]
@@ -150,41 +187,53 @@ def _find_target_element(
             return elements[0]
         else:
             raise ValueError(
-                f"Ambiguïté : '{description}' mais " f"{len(elements)} {element_name} trouvés."
+                f"Ambiguous: '{description}' but {len(elements)} {element_name} found."
             )
     elif position and 1 <= position <= len(elements):
         return elements[position - 1]
     else:
         raise ValueError(
-            f"Position {position} invalide pour '{description}' : "
-            f"{len(elements)} {element_name} disponibles."
+            f"Invalid position {position} for '{description}': "
+            f"{len(elements)} {element_name} available."
         )
 
 
 def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -> BeautifulSoup:
-    """
-    Remplace l'élément ciblé par le nouveau contenu (operand) dans le soup.
-    Attention : Erreur si sub-target ambigu ou non trouvé.
-    """
+    """Replace the targeted element with new content (operand) in the soup.
 
+    Raises an error if the sub-target is ambiguous or not found.
+
+    Parameters
+    ----------
+    soup : BeautifulSoup
+        Parsed HTML of the article section to modify.
+    subtarget : SubTarget
+        Parsed sub-target describing which element to replace.
+    operand : str
+        HTML string of the new content to insert.
+
+    Returns
+    -------
+    BeautifulSoup
+        Modified soup (in-place modification).
+    """
     operand_soup = BeautifulSoup(operand, "html.parser")
-    # Prélever un fragment « propre » (évite d'insérer <html><body> dans le DOM)
+    # Extract a clean fragment (avoids inserting <html><body> into the DOM)
     operand_children = [
         c for c in operand_soup.contents if not (isinstance(c, str) and c.strip() == "")
     ]
     operand_fragment = operand_children[0] if len(operand_children) == 1 else operand_soup
-    # Copier le fragment pour éviter les problèmes de mutation
+    # Copy the fragment to avoid mutation issues
     operand_fragment = copy(operand_fragment)
     subtarget_type = _ensure_subtarget_type(subtarget.type)
 
     if subtarget_type == SubTargetType.FULL_SECTION:
-        # Remplacer tout le contenu sauf le titre (h1, h2, h3, etc.)
-        # TODO : vérifier si le titre doit être conservé ou non
+        # Replace all content except the title (h1–h6)
+        # TODO: verify whether the title should be preserved
         title = soup.find(["h1", "h2", "h3", "h4", "h5", "h6"])
         soup.clear()
         if title:
             soup.append(title)
-        # Append all children from operand_fragment
         if hasattr(operand_fragment, "children"):
             children = list(operand_fragment.children)
         else:
@@ -196,7 +245,7 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
     elif subtarget_type == SubTargetType.TABLEAU:
         tables = soup.find_all("table")
         target_table = _find_target_element(
-            tables, subtarget.position, subtarget.description, "tableaux"
+            tables, subtarget.position, subtarget.description, "tables"
         )
         if target_table:
             target_table.replace_with(operand_fragment)
@@ -207,7 +256,7 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
         phrases = [p.strip() for p in full_text.split(".") if p.strip()]
 
         target_phrase = _find_target_element(
-            phrases, subtarget.position, subtarget.description, "phrases"
+            phrases, subtarget.position, subtarget.description, "sentences"
         )
 
         for text_node in soup.find_all(string=True):
@@ -220,7 +269,7 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
     elif subtarget_type == SubTargetType.ALINEA:
         alineas = soup.find_all("div", class_="arretify-alinea")
         target_alinea = _find_target_element(
-            alineas, subtarget.position, subtarget.description, "alinéas"
+            alineas, subtarget.position, subtarget.description, "alineas"
         )
 
         if target_alinea:
@@ -235,12 +284,12 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
     elif subtarget_type == SubTargetType.LIGNE_TABLEAU:
         table = soup.find("table")
         if table:
-            lignes = table.find_all("tr")
-            target_ligne = _find_target_element(
-                lignes, subtarget.position, subtarget.description, "lignes"
+            rows = table.find_all("tr")
+            target_row = _find_target_element(
+                rows, subtarget.position, subtarget.description, "rows"
             )
-            if target_ligne:
-                target_ligne.replace_with(operand_fragment)
+            if target_row:
+                target_row.replace_with(operand_fragment)
         return soup
 
     elif subtarget_type == SubTargetType.COLONNE_TABLEAU:
@@ -248,19 +297,19 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
         if table:
             rows = table.find_all("tr")
 
-            # Pour None, vérifier l'unicité sur la première ligne
+            # For None position, check uniqueness on the first row
             if subtarget.position is None and rows:
                 first_row_cols = rows[0].find_all(["td", "th"])
                 if len(first_row_cols) != 1:
                     raise ValueError(
-                        f"Ambiguïté : '{subtarget.description}' mais "
-                        f"{len(first_row_cols)} colonnes trouvées."
+                        f"Ambiguous: '{subtarget.description}' but "
+                        f"{len(first_row_cols)} columns found."
                     )
 
             for row in rows:
-                colonnes = row.find_all(["td", "th"])
+                cols = row.find_all(["td", "th"])
                 target_col = _find_target_element(
-                    colonnes, subtarget.position, subtarget.description, "colonnes"
+                    cols, subtarget.position, subtarget.description, "columns"
                 )
 
                 if target_col:
@@ -274,4 +323,4 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
     return soup
 
 
-# Note: Les cas complexes nécessitant un LLM ne sont pas gérés ici.
+# Note: Complex cases requiring a LLM are not handled here.

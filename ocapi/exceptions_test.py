@@ -92,7 +92,7 @@ class TestOcapiErrorHierarchy:
 
 
 def test_error_message_preserved() -> None:
-    msg = "format invalide pour l'identifiant"
+    msg = "invalid format for identifier"
     assert str(InvalidArreteIdError(msg)) == msg
 
 

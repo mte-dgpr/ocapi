@@ -24,13 +24,11 @@ Usage:
     python ocapi/main.py <input_dir> [options]
 
 Examples:
-    python -m ocapi.main data/arretes_html/0005804239/
-    python -m ocapi.main data/arretes_html/0005804239/ --output output/
-    python -m ocapi.main data/arretes_html/0005804239/ --start-date 2014-01-09
-    python -m ocapi.main data/arretes_html/0005804239/ --include 2024-09-27 2023-12-04
-    python -m ocapi.main data/arretes_html/0005804239/ --no-rendering
-    python -m ocapi.main data/arretes_html/0005804239/ --no-detection
-    python -m ocapi.main data/arretes_html/0005804239/ --no-detection --no-rendering
+    python -m ocapi.main data/0005804239/arretes_html/
+    python -m ocapi.main data/0005804239/arretes_html/ --output output/
+    python -m ocapi.main data/0005804239/arretes_html/ --start-date 2014-01-09
+    python -m ocapi.main data/0005804239/arretes_html/ --include 2024-09-27 2023-12-04
+    python -m ocapi.main data/0005804239/arretes_html/ --no-rendering
 """
 
 import argparse
@@ -40,7 +38,12 @@ from pathlib import Path
 from ocapi.config import settings
 from ocapi.exceptions import OcapiError
 from ocapi.pipeline import run_pipeline
-from ocapi.utils.io_utils import InputOutputError, load_arrete_files
+from ocapi.utils.io_utils import (
+    InputOutputError,
+    load_arrete_files,
+    write_json_output,
+    write_permis_output,
+)
 from ocapi.utils.llm_utils import config_model_llm
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
@@ -53,80 +56,109 @@ def main(
     aiot: str | None = None,
     include_ids: list[str] | None = None,
     start_date: str | None = None,
-    enable_detection: bool = True,
     enable_rendering: bool = True,
 ) -> int:
     """
-    Exécute le pipeline OCAPI selon les étapes sélectionnées.
+    Exécute le pipeline OCAPI complet de bout en bout.
 
     Args:
         input_dir: Répertoire contenant les fichiers HTML des arrêtés
-        output_dir: Répertoire de base pour les sorties par étape
-            (défaut: répertoire parent du parent de input_dir)
-        aiot: Identifiant AIOT (si None, déduit du nom de input_dir)
+        output_dir: Répertoire de sortie (si None, utilise input_dir/../ocapi_output)
+        aiot: Identifiant AIOT (si None, déduit du chemin)
         include_ids: Liste des IDs d'arrêtés à inclure (si None, tous)
         start_date: Date de démarrage (YYYY-MM-DD) pour la détection
-        enable_detection: Si True, lance les étapes chunking + détection ;
-            si False, charge les opérations depuis le répertoire de détection
         enable_rendering: Si True, génère le permis consolidé
 
     Returns:
         Code de sortie (0 = succès, 1 = erreur)
     """
-    # Déterminer le répertoire de sortie de base
+    # Determine output directory
     if output_dir is None:
-        output_dir = input_dir.parent.parent
+        output_dir = input_dir.parent / "ocapi_output"
 
-    # Déterminer l'AIOT
+    _LOGGER.info(f"Input directory: {input_dir}")
+    _LOGGER.info(f"Output directory: {output_dir}")
+
+    # Determine AIOT
     if aiot is None:
-        aiot = input_dir.name
-
-    _LOGGER.info(f"Dossier d'entrée : {input_dir}")
-    _LOGGER.info(f"Dossier de sortie de base : {output_dir}")
+        aiot = input_dir.parent.name
     _LOGGER.info(f"AIOT: {aiot}")
-    if enable_detection:
-        _LOGGER.info(f"Modèle LLM: {config_model_llm().model_name}")
+    _LOGGER.info(f"LLM model: {config_model_llm().model_name}")
 
-    # Charger les arrêtés
+    # Load arrêtés
     try:
         arrete_files = load_arrete_files(input_dir, aiot)
     except InputOutputError as e:
-        _LOGGER.error(f"Erreur: {e}")
+        _LOGGER.error(f"Error: {e}")
         return 1
 
     if not arrete_files:
-        _LOGGER.error("Aucun arrêté valide trouvé")
+        _LOGGER.error("No valid arrêté found")
         return 1
 
-    _LOGGER.info(f"{len(arrete_files)} arrêté(s) chargé(s)")
+    _LOGGER.info(f"{len(arrete_files)} arrêté(s) loaded")
 
-    # Filtrer les arrêtés si demandé
+    # Filter arrêtés if requested
     if include_ids:
         arrete_ids_included = set(include_ids)
-        _LOGGER.info(f"Filtrage sur: {arrete_ids_included}")
+        _LOGGER.info(f"Filtering on: {arrete_ids_included}")
         arrete_files = [af for af in arrete_files if af.id in arrete_ids_included]
-        _LOGGER.info(f"{len(arrete_files)} arrêté(s) après filtrage")
+        _LOGGER.info(f"{len(arrete_files)} arrêté(s) after filtering")
 
         if not arrete_files:
-            _LOGGER.error("Aucun arrêté ne correspond aux IDs spécifiés")
+            _LOGGER.error("No arrêté matches the specified IDs")
             return 1
 
+    # Create output directory
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     try:
-        run_pipeline(
+        # Run the pipeline
+        operations, history, arrete_files, permis = run_pipeline(
             arrete_files,
-            aiot=aiot,
-            output_dir=output_dir,
             start_date=start_date,
-            enable_detection=enable_detection,
             enable_rendering=enable_rendering,
         )
+
+        # Save operations
+        operations_path = output_dir / "operations.json"
+        operations_dict = [op.model_dump(mode="json") for op in operations]
+        write_json_output(operations_dict, operations_path)
+        _LOGGER.info(f"Operations saved → {operations_path}")
+
+        # Save history
+        history_path = output_dir / "history.json"
+
+        # Convert NodeId to string and ArticleHistory to serialisable format
+        history_serializable = {
+            str(node_id): [
+                {
+                    "version": v["version"],
+                    "content": v["content"],
+                    "operation_id": v["operation_id"],
+                }
+                for v in versions
+            ]
+            for node_id, versions in history.items()
+        }
+
+        write_json_output(history_serializable, history_path)
+        _LOGGER.info(f"History saved → {history_path}")
+
+        # Save permit if generated
+        if permis:
+            permis_path = output_dir / "permis.html"
+            write_permis_output(permis, permis_path)
+            _LOGGER.info(f"Consolidated permit saved → {permis_path}")
+
+        _LOGGER.info("Pipeline completed successfully!")
         return 0
 
     except OcapiError as e:
-        _LOGGER.error(f"Erreur OCAPI: {e}")
+        _LOGGER.error(f"OCAPI error: {e}")
         return 1
     except Exception as e:
-        _LOGGER.exception(f"Erreur inattendue lors de l'exécution du pipeline: {e}")
+        _LOGGER.exception(f"Unexpected error while running the pipeline: {e}")
         return 1
 
 
@@ -137,32 +169,26 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Pipeline complet (détection + résolution + rendering)
-  python -m ocapi.main data/arretes_html/0005804239/
+  # Traiter tous les arrêtés d'un répertoire
+  python -m ocapi.main data/0005804239/arretes_html/
 
-  # Spécifier un répertoire de sortie de base
-  python -m ocapi.main data/arretes_html/0005804239/ --output output/
+  # Spécifier un répertoire de sortie personnalisé
+  python -m ocapi.main data/0005804239/arretes_html/ --output output/
 
   # Démarrer la détection à partir d'une date
-  python -m ocapi.main data/arretes_html/0005804239/ --start-date 2014-01-09
+  python -m ocapi.main data/0005804239/arretes_html/ --start-date 2014-01-09
 
   # Filtrer sur des arrêtés spécifiques
-  python -m ocapi.main data/arretes_html/0005804239/ --include 2024-09-27 2023-12-04
+  python -m ocapi.main data/0005804239/arretes_html/ --include 2024-09-27 2023-12-04
 
-  # Détection + résolution uniquement (sans rendering)
-  python -m ocapi.main data/arretes_html/0005804239/ --no-rendering
-
-  # Résolution + rendering à partir d'opérations existantes (sans détection)
-  python -m ocapi.main data/arretes_html/0005804239/ --no-detection
-
-  # Résolution uniquement à partir d'opérations existantes (sans rendering)
-  python -m ocapi.main data/arretes_html/0005804239/ --no-detection --no-rendering
+  # Désactiver le rendering (étapes 1-3 uniquement)
+  python -m ocapi.main data/0005804239/arretes_html/ --no-rendering
 
   # Spécifier l'AIOT
-  python -m ocapi.main data/arretes_html/0005804239/ --aiot 0005804239
+  python -m ocapi.main data/0005804239/arretes_html/ --aiot 0005804239
 
   # Mode verbose
-  python -m ocapi.main data/arretes_html/0005804239/ --verbose
+  python -m ocapi.main data/0005804239/arretes_html/ --verbose
         """,
     )
 
@@ -175,11 +201,11 @@ Examples:
         "-o",
         "--output",
         type=Path,
-        help="Répertoire de sortie de base (défaut: répertoire parent du parent de input_dir)",
+        help="Répertoire de sortie (défaut: <input_dir>/../ocapi_output)",
     )
     parser.add_argument(
         "--aiot",
-        help="Identifiant AIOT (défaut: déduit du nom de input_dir)",
+        help="Identifiant AIOT (défaut: déduit du chemin parent)",
     )
     parser.add_argument(
         "--include",
@@ -189,15 +215,8 @@ Examples:
     )
     parser.add_argument(
         "--start-date",
-        help="Date de démarrage (YYYY-MM-DD) pour la détection",
-    )
-    parser.add_argument(
-        "--no-detection",
-        action="store_true",
-        help=(
-            "Désactiver la détection (étapes 1-2) et charger les opérations existantes. "
-            "Lève une erreur si aucun fichier d'opérations n'est trouvé."
-        ),
+        metavar="YYYY-MM-DD",
+        help="Date de démarrage : seuls les arrêtés >= cette date passent par la détection",
     )
     parser.add_argument(
         "--no-rendering",
@@ -236,7 +255,7 @@ Examples:
         console_output=settings.logging.console_output,
     )
 
-    _LOGGER.debug(f"Logging initialisé au niveau {log_level}")
+    _LOGGER.debug(f"Logging initialised at level {log_level}")
 
     # Exécuter le pipeline
     exit_code = main(
@@ -245,7 +264,6 @@ Examples:
         aiot=args.aiot,
         include_ids=args.include,
         start_date=args.start_date,
-        enable_detection=not args.no_detection,
         enable_rendering=not args.no_rendering,
     )
 
