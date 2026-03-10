@@ -28,7 +28,7 @@ _LOGGER = get_logger(__name__)
 
 def run_pipeline(
     arrete_files: list[ArreteFile],
-    skip_first: bool = False,
+    start_date: str | None = None,
     enable_rendering: bool = True,
 ) -> tuple[list[Operation], ArticleHistory, list[ArreteFile], Permis | None]:
     """
@@ -36,13 +36,19 @@ def run_pipeline(
 
     Args:
         arrete_files: Liste des arrêtés à traiter
-        skip_first: Si True, ignore le premier arrêté (AP initial)
+        start_date: Date de démarrage (YYYY-MM-DD). Seuls les arrêtés >= cette date
+            passent par la détection. Les arrêtés antérieurs restent disponibles
+            pour la résolution et le rendering.
         enable_rendering: Si True, génère le permis consolidé (étape 4)
 
     Returns:
         Tuple (operations, history, arrete_files, permis)
     """
     _LOGGER.info(f"Démarrage du pipeline avec {len(arrete_files)} arrêté(s)")
+    if start_date is None and arrete_files:
+        start_date = arrete_files[0].id
+    if start_date:
+        _LOGGER.info(f"Date de démarrage de la détection : {start_date}")
 
     operations: list[Operation] = []
 
@@ -53,8 +59,13 @@ def run_pipeline(
     _LOGGER.info("STEP 1-2 : CHUNKING + DETECTION")
     _LOGGER.info("=" * 60)
 
-    start_index = 1 if skip_first else 0
-    for _i, arrete_file in enumerate(arrete_files[start_index:], start=start_index):
+    for _i, arrete_file in enumerate(arrete_files):
+        if start_date and arrete_file.id <= start_date:
+            _LOGGER.info(
+                f"Arrêté {arrete_file.id} de date antérieure ou égale à {start_date},"
+                " pas de détection des opérations"
+            )
+            continue
         _LOGGER.info(f"Traitement de l'arrêté {arrete_file.id}...")
         docs, img_map = step_chunking(arrete_file)
         _LOGGER.info(f"  → {len(docs)} documents chunkés")

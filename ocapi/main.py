@@ -26,7 +26,7 @@ Usage:
 Examples:
     python -m ocapi.main data/0005804239/arretes_html/
     python -m ocapi.main data/0005804239/arretes_html/ --output output/
-    python -m ocapi.main data/0005804239/arretes_html/ --skip-first
+    python -m ocapi.main data/0005804239/arretes_html/ --start-date 2014-01-09
     python -m ocapi.main data/0005804239/arretes_html/ --include 2024-09-27 2023-12-04
     python -m ocapi.main data/0005804239/arretes_html/ --no-rendering
 """
@@ -54,7 +54,7 @@ def main(
     output_dir: Path | None = None,
     aiot: str | None = None,
     include_ids: list[str] | None = None,
-    skip_first: bool = False,
+    start_date: str | None = None,
     enable_rendering: bool = True,
 ) -> int:
     """
@@ -65,7 +65,7 @@ def main(
         output_dir: Répertoire de sortie (si None, utilise input_dir/../ocapi_output)
         aiot: Identifiant AIOT (si None, déduit du chemin)
         include_ids: Liste des IDs d'arrêtés à inclure (si None, tous)
-        skip_first: Si True, ignore le premier arrêté (AP initial)
+        start_date: Date de démarrage (YYYY-MM-DD) pour la détection
         enable_rendering: Si True, génère le permis consolidé
 
     Returns:
@@ -115,7 +115,7 @@ def main(
         # Exécuter le pipeline
         operations, history, arrete_files, permis = run_pipeline(
             arrete_files,
-            skip_first=skip_first,
+            start_date=start_date,
             enable_rendering=enable_rendering,
         )
 
@@ -146,7 +146,7 @@ def main(
 
         # Sauvegarder le permis si généré
         if permis:
-            permis_path = output_dir / "permis_consolidé.html"
+            permis_path = output_dir / "permis.html"
             write_permis_output(permis, permis_path)
             _LOGGER.info(f"Permis consolidé sauvegardé → {permis_path}")
 
@@ -171,8 +171,8 @@ Examples:
   # Spécifier un répertoire de sortie personnalisé
   python -m ocapi.main data/0005804239/arretes_html/ --output output/
 
-  # Ignorer le premier arrêté (AP initial)
-  python -m ocapi.main data/0005804239/arretes_html/ --skip-first
+  # Démarrer la détection à partir d'une date
+  python -m ocapi.main data/0005804239/arretes_html/ --start-date 2014-01-09
 
   # Filtrer sur des arrêtés spécifiques
   python -m ocapi.main data/0005804239/arretes_html/ --include 2024-09-27 2023-12-04
@@ -210,9 +210,9 @@ Examples:
         help="IDs des arrêtés à inclure (défaut: tous)",
     )
     parser.add_argument(
-        "--skip-first",
-        action="store_true",
-        help="Ignorer le premier arrêté (AP initial)",
+        "--start-date",
+        metavar="YYYY-MM-DD",
+        help="Date de démarrage : seuls les arrêtés >= cette date passent par la détection",
     )
     parser.add_argument(
         "--no-rendering",
@@ -259,7 +259,7 @@ Examples:
         output_dir=args.output,
         aiot=args.aiot,
         include_ids=args.include,
-        skip_first=args.skip_first,
+        start_date=args.start_date,
         enable_rendering=not args.no_rendering,
     )
 
