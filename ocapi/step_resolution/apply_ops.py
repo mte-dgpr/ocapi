@@ -94,6 +94,28 @@ def _ensure_soup(soup_input: Content | BeautifulSoup) -> BeautifulSoup:
 
 
 def apply_replace(operation: Operation, soup_input: Content | BeautifulSoup) -> Content:
+    """Applique une opération REPLACE sur le contenu d'un article.
+
+    Tente d'abord une résolution par regex (sub_target simple). En cas
+    d'ambiguïté ou de sous-cible complexe, délègue au LLM.
+
+    Parameters
+    ----------
+    operation : Operation
+        Opération de type REPLACE, doit avoir `sub_target` et `operand`.
+    soup_input : Content | BeautifulSoup
+        Contenu HTML actuel de l'article cible.
+
+    Returns
+    -------
+    Content
+        Contenu HTML de l'article après remplacement.
+
+    Raises
+    ------
+    OperationError
+        Si `sub_target` ou `operand` est absent de l'opération.
+    """
     if operation.sub_target is None or operation.operand is None:
         raise OperationError("REPLACE operations require sub_target and operand.")
     soup = _ensure_soup(soup_input)
@@ -119,6 +141,28 @@ def apply_replace(operation: Operation, soup_input: Content | BeautifulSoup) -> 
 
 
 def apply_remove(operation: Operation, soup_input: Content | BeautifulSoup) -> Content:
+    """Applique une opération REMOVE sur le contenu d'un article.
+
+    Pour les sous-cibles simples, remplace la cible par une chaîne vide.
+    Pour les sous-cibles complexes, délègue au LLM.
+
+    Parameters
+    ----------
+    operation : Operation
+        Opération de type REMOVE, doit avoir `sub_target`.
+    soup_input : Content | BeautifulSoup
+        Contenu HTML actuel de l'article cible.
+
+    Returns
+    -------
+    Content
+        Contenu HTML de l'article après suppression de la sous-cible.
+
+    Raises
+    ------
+    OperationError
+        Si `sub_target` est absent de l'opération.
+    """
     if operation.sub_target is None:
         raise OperationError("REMOVE operations require sub_target.")
     sub_target = operation.sub_target
@@ -140,6 +184,30 @@ def apply_remove(operation: Operation, soup_input: Content | BeautifulSoup) -> C
 
 
 def apply_add(operation: Operation, soup_input: Content | BeautifulSoup) -> Content:
+    """Applique une opération ADD sur le contenu d'un article.
+
+    Les sous-cibles simples ne sont pas encore supportées pour l'ADD ;
+    tous les cas sont traités par le LLM.
+
+    Parameters
+    ----------
+    operation : Operation
+        Opération de type ADD, doit avoir `sub_target` et `operand`.
+    soup_input : Content | BeautifulSoup
+        Contenu HTML actuel de l'article cible.
+
+    Returns
+    -------
+    Content
+        Contenu HTML de l'article après insertion du nouveau contenu.
+
+    Raises
+    ------
+    OperationError
+        Si `sub_target` ou `operand` est absent de l'opération.
+    NotImplementedError
+        Si la sous-cible est simple (non encore supporté).
+    """
     if operation.sub_target is None or operation.operand is None:
         raise OperationError("ADD operations require sub_target and operand.")
     sub_target = operation.sub_target

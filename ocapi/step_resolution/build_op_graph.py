@@ -37,6 +37,17 @@ _LOGGER = get_logger(__name__)
 
 
 def add_node(G: nx.MultiDiGraph, node_id: NodeId, node_content: Content | None = None) -> None:
+    """Add a node to the graph if it does not already exist.
+
+    Parameters
+    ----------
+    G : nx.MultiDiGraph
+        Operations graph.
+    node_id : NodeId
+        Identifier of the node to add.
+    node_content : Content | None
+        Optional HTML content to attach to the node.
+    """
     if not G.has_node(node_id):
         node_data = {"content": node_content} if node_content is not None else {}
         G.add_node(node_id, **node_data)
@@ -47,6 +58,18 @@ def update_node_content(G: nx.MultiDiGraph, node_id: NodeId, node_content: Conte
 
 
 def add_edge(G: nx.MultiDiGraph, operation: Operation) -> None:
+    """Add an edge to the graph from an `Operation`.
+
+    The edge goes from `source_id` to `target_id` and carries all operation data
+    (type, operand, sub_target) as edge attributes.
+
+    Parameters
+    ----------
+    G : nx.MultiDiGraph
+        Operations graph.
+    operation : Operation
+        Operation to represent as a directed edge.
+    """
     edge_data = operation.model_dump(
         exclude={"source_id", "target_id"},
         exclude_none=True,

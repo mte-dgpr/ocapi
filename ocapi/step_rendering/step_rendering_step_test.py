@@ -31,6 +31,7 @@ def test_step_rendering_returns_permis(
     mock_header: MagicMock,
     mock_other: MagicMock,
 ) -> None:
+    """Vérifie que step_rendering assemble les 3 composantes du permis et retourne un Permis valide."""  # noqa: E501
     history = cast(ArticleHistory, {})
     operations = cast(list[Operation], [])
     arretes = cast(list[ArreteFile], [MagicMock()])

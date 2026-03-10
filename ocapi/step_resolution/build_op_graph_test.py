@@ -32,6 +32,11 @@ from .build_op_graph import build_graph
 
 
 def test_build_graph() -> None:
+    """Vérifie que build_graph construit correctement le graphe d'opérations.
+
+    Crée deux arrêtés et deux opérations (REPLACE et REMOVE), construit le
+    graphe et vérifie le nombre de nœuds, d'arêtes et les données des arêtes.
+    """
     html_1980 = """
     <section data-spec="section" data-number="2">Article 2 content</section>
     <section data-spec="section" data-number="3">Article 3 content</section>

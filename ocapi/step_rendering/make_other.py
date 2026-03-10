@@ -22,6 +22,23 @@ from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main
 
 
 def has_not_out_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
+    """Indique si un arrêté ne génère aucune opération sortante.
+
+    Un arrêté sans opération sortante est un arrêté complémentaire non
+    modificatif (il ne modifie aucun article de l'AP initial).
+
+    Parameters
+    ----------
+    arrete_file : ArreteFile
+        Arrêté à tester.
+    operations : list[Operation]
+        Liste de toutes les opérations détectées.
+
+    Returns
+    -------
+    bool
+        `True` si l'arrêté ne génère aucune opération sortante.
+    """
     return all(op.source_id.arrete_id != arrete_file.id for op in operations)
 
 
@@ -32,6 +49,24 @@ def detect_additional_prescriptions(arrete_files: list[ArreteFile]) -> str:
 
 
 def make_permit_other(arrete_files: list[ArreteFile], operations: list[Operation]) -> str:
+    """Génère la section HTML des arrêtés complémentaires non modificatifs.
+
+    Inclut uniquement les arrêtés actifs (non abrogés) qui ne génèrent aucune
+    opération sortante, c'est-à-dire les arrêtés qui ajoutent des prescriptions
+    sans modifier l'AP d'autorisation.
+
+    Parameters
+    ----------
+    arrete_files : list[ArreteFile]
+        Tous les arrêtés ; `arrete_files[0]` (AP initial) est ignoré.
+    operations : list[Operation]
+        Toutes les opérations détectées, pour filtrer les arrêtés modificatifs.
+
+    Returns
+    -------
+    str
+        HTML de la section `permit_complements`, ou chaîne vide si aucun complément.
+    """
     complement_sections: list[str] = []
     for i, arrete_file in enumerate(arrete_files):
         if i > 0:  # Skip first file (AP initial)

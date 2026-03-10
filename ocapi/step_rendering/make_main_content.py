@@ -131,6 +131,24 @@ def _build_section_history_html(
     versions: list[ArticleVersion],
     operation_by_id: dict[str, Operation],
 ) -> str:
+    """Construit le HTML de l'historique des versions d'un article.
+
+    Génère un bloc `<div data-spec="section_version_history">` contenant :
+    - la description de la version actuelle (en gras)
+    - les versions précédentes dans des éléments `<details>` collapsibles
+
+    Parameters
+    ----------
+    versions : list[ArticleVersion]
+        Liste ordonnée des versions de l'article (la dernière est la version actuelle).
+    operation_by_id : dict[str, Operation]
+        Index des opérations par ID, pour retrouver les métadonnées de chaque version.
+
+    Returns
+    -------
+    str
+        HTML du bloc historique à insérer dans la `section_version`.
+    """
     history_parts = [
         '<div data-spec="section_version_history" style="color: #1b4d89; margin-bottom: 1rem;">'
     ]
@@ -213,6 +231,24 @@ def _is_abrogated(
     latest_version: ArticleVersion,
     operation_by_id: dict[str, Operation],
 ) -> bool:
+    """Indique si la dernière version d'un article correspond à une abrogation complète.
+
+    Un article est considéré abrogé si et seulement si sa dernière opération est
+    un REMOVE avec sub_target `FULL_SECTION` (description `ALL` ou `contenu entier`)
+    ou sans sub_target (abrogation totale implicite).
+
+    Parameters
+    ----------
+    latest_version : ArticleVersion
+        Dernière version de l'article dans l'historique.
+    operation_by_id : dict[str, Operation]
+        Index des opérations par ID.
+
+    Returns
+    -------
+    bool
+        `True` si l'article doit être marqué comme abrogé.
+    """
     operation_id = latest_version.get("operation_id")
     if not operation_id:
         return False

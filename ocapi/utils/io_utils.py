@@ -51,6 +51,18 @@ __all__ = [
 
 
 def read_json(p: Path) -> dict[str, Any]:
+    """Lit un fichier JSON et retourne son contenu sous forme de dictionnaire.
+
+    Parameters
+    ----------
+    p : Path
+        Chemin vers le fichier JSON à lire.
+
+    Returns
+    -------
+    dict[str, Any]
+        Contenu du fichier JSON désérialisé.
+    """
     return cast(dict[str, Any], json.loads(p.read_text(encoding="utf-8")))
 
 

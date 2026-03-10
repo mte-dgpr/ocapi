@@ -40,6 +40,26 @@ _ARRETIFY_SECTION_SELECTOR = '*[data-spec="section"]'
 def split_blocs(
     minified_soup: BeautifulSoup, arrete_file: ArreteFile, target_per_block: int
 ) -> Iterator[Document]:
+    """Découpe un soup Arrêtify en blocs de taille contrôlée.
+
+    Sélectionne les sections de niveau feuille (sans sous-sections) et les
+    regroupe en blocs dont la taille totale ne dépasse pas `target_per_block`
+    caractères.
+
+    Parameters
+    ----------
+    minified_soup : BeautifulSoup
+        Soup minifié du HTML Arrêtify (images déjà remplacées par tokens).
+    arrete_file : ArreteFile
+        Arrêté source, utilisé pour annoter les documents produits.
+    target_per_block : int
+        Taille cible maximale d'un bloc (en nombre de caractères HTML).
+
+    Yields
+    ------
+    Document
+        Bloc HTML annoté avec l'identifiant de l'arrêté source.
+    """
     document_factory = make_document_factory(ContentType.HTML, parent=arrete_file.id)
 
     ignored_sections: list[Tag] = []
@@ -90,6 +110,23 @@ def _extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
 
 
 def step_chunking(arrete_file: ArreteFile) -> Tuple[list[Document], ImageMap]:
+    """Découpe un arrêté HTML en blocs prêts pour la détection LLM.
+
+    Minifie le HTML, extrait les images (remplacées par tokens), puis découpe
+    les sections Arrêtify en blocs de taille maximale ~70 000 caractères.
+
+    Parameters
+    ----------
+    arrete_file : ArreteFile
+        Arrêté à découper.
+
+    Returns
+    -------
+    list[Document]
+        Blocs HTML prêts à être envoyés au LLM.
+    ImageMap
+        Correspondance `{token_img: url_originale}` pour réhydrater les images.
+    """
     minified = minify_html_fragment(str(arrete_file.soup))
     minified, img_map = _extract_and_strip_images(minified)
     soup_without_images = BeautifulSoup(minified, "html.parser")

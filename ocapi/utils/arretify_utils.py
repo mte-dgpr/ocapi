@@ -32,6 +32,20 @@ def extract_specs(soup: BeautifulSoup, spec: str) -> list[Tag]:
 
 
 def extract_first_spec_html(soup: BeautifulSoup, spec: str) -> str:
+    """Retourne le HTML du premier élément ayant la spec Arrêtify donnée.
+
+    Parameters
+    ----------
+    soup : BeautifulSoup
+        Document HTML parsé.
+    spec : str
+        Valeur de l'attribut `data-spec` à rechercher (ex. `"visa"`, `"motifs"`).
+
+    Returns
+    -------
+    str
+        HTML serialisé du premier élément trouvé, ou chaîne vide si absent.
+    """
     tags = extract_specs(soup, spec)
     if not tags:
         return ""
@@ -39,6 +53,20 @@ def extract_first_spec_html(soup: BeautifulSoup, spec: str) -> str:
 
 
 def extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
+    """Retourne le texte brut du premier élément ayant la spec Arrêtify donnée.
+
+    Parameters
+    ----------
+    soup : BeautifulSoup
+        Document HTML parsé.
+    spec : str
+        Valeur de l'attribut `data-spec` à rechercher.
+
+    Returns
+    -------
+    str
+        Texte extrait avec les espaces normalisés, ou chaîne vide si absent.
+    """
     tags = extract_specs(soup, spec)
     if not tags:
         return ""
@@ -46,6 +74,18 @@ def extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
 
 
 def extract_main(soup: BeautifulSoup) -> str:
+    """Retourne le HTML de la balise `<main>` du document.
+
+    Parameters
+    ----------
+    soup : BeautifulSoup
+        Document HTML parsé.
+
+    Returns
+    -------
+    str
+        HTML serialisé de la balise `<main>`, ou chaîne vide si absente.
+    """
     main = soup.find("main")
     if main is None:
         return ""

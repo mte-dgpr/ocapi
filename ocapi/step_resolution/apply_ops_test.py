@@ -31,6 +31,11 @@ from ocapi.types import ArreteFile, ArticleHistory, FileType, NodeId, Operation,
 
 
 def test_build_subgraph() -> None:
+    """Vérifie que build_next_subgraph extrait uniquement les opérations d'un arrêté donné.
+
+    Construit un graphe avec des opérations de trois arrêtés différents et vérifie
+    que seul le sous-graphe de l'arrêté 1981 est retourné (deux arêtes, trois nœuds).
+    """
     G = nx.MultiDiGraph()
     add_node(G, NodeId(arrete_id="1980-01-01", article_id="1"))
     add_node(G, NodeId(arrete_id="1981-01-01", article_id="2"))
@@ -94,6 +99,12 @@ def test_build_subgraph() -> None:
 def test_apply_subgraph_operations(
     mock_add: mock.Mock, mock_remove: mock.Mock, mock_replace: mock.Mock
 ) -> None:
+    """Vérifie que apply_subgraph_operations dispatche chaque opération vers la bonne fonction.
+
+    Construit un sous-graphe avec un REPLACE et un ADD, mocke les fonctions
+    d'application et vérifie que l'historique contient les contenus retournés
+    par les mocks.
+    """
     mock_add.return_value = "new content after add"
     mock_remove.return_value = ""
     mock_replace.return_value = "new content after replace"
@@ -276,6 +287,11 @@ def test_multiple_operations_same_target_preserve_single_initial_version(
 def test_apply_all_operations(
     mock_add: mock.Mock, mock_remove: mock.Mock, mock_replace: mock.Mock
 ) -> None:
+    """Vérifie que apply_all_ops parcourt les arrêtés chronologiquement et accumule les versions.
+
+    Construit un graphe complet avec 4 opérations sur 3 arrêtés et vérifie
+    que l'historique final contient plusieurs versions pour chaque article cible.
+    """
     mock_add.return_value = "new content after add"
     mock_remove.return_value = ""
     mock_replace.return_value = "new content after replace"

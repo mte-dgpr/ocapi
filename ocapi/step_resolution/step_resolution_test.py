@@ -29,6 +29,7 @@ def test_step_resolution_returns_history_and_arretes(
     mock_build_graph: MagicMock,
     mock_apply_all_ops: MagicMock,
 ) -> None:
+    """Vérifie que step_resolution orchestre build_graph et apply_all_ops et retourne leurs résultats."""  # noqa: E501
     fake_history: ArticleHistory = {NodeId(arrete_id="2020-01-01", article_id="1"): []}
     fake_arretes = cast(list[ArreteFile], [MagicMock(id="2020-01-01")])
     mock_build_graph.return_value = (MagicMock(), fake_arretes, [])

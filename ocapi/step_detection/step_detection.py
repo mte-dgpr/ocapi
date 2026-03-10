@@ -56,6 +56,25 @@ LLM_CFG = config_model_llm()
 def step_detection(
     html_blocks: list[Document], arrete_id: ArreteId, img_map: ImageMap
 ) -> list[Operation]:
+    """Détecte les opérations dans un arrêté via LLM.
+
+    Pour chaque bloc HTML, interroge le LLM, parse la réponse JSON,
+    filtre les opérations invalides et les convertit en `Operation` typées.
+
+    Parameters
+    ----------
+    html_blocks : list[Document]
+        Blocs HTML produits par `step_chunking`.
+    arrete_id : ArreteId
+        Identifiant de l'arrêté source (date YYYY-MM-DD).
+    img_map : ImageMap
+        Correspondance tokens → URLs d'images pour réhydrater les operands.
+
+    Returns
+    -------
+    list[Operation]
+        Opérations détectées et validées, prêtes pour la résolution.
+    """
     _LOGGER.info(f"Détection: traitement de {len(html_blocks)} bloc(s)")
     all_ops: list[Operation] = []
     for block_html in html_blocks:
@@ -119,6 +138,32 @@ def convert_raw_operation_to_operation(
     source_arrete_id: ArreteId,
     img_map: ImageMap,
 ) -> Operation:
+    """Convertit une `RawOperation` LLM en `Operation` complète et typée.
+
+    Extrait l'operand entre les marqueurs de contenu, parse le sub_target,
+    assigne un ID unique et construit les `NodeId` source et cible.
+
+    Parameters
+    ----------
+    block_html : str
+        HTML brut du bloc dans lequel l'opération a été détectée.
+    raw_operation : RawOperation
+        Opération brute parsée depuis la réponse JSON du LLM.
+    source_arrete_id : ArreteId
+        Identifiant de l'arrêté dont provient cette opération.
+    img_map : ImageMap
+        Correspondance tokens → URLs pour réhydrater les images dans l'operand.
+
+    Returns
+    -------
+    Operation
+        Opération typée avec ID, source, cible, type, operand et sub_target.
+
+    Raises
+    ------
+    OperationError
+        Si `source_article` ou `target_article` est absent de la `RawOperation`.
+    """
     if raw_operation.source_article is None:
         raise OperationError("raw operation is missing source_article")
     if raw_operation.target_article is None:

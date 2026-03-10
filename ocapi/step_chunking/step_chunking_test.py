@@ -25,6 +25,7 @@ from ocapi.utils.utils import _assert_html_equal, minify_html_fragment
 
 
 def test_split_in_single_bloc() -> None:
+    """Vérifie que des sections de taille totale < target sont regroupées dans un seul bloc."""
     html_content = """
     <section data-spec="section">Content of article 1.</section>
     <section data-spec="section">Content of article 2.</section>
@@ -59,6 +60,7 @@ def test_split_in_single_bloc() -> None:
 
 
 def test_split_in_multiple_blocs() -> None:
+    """Vérifie que des sections dépassant le target_per_block sont réparties en plusieurs blocs."""
     html_content = """
     <section data-spec="section">Content of article 1 with more text.</section>
     <section data-spec="section">Content of article 2 with more text.</section>
@@ -126,6 +128,7 @@ def test_split_section_with_mixed_content() -> None:
 
 
 def test_extract_and_strip_images() -> None:
+    """Vérifie que les src d'images sont remplacés par des tokens et que la map est correcte."""
     html_content = """
     <p>Here is an image: <img src="http://example.com/image1.png" alt="Image 1"></p>
     <p>Another image: <img src="http://example.com/image2.jpg" alt="Image 2"></p>
