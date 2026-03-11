@@ -49,7 +49,7 @@ def run_pipeline(
     arrete_files: list[ArreteFile],
     aiot: AiotId,
     output_dir: Path,
-    skip_first: bool = False,
+    start_date: str | None = None,
     enable_detection: bool = True,
     enable_rendering: bool = True,
 ) -> tuple[list[Operation], ArticleHistory, list[ArreteFile], Permis | None]:
@@ -60,7 +60,9 @@ def run_pipeline(
         arrete_files: Liste des arrêtés à traiter
         aiot: Identifiant AIOT de l'installation
         output_dir: Répertoire de base pour les sorties par étape
-        skip_first: Si True, ignore le premier arrêté (AP initial) lors de la détection
+        start_date: Date de démarrage (YYYY-MM-DD). Seuls les arrêtés dont l'id
+            est strictement supérieur à cette date sont traités en détection.
+            Si None, tous les arrêtés sont traités.
         enable_detection: Si True, lance l'étape de chunking + détection (étapes 1-2) ;
             si False, charge les opérations depuis le répertoire de détection
         enable_rendering: Si True, génère le permis consolidé (étape 4)
@@ -95,8 +97,9 @@ def run_pipeline(
         _LOGGER.info("=" * 60)
 
         operations: list[Operation] = []
-        start_index = 1 if skip_first else 0
-        for _i, arrete_file in enumerate(arrete_files[start_index:], start=start_index):
+        for _i, arrete_file in enumerate(arrete_files):
+            if start_date and arrete_file.id <= start_date:
+                continue
             _LOGGER.info(f"Traitement de l'arrêté {arrete_file.id}...")
             docs, img_map = step_chunking(arrete_file)
             _LOGGER.info(f"  → {len(docs)} documents chunkés")

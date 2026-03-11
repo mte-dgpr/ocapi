@@ -106,6 +106,147 @@ def _mock_rendering(permis: Permis) -> MagicMock:
     return MagicMock(return_value=permis)
 
 
+@pytest.fixture
+def multi_arrete_files() -> list[ArreteFile]:
+    soup = BeautifulSoup('<html><body data-arretify_version="0.1.0"></body></html>', "html.parser")
+    return [
+        ArreteFile(
+            id="2010-01-01",
+            aiot=AIOT,
+            filename="2010-01-01_ap d'autorisation_test.html",
+            soup=soup,
+            file_type=FileType.AP_AUTORISATION,
+        ),
+        ArreteFile(
+            id="2015-06-15",
+            aiot=AIOT,
+            filename="2015-06-15_ap prescriptions complémentaires_test.html",
+            soup=soup,
+            file_type=FileType.AP_COMPLEMENTAIRE,
+        ),
+        ArreteFile(
+            id="2020-03-20",
+            aiot=AIOT,
+            filename="2020-03-20_ap prescriptions complémentaires_test.html",
+            soup=soup,
+            file_type=FileType.AP_COMPLEMENTAIRE,
+        ),
+    ]
+
+
+class TestStartDate:
+    """Vérifie le comportement du filtre start_date lors de la détection."""
+
+    def test_start_date_skips_earlier_arretes(
+        self,
+        tmp_path: Path,
+        multi_arrete_files: list[ArreteFile],
+        sample_history: ArticleHistory,
+        sample_permis: Permis,
+    ) -> None:
+        """Les arrêtés dont l'id <= start_date sont ignorés en détection."""
+        with (
+            patch(_STEP_CHUNKING, _mock_chunking()) as mock_chunk,
+            patch(_STEP_DETECTION, _mock_detection([])) as mock_det,
+            patch(_STEP_RESOLUTION, _mock_resolution(sample_history, multi_arrete_files)),
+            patch(_STEP_RENDERING, _mock_rendering(sample_permis)),
+        ):
+            run_pipeline(
+                multi_arrete_files, aiot=AIOT, output_dir=tmp_path, start_date="2015-06-15"
+            )
+
+        assert mock_chunk.call_count == 1
+        assert mock_det.call_count == 1
+        called_arrete = mock_chunk.call_args[0][0]
+        assert called_arrete.id == "2020-03-20"
+
+    def test_start_date_none_defaults_to_first_arrete(
+        self,
+        tmp_path: Path,
+        multi_arrete_files: list[ArreteFile],
+        sample_history: ArticleHistory,
+        sample_permis: Permis,
+    ) -> None:
+        """Sans start_date, tous les arrêtés sont traités en commençant par le premier."""
+        with (
+            patch(_STEP_CHUNKING, _mock_chunking()) as mock_chunk,
+            patch(_STEP_DETECTION, _mock_detection([])),
+            patch(_STEP_RESOLUTION, _mock_resolution(sample_history, multi_arrete_files)),
+            patch(_STEP_RENDERING, _mock_rendering(sample_permis)),
+        ):
+            run_pipeline(multi_arrete_files, aiot=AIOT, output_dir=tmp_path)
+
+        assert mock_chunk.call_count == 3
+        first_call_arrete = mock_chunk.call_args_list[0][0][0]
+        assert first_call_arrete.id == "2010-01-01"
+
+    def test_start_date_after_all_arretes_processes_none(
+        self,
+        tmp_path: Path,
+        multi_arrete_files: list[ArreteFile],
+        sample_history: ArticleHistory,
+        sample_permis: Permis,
+    ) -> None:
+        """Si start_date >= tous les arrêtés, aucun n'est traité en détection."""
+        with (
+            patch(_STEP_CHUNKING) as mock_chunk,
+            patch(_STEP_DETECTION) as mock_det,
+            patch(_STEP_RESOLUTION, _mock_resolution(sample_history, multi_arrete_files)),
+            patch(_STEP_RENDERING, _mock_rendering(sample_permis)),
+        ):
+            run_pipeline(
+                multi_arrete_files, aiot=AIOT, output_dir=tmp_path, start_date="2020-03-20"
+            )
+
+        mock_chunk.assert_not_called()
+        mock_det.assert_not_called()
+
+    def test_start_date_passes_all_arretes_to_resolution(
+        self,
+        tmp_path: Path,
+        multi_arrete_files: list[ArreteFile],
+        sample_history: ArticleHistory,
+        sample_permis: Permis,
+    ) -> None:
+        """Tous les arrêtés (y compris ignorés) sont transmis à la résolution."""
+        with (
+            patch(_STEP_CHUNKING, _mock_chunking()),
+            patch(_STEP_DETECTION, _mock_detection([])),
+            patch(
+                _STEP_RESOLUTION, _mock_resolution(sample_history, multi_arrete_files)
+            ) as mock_res,
+            patch(_STEP_RENDERING, _mock_rendering(sample_permis)),
+        ):
+            run_pipeline(
+                multi_arrete_files, aiot=AIOT, output_dir=tmp_path, start_date="2015-06-15"
+            )
+
+        _, res_arrete_files = mock_res.call_args[0]
+        assert len(res_arrete_files) == 3
+
+    def test_start_date_equal_to_first_arrete_skips_it(
+        self,
+        tmp_path: Path,
+        multi_arrete_files: list[ArreteFile],
+        sample_history: ArticleHistory,
+        sample_permis: Permis,
+    ) -> None:
+        """Quand start_date == id du premier arrêté, le premier est ignoré."""
+        with (
+            patch(_STEP_CHUNKING, _mock_chunking()) as mock_chunk,
+            patch(_STEP_DETECTION, _mock_detection([])),
+            patch(_STEP_RESOLUTION, _mock_resolution(sample_history, multi_arrete_files)),
+            patch(_STEP_RENDERING, _mock_rendering(sample_permis)),
+        ):
+            run_pipeline(
+                multi_arrete_files, aiot=AIOT, output_dir=tmp_path, start_date="2010-01-01"
+            )
+
+        assert mock_chunk.call_count == 2
+        first_call_arrete = mock_chunk.call_args_list[0][0][0]
+        assert first_call_arrete.id == "2015-06-15"
+
+
 class TestStepList:
     """Vérifie que les bonnes étapes sont exécutées selon les flags."""
 

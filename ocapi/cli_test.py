@@ -91,6 +91,55 @@ def test_cli_output_is_forwarded(
 
 @patch("ocapi.cli.initialize_root_logger")
 @patch("ocapi.cli.run_main", return_value=0)
+def test_cli_start_date_is_forwarded(
+    mock_main: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
+    """--start-date is parsed and forwarded to run_main."""
+    main(["run", "some/arretes_html/0005804239", "--start-date", "2014-01-09"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("start_date") == "2014-01-09"
+
+
+@patch("ocapi.cli.initialize_root_logger")
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_no_start_date_defaults_to_none(
+    mock_main: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
+    """Without --start-date, start_date defaults to None."""
+    main(["run", "some/arretes_html/0005804239"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("start_date") is None
+
+
+@patch("ocapi.cli.initialize_root_logger")
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_include_and_start_date_coexist(
+    mock_main: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
+    """--include and --start-date can be used together."""
+    main(
+        [
+            "run",
+            "some/arretes_html/0005804239",
+            "--include",
+            "2024-09-27",
+            "--start-date",
+            "2014-01-09",
+        ]
+    )
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("include_ids") == ["2024-09-27"]
+    assert kwargs.get("start_date") == "2014-01-09"
+
+
+@patch("ocapi.cli.initialize_root_logger")
+@patch("ocapi.cli.run_main", return_value=0)
 def test_cli_defaults(
     mock_main: MagicMock,
     mock_logger: MagicMock,

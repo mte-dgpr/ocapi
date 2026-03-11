@@ -42,6 +42,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         output_dir=Path(args.output) if args.output else None,
         aiot=args.aiot,
         include_ids=args.include,
+        start_date=args.start_date,
         enable_detection=not getattr(args, "no_detection", False),
         enable_rendering=not getattr(args, "no_rendering", False),
     )
@@ -153,6 +154,10 @@ Examples:
         "-o",
         "--output",
         help="Répertoire de sortie de base (défaut: répertoire parent du parent de input_dir)",
+    )
+    run_parser.add_argument(
+        "--start-date",
+        help="Date de démarrage (YYYY-MM-DD) pour la détection",
     )
     run_parser.add_argument(
         "--no-detection",

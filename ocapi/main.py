@@ -26,7 +26,7 @@ Usage:
 Examples:
     python -m ocapi.main data/arretes_html/0005804239/
     python -m ocapi.main data/arretes_html/0005804239/ --output output/
-    python -m ocapi.main data/arretes_html/0005804239/ --skip-first
+    python -m ocapi.main data/arretes_html/0005804239/ --start-date 2014-01-09
     python -m ocapi.main data/arretes_html/0005804239/ --include 2024-09-27 2023-12-04
     python -m ocapi.main data/arretes_html/0005804239/ --no-rendering
     python -m ocapi.main data/arretes_html/0005804239/ --no-detection
@@ -51,7 +51,7 @@ def main(
     output_dir: Path | None = None,
     aiot: str | None = None,
     include_ids: list[str] | None = None,
-    skip_first: bool = False,
+    start_date: str | None = None,
     enable_detection: bool = True,
     enable_rendering: bool = True,
 ) -> int:
@@ -64,7 +64,7 @@ def main(
             (défaut: répertoire parent du parent de input_dir)
         aiot: Identifiant AIOT (si None, déduit du nom de input_dir)
         include_ids: Liste des IDs d'arrêtés à inclure (si None, tous)
-        skip_first: Si True, ignore le premier arrêté (AP initial) lors de la détection
+        start_date: Date de démarrage (YYYY-MM-DD) pour la détection
         enable_detection: Si True, lance les étapes chunking + détection ;
             si False, charge les opérations depuis le répertoire de détection
         enable_rendering: Si True, génère le permis consolidé
@@ -115,7 +115,7 @@ def main(
             arrete_files,
             aiot=aiot,
             output_dir=output_dir,
-            skip_first=skip_first,
+            start_date=start_date,
             enable_detection=enable_detection,
             enable_rendering=enable_rendering,
         )
@@ -142,8 +142,8 @@ Examples:
   # Spécifier un répertoire de sortie de base
   python -m ocapi.main data/arretes_html/0005804239/ --output output/
 
-  # Ignorer le premier arrêté (AP initial) lors de la détection
-  python -m ocapi.main data/arretes_html/0005804239/ --skip-first
+  # Démarrer la détection à partir d'une date
+  python -m ocapi.main data/arretes_html/0005804239/ --start-date 2014-01-09
 
   # Filtrer sur des arrêtés spécifiques
   python -m ocapi.main data/arretes_html/0005804239/ --include 2024-09-27 2023-12-04
@@ -187,9 +187,8 @@ Examples:
         help="IDs des arrêtés à inclure (défaut: tous)",
     )
     parser.add_argument(
-        "--skip-first",
-        action="store_true",
-        help="Ignorer le premier arrêté (AP initial) lors de la détection",
+        "--start-date",
+        help="Date de démarrage (YYYY-MM-DD) pour la détection",
     )
     parser.add_argument(
         "--no-detection",
@@ -244,7 +243,7 @@ Examples:
         output_dir=args.output,
         aiot=args.aiot,
         include_ids=args.include,
-        skip_first=args.skip_first,
+        start_date=args.start_date,
         enable_detection=not args.no_detection,
         enable_rendering=not args.no_rendering,
     )
