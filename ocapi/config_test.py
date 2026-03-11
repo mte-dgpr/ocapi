@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Tests pour le module de configuration."""
+"""Tests for the configuration module."""
 
 import os
 import tempfile
@@ -37,10 +37,10 @@ from ocapi.config import (
 
 
 class TestLLMConfig:
-    """Tests pour LLMConfig."""
+    """Tests for LLMConfig."""
 
     def test_default_values(self) -> None:
-        """Test des valeurs par défaut."""
+        """Test default values."""
         config = LLMConfig()
         assert config.piag_api_key is None
         assert "preprod.api.piag.e2.rie.gouv.fr" in str(config.piag_api_url)
@@ -48,24 +48,24 @@ class TestLLMConfig:
         assert "api.openai.com" in str(config.openai_api_url)
 
     def test_valid_api_key(self) -> None:
-        """Test avec une clé API valide."""
+        """Test with a valid API key."""
         config = LLMConfig(piag_api_key="sk-test-key-123")
         assert config.piag_api_key == "sk-test-key-123"
 
     def test_empty_api_key_raises_error(self) -> None:
-        """Test qu'une clé API vide lève une erreur."""
+        """Test that an empty API key raises an error."""
         with pytest.raises(ValidationError) as exc_info:
             LLMConfig(piag_api_key="")
-        assert "La clé API ne peut pas être vide" in str(exc_info.value)
+        assert "API key cannot be empty" in str(exc_info.value)
 
     def test_whitespace_api_key_raises_error(self) -> None:
-        """Test qu'une clé API avec uniquement des espaces lève une erreur."""
+        """Test that a whitespace-only API key raises an error."""
         with pytest.raises(ValidationError) as exc_info:
             LLMConfig(piag_api_key="   ")
-        assert "La clé API ne peut pas être vide" in str(exc_info.value)
+        assert "API key cannot be empty" in str(exc_info.value)
 
     def test_valid_custom_urls(self) -> None:
-        """Test avec des URLs personnalisées."""
+        """Test with custom URLs."""
         config = LLMConfig(
             piag_api_url="https://custom.api.example.com/v1/chat",
             openai_api_url="https://custom.openai.example.com/v1/chat",
@@ -74,87 +74,84 @@ class TestLLMConfig:
         assert "custom.openai.example.com" in str(config.openai_api_url)
 
     def test_invalid_url_raises_error(self) -> None:
-        """Test qu'une URL invalide lève une erreur."""
+        """Test that an invalid URL raises an error."""
         with pytest.raises(ValidationError):
             LLMConfig(piag_api_url="not-a-valid-url")
 
     def test_http_url_accepted(self) -> None:
-        """Test qu'une URL HTTP est acceptée."""
+        """Test that an HTTP URL is accepted."""
         config = LLMConfig(piag_api_url="http://localhost:8000/v1/chat")
         assert "localhost" in str(config.piag_api_url)
 
 
 class TestPipelineConfig:
-    """Tests pour PipelineConfig."""
+    """Tests for PipelineConfig."""
 
     def test_default_values(self) -> None:
-        """Test des valeurs par défaut."""
+        """Test default values."""
         config = PipelineConfig()
         assert config.full_section == "contenu entier"
 
     def test_custom_values(self) -> None:
-        """Test avec des valeurs personnalisées."""
+        """Test with custom values."""
         config = PipelineConfig(full_section="contenu complet")
         assert config.full_section == "contenu complet"
 
     def test_empty_full_section_raises_error(self) -> None:
-        """Test qu'une section full_section vide lève une erreur."""
+        """Test that an empty full_section raises an error."""
         with pytest.raises(ValidationError) as exc_info:
             PipelineConfig(full_section="")
-        # Pydantic valide min_length=1 avant le validateur personnalisé
-        assert "at least 1 character" in str(
+        # Pydantic validates min_length=1 before the custom validator
+        assert "at least 1 character" in str(exc_info.value) or "Value cannot be empty" in str(
             exc_info.value
-        ) or "La valeur ne peut pas être vide" in str(exc_info.value)
+        )
 
     def test_whitespace_full_section_raises_error(self) -> None:
-        """Test qu'une section full_section avec espaces lève une erreur."""
+        """Test that a whitespace-only full_section raises an error."""
         with pytest.raises(ValidationError) as exc_info:
             PipelineConfig(full_section="   ")
-        assert "La valeur ne peut pas être vide" in str(exc_info.value)
+        assert "Value cannot be empty" in str(exc_info.value)
 
     def test_full_section_strips_whitespace(self) -> None:
-        """Test que les espaces sont retirés de full_section."""
+        """Test that leading/trailing whitespace is stripped from full_section."""
         config = PipelineConfig(full_section="  contenu complet  ")
         assert config.full_section == "contenu complet"
 
 
 class TestPathsConfig:
-    """Tests pour PathsConfig."""
+    """Tests for PathsConfig."""
 
     def test_default_values(self) -> None:
-        """Test des valeurs par défaut."""
+        """Test default values."""
         config = PathsConfig()
         assert config.project_root.exists()
         assert config.project_root.is_dir()
         assert config.catalogue_path.is_absolute()
 
     def test_invalid_project_root_raises_error(self) -> None:
-        """Test qu'une racine invalide lève une erreur."""
+        """Test that an invalid project root raises an error."""
         invalid_path = Path("/nonexistent/path/to/project")
         with pytest.raises(ValidationError) as exc_info:
             PathsConfig(project_root=invalid_path)
-        assert "n'existe pas" in str(exc_info.value)
+        assert "does not exist" in str(exc_info.value)
 
     def test_project_root_must_be_directory(self) -> None:
-        """Test que la racine doit être un répertoire."""
-        # Créer un fichier temporaire
+        """Test that the project root must be a directory."""
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp_path = Path(tmp.name)
 
-        # Fermer le fichier avant de l'utiliser (important sur Windows)
         try:
             with pytest.raises(ValidationError) as exc_info:
                 PathsConfig(project_root=tmp_path)
-            assert "doit être un répertoire" in str(exc_info.value)
+            assert "must be a directory" in str(exc_info.value)
         finally:
-            # Supprimer le fichier temporaire (même en cas d'erreur)
             try:
                 tmp_path.unlink()
             except PermissionError:
-                pass  # Ignorer les erreurs de permission sur Windows
+                pass
 
     def test_custom_paths(self) -> None:
-        """Test avec des chemins personnalisés."""
+        """Test with custom paths."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir).resolve()
             catalogue_path = tmp_path / "custom" / "catalogue.json"
@@ -167,24 +164,24 @@ class TestPathsConfig:
 
 
 class TestAppConfig:
-    """Tests pour AppConfig."""
+    """Tests for AppConfig."""
 
     def test_default_values(self) -> None:
-        """Test des valeurs par défaut."""
+        """Test default values."""
         config = AppConfig()
         assert isinstance(config.llm, LLMConfig)
         assert isinstance(config.pipeline, PipelineConfig)
         assert isinstance(config.paths, PathsConfig)
 
     def test_nested_configuration(self) -> None:
-        """Test de la configuration imbriquée."""
+        """Test nested configuration."""
         config = AppConfig(_env_file=None)
         assert config.llm.piag_api_key is None
         assert config.pipeline.full_section == "contenu entier"
         assert config.paths.project_root.exists()
 
     def test_model_dump_safe_masks_secrets(self) -> None:
-        """Test que model_dump_safe masque les secrets."""
+        """Test that model_dump_safe masks secrets."""
         config = AppConfig()
         config.llm.piag_api_key = "sk-secret-key"
         config.llm.openai_api_key = "sk-openai-secret"
@@ -194,14 +191,14 @@ class TestAppConfig:
         assert safe_dump["llm"]["openai_api_key"] == "***MASKED***"
 
     def test_model_dump_safe_preserves_none(self) -> None:
-        """Test que model_dump_safe préserve les valeurs None."""
+        """Test that model_dump_safe preserves None values."""
         config = AppConfig(_env_file=None)
         safe_dump = config.model_dump_safe()
         assert safe_dump["llm"]["piag_api_key"] is None
         assert safe_dump["llm"]["openai_api_key"] is None
 
     def test_env_file_loading(self) -> None:
-        """Test du chargement depuis un fichier .env."""
+        """Test loading from a .env file."""
         with patch.dict(
             os.environ,
             {
@@ -215,67 +212,64 @@ class TestAppConfig:
             assert config.pipeline.full_section == "section complete"
 
     def test_validation_on_assignment(self) -> None:
-        """Test que la validation fonctionne lors de l'assignation."""
+        """Test that validation works on assignment."""
         config = AppConfig()
-        # Devrait lever une erreur lors de l'assignation d'une valeur invalide
         with pytest.raises(ValidationError):
             config.pipeline.full_section = "   "
 
     def test_extra_env_vars_ignored(self) -> None:
-        """Test que les variables d'environnement inconnues sont ignorées."""
+        """Test that unknown environment variables are ignored."""
         with patch.dict(
             os.environ,
             {"UNKNOWN_CONFIG_VAR": "should-be-ignored"},
             clear=False,
         ):
-            # Ne devrait pas lever d'erreur
             config = AppConfig()
             assert config is not None
 
 
 class TestSettingsSingleton:
-    """Tests pour l'instance singleton settings."""
+    """Tests for the settings singleton instance."""
 
     def test_settings_is_app_config(self) -> None:
-        """Test que settings est une instance de AppConfig."""
+        """Test that settings is an AppConfig instance."""
         assert isinstance(settings, AppConfig)
 
     def test_settings_accessible(self) -> None:
-        """Test que settings est accessible."""
+        """Test that settings is accessible."""
         assert settings.llm is not None
         assert settings.pipeline is not None
         assert settings.paths is not None
 
     def test_settings_llm_config(self) -> None:
-        """Test de la configuration LLM."""
+        """Test the LLM configuration."""
         assert hasattr(settings.llm, "piag_api_key")
         assert hasattr(settings.llm, "piag_api_url")
         assert hasattr(settings.llm, "openai_api_key")
         assert hasattr(settings.llm, "openai_api_url")
 
     def test_settings_pipeline_config(self) -> None:
-        """Test de la configuration Pipeline."""
+        """Test the Pipeline configuration."""
         assert hasattr(settings.pipeline, "full_section")
 
     def test_settings_paths_config(self) -> None:
-        """Test de la configuration Paths."""
+        """Test the Paths configuration."""
         assert hasattr(settings.paths, "project_root")
         assert hasattr(settings.paths, "catalogue_path")
         assert settings.paths.project_root.exists()
 
 
 class TestReloadSettings:
-    """Tests pour la fonction reload_settings."""
+    """Tests for the reload_settings function."""
 
     def test_reload_settings_returns_new_instance(self) -> None:
-        """Test que reload_settings retourne une nouvelle instance."""
+        """Test that reload_settings returns a new instance."""
         new_settings = reload_settings()
         assert isinstance(new_settings, AppConfig)
-        # Vérifier que c'est une nouvelle instance
         assert new_settings is not settings
 
     def test_reload_settings_with_env_changes(self) -> None:
-        """Test que reload_settings prend en compte les changements d'env."""
+        """Test that reload_settings picks up environment changes."""
         with patch.dict(
             os.environ,
             {"LLM__PIAG_API_KEY": "new-test-key"},
@@ -286,24 +280,21 @@ class TestReloadSettings:
 
 
 class TestIntegration:
-    """Tests d'intégration."""
+    """Integration tests."""
 
     def test_complete_configuration_flow(self) -> None:
-        """Test du flux complet de configuration."""
-        # Créer une configuration complète
+        """Test the complete configuration flow."""
         config = AppConfig()
 
-        # Vérifier que tous les composants sont présents
         assert config.llm is not None
         assert config.pipeline is not None
         assert config.paths is not None
 
-        # Vérifier que les valeurs par défaut sont cohérentes
         assert config.pipeline.full_section
         assert config.paths.project_root.exists()
 
     def test_configuration_with_all_env_vars(self) -> None:
-        """Test avec toutes les variables d'environnement."""
+        """Test with all environment variables set."""
         with patch.dict(
             os.environ,
             {
@@ -321,7 +312,7 @@ class TestIntegration:
             assert config.pipeline.full_section == "contenu integral"
 
     def test_partial_configuration(self) -> None:
-        """Test avec seulement quelques variables d'environnement."""
+        """Test with only some environment variables set."""
         with patch.dict(
             os.environ,
             {
@@ -331,8 +322,8 @@ class TestIntegration:
             clear=False,
         ):
             config = AppConfig(_env_file=None)
-            # Valeurs personnalisées
+            # Custom values
             assert config.llm.piag_api_key == "partial-key"
             assert config.pipeline.full_section == "section partielle"
-            # Valeurs par défaut
+            # Default values
             assert config.llm.openai_api_key is None

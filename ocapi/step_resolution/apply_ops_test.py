@@ -31,10 +31,10 @@ from ocapi.types import ArreteFile, ArticleHistory, FileType, NodeId, Operation,
 
 
 def test_build_subgraph() -> None:
-    """Vérifie que build_next_subgraph extrait uniquement les opérations d'un arrêté donné.
+    """Verify that build_next_subgraph extracts only the operations from a given arrêté.
 
-    Construit un graphe avec des opérations de trois arrêtés différents et vérifie
-    que seul le sous-graphe de l'arrêté 1981 est retourné (deux arêtes, trois nœuds).
+    Builds a graph with operations from three different arrêtés and verifies
+    that only the sub-graph of the 1981 arrêté is returned (two edges, three nodes).
     """
     G = nx.MultiDiGraph()
     add_node(G, NodeId(arrete_id="1980-01-01", article_id="1"))
@@ -99,11 +99,10 @@ def test_build_subgraph() -> None:
 def test_apply_subgraph_operations(
     mock_add: mock.Mock, mock_remove: mock.Mock, mock_replace: mock.Mock
 ) -> None:
-    """Vérifie que apply_subgraph_operations dispatche chaque opération vers la bonne fonction.
+    """Verify that apply_subgraph_operations dispatches each operation to the right function.
 
-    Construit un sous-graphe avec un REPLACE et un ADD, mocke les fonctions
-    d'application et vérifie que l'historique contient les contenus retournés
-    par les mocks.
+    Builds a sub-graph with a REPLACE and an ADD, mocks the application functions,
+    and verifies that the history contains the contents returned by the mocks.
     """
     mock_add.return_value = "new content after add"
     mock_remove.return_value = ""
@@ -287,10 +286,10 @@ def test_multiple_operations_same_target_preserve_single_initial_version(
 def test_apply_all_operations(
     mock_add: mock.Mock, mock_remove: mock.Mock, mock_replace: mock.Mock
 ) -> None:
-    """Vérifie que apply_all_ops parcourt les arrêtés chronologiquement et accumule les versions.
+    """Verify that apply_all_ops processes arrêtés chronologically and accumulates versions.
 
-    Construit un graphe complet avec 4 opérations sur 3 arrêtés et vérifie
-    que l'historique final contient plusieurs versions pour chaque article cible.
+    Builds a complete graph with 4 operations across 3 arrêtés and verifies
+    that the final history contains multiple versions for each target article.
     """
     mock_add.return_value = "new content after add"
     mock_remove.return_value = ""

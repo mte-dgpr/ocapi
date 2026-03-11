@@ -17,88 +17,86 @@
 # limitations under the License.
 #
 """
-Hiérarchie centralisée des exceptions OCAPI.
+Centralised exception hierarchy for OCAPI.
 
-Toutes les exceptions métier héritent de OcapiError, ce qui permet aux
-appelants de discriminer précisément les erreurs ou d'utiliser un catch-all
-unique (except OcapiError).
+All domain exceptions inherit from OcapiError, allowing callers to either
+discriminate precisely or use a single catch-all (except OcapiError).
 
-Exceptions qui héritent aussi de ValueError
+Exceptions that also inherit from ValueError
 ────────────────────────────────────────────
-InvalidArticleIdError et InvalidArreteIdError héritent de (OcapiError, ValueError)
-afin de rester compatibles avec les @field_validator de Pydantic v2, qui n'encapsule
-dans ValidationError que les ValueError et AssertionError.
+InvalidArticleIdError and InvalidArreteIdError inherit from (OcapiError, ValueError)
+to remain compatible with Pydantic v2 @field_validator, which only wraps
+ValueError and AssertionError into ValidationError.
 """
 
 
 class OcapiError(Exception):
-    """Classe de base pour toutes les exceptions OCAPI."""
+    """Base class for all OCAPI exceptions."""
 
 
-# ── Validation des identifiants ──────────────────────────────────────────────
+# ── Identifier validation ──────────────────────────────────────────────────────
 
 
 class InvalidArticleIdError(OcapiError, ValueError):
-    """Format d'article_id invalide.
+    """Invalid article_id format.
 
-    Hérite de ValueError pour rester compatible avec les @field_validator Pydantic.
+    Inherits from ValueError to remain compatible with Pydantic @field_validator.
     """
 
 
 class InvalidArreteIdError(OcapiError, ValueError):
-    """Format d'arrete_id invalide (attendu YYYY-MM-DD).
+    """Invalid arrete_id format (expected YYYY-MM-DD).
 
-    Hérite de ValueError pour rester compatible avec les @field_validator Pydantic.
+    Inherits from ValueError to remain compatible with Pydantic @field_validator.
     """
 
 
-# ── Format de fichier ─────────────────────────────────────────────────────────
+# ── File format ───────────────────────────────────────────────────────────────
 
 
 class InvalidFileFormatError(OcapiError):
-    """Erreur de format de fichier : nom invalide, structure HTML manquante
-    ou version Arrêtify non supportée."""
+    """File format error: invalid name, missing HTML structure, or unsupported Arrêtify version."""
 
 
 # ── LLM ───────────────────────────────────────────────────────────────────────
 
 
 class LLMError(OcapiError):
-    """Classe de base pour toutes les erreurs liées au LLM."""
+    """Base class for all LLM-related errors."""
 
 
 class LLMConfigError(LLMError):
-    """Configuration LLM invalide (provider inconnu, clés manquantes, etc.)."""
+    """Invalid LLM configuration (unknown provider, missing keys, etc.)."""
 
 
 class LLMNetworkError(LLMError):
-    """Échec réseau lors d'un appel LLM (timeout, HTTP 5xx, retries épuisés)."""
+    """Network failure during an LLM call (timeout, HTTP 5xx, retries exhausted)."""
 
 
 class LLMResponseError(LLMError):
-    """Réponse LLM invalide ou non parsable (structure JSON inattendue)."""
+    """Invalid or unparsable LLM response (unexpected JSON structure)."""
 
 
-# ── Opérations ────────────────────────────────────────────────────────────────
+# ── Operations ────────────────────────────────────────────────────────────────
 
 
 class OperationError(OcapiError):
-    """Erreur lors de la construction ou de l'application d'une opération."""
+    """Error during the construction or application of an operation."""
 
 
-# ── Graphe d'opérations ───────────────────────────────────────────────────────
+# ── Operations graph ──────────────────────────────────────────────────────────
 
 
 class GraphError(OcapiError):
-    """Erreur lors de la construction ou de la résolution du graphe d'opérations."""
+    """Error during the construction or resolution of the operations graph."""
 
 
 class NodeNotFoundError(GraphError):
-    """Section/article introuvable dans l'arrêté lors de la construction du graphe."""
+    """Section/article not found in the arrêté during graph construction."""
 
 
-# ── Entrées / Sorties ─────────────────────────────────────────────────────────
+# ── Input / Output ────────────────────────────────────────────────────────────
 
 
 class InputOutputError(OcapiError):
-    """Erreur d'entrée/sortie (répertoire inexistant, écriture impossible, etc.)."""
+    """Input/output error (non-existent directory, write failure, etc.)."""

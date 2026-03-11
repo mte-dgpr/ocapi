@@ -23,7 +23,7 @@ from flake8.main.cli import main as flake8_main
 
 
 def main() -> None:
-    """Wrapper pour accepter 'flake check .' et appliquer les options par défaut."""
+    """Wrapper to accept 'flake check .' and apply default options."""
     argv = sys.argv[1:]
     if argv and argv[0] == "check":
         argv = argv[1:]

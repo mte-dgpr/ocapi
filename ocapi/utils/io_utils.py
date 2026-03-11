@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 """
-Utilitaires pour les opérations d'entrée/sortie (input/output).
+Utilities for input/output operations.
 """
 import json
 from pathlib import Path
@@ -31,7 +31,7 @@ from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
 
-# Re-export pour la compatibilité avec les imports existants
+# Re-export for backward compatibility
 __all__ = [
     "InputOutputError",
     "load_html_files",
@@ -44,49 +44,44 @@ __all__ = [
 
 
 def read_json(p: Path) -> dict[str, Any]:
-    """Lit un fichier JSON et retourne son contenu sous forme de dictionnaire.
+    """Read a JSON file and return its content as a dictionary.
 
     Parameters
     ----------
     p : Path
-        Chemin vers le fichier JSON à lire.
+        Path to the JSON file.
 
     Returns
     -------
     dict[str, Any]
-        Contenu du fichier JSON désérialisé.
+        Deserialised JSON content.
     """
     return cast(dict[str, Any], json.loads(p.read_text(encoding="utf-8")))
 
 
 def load_html_files(input_dir: Path) -> list[Path]:
-    """
-    Charge tous les fichiers HTML depuis un répertoire d'entrée.
+    """Load all HTML files from an input directory.
 
     Args:
-        input_dir: Répertoire contenant les fichiers HTML
+        input_dir: Directory containing the HTML files.
 
     Returns:
-        Liste triée des chemins vers les fichiers HTML trouvés
+        Sorted list of paths to the HTML files found.
 
     Raises:
-        InputOutputError: Si le répertoire n'existe pas, n'est pas un répertoire,
-                         ou ne contient aucun fichier HTML
+        InputOutputError: If the directory does not exist, is not a directory,
+                         or contains no HTML files.
     """
-    # Vérifier que le répertoire existe
     if not input_dir.exists():
-        raise InputOutputError(f"Le répertoire d'entrée n'existe pas: {input_dir}")
+        raise InputOutputError(f"Input directory does not exist: {input_dir}")
 
-    # Vérifier que c'est bien un répertoire
     if not input_dir.is_dir():
-        raise InputOutputError(f"Le chemin spécifié n'est pas un répertoire: {input_dir}")
+        raise InputOutputError(f"Specified path is not a directory: {input_dir}")
 
-    # Charger les fichiers HTML
     html_files = sorted(input_dir.glob("*.html"))
 
-    # Vérifier qu'il y a au moins un fichier
     if not html_files:
-        raise InputOutputError(f"Aucun fichier HTML trouvé dans: {input_dir}")
+        raise InputOutputError(f"No HTML files found in: {input_dir}")
 
     return html_files
 

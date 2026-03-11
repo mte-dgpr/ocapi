@@ -17,11 +17,10 @@
 # limitations under the License.
 #
 """
-Helpers pour la gestion centralisée des erreurs OCAPI.
+Helpers for centralised OCAPI error handling.
 
-Fournit des utilitaires pour convertir des exceptions tierces ou génériques
-en exceptions OCAPI typées, et pour enrichir les messages d'erreur avec du
-contexte supplémentaire.
+Provides utilities to convert third-party or generic exceptions into typed
+OCAPI exceptions, and to enrich error messages with additional context.
 """
 from contextlib import contextmanager
 from typing import Iterator, Type, TypeVar
@@ -33,14 +32,13 @@ _E = TypeVar("_E", bound=OcapiError)
 
 @contextmanager
 def wrap_errors(exc_class: Type[_E], message: str = "") -> Iterator[None]:
-    """Context manager qui convertit toute exception non-OCAPI en `exc_class`.
+    """Context manager that converts any non-OCAPI exception into ``exc_class``.
 
-    Les exceptions qui héritent déjà de OcapiError sont laissées se propager
-    sans modification.
+    Exceptions that already inherit from OcapiError are re-raised unchanged.
 
-    Exemple::
+    Example::
 
-        with wrap_errors(InputOutputError, "Impossible de lire le fichier"):
+        with wrap_errors(InputOutputError, "Cannot read file"):
             content = path.read_text()
     """
     try:
@@ -52,11 +50,11 @@ def wrap_errors(exc_class: Type[_E], message: str = "") -> Iterator[None]:
 
 
 def format_error_context(exc: Exception, context: str) -> str:
-    """Retourne un message d'erreur enrichi avec un contexte supplémentaire.
+    """Return an error message enriched with additional context.
 
-    Exemple::
+    Example::
 
-        msg = format_error_context(e, f"lors du traitement de {filename}")
+        msg = format_error_context(e, f"while processing {filename}")
         _LOGGER.error(msg)
     """
     return f"{context}: {exc}"

@@ -43,8 +43,7 @@ def has_not_out_ops(arrete_file: ArreteFile, operations: list[Operation]) -> boo
 
 
 def detect_additional_prescriptions(arrete_files: list[ArreteFile]) -> str:
-    # TODO : refaire des appels LLM pour détecter les prescriptions
-    # additionnelles non modificatives ? à voir.
+    # TODO: add LLM calls to detect non-modifying additional prescriptions?
     return ""
 
 

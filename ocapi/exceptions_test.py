@@ -35,7 +35,7 @@ from .exceptions import (
 
 
 class TestOcapiErrorHierarchy:
-    """Vérifie que la hiérarchie d'héritage est correcte."""
+    """Verify that the inheritance hierarchy is correct."""
 
     def test_all_errors_inherit_from_ocapi_error(self) -> None:
         for cls in (
@@ -61,8 +61,8 @@ class TestOcapiErrorHierarchy:
         assert issubclass(NodeNotFoundError, GraphError)
 
     def test_id_errors_also_inherit_value_error(self) -> None:
-        """InvalidArticleIdError et InvalidArreteIdError héritent de ValueError
-        pour rester compatibles avec les @field_validator Pydantic."""
+        """InvalidArticleIdError and InvalidArreteIdError inherit from ValueError
+        to remain compatible with Pydantic @field_validator."""
         assert issubclass(InvalidArticleIdError, ValueError)
         assert issubclass(InvalidArreteIdError, ValueError)
 

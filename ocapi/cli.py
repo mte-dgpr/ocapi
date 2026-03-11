@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 """
-Interface en ligne de commande pour OCAPI.
+Command-line interface for OCAPI.
 
 Usage:
     ocapi run <input_dir> [--aiot AIOT] [--output OUTPUT]
@@ -44,7 +44,7 @@ _LOGGER = get_logger(__name__)
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    """Exécute le pipeline OCAPI sur les arrêtés."""
+    """Run the OCAPI pipeline on the arrêtés."""
     input_dir = Path(args.input_dir)
 
     # Determine output directory
@@ -128,30 +128,30 @@ def main(argv: list[str] | None = None) -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="ocapi",
-        description="OCAPI - Pipeline de détection, résolution et rendu des arrêtés",
+        description="OCAPI - Arrêté detection, resolution, and rendering pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Afficher l'aide générale
+  # Show general help
   ocapi --help
 
-  # Afficher l'aide d'une commande
+  # Show command help
   ocapi run --help
 
-  # Traiter tous les arrêtés d'un répertoire
-  ocapi run data/arretes_html/0999.99999/
+  # Process all arrêtés in a directory
+  ocapi run data/0999.99999/arretes/
 
-  # Traiter avec un AIOT spécifique
-  ocapi run data/arretes_html/0999.99999/ --aiot 0999.99999
+  # Process with a specific AIOT
+  ocapi run data/0999.99999/arretes/ --aiot 0999.99999
 
-  # Sauvegarder le résultat dans un fichier
-  ocapi run data/arretes_html/0999.99999/ --output resultat.json
+  # Save result to a file
+  ocapi run data/0999.99999/arretes/ --output result.json
 
-  # Mode verbose pour le debug
-  ocapi --verbose run data/arretes_html/0999.99999/
+  # Verbose mode for debugging
+  ocapi --verbose run data/0999.99999/arretes/
 
-  # Mode silencieux
-  ocapi --quiet run data/arretes_html/0999.99999/
+  # Quiet mode
+  ocapi --quiet run data/0999.99999/arretes/
         """,
     )
     parser.add_argument(
@@ -160,107 +160,84 @@ Examples:
         version="%(prog)s 0.1.0",
     )
 
-    # Options globales de logging
     parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
-        help="Active le mode verbose (niveau DEBUG)",
+        help="Enable verbose mode (DEBUG level)",
     )
     parser.add_argument(
         "-q",
         "--quiet",
         action="store_true",
-        help="Mode silencieux (affiche uniquement WARNING, ERROR, CRITICAL)",
+        help="Quiet mode (shows WARNING, ERROR, CRITICAL only)",
     )
 
-    subparsers = parser.add_subparsers(dest="command", help="Commandes disponibles")
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # Commande: run
     run_parser = subparsers.add_parser(
         "run",
-        help="Exécuter le pipeline sur des arrêtés",
-        description="Charge les arrêtés HTML et exécute le pipeline de traitement.",
+        help="Run the pipeline on arrêtés",
+        description="Load arrêté HTML files and run the processing pipeline.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Pipeline complet (détection + résolution + rendering)
-  ocapi run data/arretes_html/0999.99999/
+  # Process all arrêtés in a directory
+  ocapi run data/0999.99999/arretes/
 
-  # Traiter avec un AIOT spécifique (par défaut: déduit du nom du répertoire)
-  ocapi run data/arretes_html/0999.99999/ --aiot 0999.99999
+  # Process with a specific AIOT (default: inferred from parent directory)
+  ocapi run data/0999.99999/arretes/ --aiot 0999.99999
 
-  # Filtrer sur des arrêtés spécifiques (par leur date)
-  ocapi run data/arretes_html/0999.99999/ --include 2024-09-27 2023-12-04
+  # Filter on specific arrêtés (by date)
+  ocapi run data/0999.99999/arretes/ --include 2024-09-27 2023-12-04
 
-  # Spécifier un répertoire de sortie de base
-  ocapi run data/arretes_html/0999.99999/ --output output/
+  # Save results to a specific directory
+  ocapi run data/0999.99999/arretes/ --output output/
 
-  # Détection + résolution uniquement (sans rendering)
-  ocapi run data/arretes_html/0999.99999/ --no-rendering
+  # Combine: filter and save
+  ocapi run data/0999.99999/arretes/ --include 2024-09-27 --output output/
 
-  # Résolution + rendering à partir d'opérations existantes (sans détection)
-  ocapi run data/arretes_html/0999.99999/ --no-detection
+  # Verbose mode to see detailed logs
+  ocapi --verbose run data/0999.99999/arretes/
 
-  # Résolution uniquement à partir d'opérations existantes (sans rendering)
-  ocapi run data/arretes_html/0999.99999/ --no-detection --no-rendering
-
-  # Mode verbose pour voir les logs détaillés
-  ocapi --verbose run data/arretes_html/0999.99999/
-
-  # Mode silencieux (uniquement erreurs et avertissements)
-  ocapi --quiet run data/arretes_html/0999.99999/
+  # Quiet mode (errors and warnings only)
+  ocapi --quiet run data/0999.99999/arretes/
         """,
     )
     run_parser.add_argument(
         "input_dir",
-        help="Répertoire contenant les fichiers HTML des arrêtés",
+        help="Directory containing the arrêté HTML files",
     )
     run_parser.add_argument(
         "--aiot",
-        help="Identifiant AIOT (défaut: déduit du nom de input_dir)",
+        help="AIOT identifier (default: inferred from parent directory)",
     )
     run_parser.add_argument(
         "--include",
         nargs="*",
         metavar="ID",
-        help="IDs des arrêtés à inclure (défaut: tous)",
+        help="Arrêté IDs to include (default: all)",
+    )
+    run_parser.add_argument(
+        "--start-date",
+        metavar="YYYY-MM-DD",
+        help="Start date: only arrêtés >= this date go through detection",
     )
     run_parser.add_argument(
         "-o",
         "--output",
-        help="Répertoire de sortie de base (défaut: répertoire parent du parent de input_dir)",
-    )
-    run_parser.add_argument(
-        "--start-date",
-        help="Date de démarrage (YYYY-MM-DD) pour la détection",
-    )
-    run_parser.add_argument(
-        "--no-detection",
-        action="store_true",
-        help=(
-            "Désactiver la détection (étapes 1-2) et charger les opérations existantes. "
-            "Lève une erreur si aucun fichier d'opérations n'est trouvé."
-        ),
-    )
-    run_parser.add_argument(
-        "--no-rendering",
-        action="store_true",
-        help="Désactiver la génération du permis consolidé (étape 4)",
+        help="Output directory (default: <input_dir>/../ocapi_output)",
     )
     run_parser.set_defaults(func=cmd_run)
 
-    # Parser les arguments
     args = parser.parse_args(argv)
 
-    # Déterminer le niveau de logging selon les options CLI
     log_level = settings.logging.level
     if args.verbose:
         log_level = "DEBUG"
     elif args.quiet:
         log_level = "WARNING"
 
-    # Initialiser le logger racine
     initialize_root_logger(
         level=log_level,
         log_file=settings.logging.log_file,
@@ -276,7 +253,6 @@ Examples:
         parser.print_help()
         return 0
 
-    # Appeler la fonction associée à la commande
     func = args.func
     result: int = func(args)
     return result

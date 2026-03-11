@@ -158,7 +158,7 @@ def _primary_secondary_keys(models_cfg: dict[str, Any]) -> tuple[str, str | None
 def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
     models = models_cfg.get("models", {})
     if not isinstance(models, dict) or not models:
-        raise LLMConfigError("Aucun modèle LLM disponible dans la configuration.")
+        raise LLMConfigError("No LLM model available in the configuration.")
 
     primary_key, secondary_key = _primary_secondary_keys(models_cfg)
 
@@ -166,7 +166,7 @@ def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
         return primary_key
     if model == "secondary":
         if secondary_key is None:
-            raise LLMConfigError("Aucun modèle secondaire configuré.")
+            raise LLMConfigError("No secondary model configured.")
         return secondary_key
     if model in models:
         return model
@@ -187,7 +187,7 @@ def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
         ):
             return model_key
 
-    raise LLMConfigError(f"Modèle LLM inconnu: {model}")
+    raise LLMConfigError(f"Unknown LLM model: {model}")
 
 
 def _provider_api_config(provider: str) -> tuple[str | None, str]:
@@ -197,7 +197,7 @@ def _provider_api_config(provider: str) -> tuple[str | None, str]:
         return settings.llm.mistral_api_key, str(settings.llm.mistral_api_url)
     if provider == "openai":
         return settings.llm.openai_api_key, str(settings.llm.openai_api_url)
-    raise LLMConfigError(f"Provider LLM non supporté: {provider}")
+    raise LLMConfigError(f"Unsupported LLM provider: {provider}")
 
 
 def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
@@ -226,7 +226,7 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
             "n": 1,
         }
 
-    raise LLMConfigError(f"Provider LLM non supporté: {model.provider}")
+    raise LLMConfigError(f"Unsupported LLM provider: {model.provider}")
 
 
 def _make_headers(api_key: str | None) -> dict[str, str]:

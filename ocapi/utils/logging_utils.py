@@ -17,14 +17,14 @@
 # limitations under the License.
 #
 """
-Utilitaires pour la gestion centralisée du logging.
+Utilities for centralised logging management.
 
-Ce module fournit une fonction `initialize_root_logger` qui configure
-le logger racine de l'application avec :
-- Format détaillé avec timestamp et nom du module
-- Handlers pour console et fichier
-- Rotation des fichiers de log par taille et par jour
-- Niveaux de logging configurables
+This module provides an ``initialize_root_logger`` function that configures
+the application root logger with:
+- Detailed format with timestamp and module name
+- Console and file handlers
+- Log file rotation by size and by day
+- Configurable logging levels
 """
 
 import logging
@@ -35,7 +35,7 @@ from typing import Literal
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
-# Format détaillé pour les logs
+# Detailed log format
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -43,27 +43,26 @@ DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 def initialize_root_logger(
     level: LogLevel = "INFO",
     log_file: Path | None = None,
-    max_bytes: int = 1024 * 1024,  # 1024 KB par défaut
+    max_bytes: int = 1024 * 1024,  # 1024 KB default
     backup_count: int = 5,
     use_timed_rotation: bool = True,
     console_output: bool = True,
 ) -> logging.Logger:
-    """
-    Initialise et configure le logger racine de l'application.
+    """Initialise and configure the application root logger.
 
-    Cette fonction doit être appelée une seule fois au démarrage de l'application
-    (typiquement dans le main ou le CLI).
+    This function should be called once at application startup
+    (typically in main or the CLI).
 
     Args:
-        level: Niveau de logging (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        log_file: Chemin du fichier de log. Si None, pas de fichier de log.
-        max_bytes: Taille maximale d'un fichier de log avant rotation (en octets)
-        backup_count: Nombre de fichiers de backup à conserver
-        use_timed_rotation: Si True, rotation quotidienne en plus de la rotation par taille
-        console_output: Si True, affiche les logs dans la console
+        level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+        log_file: Log file path. If None, no file logging.
+        max_bytes: Maximum log file size before rotation (in bytes).
+        backup_count: Number of backup files to keep.
+        use_timed_rotation: If True, daily rotation in addition to size rotation.
+        console_output: If True, print logs to the console.
 
     Returns:
-        Le logger racine configuré
+        The configured root logger.
 
     Example:
         >>> from ocapi.utils.logging_utils import initialize_root_logger
@@ -73,37 +72,31 @@ def initialize_root_logger(
         ...     log_file=Path("logs/ocapi.log"),
         ...     console_output=True
         ... )
-        >>> logger.info("Application démarrée")
+        >>> logger.info("Application started")
     """
-    # Obtenir le logger racine
     root_logger = logging.getLogger()
 
-    # Définir le niveau
     log_level = getattr(logging, level.upper())
     root_logger.setLevel(log_level)
 
-    # Supprimer les handlers existants pour éviter les doublons
+    # Remove existing handlers to avoid duplicates
     root_logger.handlers.clear()
 
-    # Formatteur commun
     formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
 
-    # Handler console
     if console_output:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(log_level)
         console_handler.setFormatter(formatter)
         root_logger.addHandler(console_handler)
 
-    # Handler fichier avec rotation
     if log_file:
-        # Créer le répertoire parent si nécessaire
         log_file.parent.mkdir(parents=True, exist_ok=True)
 
         if use_timed_rotation:
-            # Rotation quotidienne uniquement
-            # Note: Ne pas combiner TimedRotatingFileHandler et RotatingFileHandler
-            # sur le même fichier pour éviter les conflits
+            # Daily rotation only
+            # Note: do not combine TimedRotatingFileHandler and RotatingFileHandler
+            # on the same file to avoid conflicts
             file_handler: logging.Handler = TimedRotatingFileHandler(
                 filename=str(log_file),
                 when="midnight",
@@ -112,7 +105,7 @@ def initialize_root_logger(
                 encoding="utf-8",
             )
         else:
-            # Rotation par taille uniquement
+            # Size-based rotation only
             file_handler = RotatingFileHandler(
                 filename=str(log_file),
                 maxBytes=max_bytes,
@@ -128,31 +121,28 @@ def initialize_root_logger(
 
 
 def get_logger(name: str) -> logging.Logger:
-    """
-    Obtient un logger pour un module spécifique.
+    """Get a logger for a specific module.
 
-    Cette fonction doit être utilisée dans chaque module pour obtenir
-    un logger avec le nom du module.
+    Should be called in each module to obtain a named logger.
 
     Args:
-        name: Nom du module (typiquement __name__)
+        name: Module name (typically __name__).
 
     Returns:
-        Logger configuré pour ce module
+        Logger configured for this module.
 
     Example:
         >>> logger = get_logger(__name__)
-        >>> logger.info("Message de log")
+        >>> logger.info("Log message")
     """
     return logging.getLogger(name)
 
 
 def set_level(level: LogLevel) -> None:
-    """
-    Change le niveau de logging global.
+    """Change the global logging level.
 
     Args:
-        level: Nouveau niveau de logging
+        level: New logging level.
 
     Example:
         >>> set_level("DEBUG")

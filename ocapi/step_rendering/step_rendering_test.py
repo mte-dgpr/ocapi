@@ -104,7 +104,7 @@ def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
 
 
 def test_make_permit_sources_marks_abrogated_arretes() -> None:
-    """Les arrêtés abrogés doivent porter la mention (ABROGE)."""
+    """Abrogated arrêtés must carry the (ABROGE) mention."""
     active = _make_testing_arrete_file(
         arrete_id="2020-01-01",
         aiot="0001",
@@ -143,7 +143,7 @@ def test_make_permit_sources_marks_abrogated_arretes() -> None:
 
 
 def test_make_permit_visa_is_collapsible() -> None:
-    """Les visas consolidés doivent être dans un <details>."""
+    """Consolidated visas must be inside a <details> element."""
     arrete = _make_testing_arrete_file(
         arrete_id="2020-01-01",
         aiot="0001",
@@ -164,7 +164,7 @@ def test_make_permit_visa_is_collapsible() -> None:
 
 
 def test_make_permit_motif_is_collapsible() -> None:
-    """Les considérants doivent être dans un <details>."""
+    """Consolidated motifs must be inside a <details> element."""
     arrete = _make_testing_arrete_file(
         arrete_id="2020-01-01",
         aiot="0001",
@@ -316,7 +316,7 @@ def test_make_section_version_marks_removed_article() -> None:
 
 
 def test_make_section_version_partial_remove_does_not_mark_abrogated() -> None:
-    """Un REMOVE avec sub_target partiel ne doit pas marquer l'article comme abrogé."""
+    """A REMOVE with a partial sub_target must not mark the article as abrogated."""
     section = BeautifulSoup(
         '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
         "html.parser",
@@ -365,7 +365,7 @@ def test_make_section_version_partial_remove_does_not_mark_abrogated() -> None:
 
 
 def test_make_section_version_full_remove_marks_abrogated() -> None:
-    """Un REMOVE avec sub_target FULL_SECTION/ALL doit marquer l'article comme abrogé."""
+    """A REMOVE with sub_target FULL_SECTION/ALL must mark the article as abrogated."""
     section = BeautifulSoup(
         '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
         "html.parser",

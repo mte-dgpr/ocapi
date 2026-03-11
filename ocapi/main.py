@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 """
-Point d'entrée principal pour exécuter le pipeline OCAPI.
+Main entry point for running the OCAPI pipeline.
 
 Usage:
     python -m ocapi.main <input_dir> [options]
@@ -58,19 +58,18 @@ def main(
     start_date: str | None = None,
     enable_rendering: bool = True,
 ) -> int:
-    """
-    Exécute le pipeline OCAPI complet de bout en bout.
+    """Run the complete OCAPI pipeline end to end.
 
     Args:
-        input_dir: Répertoire contenant les fichiers HTML des arrêtés
-        output_dir: Répertoire de sortie (si None, utilise input_dir/../ocapi_output)
-        aiot: Identifiant AIOT (si None, déduit du chemin)
-        include_ids: Liste des IDs d'arrêtés à inclure (si None, tous)
-        start_date: Date de démarrage (YYYY-MM-DD) pour la détection
-        enable_rendering: Si True, génère le permis consolidé
+        input_dir: Directory containing the arrêté HTML files.
+        output_dir: Output directory (defaults to input_dir/../ocapi_output).
+        aiot: AIOT identifier (defaults to the parent directory name).
+        include_ids: List of arrêté IDs to include (defaults to all).
+        start_date: Detection start date (YYYY-MM-DD).
+        enable_rendering: If True, generate the consolidated permit.
 
     Returns:
-        Code de sortie (0 = succès, 1 = erreur)
+        Exit code (0 = success, 1 = error).
     """
     # Determine output directory
     if output_dir is None:
@@ -165,29 +164,29 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="ocapi.main",
-        description="OCAPI - Pipeline complet de traitement des arrêtés",
+        description="OCAPI - Full arrêté processing pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Traiter tous les arrêtés d'un répertoire
+  # Process all arrêtés in a directory
   python -m ocapi.main data/0005804239/arretes_html/
 
-  # Spécifier un répertoire de sortie personnalisé
+  # Specify a custom output directory
   python -m ocapi.main data/0005804239/arretes_html/ --output output/
 
-  # Démarrer la détection à partir d'une date
+  # Start detection from a given date
   python -m ocapi.main data/0005804239/arretes_html/ --start-date 2014-01-09
 
-  # Filtrer sur des arrêtés spécifiques
+  # Filter on specific arrêtés
   python -m ocapi.main data/0005804239/arretes_html/ --include 2024-09-27 2023-12-04
 
-  # Désactiver le rendering (étapes 1-3 uniquement)
+  # Disable rendering (steps 1-3 only)
   python -m ocapi.main data/0005804239/arretes_html/ --no-rendering
 
-  # Spécifier l'AIOT
+  # Specify AIOT
   python -m ocapi.main data/0005804239/arretes_html/ --aiot 0005804239
 
-  # Mode verbose
+  # Verbose mode
   python -m ocapi.main data/0005804239/arretes_html/ --verbose
         """,
     )
@@ -195,57 +194,55 @@ Examples:
     parser.add_argument(
         "input_dir",
         type=Path,
-        help="Répertoire contenant les fichiers HTML des arrêtés",
+        help="Directory containing the arrêté HTML files",
     )
     parser.add_argument(
         "-o",
         "--output",
         type=Path,
-        help="Répertoire de sortie (défaut: <input_dir>/../ocapi_output)",
+        help="Output directory (default: <input_dir>/../ocapi_output)",
     )
     parser.add_argument(
         "--aiot",
-        help="Identifiant AIOT (défaut: déduit du chemin parent)",
+        help="AIOT identifier (default: inferred from parent directory name)",
     )
     parser.add_argument(
         "--include",
         nargs="*",
         metavar="ID",
-        help="IDs des arrêtés à inclure (défaut: tous)",
+        help="Arrêté IDs to include (default: all)",
     )
     parser.add_argument(
         "--start-date",
         metavar="YYYY-MM-DD",
-        help="Date de démarrage : seuls les arrêtés >= cette date passent par la détection",
+        help="Start date: only arrêtés >= this date go through detection",
     )
     parser.add_argument(
         "--no-rendering",
         action="store_true",
-        help="Désactiver la génération du permis consolidé (étape 4)",
+        help="Disable consolidated permit generation (step 4)",
     )
     parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
-        help="Active le mode verbose (niveau DEBUG)",
+        help="Enable verbose mode (DEBUG level)",
     )
     parser.add_argument(
         "-q",
         "--quiet",
         action="store_true",
-        help="Mode silencieux (affiche uniquement WARNING, ERROR, CRITICAL)",
+        help="Quiet mode (shows WARNING, ERROR, CRITICAL only)",
     )
 
     args = parser.parse_args()
 
-    # Déterminer le niveau de logging
     log_level = settings.logging.level
     if args.verbose:
         log_level = "DEBUG"
     elif args.quiet:
         log_level = "WARNING"
 
-    # Initialiser le logger
     initialize_root_logger(
         level=log_level,
         log_file=settings.logging.log_file,
@@ -257,7 +254,6 @@ Examples:
 
     _LOGGER.debug(f"Logging initialised at level {log_level}")
 
-    # Exécuter le pipeline
     exit_code = main(
         input_dir=args.input_dir,
         output_dir=args.output,
