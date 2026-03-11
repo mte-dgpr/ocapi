@@ -149,6 +149,91 @@ class TestApplySubgraphOperations(unittest.TestCase):
             == mock_add.return_value
         )
 
+    @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
+    def test_initialize_history_from_graph_node_content(self, mock_replace: mock.Mock) -> None:
+        mock_replace.return_value = "updated content"
+        G = nx.MultiDiGraph()
+        source = NodeId(arrete_id="1981-01-01", article_id="2")
+        target = NodeId(arrete_id="1980-01-01", article_id="1")
+        initial_content = '<section data-spec="section" data-number="1">Original content</section>'
+        add_node(G, source)
+        add_node(G, target, initial_content)
+        add_edge(
+            G,
+            Operation(
+                id="op-initial-content",
+                source_id=source,
+                target_id=target,
+                operation_type=OperationType.REPLACE,
+                operand="new content",
+            ),
+        )
+
+        history: ArticleHistory = {}
+        output_history, skipped_ops = apply_subgraph_operations(G, history)
+
+        assert skipped_ops == []
+        assert output_history[target][0] == {
+            "version": 0,
+            "content": initial_content,
+            "operation_id": None,
+        }
+        assert output_history[target][-1]["content"] == "updated content"
+
+    @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
+    def test_multiple_operations_same_target_preserve_single_initial_version(
+        self, mock_replace: mock.Mock
+    ) -> None:
+        mock_replace.side_effect = ["updated once", "updated twice"]
+        G = nx.MultiDiGraph()
+        source = NodeId(arrete_id="1981-01-01", article_id="2")
+        target = NodeId(arrete_id="1980-01-01", article_id="1")
+        initial_content = '<section data-spec="section" data-number="1">Original content</section>'
+
+        add_node(G, source)
+        add_node(G, target, initial_content)
+        add_edge(
+            G,
+            Operation(
+                id="op-1",
+                source_id=source,
+                target_id=target,
+                operation_type=OperationType.REPLACE,
+                operand="new content 1",
+            ),
+        )
+        add_edge(
+            G,
+            Operation(
+                id="op-2",
+                source_id=source,
+                target_id=target,
+                operation_type=OperationType.REPLACE,
+                operand="new content 2",
+            ),
+        )
+
+        history: ArticleHistory = {}
+        output_history, skipped_ops = apply_subgraph_operations(G, history)
+
+        assert skipped_ops == []
+        assert len(output_history[target]) == 3
+        assert output_history[target][0] == {
+            "version": 0,
+            "content": initial_content,
+            "operation_id": None,
+        }
+        assert output_history[target][1] == {
+            "version": 1,
+            "content": "updated once",
+            "operation_id": "op-1",
+        }
+        assert output_history[target][2] == {
+            "version": 2,
+            "content": "updated twice",
+            "operation_id": "op-2",
+        }
+
 
 class TestApplyOpsFunctions(unittest.TestCase):
     @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")

@@ -179,9 +179,12 @@ def apply_subgraph_operations(
 
                 # Récupérer le contenu actuel (dernière version) de l'article cible
                 if tgt not in history:
-                    # Initialiser l'historique avec la version 0 (contenu initial vide)
-                    # Le contenu initial sera récupéré depuis le graphe ou les fichiers
-                    history[tgt] = [ArticleVersion(version=0, content="", operation_id=None)]
+                    # Initialiser l'historique avec la version 0 à partir du contenu
+                    # du noeud cible du graphe (fallback sur une chaîne vide).
+                    initial_content = subG.nodes[tgt].get("content", "")
+                    history[tgt] = [
+                        ArticleVersion(version=0, content=initial_content, operation_id=None)
+                    ]
 
                 current_content = history[tgt][-1]["content"]
 

@@ -30,15 +30,20 @@ from typing import Tuple
 import networkx as nx
 from bs4 import BeautifulSoup
 
-from ocapi.types import ArreteFile, ArreteId, NodeId, Operation, OperationType
+from ocapi.types import ArreteFile, ArreteId, Content, NodeId, Operation, OperationType
 from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
 
 
-def add_node(G: nx.MultiDiGraph, node_id: NodeId) -> None:
+def add_node(G: nx.MultiDiGraph, node_id: NodeId, node_content: Content | None = None) -> None:
     if not G.has_node(node_id):
-        G.add_node(node_id)
+        node_data = {"content": node_content} if node_content is not None else {}
+        G.add_node(node_id, **node_data)
+
+
+def update_node_content(G: nx.MultiDiGraph, node_id: NodeId, node_content: Content) -> None:
+    G.nodes[node_id]["content"] = node_content
 
 
 def add_edge(G: nx.MultiDiGraph, operation: Operation) -> None:
@@ -103,10 +108,10 @@ def build_graph(
                         break
                 continue
             target_soup = soups[op.target_id.arrete_id]
-            # Vérifier que le contenu de l'article cible existe
-            get_node_content(op.target_id, target_soup)
+            # Vérifier que le contenu de l'article cible existe et le stocker dans le graphe.
+            target_content = get_node_content(op.target_id, target_soup)
             add_node(G, op.source_id)
-            add_node(G, op.target_id)
+            add_node(G, op.target_id, target_content)
             add_edge(G, op)
         except Exception as e:
             error_msg = f"Opération {op.id} ignorée: {str(e)}"
