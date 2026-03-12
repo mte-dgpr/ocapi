@@ -244,7 +244,8 @@ def apply_subgraph_operations(
 
                 # Retrieve current content (latest version) of the target article
                 if tgt not in history:
-                    # Initialise history with version 0 from the target node content (fallback: empty string)
+                    # Initialise history with version 0 from the target node content
+                    # (fallback: empty string)
                     initial_content = subG.nodes[tgt].get("content", "")
                     history[tgt] = [
                         ArticleVersion(

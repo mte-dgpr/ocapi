@@ -26,7 +26,15 @@ from typing import Any, cast
 from bs4 import BeautifulSoup
 
 from ocapi.exceptions import InputOutputError, InvalidFileFormatError
-from ocapi.types import ArreteFile, Permis, parse_filename, validate_arretify_version
+from ocapi.types import (
+    ArreteFile,
+    ArticleHistory,
+    NodeId,
+    Operation,
+    Permis,
+    parse_filename,
+    validate_arretify_version,
+)
 from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
@@ -40,6 +48,9 @@ __all__ = [
     "write_permis_output",
     "write_json_output",
     "read_json",
+    "save_operations",
+    "load_operations",
+    "save_history",
 ]
 
 
@@ -197,3 +208,89 @@ def write_json_output(data: Any, output_path: Path) -> None:
 
     except OSError as e:
         raise InputOutputError(f"Cannot write JSON file: {e}") from e
+
+
+def save_operations(operations: list[Operation], output_dir: Path) -> None:
+    """Serialize a list of operations to ``{output_dir}/operations.json``.
+
+    Parameters
+    ----------
+    operations : list[Operation]
+        Operations to save.
+    output_dir : Path
+        Target directory (created if it does not exist).
+
+    Raises
+    ------
+    InputOutputError
+        If writing fails.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "operations.json"
+    try:
+        serialized = [op.model_dump(mode="json") for op in operations]
+        with output_path.open("w", encoding="utf-8") as f:
+            json.dump(serialized, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        raise InputOutputError(f"Cannot write operations file: {e}") from e
+
+
+def load_operations(input_dir: Path) -> list[Operation]:
+    """Load operations from ``{input_dir}/operations.json``.
+
+    Parameters
+    ----------
+    input_dir : Path
+        Directory containing ``operations.json``.
+
+    Returns
+    -------
+    list[Operation]
+        Deserialised list of operations.
+
+    Raises
+    ------
+    InputOutputError
+        If the file is introuvable or cannot be parsed.
+    """
+    operations_path = input_dir / "operations.json"
+    if not operations_path.exists():
+        raise InputOutputError(f"Fichier operations.json introuvable dans : {input_dir}")
+    try:
+        raw = json.loads(operations_path.read_text(encoding="utf-8"))
+        return [Operation.model_validate(item) for item in raw]
+    except (json.JSONDecodeError, ValueError) as e:
+        raise InputOutputError(f"Cannot parse operations file: {e}") from e
+
+
+def save_history(history: ArticleHistory, output_dir: Path) -> None:
+    """Serialize an article history to ``{output_dir}/history.json``.
+
+    ``NodeId`` keys are serialized as ``"{arrete_id}#{article_id}"`` strings.
+
+    Parameters
+    ----------
+    history : ArticleHistory
+        Article history to save.
+    output_dir : Path
+        Target directory (created if it does not exist).
+
+    Raises
+    ------
+    InputOutputError
+        If writing fails.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "history.json"
+    try:
+        serialized = {str(node_id): versions for node_id, versions in history.items()}
+        with output_path.open("w", encoding="utf-8") as f:
+            json.dump(serialized, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        raise InputOutputError(f"Cannot write history file: {e}") from e
+
+
+def _node_id_from_str(key: str) -> NodeId:
+    """Parse a ``"{arrete_id}#{article_id}"`` string back into a :class:`NodeId`."""
+    arrete_id, article_id = key.split("#", 1)
+    return NodeId(arrete_id=arrete_id, article_id=article_id)

@@ -29,6 +29,7 @@ _LOGGER = get_logger(__name__)
 def run_pipeline(
     arrete_files: list[ArreteFile],
     start_date: str | None = None,
+    enable_detection: bool = True,
     enable_rendering: bool = True,
 ) -> tuple[list[Operation], ArticleHistory, list[ArreteFile], Permis | None]:
     """Run the full OCAPI pipeline.
@@ -41,6 +42,8 @@ def run_pipeline(
         Detection start date (YYYY-MM-DD). Arrêtés with id <= this date are skipped
         during detection but remain available for resolution and rendering.
         Defaults to the id of the first arrêté.
+    enable_detection : bool
+        If True, run the detection step (steps 1-2).
     enable_rendering : bool
         If True, generate the consolidated permit (step 4).
 
@@ -57,28 +60,29 @@ def run_pipeline(
 
     operations: list[Operation] = []
 
-    # ========================================
-    # STEP 1-2: CHUNKING + DETECTION
-    # ========================================
-    _LOGGER.info("=" * 60)
-    _LOGGER.info("STEP 1-2: CHUNKING + DETECTION")
-    _LOGGER.info("=" * 60)
+    if enable_detection:
+        # ========================================
+        # STEP 1-2: CHUNKING + DETECTION
+        # ========================================
+        _LOGGER.info("=" * 60)
+        _LOGGER.info("STEP 1-2: CHUNKING + DETECTION")
+        _LOGGER.info("=" * 60)
 
-    for _i, arrete_file in enumerate(arrete_files):
-        if start_date and arrete_file.id <= start_date:
-            _LOGGER.info(
-                f"Arrêté {arrete_file.id} dated on or before {start_date},"
-                " skipping operation detection"
-            )
-            continue
-        _LOGGER.info(f"Processing arrêté {arrete_file.id}...")
-        docs, img_map = step_chunking(arrete_file)
-        _LOGGER.info(f"  → {len(docs)} documents chunked")
-        _LOGGER.debug(f"  → {len(img_map)} images mapped")
+        for _i, arrete_file in enumerate(arrete_files):
+            if start_date and arrete_file.id <= start_date:
+                _LOGGER.info(
+                    f"Arrêté {arrete_file.id} dated on or before {start_date},"
+                    " skipping operation detection"
+                )
+                continue
+            _LOGGER.info(f"Processing arrêté {arrete_file.id}...")
+            docs, img_map = step_chunking(arrete_file)
+            _LOGGER.info(f"  → {len(docs)} documents chunked")
+            _LOGGER.debug(f"  → {len(img_map)} images mapped")
 
-        detected_ops = step_detection(docs, arrete_file.id, img_map)
-        operations.extend(detected_ops)
-        _LOGGER.info(f"  → {len(detected_ops)} operations detected")
+            detected_ops = step_detection(docs, arrete_file.id, img_map)
+            operations.extend(detected_ops)
+            _LOGGER.info(f"  → {len(detected_ops)} operations detected")
 
     _LOGGER.info(f"Total: {len(operations)} operation(s) detected")
 

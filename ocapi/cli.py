@@ -43,57 +43,76 @@ from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 _LOGGER = get_logger(__name__)
 
 
-def cmd_run(args: argparse.Namespace) -> int:
-    """Run the OCAPI pipeline on the arrêtés."""
-    input_dir = Path(args.input_dir)
+def run_main(
+    input_dir: Path,
+    *,
+    enable_detection: bool = True,
+    enable_rendering: bool = True,
+    include_ids: list[str] | None = None,
+    aiot: str | None = None,
+    output_dir: Path | None = None,
+    start_date: str | None = None,
+) -> int:
+    """Run the OCAPI pipeline with explicit parameters.
 
-    # Determine output directory
-    output_dir = Path(args.output) if args.output else input_dir.parent / "ocapi_output"
-    _LOGGER.info(f"Output directory: {output_dir}")
+    Parameters
+    ----------
+    input_dir : Path
+        Directory containing the arrêté HTML files.
+    enable_detection : bool
+        If False, skip the detection step (steps 1–2).
+    enable_rendering : bool
+        If False, skip the rendering step (step 4).
+    include_ids : list[str] | None
+        Arrêté IDs to include; all arrêtés are included when None.
+    aiot : str | None
+        AIOT identifier; inferred from the parent directory when None.
+    output_dir : Path | None
+        Output directory; defaults to ``<input_dir>/../ocapi_output``.
+    start_date : str | None
+        Detection start date (YYYY-MM-DD).
+    """
+    resolved_output_dir = output_dir if output_dir else input_dir.parent / "ocapi_output"
+    _LOGGER.info(f"Output directory: {resolved_output_dir}")
 
-    # Determine AIOT
-    aiot = args.aiot or input_dir.parent.name
-    _LOGGER.info(f"AIOT: {aiot}")
+    resolved_aiot = aiot or input_dir.parent.name
+    _LOGGER.info(f"AIOT: {resolved_aiot}")
     _LOGGER.info(f"LLM model: {config_model_llm().model_name}")
 
-    # Load arrêtés
     try:
-        arrete_files = load_arrete_files(input_dir, aiot)
+        arrete_files = load_arrete_files(input_dir, resolved_aiot)
     except InputOutputError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    # Filter arrêtés if requested
-    if args.include:
-        arrete_ids_included = set(args.include)
-        _LOGGER.info(f"Filtering on: {arrete_ids_included}")
-        arrete_files = [af for af in arrete_files if af.id in arrete_ids_included]
+    if include_ids:
+        included_set = set(include_ids)
+        _LOGGER.info(f"Filtering on: {included_set}")
+        arrete_files = [af for af in arrete_files if af.id in included_set]
         _LOGGER.info(f"{len(arrete_files)} arrêté(s) after filtering")
 
         if not arrete_files:
             _LOGGER.error("No arrêté matches the specified IDs")
             return 1
 
-    # Create output directory
-    output_dir.mkdir(parents=True, exist_ok=True)
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Run the pipeline
     _LOGGER.info("Running pipeline...")
     try:
-        start_date = getattr(args, "start_date", None)
         operations, history, _arrete_files, permis = run_pipeline(
-            arrete_files, start_date=start_date
+            arrete_files,
+            start_date=start_date,
+            enable_detection=enable_detection,
+            enable_rendering=enable_rendering,
         )
         _LOGGER.info("Pipeline completed successfully.")
 
-        # Save operations
-        operations_path = output_dir / "operations.json"
+        operations_path = resolved_output_dir / "operations.json"
         operations_dict = [op.model_dump(mode="json") for op in operations]
         write_json_output(operations_dict, operations_path)
         _LOGGER.info(f"Operations saved → {operations_path}")
 
-        # Save history
-        history_path = output_dir / "history.json"
+        history_path = resolved_output_dir / "history.json"
         history_serializable = {
             str(node_id): [
                 {
@@ -108,9 +127,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         write_json_output(history_serializable, history_path)
         _LOGGER.info(f"History saved → {history_path}")
 
-        # Save permit
         if permis:
-            permis_path = output_dir / "permis.html"
+            permis_path = resolved_output_dir / "permis.html"
             write_permis_output(permis, permis_path)
             _LOGGER.info(f"Consolidated permit saved → {permis_path}")
 
@@ -122,6 +140,19 @@ def cmd_run(args: argparse.Namespace) -> int:
     except Exception as e:
         _LOGGER.exception(f"Unexpected error while running the pipeline: {e}")
         return 1
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    """Parse CLI args and delegate to :func:`run_main`."""
+    return run_main(
+        input_dir=Path(args.input_dir),
+        enable_detection=not getattr(args, "no_detection", False),
+        enable_rendering=not getattr(args, "no_rendering", False),
+        include_ids=args.include or None,
+        aiot=args.aiot or None,
+        output_dir=Path(args.output) if args.output else None,
+        start_date=getattr(args, "start_date", None),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -229,6 +260,18 @@ Examples:
         "-o",
         "--output",
         help="Output directory (default: <input_dir>/../ocapi_output)",
+    )
+    run_parser.add_argument(
+        "--no-detection",
+        action="store_true",
+        default=False,
+        help="Skip the detection step (steps 1-2)",
+    )
+    run_parser.add_argument(
+        "--no-rendering",
+        action="store_true",
+        default=False,
+        help="Skip the rendering step (step 4)",
     )
     run_parser.set_defaults(func=cmd_run)
 
