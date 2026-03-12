@@ -19,7 +19,7 @@
 from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 
-from ocapi.step_chunking.step_chunking import _extract_and_strip_images, split_blocs
+from ocapi.step_chunking.step_chunking import _extract_and_strip_images, split_blocks
 from ocapi.types import ArreteFile, FileType
 from ocapi.utils.utils import _assert_html_equal, minify_html_fragment
 
@@ -44,7 +44,7 @@ def test_split_in_single_bloc() -> None:
         soup=BeautifulSoup(minified_html, "html.parser"),
         file_type=FileType.AUTRE,
     )
-    blocs = list(split_blocs(arrete_file.soup, arrete_file, target_per_block=70000))
+    blocs = list(split_blocks(arrete_file.soup, arrete_file, target_per_block=70000))
     assert len(blocs) == 1
     assert isinstance(blocs[0], Document)
     _assert_html_equal(
@@ -80,7 +80,7 @@ def test_split_in_multiple_blocs() -> None:
         soup=BeautifulSoup(minified_html, "html.parser"),
         file_type=FileType.AUTRE,
     )
-    blocs = list(split_blocs(arrete_file.soup, arrete_file, target_per_block=125))
+    blocs = list(split_blocks(arrete_file.soup, arrete_file, target_per_block=125))
     assert len(blocs) == 3
     assert blocs[0].page_content == (
         '<section data-spec="section">Content of article 1 with more text.</section>'
@@ -113,7 +113,7 @@ def test_split_section_with_mixed_content() -> None:
         soup=BeautifulSoup(minified_html, "html.parser"),
         file_type=FileType.AUTRE,
     )
-    blocs = list(split_blocs(arrete_file.soup, arrete_file, target_per_block=10))
+    blocs = list(split_blocks(arrete_file.soup, arrete_file, target_per_block=10))
     assert len(blocs) == 2
     _assert_html_equal(
         blocs[0].page_content,

@@ -133,7 +133,7 @@ def _rehydrate_images(html_fragment: str, img_map: dict[str, str]) -> str:
 
 
 def extract_operand_with_images(
-    block_html: str,
+    html_block: str,
     source_article: str,
     start_marker: str,
     end_marker: str,
@@ -144,7 +144,7 @@ def extract_operand_with_images(
 
     Parameters
     ----------
-    block_html : str
+    html_block : str
         Full HTML block in which the operand is located.
     source_article : str
         Article identifier used to narrow the search to a specific section.
@@ -163,12 +163,12 @@ def extract_operand_with_images(
         Extracted HTML operand with images rehydrated, or ``"ERROR_EXTRACTING_CONTENT"``
         if the markers are not found.
     """
-    section = pick_arretify_section(block_html, source_article, operation_id)
+    section = pick_arretify_section(html_block, source_article, operation_id)
     working_html = section
     op_info = f" for operation {operation_id}" if operation_id else ""
     start_idx = _find_marker(working_html, start_marker)
     if start_idx == -1:
-        working_html = block_html
+        working_html = html_block
         start_idx = _find_marker(working_html, start_marker)
         if start_idx == -1:
             _LOGGER.warning("Start marker not found%s", op_info)

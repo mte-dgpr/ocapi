@@ -84,12 +84,12 @@ def test_build_subgraph() -> None:
             NodeId(arrete_id="1981-01-01", article_id="2"),
             NodeId(arrete_id="1980-01-01", article_id="1"),
             0,
-        ),  # noqa: E501
+        ),
         (
             NodeId(arrete_id="1981-01-01", article_id="3"),
             NodeId(arrete_id="1980-01-01", article_id="1"),
             0,
-        ),  # noqa: E501
+        ),
     }
 
 
@@ -143,14 +143,14 @@ def test_apply_subgraph_operations(
     }
     output_history, _skipped = apply_subgraph_operations(G, history)
 
-    assert (
-        output_history[NodeId(arrete_id="1980-01-01", article_id="1")][-1]["content"]
-        == mock_replace.return_value
-    )  # noqa: E501
-    assert (
-        output_history[NodeId(arrete_id="1980-01-01", article_id="2")][-1]["content"]
-        == mock_add.return_value
-    )  # noqa: E501
+    history_content_1 = output_history[NodeId(arrete_id="1980-01-01", article_id="1")][-1][
+        "content"
+    ]
+    assert history_content_1 == mock_replace.return_value
+    history_content_2 = output_history[NodeId(arrete_id="1980-01-01", article_id="2")][-1][
+        "content"
+    ]
+    assert history_content_2 == mock_add.return_value
 
 @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
 def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) -> None:

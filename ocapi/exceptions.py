@@ -91,7 +91,7 @@ class GraphError(OcapiError):
     """Error during the construction or resolution of the operations graph."""
 
 
-class NodeNotFoundError(GraphError):
+class SectionNotFoundError(GraphError):
     """Section/article not found in the arrêté during graph construction."""
 
 

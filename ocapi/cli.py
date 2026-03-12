@@ -128,7 +128,9 @@ def main(argv: list[str] | None = None) -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="ocapi",
-        description="OCAPI - Arrêté detection, resolution, and rendering pipeline",
+        description=(
+            "OCAPI - Consolidation operations detection, resolution, and rendering pipeline"
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

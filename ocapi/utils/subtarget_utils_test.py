@@ -22,7 +22,7 @@ from ocapi.types import SubTargetType
 from ocapi.utils.subtarget_utils import parse_subtarget, replace_subtarget
 
 
-def test_simple_tableau_detection() -> None:
+def test_simple_table_detection() -> None:
     result = parse_subtarget("le tableau")
     assert result.type == SubTargetType.TABLEAU
 
@@ -50,7 +50,7 @@ def test_replace_full_section() -> None:
     assert result == soup
 
 
-def test_replace_phrase() -> None:
+def test_replace_sentence() -> None:
     html = "<div>First sentence. Second sentence. Third sentence.</div>"
     soup = BeautifulSoup(html, "html.parser")
     subtarget = parse_subtarget("la 2ème phrase")
@@ -58,7 +58,7 @@ def test_replace_phrase() -> None:
     assert str(result) == "<div>First sentence. Deuxième phrase modifiée. Third sentence.</div>"
 
 
-def test_replace_tableau() -> None:
+def test_replace_table() -> None:
     html = "<div><table><tr><td>Cell 1</td></tr></table></div>"
     soup = BeautifulSoup(html, "html.parser")
     subtarget = parse_subtarget("le tableau")

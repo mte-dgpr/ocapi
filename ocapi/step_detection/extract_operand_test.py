@@ -101,7 +101,7 @@ class TestExtractOperand(unittest.TestCase):
         img_map = {"image1.png": "http://example.com/image1.png"}
 
         result = extract_operand_with_images(
-            block_html=minified_html,
+            html_block=minified_html,
             source_article="1.2",
             start_marker=start_marker,
             end_marker=end_marker,
@@ -125,7 +125,7 @@ class TestExtractOperand(unittest.TestCase):
 
         with self.assertLogs("ocapi.step_detection.extract_operand", level="WARNING") as cm:
             result = extract_operand_with_images(
-                block_html=html,
+                html_block=html,
                 source_article="1",
                 start_marker="INTROUVABLE",
                 end_marker="</p>",
@@ -142,7 +142,7 @@ class TestExtractOperand(unittest.TestCase):
 
         with self.assertLogs("ocapi.step_detection.extract_operand", level="WARNING") as cm:
             result = extract_operand_with_images(
-                block_html=html,
+                html_block=html,
                 source_article="1",
                 start_marker="Contenu",
                 end_marker="INTROUVABLE",
@@ -164,7 +164,7 @@ class TestExtractOperand(unittest.TestCase):
         end_marker = "</p>"
 
         result = extract_operand_with_images(
-            block_html=minify_html_fragment(html),
+            html_block=minify_html_fragment(html),
             source_article="L123-4",
             start_marker=start_marker,
             end_marker=end_marker,

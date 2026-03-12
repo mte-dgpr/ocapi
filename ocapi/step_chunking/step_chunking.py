@@ -37,7 +37,7 @@ _LOGGER = get_logger(__name__)
 _ARRETIFY_SECTION_SELECTOR = '*[data-spec="section"]'
 
 
-def split_blocs(
+def split_blocks(
     minified_soup: BeautifulSoup, arrete_file: ArreteFile, target_per_block: int
 ) -> Iterator[Document]:
     """Split an Arrêtify soup into size-controlled blocks.
@@ -134,7 +134,7 @@ def step_chunking(arrete_file: ArreteFile) -> Tuple[list[Document], ImageMap]:
     target_per_block = math.ceil(len(soup_without_images) / number_of_blocks)
 
     blocks = list(
-        split_blocs(
+        split_blocks(
             soup_without_images,
             arrete_file=arrete_file,
             target_per_block=target_per_block,

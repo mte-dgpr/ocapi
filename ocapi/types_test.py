@@ -20,7 +20,7 @@ import pytest
 from bs4 import BeautifulSoup
 from pydantic import ValidationError
 
-from .exceptions import InvalidArreteIdError, InvalidFileFormatError
+from .exceptions import InvalidArreteIdError, InvalidArticleIdError, InvalidFileFormatError
 from .types import (
     FileType,
     NodeId,
@@ -30,52 +30,61 @@ from .types import (
     PermitTitleSpec,
     SectionVersionSpec,
     _BaseModelWithConfig,
-    is_valid_article_id,
     parse_arrete_id,
+    parse_article_id,
     parse_filename,
     validate_arretify_version,
 )
 
 
-class TestIsValidArticleId:
+class TestParseArticleId:
 
     def test_numeric_simple(self) -> None:
-        assert is_valid_article_id("1") is True
+        assert parse_article_id("1") == "1"
 
     def test_numeric_dotted(self) -> None:
-        assert is_valid_article_id("1.2") is True
-        assert is_valid_article_id("3.1.4") is True
+        assert parse_article_id("1.2") == "1.2"
+        assert parse_article_id("3.1.4") == "3.1.4"
 
     def test_special_values(self) -> None:
-        assert is_valid_article_id("ALL") is True
-        assert is_valid_article_id("END") is True
+        assert parse_article_id("ALL") == "ALL"
+        assert parse_article_id("END") == "END"
 
     def test_appendix_alone(self) -> None:
-        assert is_valid_article_id("APPENDIX") is True
+        assert parse_article_id("APPENDIX") == "APPENDIX"
 
     def test_appendix_with_numeric_suffix(self) -> None:
-        assert is_valid_article_id("APPENDIX:1") is True
-        assert is_valid_article_id("APPENDIX:1.2") is True
-        assert is_valid_article_id("APPENDIX:3.1.4") is True
+        assert parse_article_id("APPENDIX:1") == "APPENDIX:1"
+        assert parse_article_id("APPENDIX:1.2") == "APPENDIX:1.2"
+        assert parse_article_id("APPENDIX:3.1.4") == "APPENDIX:3.1.4"
 
     def test_appendix_invalid_suffix(self) -> None:
-        assert is_valid_article_id("APPENDIX:abc") is False
-        assert is_valid_article_id("APPENDIX:") is False
-        assert is_valid_article_id("APPENDIX_extra") is False
+        with pytest.raises(InvalidArticleIdError):
+            parse_article_id("APPENDIX:abc")
+        with pytest.raises(InvalidArticleIdError):
+            parse_article_id("APPENDIX:")
+        with pytest.raises(InvalidArticleIdError):
+            parse_article_id("APPENDIX_extra")
 
     def test_new_article_with_numeric_suffix(self) -> None:
-        assert is_valid_article_id("NEW_ARTICLE:4.1") is True
-        assert is_valid_article_id("NEW_ARTICLE:1.2.3") is True
+        assert parse_article_id("NEW_ARTICLE:4.1") == "NEW_ARTICLE:4.1"
+        assert parse_article_id("NEW_ARTICLE:1.2.3") == "NEW_ARTICLE:1.2.3"
 
     def test_new_article_invalid_suffix(self) -> None:
-        assert is_valid_article_id("NEW_ARTICLE:abc") is False
-        assert is_valid_article_id("NEW_ARTICLE:") is False
-        assert is_valid_article_id("NEW_ARTICLE") is False
+        with pytest.raises(InvalidArticleIdError):
+            parse_article_id("NEW_ARTICLE:abc")
+        with pytest.raises(InvalidArticleIdError):
+            parse_article_id("NEW_ARTICLE:")
+        with pytest.raises(InvalidArticleIdError):
+            parse_article_id("NEW_ARTICLE")
 
     def test_invalid_values(self) -> None:
-        assert is_valid_article_id("") is False
-        assert is_valid_article_id("abc") is False
-        assert is_valid_article_id("1.2.") is False
+        with pytest.raises(InvalidArticleIdError):
+            parse_article_id("")
+        with pytest.raises(InvalidArticleIdError):
+            parse_article_id("abc")
+        with pytest.raises(InvalidArticleIdError):
+            parse_article_id("1.2.")
 
 
 class TestParseArreteId:

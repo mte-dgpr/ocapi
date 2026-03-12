@@ -39,17 +39,35 @@ ImageMap = Dict[str, str]  # mapping token -> original src
 _NUMERIC_ID_PATTERN = re.compile(r"^\d+(\.\d+)*$")
 
 
-def is_valid_article_id(article_id: str) -> bool:
-    """Return True if article_id is in a valid format for NodeId."""
+def parse_article_id(article_id: str) -> str:
+    """Validate that an article_id is in a valid format for NodeId.
+
+    Returns
+    -------
+    str
+        The validated article_id.
+
+    Raises
+    ------
+    InvalidArticleIdError
+        If the format is invalid.
+    """
     if article_id in ("ALL", "END", "APPENDIX"):
-        return True
+        return article_id
     if article_id.startswith("APPENDIX:"):
         suffix = article_id[len("APPENDIX:") :]
-        return bool(_NUMERIC_ID_PATTERN.match(suffix))
-    if article_id.startswith("NEW_ARTICLE:"):
+        if _NUMERIC_ID_PATTERN.match(suffix):
+            return article_id
+    elif article_id.startswith("NEW_ARTICLE:"):
         suffix = article_id[len("NEW_ARTICLE:") :]
-        return bool(_NUMERIC_ID_PATTERN.match(suffix))
-    return bool(_NUMERIC_ID_PATTERN.match(article_id))
+        if _NUMERIC_ID_PATTERN.match(suffix):
+            return article_id
+    elif _NUMERIC_ID_PATTERN.match(article_id):
+        return article_id
+    raise InvalidArticleIdError(
+        "article_id must be in numeric format (e.g. '1.2', '3.1.4'), "
+        f"APPENDIX, ALL, END or NEW_ARTICLE:X, got: '{article_id}'"
+    )
 
 
 def parse_arrete_id(v: str) -> str:
@@ -129,12 +147,7 @@ class NodeId(BaseModel):
     def validate_article_id_format(cls, v: str) -> str:
         """Validate that article_id is in numeric format (e.g. '1.2', '3.1.4'),
         APPENDIX, ALL or END."""
-        if not is_valid_article_id(v):
-            raise InvalidArticleIdError(
-                "article_id must be in numeric format (e.g. '1.2', '3.1.4'), "
-                f"APPENDIX, ALL, END or NEW_ARTICLE:X, got: '{v}'"
-            )
-        return v
+        return parse_article_id(v)
 
     @field_validator("arrete_id")
     @classmethod
@@ -173,7 +186,7 @@ class RawOperationType(Enum):
 
 
 class FileType(Enum):
-    """Prefectoral decree file type."""
+    """Arrete file type."""
 
     AP_AUTORISATION = "ap d'autorisation"
     AP_COMPLEMENTAIRE = "ap prescriptions complémentaires"
@@ -249,12 +262,7 @@ class SectionVersionSpec(_BaseModelWithConfig):
     @field_validator("article_id")
     @classmethod
     def validate_article_id_format(cls, v: str) -> str:
-        if not is_valid_article_id(v):
-            raise InvalidArticleIdError(
-                "article_id must be in numeric format (e.g. '1.2', '3.1.4'), "
-                f"APPENDIX, ALL, END or NEW_ARTICLE:X, got: '{v}'"
-            )
-        return v
+        return parse_article_id(v)
 
     @field_validator("date_version")
     @classmethod

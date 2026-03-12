@@ -164,7 +164,9 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="ocapi.main",
-        description="OCAPI - Full arrêté processing pipeline",
+        description=(
+            "OCAPI - Consolidation operations detection, resolution, and rendering pipeline"
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

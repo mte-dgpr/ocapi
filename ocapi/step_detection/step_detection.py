@@ -22,11 +22,9 @@ and returns a list of detected operations (Operation).
 Each operation is extracted by calling a LLM with a specific prompt.
 """
 
-# TODO: handle title changes and article moves in operation detection.
-
 from langchain_core.documents import Document
 
-from ocapi.exceptions import OperationError
+from ocapi.exceptions import InvalidArticleIdError, OperationError
 from ocapi.step_detection.extract_operand import (
     ERROR_EXTRACTING_CONTENT,
     extract_operand_with_images,
@@ -39,7 +37,7 @@ from ocapi.types import (
     Operation,
     OperationType,
     RawOperation,
-    is_valid_article_id,
+    parse_article_id,
 )
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, parse_llm_json_list_response
 from ocapi.utils.logging_utils import get_logger
@@ -106,14 +104,18 @@ def step_detection(
                 )
                 continue
             # Validate article_id formats
-            if not is_valid_article_id(raw_op.source_article):
+            try:
+                parse_article_id(raw_op.source_article)
+            except InvalidArticleIdError:
                 _LOGGER.warning(
                     f"Operation skipped (invalid source_article format): "
                     f"type={raw_op.operation_type}, source_article={raw_op.source_article}, "
                     f"target_arrete={raw_op.target_arrete}, target_article={raw_op.target_article}"
                 )
                 continue
-            if not is_valid_article_id(raw_op.target_article):
+            try:
+                parse_article_id(raw_op.target_article)
+            except InvalidArticleIdError:
                 _LOGGER.warning(
                     f"Operation skipped (invalid target_article format): "
                     f"type={raw_op.operation_type}, source_article={raw_op.source_article}, "

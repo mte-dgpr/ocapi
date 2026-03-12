@@ -17,6 +17,7 @@
 # limitations under the License.
 #
 from typing import cast
+from unittest.mock import MagicMock, patch
 
 import pytest
 from bs4 import BeautifulSoup
@@ -33,12 +34,15 @@ from ocapi.step_rendering.make_main_content import (
     make_section_version,
 )
 from ocapi.step_rendering.make_other import has_not_out_ops, make_permit_other
+from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.types import (
     ArreteFile,
+    ArticleHistory,
     ArticleVersion,
     NodeId,
     Operation,
     OperationType,
+    Permis,
     SubTarget,
     SubTargetType,
 )
@@ -459,6 +463,31 @@ def test_make_permit_content_renders_full_main_with_section_versions() -> None:
     assert "Article 2 initial" in html
     assert 'data-date_version="2021-06-01"' in html
     assert 'data-date_version="2020-01-01"' in html
+
+
+@patch("ocapi.step_rendering.step_rendering.make_permit_other", return_value="<other/>")
+@patch("ocapi.step_rendering.step_rendering.make_permit_header", return_value="<header/>")
+@patch("ocapi.step_rendering.step_rendering.make_permit_content", return_value="<content/>")
+def test_step_rendering_returns_permis(
+    mock_content: MagicMock,
+    mock_header: MagicMock,
+    mock_other: MagicMock,
+) -> None:
+    """Verify that step_rendering assembles the 3 permit components and returns a valid Permis."""
+    history = cast(ArticleHistory, {})
+    operations = cast(list[Operation], [])
+    arretes = cast(list[ArreteFile], [MagicMock()])
+
+    result = step_rendering(history, operations, arretes)
+
+    mock_content.assert_called_once_with(history, arretes, operations)
+    mock_header.assert_called_once_with(arretes)
+    mock_other.assert_called_once_with(arretes, operations=operations)
+
+    assert isinstance(result, Permis)
+    assert result.header == "<header/>"
+    assert result.contenu == "<content/>"
+    assert result.other == "<other/>"
 
 
 def test_has_not_out_ops_returns_true_without_operation() -> None:

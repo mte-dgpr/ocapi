@@ -22,14 +22,12 @@ Each node in the graph represents an article, and each edge represents an operat
 between two articles.
 """
 
-# TODO: handle parent-child dependencies in the graph (nested articles)
-
 from typing import Tuple
 
 import networkx as nx
 from bs4 import BeautifulSoup
 
-from ocapi.exceptions import NodeNotFoundError
+from ocapi.exceptions import SectionNotFoundError
 from ocapi.types import ArreteFile, ArreteId, Content, NodeId, Operation, OperationType
 from ocapi.utils.logging_utils import get_logger
 
@@ -92,20 +90,20 @@ def get_node_content(node: NodeId, soup: BeautifulSoup) -> str:
         article_id = article_id.split("APPENDIX:", 1)[1]
         appendix_tag = soup.select_one('footer[data-spec="appendix"]')
         if appendix_tag is None:
-            raise NodeNotFoundError(f"Section {article_id} not found in arrete {arrete_id}")
+            raise SectionNotFoundError(f"Section {article_id} not found in arrete {arrete_id}")
         else:
             section_tag = appendix_tag.select_one(
                 f'section[data-spec="section"][data-number="{article_id}"]'
             )
             if section_tag is None:
-                raise NodeNotFoundError(
+                raise SectionNotFoundError(
                     f"Section {article_id} not found in Appendix of arrete {arrete_id}"
                 )
             return str(section_tag)
 
     section_tag = soup.select_one(f'section[data-spec="section"][data-number="{article_id}"]')
     if section_tag is None:
-        raise NodeNotFoundError(f"Section {article_id} not found in arrete {arrete_id}")
+        raise SectionNotFoundError(f"Section {article_id} not found in arrete {arrete_id}")
     return str(section_tag)
 
 

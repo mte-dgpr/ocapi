@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 """
-Categorisation module for prefectural arrêtés.
+Categorisation module for arrêtés.
 
 Categorisation is based on the filename and follows these rules:
 

@@ -321,6 +321,3 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
                     target_col.replace_with(replacement or operand_fragment)
         return soup
     return soup
-
-
-# Note: Complex cases requiring a LLM are not handled here.

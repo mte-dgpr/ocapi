@@ -28,9 +28,9 @@ from .exceptions import (
     LLMError,
     LLMNetworkError,
     LLMResponseError,
-    NodeNotFoundError,
     OcapiError,
     OperationError,
+    SectionNotFoundError,
 )
 
 
@@ -48,7 +48,7 @@ class TestOcapiErrorHierarchy:
             LLMResponseError,
             OperationError,
             GraphError,
-            NodeNotFoundError,
+            SectionNotFoundError,
             InputOutputError,
         ):
             assert issubclass(cls, OcapiError), f"{cls.__name__} should inherit OcapiError"
@@ -57,8 +57,8 @@ class TestOcapiErrorHierarchy:
         for cls in (LLMConfigError, LLMNetworkError, LLMResponseError):
             assert issubclass(cls, LLMError), f"{cls.__name__} should inherit LLMError"
 
-    def test_node_not_found_inherits_graph_error(self) -> None:
-        assert issubclass(NodeNotFoundError, GraphError)
+    def test_section_not_found_inherits_graph_error(self) -> None:
+        assert issubclass(SectionNotFoundError, GraphError)
 
     def test_id_errors_also_inherit_value_error(self) -> None:
         """InvalidArticleIdError and InvalidArreteIdError inherit from ValueError
@@ -75,14 +75,14 @@ class TestOcapiErrorHierarchy:
             LLMResponseError,
             OperationError,
             GraphError,
-            NodeNotFoundError,
+            SectionNotFoundError,
             InputOutputError,
         ):
             assert not issubclass(cls, ValueError), f"{cls.__name__} should NOT inherit ValueError"
 
-    def test_node_not_found_caught_as_graph_error(self) -> None:
+    def test_section_not_found_caught_as_graph_error(self) -> None:
         with pytest.raises(GraphError):
-            raise NodeNotFoundError("section 1.2 not found")
+            raise SectionNotFoundError("section 1.2 not found")
 
     def test_id_errors_caught_as_value_error(self) -> None:
         with pytest.raises(ValueError):
