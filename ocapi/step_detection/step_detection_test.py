@@ -87,6 +87,7 @@ class TestConvertOperationsRawToOperations(unittest.TestCase):
         assert op1.target_id == NodeId(arrete_id="1981-01-01", article_id="2")
         assert op1.operation_type == OperationType.REPLACE
         assert op1.sub_target.type == SubTargetType.TABLEAU
+        assert op1.extractable_content is True
         # Vérifier que extract_operand_with_images a été appelé
         mock_extract_operand_with_images.assert_called_once()
         mock_parse_subtarget.assert_called_once_with("le tableau")
@@ -97,4 +98,27 @@ class TestConvertOperationsRawToOperations(unittest.TestCase):
         assert op2.operation_type == OperationType.REMOVE
         assert op2.sub_target is None
         assert op2.operand is None
+        assert op2.extractable_content is True
         assert op2.id == "2"
+
+    @patch("ocapi.step_detection.step_detection.extract_operand_with_images")
+    def test_extractable_content_false_when_operand_extraction_fails(
+        self, mock_extract_operand_with_images: mock.Mock
+    ) -> None:
+        mock_extract_operand_with_images.return_value = "ERROR_EXTRACTING_CONTENT"
+        block_html = Document(page_content="<section>Test content</section>", metadata={})
+        raw_operation = RawOperation(
+            operation_type=RawOperationType.REPLACE,
+            source_article="1",
+            target_arrete="1981-01-01",
+            target_article="2",
+            new_content_start_marker="<start>",
+            new_content_end_marker="<end>",
+        )
+
+        operation = convert_raw_operation_to_operation(
+            block_html.page_content, raw_operation, "1980-01-01", {}
+        )
+
+        assert operation.extractable_content is False
+        assert operation.operand is None

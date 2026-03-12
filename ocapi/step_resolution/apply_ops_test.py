@@ -131,10 +131,20 @@ class TestApplySubgraphOperations(unittest.TestCase):
         )
         history: ArticleHistory = {
             NodeId(arrete_id="1980-01-01", article_id="1"): [
-                {"version": 0, "content": "original content", "operation_id": None}
+                {
+                    "version": 0,
+                    "content": "original content",
+                    "operation_id": None,
+                    "status_code": "RESOLVED",
+                }
             ],
             NodeId(arrete_id="1980-01-01", article_id="2"): [
-                {"version": 0, "content": "original content 2", "operation_id": None}
+                {
+                    "version": 0,
+                    "content": "original content 2",
+                    "operation_id": None,
+                    "status_code": "RESOLVED",
+                }
             ],
         }
         output_history, skipped_ops = apply_subgraph_operations(G, history)
@@ -148,6 +158,46 @@ class TestApplySubgraphOperations(unittest.TestCase):
             output_history[NodeId(arrete_id="1980-01-01", article_id="2")][-1]["content"]
             == mock_add.return_value
         )
+
+    @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
+    def test_unresolved_operation_keeps_previous_content(self, mock_replace: mock.Mock) -> None:
+        G = nx.MultiDiGraph()
+        source = NodeId(arrete_id="1981-01-01", article_id="2")
+        target = NodeId(arrete_id="1980-01-01", article_id="1")
+        add_node(G, source)
+        add_node(G, target)
+        add_edge(
+            G,
+            Operation(
+                id="op-unresolved",
+                source_id=source,
+                target_id=target,
+                operation_type=OperationType.REPLACE,
+                operand=None,
+                extractable_content=False,
+            ),
+        )
+
+        history: ArticleHistory = {
+            target: [
+                {
+                    "version": 0,
+                    "content": "content v0",
+                    "operation_id": None,
+                    "status_code": "RESOLVED",
+                }
+            ]
+        }
+        output_history, skipped_ops = apply_subgraph_operations(G, history)
+
+        assert skipped_ops == []
+        mock_replace.assert_not_called()
+        assert output_history[target][-1] == {
+            "version": 1,
+            "content": "content v0",
+            "operation_id": "op-unresolved",
+            "status_code": "ERROR_EXTRACTING_CONTENT",
+        }
 
     @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
     def test_initialize_history_from_graph_node_content(self, mock_replace: mock.Mock) -> None:

@@ -30,6 +30,8 @@ l'historique des versions des articles modifiés au fil des modifications
 apportées par les opérations.
 """
 
+from typing import Literal
+
 import networkx as nx
 from bs4 import BeautifulSoup
 
@@ -77,6 +79,7 @@ def _edge_to_operation(
         operation_type=op_type,
         operand=data.get("operand", None),
         sub_target=data.get("sub_target", None),
+        extractable_content=data.get("extractable_content", True),
     )
     return operation
 
@@ -179,29 +182,43 @@ def apply_subgraph_operations(
 
                 # Récupérer le contenu actuel (dernière version) de l'article cible
                 if tgt not in history:
-                    # Initialiser l'historique avec la version 0 à partir du contenu
-                    # du noeud cible du graphe (fallback sur une chaîne vide).
                     initial_content = subG.nodes[tgt].get("content", "")
                     history[tgt] = [
-                        ArticleVersion(version=0, content=initial_content, operation_id=None)
+                        ArticleVersion(
+                            version=0,
+                            content=initial_content,
+                            operation_id=None,
+                        )
                     ]
 
                 current_content = history[tgt][-1]["content"]
 
-                # Appliquer l'opération
-                if op.operation_type == OperationType.REPLACE:
+                # Appliquer l'opération.
+                # Si l'operand n'a pas pu être extrait, on conserve le contenu courant.
+                status_code: Literal["RESOLVED", "ERROR_EXTRACTING_CONTENT"]
+                if not op.extractable_content:
+                    new_content = current_content
+                    status_code = "ERROR_EXTRACTING_CONTENT"
+                elif op.operation_type == OperationType.REPLACE:
                     new_content = apply_replace(op, BeautifulSoup(current_content, "html.parser"))
+                    status_code = "RESOLVED"
                 elif op.operation_type == OperationType.REMOVE:
                     new_content = apply_remove(op, BeautifulSoup(current_content, "html.parser"))
+                    status_code = "RESOLVED"
                 elif op.operation_type == OperationType.ADD:
                     new_content = apply_add(op, BeautifulSoup(current_content, "html.parser"))
+                    status_code = "RESOLVED"
                 else:
                     raise ValueError(f"Type d'opération inconnu: {op.operation_type}")
 
                 # Ajouter la nouvelle version à l'historique
                 new_version = ArticleVersion(
-                    version=len(history[tgt]), content=new_content, operation_id=op.id
+                    version=len(history[tgt]),
+                    content=new_content,
+                    operation_id=op.id,
                 )
+                if status_code != "RESOLVED":
+                    new_version["status_code"] = status_code
                 history[tgt].append(new_version)
             except Exception as e:
                 error_msg = f"Opération {op_id or 'inconnue'} ignorée: {str(e)}"

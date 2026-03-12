@@ -139,9 +139,16 @@ def _build_section_history_html(
         return "".join(history_parts)
 
     last_version = versions[-1]
+    last_status_code = str(last_version.get("status_code", "RESOLVED"))
     last_operation_id = last_version.get("operation_id")
     last_operation = operation_by_id.get(str(last_operation_id)) if last_operation_id else None
-    if last_operation:
+    if last_operation and last_status_code == "ERROR_EXTRACTING_CONTENT":
+        last_text = (
+            f"Opération non résolue {_operation_label(last_operation)} de l'article "
+            f"{last_operation.source_id.article_id} de l'arrêté "
+            f"{last_operation.source_id.arrete_id}"
+        )
+    elif last_operation:
         last_operation_label = (
             "modification"
             if last_operation.operation_type == OperationType.REPLACE
@@ -162,18 +169,18 @@ def _build_section_history_html(
     history_parts.append(f'<p style="font-weight: bold; margin-top: 0.5rem;">{last_text}</p>')
 
     for index, version in enumerate(versions[:-1]):
+        status_code = str(version.get("status_code", "RESOLVED"))
         operation_id = version.get("operation_id")
         operation = operation_by_id.get(str(operation_id)) if operation_id else None
         if index == 0 and not operation:
             text = "Version de l'arrêté initial"
-        elif operation:
-            operation_label = (
-                "modification"
-                if operation.operation_type == OperationType.REPLACE
-                else (
-                    "abrogation" if operation.operation_type == OperationType.REMOVE else "création"
-                )
+        elif operation and status_code == "ERROR_EXTRACTING_CONTENT":
+            text = (
+                f"Opération non résolue {_operation_label(operation)} de l'article "
+                f"{operation.source_id.article_id} de l'arrêté {operation.source_id.arrete_id}"
             )
+        elif operation:
+            operation_label = _operation_label(operation)
             text = (
                 f"Version après {operation_label} par l'article "
                 f"{operation.source_id.article_id} de l'arrêté {operation.source_id.arrete_id}"
@@ -199,6 +206,9 @@ def _build_section_history_html(
     return "".join(history_parts)
 
 
+_FULL_REMOVAL_DESCRIPTIONS = {"ALL", "contenu entier"}
+
+
 def _is_abrogated(
     latest_version: ArticleVersion,
     operation_by_id: dict[str, Operation],
@@ -211,7 +221,17 @@ def _is_abrogated(
         return False
     if latest_operation.operation_type != OperationType.REMOVE:
         return False
-    sub = latest_operation.sub_target
-    if sub is None:
+    sub_target = latest_operation.sub_target
+    if sub_target is None:
         return True
-    return sub.type == SubTargetType.FULL_SECTION and sub.description in ("ALL", "contenu entier")
+    if sub_target.type != SubTargetType.FULL_SECTION:
+        return False
+    return sub_target.description in _FULL_REMOVAL_DESCRIPTIONS
+
+
+def _operation_label(operation: Operation) -> str:
+    return (
+        "modification"
+        if operation.operation_type == OperationType.REPLACE
+        else ("abrogation" if operation.operation_type == OperationType.REMOVE else "création")
+    )
