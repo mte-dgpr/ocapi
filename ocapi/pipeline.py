@@ -62,7 +62,7 @@ def run_pipeline(
         output_dir: Répertoire de base pour les sorties par étape
         start_date: Date de démarrage (YYYY-MM-DD). Seuls les arrêtés dont l'id
             est strictement supérieur à cette date sont traités en détection.
-            Si None, tous les arrêtés sont traités.
+            Si None, tous les arrêtés sont traités sauf le premier.
         enable_detection: Si True, lance l'étape de chunking + détection (étapes 1-2) ;
             si False, charge les opérations depuis le répertoire de détection
         enable_rendering: Si True, génère le permis consolidé (étape 4)
@@ -82,6 +82,10 @@ def run_pipeline(
         steps.append("rendering")
 
     _LOGGER.info(f"Démarrage du pipeline avec {len(arrete_files)} arrêté(s)")
+    if start_date is None and arrete_files:
+        start_date = arrete_files[0].id
+    if start_date:
+        _LOGGER.info(f"Date de démarrage de la détection : {start_date}")
     _LOGGER.info(f"Étapes : {' → '.join(steps)}")
 
     det_dir = _detection_dir(output_dir, aiot)
@@ -99,6 +103,10 @@ def run_pipeline(
         operations: list[Operation] = []
         for _i, arrete_file in enumerate(arrete_files):
             if start_date and arrete_file.id <= start_date:
+                _LOGGER.info(
+                    f"Arrêté {arrete_file.id} de date antérieure ou égale à {start_date},"
+                    " pas de détection des opérations"
+                )
                 continue
             _LOGGER.info(f"Traitement de l'arrêté {arrete_file.id}...")
             docs, img_map = step_chunking(arrete_file)

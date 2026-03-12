@@ -167,7 +167,7 @@ class TestStartDate:
         sample_history: ArticleHistory,
         sample_permis: Permis,
     ) -> None:
-        """Sans start_date, tous les arrêtés sont traités en commençant par le premier."""
+        """Sans start_date, tous les arrêtés sont traités sauf le premier."""
         with (
             patch(_STEP_CHUNKING, _mock_chunking()) as mock_chunk,
             patch(_STEP_DETECTION, _mock_detection([])),
@@ -176,9 +176,9 @@ class TestStartDate:
         ):
             run_pipeline(multi_arrete_files, aiot=AIOT, output_dir=tmp_path)
 
-        assert mock_chunk.call_count == 3
+        assert mock_chunk.call_count == 2
         first_call_arrete = mock_chunk.call_args_list[0][0][0]
-        assert first_call_arrete.id == "2010-01-01"
+        assert first_call_arrete.id == "2015-06-15"
 
     def test_start_date_after_all_arretes_processes_none(
         self,
@@ -264,7 +264,7 @@ class TestStepList:
             patch(_STEP_RESOLUTION, _mock_resolution(sample_history, arrete_files)) as mock_res,
             patch(_STEP_RENDERING, _mock_rendering(sample_permis)) as mock_ren,
         ):
-            run_pipeline(arrete_files, aiot=AIOT, output_dir=tmp_path)
+            run_pipeline(arrete_files, aiot=AIOT, output_dir=tmp_path, start_date="2019-01-01")
 
         mock_det.assert_called_once()
         mock_res.assert_called_once()
@@ -487,7 +487,9 @@ class TestNoDetectionLoadsBehavior:
             patch(_STEP_RESOLUTION, _mock_resolution(sample_history, arrete_files)),
             patch(_STEP_RENDERING, _mock_rendering(sample_permis)),
         ):
-            ops, history, _, permis = run_pipeline(arrete_files, aiot=AIOT, output_dir=tmp_path)
+            ops, history, _, permis = run_pipeline(
+                arrete_files, aiot=AIOT, output_dir=tmp_path, start_date="2019-01-01"
+            )
 
         assert len(ops) == 1
         assert ops[0].id == "op1"
