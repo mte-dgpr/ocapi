@@ -29,14 +29,7 @@ import sys
 from pathlib import Path
 
 from ocapi.config import settings
-from ocapi.pipeline import run_pipeline
-from ocapi.utils.io_utils import (
-    InputOutputError,
-    load_arrete_files,
-    write_json_output,
-    write_permis_output,
-)
-from ocapi.utils.llm_utils import config_model_llm
+from ocapi.main import main as run_main
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 _LOGGER = get_logger(__name__)
@@ -44,80 +37,15 @@ _LOGGER = get_logger(__name__)
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Exécute le pipeline OCAPI sur les arrêtés."""
-    input_dir = Path(args.input_dir)
-
-    # Déterminer le répertoire de sortie
-    output_dir = Path(args.output) if args.output else input_dir.parent / "ocapi_output"
-    _LOGGER.info(f"Dossier de sortie : {output_dir}")
-
-    # Déterminer l'AIOT
-    aiot = args.aiot or input_dir.parent.name
-    _LOGGER.info(f"AIOT: {aiot}")
-    _LOGGER.info(f"Modèle LLM: {config_model_llm().model_name}")
-
-    # Charger les arrêtés
-    try:
-        arrete_files = load_arrete_files(input_dir, aiot)
-    except InputOutputError as e:
-        print(f"Erreur: {e}", file=sys.stderr)
-        return 1
-
-    # Filtrer les arrêtés si demandé
-    if args.include:
-        arrete_ids_included = set(args.include)
-        _LOGGER.info(f"Filtrage sur: {arrete_ids_included}")
-        arrete_files = [af for af in arrete_files if af.id in arrete_ids_included]
-        _LOGGER.info(f"{len(arrete_files)} arrêté(s) après filtrage")
-
-        if not arrete_files:
-            _LOGGER.error("Aucun arrêté ne correspond aux IDs spécifiés")
-            return 1
-
-    # Créer le dossier de sortie
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Exécuter le pipeline
-    _LOGGER.info("Exécution du pipeline...")
-    try:
-        start_date = getattr(args, "start_date", None)
-        operations, history, _arrete_files, permis = run_pipeline(
-            arrete_files, start_date=start_date
-        )
-        _LOGGER.info("Pipeline terminé avec succès.")
-
-        # Sauvegarder les opérations
-        operations_path = output_dir / "operations.json"
-        operations_dict = [op.model_dump(mode="json") for op in operations]
-        write_json_output(operations_dict, operations_path)
-        _LOGGER.info(f"Opérations sauvegardées → {operations_path}")
-
-        # Sauvegarder l'historique
-        history_path = output_dir / "history.json"
-        history_serializable = {
-            str(node_id): [
-                {
-                    "version": v["version"],
-                    "content": v["content"],
-                    "operation_id": v["operation_id"],
-                }
-                for v in versions
-            ]
-            for node_id, versions in history.items()
-        }
-        write_json_output(history_serializable, history_path)
-        _LOGGER.info(f"Historique sauvegardé → {history_path}")
-
-        # Sauvegarder le permis
-        if permis:
-            permis_path = output_dir / "permis.html"
-            write_permis_output(permis, permis_path)
-            _LOGGER.info(f"Permis consolidé sauvegardé → {permis_path}")
-
-        return 0
-
-    except Exception as e:
-        _LOGGER.error(f"Erreur lors de l'exécution du pipeline: {e}")
-        return 1
+    return run_main(
+        input_dir=Path(args.input_dir),
+        output_dir=Path(args.output) if args.output else None,
+        aiot=args.aiot,
+        include_ids=args.include,
+        start_date=args.start_date,
+        enable_detection=not getattr(args, "no_detection", False),
+        enable_rendering=not getattr(args, "no_rendering", False),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -135,19 +63,19 @@ Examples:
   ocapi run --help
 
   # Traiter tous les arrêtés d'un répertoire
-  ocapi run data/0999.99999/arretes/
+  ocapi run data/arretes_html/0999.99999/
 
   # Traiter avec un AIOT spécifique
-  ocapi run data/0999.99999/arretes/ --aiot 0999.99999
+  ocapi run data/arretes_html/0999.99999/ --aiot 0999.99999
 
   # Sauvegarder le résultat dans un fichier
-  ocapi run data/0999.99999/arretes/ --output resultat.json
+  ocapi run data/arretes_html/0999.99999/ --output resultat.json
 
   # Mode verbose pour le debug
-  ocapi --verbose run data/0999.99999/arretes/
+  ocapi --verbose run data/arretes_html/0999.99999/
 
   # Mode silencieux
-  ocapi --quiet run data/0999.99999/arretes/
+  ocapi --quiet run data/arretes_html/0999.99999/
         """,
     )
     parser.add_argument(
@@ -180,32 +108,32 @@ Examples:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Traiter tous les arrêtés d'un répertoire
-  ocapi run data/0999.99999/arretes/
+  # Pipeline complet (détection + résolution + rendering)
+  ocapi run data/arretes_html/0999.99999/
 
-
-  # Traiter avec un AIOT spécifique (par défaut: déduit du chemin parent)
-  ocapi run data/0999.99999/arretes/ --aiot 0999.99999
-
+  # Traiter avec un AIOT spécifique (par défaut: déduit du nom du répertoire)
+  ocapi run data/arretes_html/0999.99999/ --aiot 0999.99999
 
   # Filtrer sur des arrêtés spécifiques (par leur date)
-  ocapi run data/0999.99999/arretes/ --include 2024-09-27 2023-12-04
+  ocapi run data/arretes_html/0999.99999/ --include 2024-09-27 2023-12-04
 
+  # Spécifier un répertoire de sortie de base
+  ocapi run data/arretes_html/0999.99999/ --output output/
 
-  # Sauvegarder les résultats dans un répertoire spécifique
-  ocapi run data/0999.99999/arretes/ --output output/
+  # Détection + résolution uniquement (sans rendering)
+  ocapi run data/arretes_html/0999.99999/ --no-rendering
 
+  # Résolution + rendering à partir d'opérations existantes (sans détection)
+  ocapi run data/arretes_html/0999.99999/ --no-detection
 
-  # Combinaison: filtrage et sauvegarde
-  ocapi run data/0999.99999/arretes/ --include 2024-09-27 --output output/
-
+  # Résolution uniquement à partir d'opérations existantes (sans rendering)
+  ocapi run data/arretes_html/0999.99999/ --no-detection --no-rendering
 
   # Mode verbose pour voir les logs détaillés
-  ocapi --verbose run data/0999.99999/arretes/
-
+  ocapi --verbose run data/arretes_html/0999.99999/
 
   # Mode silencieux (uniquement erreurs et avertissements)
-  ocapi --quiet run data/0999.99999/arretes/
+  ocapi --quiet run data/arretes_html/0999.99999/
         """,
     )
     run_parser.add_argument(
@@ -214,7 +142,7 @@ Examples:
     )
     run_parser.add_argument(
         "--aiot",
-        help="Identifiant AIOT (défaut: déduit du chemin)",
+        help="Identifiant AIOT (défaut: déduit du nom de input_dir)",
     )
     run_parser.add_argument(
         "--include",
@@ -223,14 +151,26 @@ Examples:
         help="IDs des arrêtés à inclure (défaut: tous)",
     )
     run_parser.add_argument(
-        "--start-date",
-        metavar="YYYY-MM-DD",
-        help="Date de démarrage : seuls les arrêtés >= cette date passent par la détection",
-    )
-    run_parser.add_argument(
         "-o",
         "--output",
-        help="Répertoire de sortie (défaut: <input_dir>/../ocapi_output)",
+        help="Répertoire de sortie de base (défaut: répertoire parent du parent de input_dir)",
+    )
+    run_parser.add_argument(
+        "--start-date",
+        help="Date de démarrage (YYYY-MM-DD) pour la détection",
+    )
+    run_parser.add_argument(
+        "--no-detection",
+        action="store_true",
+        help=(
+            "Désactiver la détection (étapes 1-2) et charger les opérations existantes. "
+            "Lève une erreur si aucun fichier d'opérations n'est trouvé."
+        ),
+    )
+    run_parser.add_argument(
+        "--no-rendering",
+        action="store_true",
+        help="Désactiver la génération du permis consolidé (étape 4)",
     )
     run_parser.set_defaults(func=cmd_run)
 

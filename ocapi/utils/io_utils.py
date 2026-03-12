@@ -25,7 +25,14 @@ from typing import Any, cast
 
 from bs4 import BeautifulSoup
 
-from ocapi.types import ArreteFile, Permis, parse_filename, validate_arretify_version
+from ocapi.types import (
+    ArreteFile,
+    ArticleHistory,
+    Operation,
+    Permis,
+    parse_filename,
+    validate_arretify_version,
+)
 from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
@@ -178,3 +185,73 @@ def write_json_output(data: Any, output_path: Path) -> None:
 
     except OSError as e:
         raise InputOutputError(f"Impossible d'écrire le fichier JSON: {e}") from e
+
+
+def save_operations(operations: list[Operation], operations_dir: Path) -> None:
+    """
+    Sauvegarde la liste des opérations dans operations_dir/operations.json.
+
+    Args:
+        operations: Liste des opérations à sauvegarder
+        operations_dir: Répertoire de sortie pour l'étape de détection
+
+    Raises:
+        InputOutputError: Si l'écriture échoue
+    """
+    operations_path = operations_dir / "operations.json"
+    operations_dict = [op.model_dump(mode="json") for op in operations]
+    write_json_output(operations_dict, operations_path)
+
+
+def load_operations(operations_dir: Path) -> list[Operation]:
+    """
+    Charge les opérations depuis operations_dir/operations.json.
+
+    Args:
+        operations_dir: Répertoire contenant le fichier operations.json
+
+    Returns:
+        Liste des opérations chargées
+
+    Raises:
+        InputOutputError: Si le fichier est introuvable ou invalide
+    """
+    operations_path = operations_dir / "operations.json"
+    if not operations_path.exists():
+        raise InputOutputError(
+            f"Fichier d'opérations introuvable: {operations_path}\n"
+            "Lancez d'abord l'étape de détection ou retirez l'option --no-detection."
+        )
+    try:
+        data = read_json(operations_path)
+        return [Operation.model_validate(op) for op in data]
+    except Exception as e:
+        raise InputOutputError(
+            f"Impossible de charger les opérations depuis {operations_path}: {e}"
+        ) from e
+
+
+def save_history(history: ArticleHistory, history_dir: Path) -> None:
+    """
+    Sauvegarde l'historique des articles dans history_dir/history.json.
+
+    Args:
+        history: Historique des articles à sauvegarder
+        history_dir: Répertoire de sortie pour l'étape de résolution
+
+    Raises:
+        InputOutputError: Si l'écriture échoue
+    """
+    history_path = history_dir / "history.json"
+    history_serializable = {
+        str(node_id): [
+            {
+                "version": v["version"],
+                "content": v["content"],
+                "operation_id": v["operation_id"],
+            }
+            for v in versions
+        ]
+        for node_id, versions in history.items()
+    }
+    write_json_output(history_serializable, history_path)
