@@ -24,11 +24,13 @@ Usage:
     python ocapi/main.py <input_dir> [options]
 
 Examples:
-    python -m ocapi.main data/0005804239/arretes_html/
-    python -m ocapi.main data/0005804239/arretes_html/ --output output/
-    python -m ocapi.main data/0005804239/arretes_html/ --start-date 2014-01-09
-    python -m ocapi.main data/0005804239/arretes_html/ --include 2024-09-27 2023-12-04
-    python -m ocapi.main data/0005804239/arretes_html/ --no-rendering
+    python -m ocapi.main data/arretes_html/0005804239/
+    python -m ocapi.main data/arretes_html/0005804239/ --output output/
+    python -m ocapi.main data/arretes_html/0005804239/ --start-date 2014-01-09
+    python -m ocapi.main data/arretes_html/0005804239/ --include 2024-09-27 2023-12-04
+    python -m ocapi.main data/arretes_html/0005804239/ --no-rendering
+    python -m ocapi.main data/arretes_html/0005804239/ --no-detection
+    python -m ocapi.main data/arretes_html/0005804239/ --no-detection --no-rendering
 """
 
 import argparse
@@ -37,12 +39,7 @@ from pathlib import Path
 
 from ocapi.config import settings
 from ocapi.pipeline import run_pipeline
-from ocapi.utils.io_utils import (
-    InputOutputError,
-    load_arrete_files,
-    write_json_output,
-    write_permis_output,
-)
+from ocapi.utils.io_utils import InputOutputError, load_arrete_files
 from ocapi.utils.llm_utils import config_model_llm
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
@@ -55,34 +52,39 @@ def main(
     aiot: str | None = None,
     include_ids: list[str] | None = None,
     start_date: str | None = None,
+    enable_detection: bool = True,
     enable_rendering: bool = True,
 ) -> int:
     """
-    Exécute le pipeline OCAPI complet de bout en bout.
+    Exécute le pipeline OCAPI selon les étapes sélectionnées.
 
     Args:
         input_dir: Répertoire contenant les fichiers HTML des arrêtés
-        output_dir: Répertoire de sortie (si None, utilise input_dir/../ocapi_output)
-        aiot: Identifiant AIOT (si None, déduit du chemin)
+        output_dir: Répertoire de base pour les sorties par étape
+            (défaut: répertoire parent du parent de input_dir)
+        aiot: Identifiant AIOT (si None, déduit du nom de input_dir)
         include_ids: Liste des IDs d'arrêtés à inclure (si None, tous)
         start_date: Date de démarrage (YYYY-MM-DD) pour la détection
+        enable_detection: Si True, lance les étapes chunking + détection ;
+            si False, charge les opérations depuis le répertoire de détection
         enable_rendering: Si True, génère le permis consolidé
 
     Returns:
         Code de sortie (0 = succès, 1 = erreur)
     """
-    # Déterminer le répertoire de sortie
+    # Déterminer le répertoire de sortie de base
     if output_dir is None:
-        output_dir = input_dir.parent / "ocapi_output"
-
-    _LOGGER.info(f"Dossier d'entrée : {input_dir}")
-    _LOGGER.info(f"Dossier de sortie : {output_dir}")
+        output_dir = input_dir.parent.parent
 
     # Déterminer l'AIOT
     if aiot is None:
-        aiot = input_dir.parent.name
+        aiot = input_dir.name
+
+    _LOGGER.info(f"Dossier d'entrée : {input_dir}")
+    _LOGGER.info(f"Dossier de sortie de base : {output_dir}")
     _LOGGER.info(f"AIOT: {aiot}")
-    _LOGGER.info(f"Modèle LLM: {config_model_llm().model_name}")
+    if enable_detection:
+        _LOGGER.info(f"Modèle LLM: {config_model_llm().model_name}")
 
     # Charger les arrêtés
     try:
@@ -108,51 +110,20 @@ def main(
             _LOGGER.error("Aucun arrêté ne correspond aux IDs spécifiés")
             return 1
 
-    # Créer le dossier de sortie
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     try:
-        # Exécuter le pipeline
-        operations, history, arrete_files, permis = run_pipeline(
+        run_pipeline(
             arrete_files,
+            aiot=aiot,
+            output_dir=output_dir,
             start_date=start_date,
+            enable_detection=enable_detection,
             enable_rendering=enable_rendering,
         )
-
-        # Sauvegarder les opérations
-        operations_path = output_dir / "operations.json"
-        operations_dict = [op.model_dump(mode="json") for op in operations]
-        write_json_output(operations_dict, operations_path)
-        _LOGGER.info(f"Opérations sauvegardées → {operations_path}")
-
-        # Sauvegarder l'historique
-        history_path = output_dir / "history.json"
-
-        # Convertir NodeId en string et ArticleHistory en format sérialisable
-        history_serializable = {
-            str(node_id): [
-                {
-                    "version": v["version"],
-                    "content": v["content"],
-                    "operation_id": v["operation_id"],
-                }
-                for v in versions
-            ]
-            for node_id, versions in history.items()
-        }
-
-        write_json_output(history_serializable, history_path)
-        _LOGGER.info(f"Historique sauvegardé → {history_path}")
-
-        # Sauvegarder le permis si généré
-        if permis:
-            permis_path = output_dir / "permis.html"
-            write_permis_output(permis, permis_path)
-            _LOGGER.info(f"Permis consolidé sauvegardé → {permis_path}")
-
-        _LOGGER.info("Pipeline terminé avec succès !")
         return 0
 
+    except InputOutputError as e:
+        _LOGGER.error(f"Erreur d'entrée/sortie: {e}")
+        return 1
     except Exception as e:
         _LOGGER.exception(f"Erreur lors de l'exécution du pipeline: {e}")
         return 1
@@ -165,26 +136,32 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Traiter tous les arrêtés d'un répertoire
-  python -m ocapi.main data/0005804239/arretes_html/
+  # Pipeline complet (détection + résolution + rendering)
+  python -m ocapi.main data/arretes_html/0005804239/
 
-  # Spécifier un répertoire de sortie personnalisé
-  python -m ocapi.main data/0005804239/arretes_html/ --output output/
+  # Spécifier un répertoire de sortie de base
+  python -m ocapi.main data/arretes_html/0005804239/ --output output/
 
   # Démarrer la détection à partir d'une date
-  python -m ocapi.main data/0005804239/arretes_html/ --start-date 2014-01-09
+  python -m ocapi.main data/arretes_html/0005804239/ --start-date 2014-01-09
 
   # Filtrer sur des arrêtés spécifiques
-  python -m ocapi.main data/0005804239/arretes_html/ --include 2024-09-27 2023-12-04
+  python -m ocapi.main data/arretes_html/0005804239/ --include 2024-09-27 2023-12-04
 
-  # Désactiver le rendering (étapes 1-3 uniquement)
-  python -m ocapi.main data/0005804239/arretes_html/ --no-rendering
+  # Détection + résolution uniquement (sans rendering)
+  python -m ocapi.main data/arretes_html/0005804239/ --no-rendering
+
+  # Résolution + rendering à partir d'opérations existantes (sans détection)
+  python -m ocapi.main data/arretes_html/0005804239/ --no-detection
+
+  # Résolution uniquement à partir d'opérations existantes (sans rendering)
+  python -m ocapi.main data/arretes_html/0005804239/ --no-detection --no-rendering
 
   # Spécifier l'AIOT
-  python -m ocapi.main data/0005804239/arretes_html/ --aiot 0005804239
+  python -m ocapi.main data/arretes_html/0005804239/ --aiot 0005804239
 
   # Mode verbose
-  python -m ocapi.main data/0005804239/arretes_html/ --verbose
+  python -m ocapi.main data/arretes_html/0005804239/ --verbose
         """,
     )
 
@@ -197,11 +174,11 @@ Examples:
         "-o",
         "--output",
         type=Path,
-        help="Répertoire de sortie (défaut: <input_dir>/../ocapi_output)",
+        help="Répertoire de sortie de base (défaut: répertoire parent du parent de input_dir)",
     )
     parser.add_argument(
         "--aiot",
-        help="Identifiant AIOT (défaut: déduit du chemin parent)",
+        help="Identifiant AIOT (défaut: déduit du nom de input_dir)",
     )
     parser.add_argument(
         "--include",
@@ -211,8 +188,15 @@ Examples:
     )
     parser.add_argument(
         "--start-date",
-        metavar="YYYY-MM-DD",
-        help="Date de démarrage : seuls les arrêtés >= cette date passent par la détection",
+        help="Date de démarrage (YYYY-MM-DD) pour la détection",
+    )
+    parser.add_argument(
+        "--no-detection",
+        action="store_true",
+        help=(
+            "Désactiver la détection (étapes 1-2) et charger les opérations existantes. "
+            "Lève une erreur si aucun fichier d'opérations n'est trouvé."
+        ),
     )
     parser.add_argument(
         "--no-rendering",
@@ -260,6 +244,7 @@ Examples:
         aiot=args.aiot,
         include_ids=args.include,
         start_date=args.start_date,
+        enable_detection=not args.no_detection,
         enable_rendering=not args.no_rendering,
     )
 
