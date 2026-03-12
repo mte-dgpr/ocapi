@@ -182,14 +182,12 @@ def apply_subgraph_operations(
 
                 # Récupérer le contenu actuel (dernière version) de l'article cible
                 if tgt not in history:
-                    # Initialiser l'historique avec la version 0 (contenu initial vide)
-                    # Le contenu initial sera récupéré depuis le graphe ou les fichiers
+                    initial_content = subG.nodes[tgt].get("content", "")
                     history[tgt] = [
                         ArticleVersion(
                             version=0,
-                            content="",
+                            content=initial_content,
                             operation_id=None,
-                            status_code="RESOLVED",
                         )
                     ]
 
@@ -218,8 +216,9 @@ def apply_subgraph_operations(
                     version=len(history[tgt]),
                     content=new_content,
                     operation_id=op.id,
-                    status_code=status_code,
                 )
+                if status_code != "RESOLVED":
+                    new_version["status_code"] = status_code
                 history[tgt].append(new_version)
             except Exception as e:
                 error_msg = f"Opération {op_id or 'inconnue'} ignorée: {str(e)}"

@@ -23,6 +23,7 @@ from typing import Dict, Literal, Optional, TypedDict
 
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, field_validator
+from typing_extensions import NotRequired
 
 from .config import SUPPORTED_ARRETIFY_VERSION, SUPPORTED_ARRETIFY_VERSION_PATTERN, settings
 
@@ -124,7 +125,7 @@ class ArticleVersion(TypedDict):
     version: int
     content: Content
     operation_id: str | None
-    status_code: Literal["RESOLVED", "ERROR_EXTRACTING_CONTENT"]
+    status_code: NotRequired[Literal["RESOLVED", "ERROR_EXTRACTING_CONTENT"]]
 
 
 ArticleHistory = Dict[NodeId, list[ArticleVersion]]

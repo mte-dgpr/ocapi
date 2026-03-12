@@ -26,6 +26,7 @@ from ocapi.types import (
     NodeId,
     Operation,
     OperationType,
+    SubTargetType,
 )
 
 
@@ -205,6 +206,9 @@ def _build_section_history_html(
     return "".join(history_parts)
 
 
+_FULL_REMOVAL_DESCRIPTIONS = {"ALL", "contenu entier"}
+
+
 def _is_abrogated(
     latest_version: ArticleVersion,
     operation_by_id: dict[str, Operation],
@@ -215,7 +219,14 @@ def _is_abrogated(
     latest_operation = operation_by_id.get(str(operation_id))
     if not latest_operation:
         return False
-    return latest_operation.operation_type == OperationType.REMOVE
+    if latest_operation.operation_type != OperationType.REMOVE:
+        return False
+    sub_target = latest_operation.sub_target
+    if sub_target is None:
+        return True
+    if sub_target.type != SubTargetType.FULL_SECTION:
+        return False
+    return sub_target.description in _FULL_REMOVAL_DESCRIPTIONS
 
 
 def _operation_label(operation: Operation) -> str:

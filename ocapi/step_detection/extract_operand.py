@@ -115,6 +115,7 @@ def extract_operand_with_images(
         working_html = block_html
         start_idx = _find_marker(working_html, start_marker)
         if start_idx == -1:
+            _LOGGER.warning("Start marker not found%s", op_info)
             return ERROR_EXTRACTING_CONTENT
 
     end_idx = _find_marker(working_html, end_marker)
@@ -123,4 +124,5 @@ def extract_operand_with_images(
         fragment = _rehydrate_images(fragment, img_map)
         return fragment
     else:
+        _LOGGER.warning("End marker not found%s", op_info)
         return ERROR_EXTRACTING_CONTENT

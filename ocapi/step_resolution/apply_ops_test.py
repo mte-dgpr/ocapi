@@ -155,16 +155,8 @@ class TestApplySubgraphOperations(unittest.TestCase):
             == mock_replace.return_value
         )
         assert (
-            output_history[NodeId(arrete_id="1980-01-01", article_id="1")][-1]["status_code"]
-            == "RESOLVED"
-        )
-        assert (
             output_history[NodeId(arrete_id="1980-01-01", article_id="2")][-1]["content"]
             == mock_add.return_value
-        )
-        assert (
-            output_history[NodeId(arrete_id="1980-01-01", article_id="2")][-1]["status_code"]
-            == "RESOLVED"
         )
 
     @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
