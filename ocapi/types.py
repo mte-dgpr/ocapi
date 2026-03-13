@@ -372,7 +372,9 @@ def categorize_arrete(filename: str) -> FileType:
 def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
     """Parse an arrêté filename and return the arrêté ID and its type.
 
-    Expected format: YYYY-MM-DD_type_description.html
+    Accepted formats:
+    - ``YYYY-MM-DD.html`` – date-only, type defaults to :attr:`FileType.AUTRE`
+    - ``YYYY-MM-DD_type_description.html`` – date + type
 
     Parameters
     ----------
@@ -396,10 +398,16 @@ def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
     # Split by underscore
     parts = filename.split("_")
     if len(parts) < 2:
-        raise InvalidFileFormatError(
-            f"Invalid format: filename must contain at least a date "
-            f"and a type separated by '_': {filename}"
-        )
+        # Accept date-only format: YYYY-MM-DD.html
+        stem = filename[:-5]  # strip .html
+        try:
+            arrete_id = parse_arrete_id(stem)
+        except InvalidArreteIdError as e:
+            raise InvalidFileFormatError(
+                f"Invalid format: filename must contain at least a date "
+                f"and a type separated by '_': {filename}"
+            ) from e
+        return arrete_id, FileType.AUTRE
 
     # Extract and validate the date (first part)
     try:

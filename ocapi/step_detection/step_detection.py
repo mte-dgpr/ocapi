@@ -37,6 +37,7 @@ from ocapi.types import (
     Operation,
     OperationType,
     RawOperation,
+    RawOperationType,
     parse_article_id,
 )
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, parse_llm_json_list_response
@@ -119,6 +120,13 @@ def step_detection(
                 _LOGGER.warning(
                     f"Operation skipped (invalid target_article format): "
                     f"type={raw_op.operation_type}, source_article={raw_op.source_article}, "
+                    f"target_arrete={raw_op.target_arrete}, target_article={raw_op.target_article}"
+                )
+                continue
+            if raw_op.operation_type == RawOperationType.AUTRE:
+                _LOGGER.warning(
+                    f"Operation skipped (AUTRE type – not a relevant operation): "
+                    f"source_article={raw_op.source_article}, "
                     f"target_arrete={raw_op.target_arrete}, target_article={raw_op.target_article}"
                 )
                 continue

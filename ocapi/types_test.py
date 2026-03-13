@@ -299,9 +299,14 @@ class TestParseFilename:
         with pytest.raises(InvalidFileFormatError, match="Invalid date"):
             parse_filename("15-01-2024_ap_document.html")
 
-    def test_parse_invalid_missing_parts(self) -> None:
+    def test_parse_date_only_format(self) -> None:
+        arrete_id, file_type = parse_filename("2024-01-15.html")
+        assert arrete_id == "2024-01-15"
+        assert file_type == FileType.AUTRE
+
+    def test_parse_invalid_missing_parts_not_a_date(self) -> None:
         with pytest.raises(InvalidFileFormatError, match="Invalid format"):
-            parse_filename("2024-01-15.html")
+            parse_filename("not-a-date.html")
 
     def test_parse_complex_filename(self) -> None:
         filename = (
