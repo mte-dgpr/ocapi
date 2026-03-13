@@ -152,6 +152,7 @@ def test_apply_subgraph_operations(
     ]
     assert history_content_2 == mock_add.return_value
 
+
 @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
 def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) -> None:
     G = nx.MultiDiGraph()
