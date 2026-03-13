@@ -29,6 +29,7 @@ from typing import Any
 import requests  # type: ignore[import-untyped]
 
 from ocapi.config import settings
+from ocapi.exceptions import LLMConfigError, LLMNetworkError, LLMResponseError
 from ocapi.types import OperationType
 from ocapi.utils.logging_utils import get_logger
 
@@ -98,20 +99,18 @@ class ResolvedLLMModel:
 
 def _read_json_config(path: Path, default_value: dict[str, Any]) -> dict[str, Any]:
     if not path.exists():
-        _LOGGER.warning(
-            f"Fichier de config introuvable ({path}). Utilisation de la configuration par défaut."
-        )
+        _LOGGER.warning(f"Config file not found ({path}). Using default configuration.")
         return default_value
 
     try:
         with path.open(encoding="utf-8") as handle:
             payload: Any = json.load(handle)
     except (OSError, json.JSONDecodeError) as exc:
-        _LOGGER.warning(f"Config JSON invalide ({path}): {exc}. Fallback sur défaut.")
+        _LOGGER.warning(f"Invalid JSON config ({path}): {exc}. Falling back to default.")
         return default_value
 
     if not isinstance(payload, dict):
-        _LOGGER.warning(f"Config JSON invalide ({path}): objet attendu. Fallback sur défaut.")
+        _LOGGER.warning(f"Invalid JSON config ({path}): object expected. Falling back to default.")
         return default_value
 
     return payload
@@ -159,7 +158,7 @@ def _primary_secondary_keys(models_cfg: dict[str, Any]) -> tuple[str, str | None
 def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
     models = models_cfg.get("models", {})
     if not isinstance(models, dict) or not models:
-        raise ValueError("Aucun modèle LLM disponible dans la configuration.")
+        raise LLMConfigError("No LLM model available in the configuration.")
 
     primary_key, secondary_key = _primary_secondary_keys(models_cfg)
 
@@ -167,7 +166,7 @@ def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
         return primary_key
     if model == "secondary":
         if secondary_key is None:
-            raise ValueError("Aucun modèle secondaire configuré.")
+            raise LLMConfigError("No secondary model configured.")
         return secondary_key
     if model in models:
         return model
@@ -188,7 +187,7 @@ def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
         ):
             return model_key
 
-    raise ValueError(f"Modèle LLM inconnu: {model}")
+    raise LLMConfigError(f"Unknown LLM model: {model}")
 
 
 def _provider_api_config(provider: str) -> tuple[str | None, str]:
@@ -198,7 +197,7 @@ def _provider_api_config(provider: str) -> tuple[str | None, str]:
         return settings.llm.mistral_api_key, str(settings.llm.mistral_api_url)
     if provider == "openai":
         return settings.llm.openai_api_key, str(settings.llm.openai_api_url)
-    raise ValueError(f"Provider LLM non supporté: {provider}")
+    raise LLMConfigError(f"Unsupported LLM provider: {provider}")
 
 
 def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
@@ -227,7 +226,7 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
             "n": 1,
         }
 
-    raise ValueError(f"Provider LLM non supporté: {model.provider}")
+    raise LLMConfigError(f"Unsupported LLM provider: {model.provider}")
 
 
 def _make_headers(api_key: str | None) -> dict[str, str]:
@@ -280,7 +279,7 @@ def _apply_rate_limit(rate_limit_cfg: dict[str, Any]) -> None:
             _RATE_LIMIT_LAST_CALL_MONOTONIC = now
 
     if sleep_seconds > 0.0:
-        _LOGGER.debug(f"Rate limiting actif: attente de {sleep_seconds:.3f}s avant appel LLM.")
+        _LOGGER.debug(f"Rate limiting active: waiting {sleep_seconds:.3f}s before LLM call.")
         time.sleep(sleep_seconds)
         with _RATE_LIMIT_LOCK:
             _RATE_LIMIT_LAST_CALL_MONOTONIC = time.monotonic()
@@ -312,51 +311,52 @@ def _execute_model_call(
                 return str(data["choices"][0]["message"]["content"])
             except (TypeError, KeyError, IndexError) as exc:
                 _LOGGER.error(
-                    f"Réponse API LLM invalide ({model.model_name}): clé choices/message/content "
-                    f"introuvable. Réponse brute: {data}"
+                    f"Invalid LLM API response ({model.model_name}): "
+                    f"choices/message/content key not found. Raw response: {data}"
                 )
-                raise ValueError("Format de réponse LLM invalide") from exc
+                raise LLMResponseError("Invalid LLM response format") from exc
         except requests.exceptions.RequestException as exc:
             retryable = _is_retryable_http_error(exc)
             is_last_attempt = attempt >= max_attempts
             if not retryable or is_last_attempt:
                 _LOGGER.error(
-                    f"Échec appel API LLM ({model.model_name}) "
-                    f"tentative {attempt}/{max_attempts}: {exc}"
+                    f"LLM API call failed ({model.model_name}) "
+                    f"attempt {attempt}/{max_attempts}: {exc}"
                 )
-                raise
+                raise LLMNetworkError(f"LLM API call failed ({model.model_name}): {exc}") from exc
 
             delay_seconds = _retry_delay_seconds(attempt, strategy)
             _LOGGER.warning(
-                f"Retry appel API LLM ({model.model_name}) tentative {attempt}/{max_attempts} "
-                f"dans {delay_seconds:.2f}s: {exc}"
+                f"Retrying LLM API call ({model.model_name}) attempt {attempt}/{max_attempts} "
+                f"in {delay_seconds:.2f}s: {exc}"
             )
             time.sleep(delay_seconds)
 
-    raise RuntimeError("Boucle de retry terminée sans résultat.")
+    raise LLMNetworkError("Retry loop ended without result.")
 
 
 def config_model_llm(model: str | None = None) -> ResolvedLLMModel:
-    """
-    Résout la configuration d'un modèle LLM à partir de la config JSON centralisée.
+    """Resolve a LLM model configuration from the centralised JSON config.
 
-    Paramètre model:
-    - None / "primary": modèle principal configuré
-    - "secondary": modèle secondaire configuré
-    - model_key: clé explicite du modèle dans llm_models.json
-    - compat: alias historiques (GPT5, GPT5mini, ancien model_id Mistral)
+    Parameters
+    ----------
+    model : str | None
+        - ``None`` / ``"primary"``: configured primary model
+        - ``"secondary"``: configured secondary model
+        - model_key: explicit key in ``llm_models.json``
+        - legacy aliases (GPT5, GPT5mini, old Mistral model_id)
     """
     models_cfg = _load_llm_models_config()
     model_key = _resolve_model_key(model, models_cfg)
     models = models_cfg.get("models", {})
     model_cfg = models.get(model_key, {})
     if not isinstance(model_cfg, dict):
-        raise ValueError(f"Configuration invalide pour le modèle: {model_key}")
+        raise LLMConfigError(f"Invalid configuration for model: {model_key}")
 
     provider = model_cfg.get("provider")
     model_name = model_cfg.get("model_id")
     if not isinstance(provider, str) or not isinstance(model_name, str):
-        raise ValueError(f"Configuration invalide pour le modèle: {model_key}")
+        raise LLMConfigError(f"Invalid configuration for model: {model_key}")
 
     api_key, api_url = _provider_api_config(provider)
     return ResolvedLLMModel(
@@ -369,9 +369,9 @@ def config_model_llm(model: str | None = None) -> ResolvedLLMModel:
 
 
 def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
-    """
-    Appelle le modèle LLM avec le prompt donné et retourne la réponse au format JSON.
-    Applique la stratégie de retry primaire + fallback secondaire selon llm_resilience.json.
+    """Call the LLM with the given prompt and return the response.
+
+    Applies the primary retry + secondary fallback strategy from ``llm_resilience.json``.
     """
     resilience_cfg = _load_llm_resilience_config()
     rate_limit_cfg = _load_llm_rate_limit_config()
@@ -400,7 +400,7 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
     )
 
     _LOGGER.debug(
-        "Stratégie LLM appliquée: "
+        "LLM strategy: "
         f"timeout={timeout_seconds}s, "
         f"retry_primary_max={primary_retry_max}, "
         f"retry_secondary_max={secondary_retry_max}, "
@@ -409,13 +409,13 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
         f"rate_limit_min_interval_ms={rate_limit_min_interval_ms}"
     )
 
-    _LOGGER.debug(f"Appel API LLM primaire: {cfg.model_name}")
+    _LOGGER.debug(f"Primary LLM API call: {cfg.model_name}")
     try:
         return _execute_model_call(cfg, prompt, timeout_seconds, primary_retry, rate_limit_cfg)
-    except requests.exceptions.RequestException as primary_error:
+    except LLMNetworkError as primary_error:
         if not fallback_enabled:
             _LOGGER.warning(
-                f"Fallback désactivé: échec primaire final sur {cfg.model_name}: {primary_error}"
+                f"Fallback disabled: final primary failure on {cfg.model_name}: {primary_error}"
             )
             raise
 
@@ -423,22 +423,22 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
         _primary_key, secondary_key = _primary_secondary_keys(models_cfg)
         if secondary_key is None:
             _LOGGER.warning(
-                "Fallback activé mais aucun secondary_model_key valide n'est configuré. "
-                f"Erreur primaire: {primary_error}"
+                "Fallback enabled but no valid secondary_model_key is configured. "
+                f"Primary error: {primary_error}"
             )
             raise
 
         fallback_cfg = config_model_llm("secondary")
         if fallback_cfg.model_key == cfg.model_key:
             _LOGGER.warning(
-                f"Fallback impossible: modèle secondaire ({fallback_cfg.model_key}) identique "
-                f"au primaire ({cfg.model_key}). Erreur primaire: {primary_error}"
+                f"Fallback impossible: secondary model ({fallback_cfg.model_key}) is identical "
+                f"to primary ({cfg.model_key}). Primary error: {primary_error}"
             )
             raise
 
         _LOGGER.warning(
-            f"Fallback activé: bascule de {cfg.model_name} vers {fallback_cfg.model_name} "
-            f"après erreur primaire: {primary_error}"
+            f"Fallback activated: switching from {cfg.model_name} to {fallback_cfg.model_name} "
+            f"after primary error: {primary_error}"
         )
         return _execute_model_call(
             fallback_cfg, prompt, timeout_seconds, secondary_retry, rate_limit_cfg
@@ -446,46 +446,40 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
 
 
 def parse_llm_json_list_response(raw: str) -> list[dict[str, Any]]:
-    """
-    Parse la réponse brute du LLM pour extraire une liste au format JSON.
+    """Parse the raw LLM response to extract a JSON list.
 
-    Note: Cette fonction retourne une liste vide en cas d'erreur de parsing.
-    Les erreurs sont loguées mais ne font pas l'objet d'un retry car le retry
-    doit être géré au niveau de l'appel API, pas au niveau du parsing.
+    Note: Returns an empty list on parsing errors. Errors are logged but not
+    retried — retries must be handled at the API call level, not the parsing level.
     """
-    # Chercher le premier grand tableau JSON dans la réponse
+    # Find the first JSON array in the response
     m = re.search(r"\[[\s\S]*\]", raw)
     if not m:
         _LOGGER.warning(
-            f"Aucun tableau JSON trouvé dans la réponse LLM. "
-            f"Réponse brute (premiers 200 chars): {raw[:200]}"
+            f"No JSON array found in LLM response. " f"Raw response (first 200 chars): {raw[:200]}"
         )
         return []
 
-    # Parser le tableau JSON
+    # Parse the JSON array
     try:
         lst: Any = json.loads(m.group())
-        # S'assurer qu'on renvoie bien une liste
+        # Ensure we return a list
         if not isinstance(lst, list):
             _LOGGER.warning(
-                f"Le JSON parsé n'est pas une liste mais un {type(lst).__name__}. "
-                f"Retour d'une liste vide."
+                f"Parsed JSON is not a list but a {type(lst).__name__}. " f"Returning empty list."
             )
             return []
         return lst
     except json.JSONDecodeError as e:
         _LOGGER.error(
-            f"Erreur parsing JSON LLM: {e}. "
-            f"Contenu JSON (premiers 200 chars): {m.group()[:200]}"
+            f"LLM JSON parsing error: {e}. " f"JSON content (first 200 chars): {m.group()[:200]}"
         )
         return []
 
 
 def query_llm_for_subtarget(typemodif: OperationType, target_content: str, sub_target: str) -> str:
-    """
-    Interroge un LLM pour déterminer le sub-target à partir d'un texte descriptif
-    et d'un contexte HTML. Retourne un dictionnaire avec les informations
-    du sub-target. (REPLACE)
+    """Query a LLM to locate a sub-target described in natural language within an HTML context.
+
+    Returns a prompt string for a REPLACE, REMOVE or ADD operation.
     """
     prompt_REPLACE = textwrap.dedent(
         f"""

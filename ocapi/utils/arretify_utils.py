@@ -20,18 +20,30 @@ from bs4 import BeautifulSoup, Tag
 
 
 def list_top_sections(soup: BeautifulSoup | Tag) -> list[Tag]:
-    """
-    Itère sur les sections de plus haut niveau dans le document (sans parent section).
-    """
+    """Return top-level sections in the document (with no parent section)."""
     return [sec for sec in soup.find_all("section") if sec.find_parent("section") is None]
 
 
 def extract_specs(soup: BeautifulSoup, spec: str) -> list[Tag]:
-    """Extrait les blocs HTML correspondant à une spec Arrêtify."""
+    """Extract all HTML elements matching an Arrêtify spec."""
     return [tag for tag in soup.find_all(attrs={"data-spec": spec}) if isinstance(tag, Tag)]
 
 
 def extract_first_spec_html(soup: BeautifulSoup, spec: str) -> str:
+    """Return the HTML of the first element matching the given Arrêtify spec.
+
+    Parameters
+    ----------
+    soup : BeautifulSoup
+        Parsed HTML document.
+    spec : str
+        Value of the ``data-spec`` attribute to look for (e.g. ``"visa"``, ``"motifs"``).
+
+    Returns
+    -------
+    str
+        Serialised HTML of the first matching element, or empty string if absent.
+    """
     tags = extract_specs(soup, spec)
     if not tags:
         return ""
@@ -39,6 +51,20 @@ def extract_first_spec_html(soup: BeautifulSoup, spec: str) -> str:
 
 
 def extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
+    """Return the plain text of the first element matching the given Arrêtify spec.
+
+    Parameters
+    ----------
+    soup : BeautifulSoup
+        Parsed HTML document.
+    spec : str
+        Value of the ``data-spec`` attribute to look for.
+
+    Returns
+    -------
+    str
+        Extracted text with normalised whitespace, or empty string if absent.
+    """
     tags = extract_specs(soup, spec)
     if not tags:
         return ""
@@ -46,6 +72,18 @@ def extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
 
 
 def extract_main(soup: BeautifulSoup) -> str:
+    """Return the HTML of the ``<main>`` tag from the document.
+
+    Parameters
+    ----------
+    soup : BeautifulSoup
+        Parsed HTML document.
+
+    Returns
+    -------
+    str
+        Serialised HTML of the ``<main>`` tag, or empty string if absent.
+    """
     main = soup.find("main")
     if main is None:
         return ""

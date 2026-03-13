@@ -17,11 +17,11 @@
 # limitations under the License.
 #
 """
-Module de catégorisation des arrêtés préfectoraux.
+Categorisation module for arrêtés.
 
-La catégorisation est basée sur le nom du fichier et suit les règles suivantes:
+Categorisation is based on the filename and follows these rules:
 
-Catégories et correspondances:
+Categories and matches:
 
     AP_AUTORISATION:
         - "ap d'autorisation"
@@ -36,24 +36,24 @@ Catégories et correspondances:
         - "ap prescriptions complémentaires"
 
     AUTRE:
-        - Tout autre type non reconnu
+        - Any other unrecognised type
 
-Utilisation:
+Usage:
     >>> from ocapi.types import parse_filename, categorize_arrete, FileType
     >>>
-    >>> # Parser un nom de fichier complet
+    >>> # Parse a full filename
     >>> arrete_id, file_type = parse_filename("2009-12-08_ap d'autorisation_details.html")
     >>> print(arrete_id)  # "2009-12-08"
     >>> print(file_type)  # FileType.AP_AUTORISATION
     >>>
-    >>> # Catégoriser directement un fichier
+    >>> # Categorise a file directly
     >>> file_type = categorize_arrete("2014-01-09_ap prescriptions complémentaires_mod.html")
     >>> print(file_type)  # FileType.AP_COMPLEMENTAIRE
 
 Notes:
-    - La fonction parse_filename() valide également le format de la date et l'extension .html
-    - La catégorisation est insensible à la casse
-    - L'ordre de matching est du plus spécifique au plus général pour éviter les faux positifs
+    - parse_filename() also validates the date format and .html extension.
+    - Categorisation is case-insensitive.
+    - Matching is ordered from most specific to most general to avoid false positives.
 """
 
 from .types import FileType, categorize_arrete, parse_filename

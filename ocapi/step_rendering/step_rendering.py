@@ -28,9 +28,29 @@ _LOGGER = get_logger(__name__)
 def step_rendering(
     history: ArticleHistory, operations: list[Operation], arrete_files: list[ArreteFile]
 ) -> Permis:
-    _LOGGER.info(f"Rendering: génération du permis à partir de {len(history)} article(s) modifiés")
+    """Assemble the consolidated HTML permit from the history and arrêtés.
+
+    Generates the header (title, sources, visa, motif), the main content
+    (articles with their latest version) and the complements (non-modifying
+    arrêtés).
+
+    Parameters
+    ----------
+    history : ArticleHistory
+        Article version history produced by ``step_resolution``.
+    operations : list[Operation]
+        Detected operations, used to annotate article versions.
+    arrete_files : list[ArreteFile]
+        Source arrêtés sorted chronologically; ``arrete_files[0]`` is the initial AP.
+
+    Returns
+    -------
+    Permis
+        Object containing the HTML of the header, main content and complements.
+    """
+    _LOGGER.info(f"Rendering: generating permit from {len(history)} modified article(s)")
     contenu_permis = make_permit_content(history, arrete_files, operations)
     header_permis = make_permit_header(arrete_files)
     other_permis = make_permit_other(arrete_files, operations=operations)
-    _LOGGER.debug("Rendering: permis généré avec succès")
+    _LOGGER.debug("Rendering: permit generated successfully")
     return Permis(header=header_permis, contenu=contenu_permis, other=other_permis)

@@ -17,8 +17,8 @@
 # limitations under the License.
 #
 """
-Découpe un arrêté (`ArreteFile`) en blocs (= liste de `Document`) et une map des images.
-Chaque bloc (= `Document`) correspond à un extrait de taille limitée du HTML d'origine.
+Split an arrêté (``ArreteFile``) into blocks (= list of ``Document``) and an image map.
+Each block (= ``Document``) corresponds to a size-limited excerpt of the original HTML.
 """
 
 import math
@@ -37,9 +37,28 @@ _LOGGER = get_logger(__name__)
 _ARRETIFY_SECTION_SELECTOR = '*[data-spec="section"]'
 
 
-def split_blocs(
+def split_blocks(
     minified_soup: BeautifulSoup, arrete_file: ArreteFile, target_per_block: int
 ) -> Iterator[Document]:
+    """Split an Arrêtify soup into size-controlled blocks.
+
+    Selects leaf-level sections (without sub-sections) and groups them
+    into blocks whose total size does not exceed ``target_per_block`` characters.
+
+    Parameters
+    ----------
+    minified_soup : BeautifulSoup
+        Minified Arrêtify HTML soup (images already replaced by tokens).
+    arrete_file : ArreteFile
+        Source arrêté, used to annotate the produced documents.
+    target_per_block : int
+        Maximum target size of a block (in number of HTML characters).
+
+    Yields
+    ------
+    Document
+        HTML block annotated with the source arrêté identifier.
+    """
     document_factory = make_document_factory(ContentType.HTML, parent=arrete_file.id)
 
     ignored_sections: list[Tag] = []
@@ -73,9 +92,9 @@ def split_blocs(
 
 
 def _extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
-    """
-    Remplace les src des <img> par des tokens __IMG_n__ et retourne (html_modifié, img_map).
-    img_map : { "__IMG_n__": original_src }
+    """Replace <img> src attributes with IMG_n tokens and return (modified_html, img_map).
+
+    img_map: { "IMG_n": original_src }
     """
     soup = BeautifulSoup(html, "html.parser")
     img_map: ImageMap = {}
@@ -84,12 +103,29 @@ def _extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
         key = f"IMG_{i:03d}"
         if src:
             img_map[key] = src
-        # remplacer src par token (garde la balise pour le LLM mais réduit la charge)
+        # Replace src with token (keeps the tag for the LLM but reduces payload size)
         img["src"] = key
     return str(soup), img_map
 
 
 def step_chunking(arrete_file: ArreteFile) -> Tuple[list[Document], ImageMap]:
+    """Split an HTML arrêté into blocks ready for LLM detection.
+
+    Minifies the HTML, extracts images (replaced by tokens), then splits
+    Arrêtify sections into blocks of at most ~70 000 characters.
+
+    Parameters
+    ----------
+    arrete_file : ArreteFile
+        Arrêté to split.
+
+    Returns
+    -------
+    list[Document]
+        HTML blocks ready to be sent to the LLM.
+    ImageMap
+        ``{token: original_url}`` mapping for rehydrating images.
+    """
     minified = minify_html_fragment(str(arrete_file.soup))
     minified, img_map = _extract_and_strip_images(minified)
     soup_without_images = BeautifulSoup(minified, "html.parser")
@@ -98,14 +134,14 @@ def step_chunking(arrete_file: ArreteFile) -> Tuple[list[Document], ImageMap]:
     target_per_block = math.ceil(len(soup_without_images) / number_of_blocks)
 
     blocks = list(
-        split_blocs(
+        split_blocks(
             soup_without_images,
             arrete_file=arrete_file,
             target_per_block=target_per_block,
         )
     )
 
-    _LOGGER.info(f"Chunking: {len(blocks)} bloc(s) créé(s), {len(img_map)} image(s)")
+    _LOGGER.info(f"Chunking: {len(blocks)} block(s) created, {len(img_map)} image(s)")
     return blocks, img_map
 
 

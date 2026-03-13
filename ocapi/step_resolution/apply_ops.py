@@ -17,17 +17,15 @@
 # limitations under the License.
 #
 """
-Ce fichier contient des fonctions pour appliquer les opérations détectées
-sur le contenu des articles d'arrêtés.
+Functions to apply detected operations to the content of arrêté articles.
 
-Chaque opération est appliquée en fonction de son type (REPLACE, REMOVE, ADD)
-et de sa cible (subtarget). Lorsque la subtarget est complexe, un LLM est
-utilisé pour savoir où insérer le contenu modifié.
+Each operation is applied according to its type (REPLACE, REMOVE, ADD) and its
+sub-target. When the sub-target is complex, a LLM is used to determine where to
+insert the modified content.
 
-Pour chaque arrêté, un sous-graphe des opérations le concernant est construit
-et les opérations sont appliquées dans l'ordre. Cela permet de construire
-l'historique des versions des articles modifiés au fil des modifications
-apportées par les opérations.
+For each arrêté, a sub-graph of the operations it defines is built and operations
+are applied in order. This builds a version history of modified articles across
+successive operations.
 """
 
 from typing import Literal
@@ -35,6 +33,7 @@ from typing import Literal
 import networkx as nx
 from bs4 import BeautifulSoup
 
+from ocapi.exceptions import OperationError
 from ocapi.types import (
     ArreteFile,
     ArreteId,
@@ -55,9 +54,7 @@ LLM_CFG = config_model_llm()
 
 
 def _to_operation_type(raw_type: OperationType | str) -> OperationType:
-    """
-    Garantit que l'on manipule toujours une instance d'OperationType.
-    """
+    """Ensure we always work with an OperationType instance."""
     if isinstance(raw_type, OperationType):
         return raw_type
     raw_str = getattr(raw_type, "value", raw_type)
@@ -67,9 +64,7 @@ def _to_operation_type(raw_type: OperationType | str) -> OperationType:
 def _edge_to_operation(
     operations_graph: nx.MultiDiGraph, src: NodeId, tgt: NodeId, key: int
 ) -> Operation:
-    """
-    Convertit un edge du graphe en une instance Operation.
-    """
+    """Convert a graph edge into an Operation instance."""
     data = operations_graph[src][tgt][key]
     op_type = _to_operation_type(data["operation_type"])
     operation = Operation(
@@ -93,18 +88,40 @@ def _ensure_soup(soup_input: Content | BeautifulSoup) -> BeautifulSoup:
 
 
 def apply_replace(operation: Operation, soup_input: Content | BeautifulSoup) -> Content:
+    """Apply a REPLACE operation to an article's content.
+
+    Tries a regex-based resolution first (simple sub_target). Falls back to the
+    LLM on ambiguity or for complex sub-targets.
+
+    Parameters
+    ----------
+    operation : Operation
+        REPLACE operation; must have both ``sub_target`` and ``operand``.
+    soup_input : Content | BeautifulSoup
+        Current HTML content of the target article.
+
+    Returns
+    -------
+    Content
+        HTML content of the article after replacement.
+
+    Raises
+    ------
+    OperationError
+        If ``sub_target`` or ``operand`` is missing from the operation.
+    """
     if operation.sub_target is None or operation.operand is None:
-        raise ValueError("REPLACE operations require sub_target and operand.")
+        raise OperationError("REPLACE operations require sub_target and operand.")
     soup = _ensure_soup(soup_input)
     if is_simple_subtarget(operation.sub_target):
         try:
             modified_soup = replace_subtarget(soup, operation.sub_target, operation.operand)
             return str(modified_soup)
         except ValueError:
-            # Ambiguïté détectée, fallback vers LLM
-            # TODO : mettre un warning dans les logs
+            # Ambiguity detected, fall back to LLM
+            # TODO: add a warning in the logs
             pass
-    # Cas complexe ou ambigu : utiliser le LLM
+    # Complex or ambiguous case: use the LLM
     prompt = query_llm_for_subtarget(
         OperationType.REPLACE, str(soup), operation.sub_target.description or ""
     )
@@ -118,8 +135,30 @@ def apply_replace(operation: Operation, soup_input: Content | BeautifulSoup) -> 
 
 
 def apply_remove(operation: Operation, soup_input: Content | BeautifulSoup) -> Content:
+    """Apply a REMOVE operation to an article's content.
+
+    For simple sub-targets, replaces the target with an empty string.
+    For complex sub-targets, delegates to the LLM.
+
+    Parameters
+    ----------
+    operation : Operation
+        REMOVE operation; must have ``sub_target``.
+    soup_input : Content | BeautifulSoup
+        Current HTML content of the target article.
+
+    Returns
+    -------
+    Content
+        HTML content of the article after removal of the sub-target.
+
+    Raises
+    ------
+    OperationError
+        If ``sub_target`` is missing from the operation.
+    """
     if operation.sub_target is None:
-        raise ValueError("REMOVE operations require sub_target.")
+        raise OperationError("REMOVE operations require sub_target.")
     sub_target = operation.sub_target
     soup = _ensure_soup(soup_input)
     if is_simple_subtarget(sub_target):
@@ -139,8 +178,31 @@ def apply_remove(operation: Operation, soup_input: Content | BeautifulSoup) -> C
 
 
 def apply_add(operation: Operation, soup_input: Content | BeautifulSoup) -> Content:
+    """Apply an ADD operation to an article's content.
+
+    Simple sub-targets are not yet supported for ADD; all cases are handled by the LLM.
+
+    Parameters
+    ----------
+    operation : Operation
+        ADD operation; must have both ``sub_target`` and ``operand``.
+    soup_input : Content | BeautifulSoup
+        Current HTML content of the target article.
+
+    Returns
+    -------
+    Content
+        HTML content of the article after inserting the new content.
+
+    Raises
+    ------
+    OperationError
+        If ``sub_target`` or ``operand`` is missing from the operation.
+    NotImplementedError
+        If the sub-target is simple (not yet supported).
+    """
     if operation.sub_target is None or operation.operand is None:
-        raise ValueError("ADD operations require sub_target and operand.")
+        raise OperationError("ADD operations require sub_target and operand.")
     sub_target = operation.sub_target
     soup = _ensure_soup(soup_input)
     if is_simple_subtarget(sub_target):
@@ -160,12 +222,12 @@ def apply_add(operation: Operation, soup_input: Content | BeautifulSoup) -> Cont
 def apply_subgraph_operations(
     subG: nx.MultiDiGraph, history: ArticleHistory
 ) -> tuple[ArticleHistory, list[tuple[OperationId, str]]]:
+    """Apply sub-graph operations and update the article history.
+
+    For each operation, appends a new version to the target article's history.
+    Returns the updated history and the list of failed operations.
     """
-    Applique les opérations du sous-graphe et met à jour l'historique des articles.
-    Pour chaque opération, ajoute une nouvelle version à l'historique de l'article cible.
-    Retourne l'historique mis à jour et la liste des opérations qui ont échoué.
-    """
-    skipped_ops: list[tuple[OperationId, str]] = []  # Liste des (operation_id, error_message)
+    skipped_ops: list[tuple[OperationId, str]] = []  # list of (operation_id, error_message)
     start_nodes = [node for node in subG.nodes if subG.in_degree(node) == 0]
     for start_node in start_nodes:
         for succ in subG.successors(start_node):
@@ -180,8 +242,10 @@ def apply_subgraph_operations(
                 op = _edge_to_operation(subG, src, tgt, key)
                 op_id = op.id
 
-                # Récupérer le contenu actuel (dernière version) de l'article cible
+                # Retrieve current content (latest version) of the target article
                 if tgt not in history:
+                    # Initialise history with version 0 from the target node content
+                    # (fallback: empty string)
                     initial_content = subG.nodes[tgt].get("content", "")
                     history[tgt] = [
                         ArticleVersion(
@@ -193,8 +257,6 @@ def apply_subgraph_operations(
 
                 current_content = history[tgt][-1]["content"]
 
-                # Appliquer l'opération.
-                # Si l'operand n'a pas pu être extrait, on conserve le contenu courant.
                 status_code: Literal["RESOLVED", "ERROR_EXTRACTING_CONTENT"]
                 if not op.extractable_content:
                     new_content = current_content
@@ -209,9 +271,9 @@ def apply_subgraph_operations(
                     new_content = apply_add(op, BeautifulSoup(current_content, "html.parser"))
                     status_code = "RESOLVED"
                 else:
-                    raise ValueError(f"Type d'opération inconnu: {op.operation_type}")
+                    raise OperationError(f"Unknown operation type: {op.operation_type}")
 
-                # Ajouter la nouvelle version à l'historique
+                # Append the new version to the history
                 new_version = ArticleVersion(
                     version=len(history[tgt]),
                     content=new_content,
@@ -221,7 +283,7 @@ def apply_subgraph_operations(
                     new_version["status_code"] = status_code
                 history[tgt].append(new_version)
             except Exception as e:
-                error_msg = f"Opération {op_id or 'inconnue'} ignorée: {str(e)}"
+                error_msg = f"Operation {op_id or 'unknown'} skipped: {str(e)}"
                 _LOGGER.warning(error_msg)
                 skipped_ops.append((op_id or "unknown", str(e)))
                 continue
@@ -233,10 +295,10 @@ def apply_all_ops(
     operations_graph: nx.MultiDiGraph,
     arrete_list: list[ArreteFile],
 ) -> tuple[ArticleHistory, list[tuple[OperationId, str]]]:
-    """
-    Construit l'historique complet des articles en parcourant chronologiquement les arrêtés.
-    Retourne un dictionnaire {(arrete_id, article_id): [versions]} avec toutes les modifications
-    et la liste des opérations qui ont échoué.
+    """Build the complete article history by processing arrêtés chronologically.
+
+    Returns a dict ``{NodeId: [versions]}`` with all modifications and the list
+    of failed operations.
     """
     history: ArticleHistory = {}
     all_skipped_ops: list[tuple[OperationId, str]] = []
@@ -248,7 +310,7 @@ def apply_all_ops(
             all_skipped_ops.extend(skipped_ops)
 
     if all_skipped_ops:
-        _LOGGER.warning(f"{len(all_skipped_ops)} opération(s) ignorée(s) lors de l'application")
+        _LOGGER.warning(f"{len(all_skipped_ops)} operation(s) skipped during application")
 
     return history, all_skipped_ops
 
@@ -256,9 +318,9 @@ def apply_all_ops(
 def build_next_subgraph(
     operations_graph: nx.MultiDiGraph, history: ArticleHistory, arrete_id: ArreteId
 ) -> nx.MultiDiGraph:
-    """
-    Construit le sous-graphe des opérations définies par l'arrêté donné.
-    Met à jour le contenu des nœuds avec leur dernière version depuis l'historique.
+    """Build the sub-graph of operations defined by the given arrêté.
+
+    Updates node contents with their latest version from the history.
     """
     filtered_nodes: set[NodeId] = set()
     for node in operations_graph.nodes:
@@ -271,7 +333,7 @@ def build_next_subgraph(
 
     new_graph = operations_graph.subgraph(filtered_nodes).copy()
 
-    # Mettre à jour le contenu des nœuds avec leur dernière version depuis l'historique
+    # Update node contents with their latest version from the history
     for node in new_graph.nodes:
         if node in history and len(history[node]) > 0:
             latest_version = history[node][-1]

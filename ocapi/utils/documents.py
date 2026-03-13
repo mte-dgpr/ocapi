@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 """
-TODO : remplacer tout ce fichier par PY - arrete_utils quand la librairie sera prête.
+TODO: replace this file with PY - arrete_utils when the library is ready.
 """
 
 import re
@@ -34,7 +34,7 @@ class FieldsImport:
     champ_10_siret: str
     champ_14_code_dechet: str
     """
-    Format code déchet CED : 12 34 56
+    CED waste code format: 12 34 56
     """
 
     def __post_init__(self) -> None:

@@ -33,26 +33,25 @@ from ocapi.types import (
 def make_permit_content(
     history: ArticleHistory, arrete_files: list[ArreteFile], operations: list[Operation]
 ) -> str:
-    """
-    Génère le contenu consolidé du permis à partir de l'historique des modifications.
+    """Generate the consolidated permit content from the modification history.
 
-    1. Part de l'AP initial (arrete_files[0])
-    2. Pour chaque article de l'AP initial, applique la dernière version depuis l'historique
-    3. Retourne le HTML consolidé (sans header)
+    1. Starts from the initial AP (arrete_files[0])
+    2. For each article of the initial AP, applies the latest version from history
+    3. Returns the consolidated HTML (without header)
     """
-    # Récupérer l'AP initial
+    # Retrieve the initial AP
     ap_initial = arrete_files[0]
     ap_initial_id = ap_initial.id
 
-    # Cloner le soup pour ne pas modifier l'original
+    # Clone the soup to avoid mutating the original
     consolidated_soup = BeautifulSoup(str(ap_initial.soup), "html.parser")
 
-    # Extraire seulement le body (skip header)
+    # Extract only the main content (skip header)
     main = consolidated_soup.find("main")
     if main is None:
         return ""
 
-    # Trouver toutes les sections (articles) dans le body
+    # Find all sections (articles) in the main element
     sections = main.find_all("section", attrs={"data-spec": "section"})
     operation_by_id = {operation.id: operation for operation in operations}
 
@@ -79,9 +78,9 @@ def make_section_version(
     ap_initial_id: str,
     operation_by_id: dict[str, Operation],
 ) -> None:
-    """
-    Modifie en place une section en SectionVersion avec contenu consolidé.
-    Ajoute les attributs:
+    """Modify a section in-place into a SectionVersion with consolidated content.
+
+    Adds the attributes:
     - data-is_modified
     - data-date_version
     """
@@ -131,6 +130,24 @@ def _build_section_history_html(
     versions: list[ArticleVersion],
     operation_by_id: dict[str, Operation],
 ) -> str:
+    """Build the HTML version history of an article.
+
+    Generates a ``<div data-spec="section_version_history">`` block containing:
+    - a description of the current version (bold)
+    - previous versions in collapsible ``<details>`` elements
+
+    Parameters
+    ----------
+    versions : list[ArticleVersion]
+        Ordered list of article versions (last item is the current version).
+    operation_by_id : dict[str, Operation]
+        Operation index by ID, used to retrieve metadata for each version.
+
+    Returns
+    -------
+    str
+        HTML of the history block to insert into the ``section_version``.
+    """
     history_parts = [
         '<div data-spec="section_version_history" style="color: #1b4d89; margin-bottom: 1rem;">'
     ]
@@ -213,6 +230,24 @@ def _is_abrogated(
     latest_version: ArticleVersion,
     operation_by_id: dict[str, Operation],
 ) -> bool:
+    """Return True if the latest article version corresponds to a full abrogation.
+
+    An article is considered abrogated if and only if its last operation is a
+    REMOVE with sub_target ``FULL_SECTION`` (description ``ALL`` or ``contenu entier``)
+    or without a sub_target (implicit full abrogation).
+
+    Parameters
+    ----------
+    latest_version : ArticleVersion
+        Latest version of the article in history.
+    operation_by_id : dict[str, Operation]
+        Operation index by ID.
+
+    Returns
+    -------
+    bool
+        ``True`` if the article should be marked as abrogated.
+    """
     operation_id = latest_version.get("operation_id")
     if not operation_id:
         return False

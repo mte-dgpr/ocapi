@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 """
-Tests pour le module de logging centralisé.
+Tests for the centralised logging module.
 """
 
 import logging
@@ -31,16 +31,16 @@ from ocapi.utils.logging_utils import get_logger, initialize_root_logger, set_le
 
 
 class TestGetLogger:
-    """Tests pour la fonction get_logger."""
+    """Tests for the get_logger function."""
 
     def test_get_logger(self) -> None:
-        """Test que get_logger retourne un logger avec le bon nom."""
+        """Test that get_logger returns a logger with the correct name."""
         logger = get_logger("test_module")
         assert logger.name == "test_module"
         assert isinstance(logger, logging.Logger)
 
     def test_multiple_loggers(self) -> None:
-        """Test que plusieurs loggers peuvent être utilisés simultanément."""
+        """Test that multiple loggers can be used simultaneously."""
         initialize_root_logger(level="INFO")
 
         logger1 = get_logger("module1")
@@ -52,10 +52,10 @@ class TestGetLogger:
 
 
 class TestInitializeRootLogger:
-    """Tests pour la fonction initialize_root_logger."""
+    """Tests for the initialize_root_logger function."""
 
     def test_initialize_root_logger_console_only(self) -> None:
-        """Test l'initialisation du logger avec console uniquement."""
+        """Test logger initialisation with console output only."""
         logger = initialize_root_logger(
             level="INFO",
             log_file=None,
@@ -65,12 +65,12 @@ class TestInitializeRootLogger:
         assert logger.level == logging.INFO
         assert len(logger.handlers) >= 1
 
-        # Vérifier qu'il y a au moins un StreamHandler
+        # Verify there is at least one StreamHandler
         has_console_handler = any(isinstance(h, logging.StreamHandler) for h in logger.handlers)
         assert has_console_handler
 
     def test_initialize_root_logger_with_file(self, tmp_path: Path) -> None:
-        """Test l'initialisation du logger avec fichier."""
+        """Test logger initialisation with file output."""
         log_file = tmp_path / "test.log"
 
         logger = initialize_root_logger(
@@ -81,19 +81,17 @@ class TestInitializeRootLogger:
 
         assert logger.level == logging.DEBUG
 
-        # Écrire un message de test
         test_logger = get_logger("test")
         test_logger.info("Test message")
 
-        # Forcer le flush des handlers
         for handler in logger.handlers:
             handler.flush()
 
-        # Vérifier que le fichier existe
+        # Verify the file exists
         assert log_file.exists()
 
     def test_logger_rotation_config(self, tmp_path: Path) -> None:
-        """Test la configuration de rotation des fichiers de log."""
+        """Test log file rotation configuration."""
         log_file = tmp_path / "rotating.log"
 
         logger = initialize_root_logger(
@@ -105,7 +103,7 @@ class TestInitializeRootLogger:
             console_output=False,
         )
 
-        # Vérifier qu'il y a un RotatingFileHandler
+        # Verify there is a RotatingFileHandler
         has_rotating_handler = any(
             h.__class__.__name__ == "RotatingFileHandler" for h in logger.handlers
         )
@@ -113,17 +111,17 @@ class TestInitializeRootLogger:
 
     @pytest.mark.parametrize("level", ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
     def test_all_log_levels(self, level: str) -> None:
-        """Test que tous les niveaux de logging sont acceptés."""
+        """Test that all logging levels are accepted."""
         logger = initialize_root_logger(level=level)  # type: ignore[arg-type]
         expected_level = getattr(logging, level)
         assert logger.level == expected_level
 
 
 class TestSetLevel:
-    """Tests pour la fonction set_level."""
+    """Tests for the set_level function."""
 
     def test_set_level(self) -> None:
-        """Test le changement de niveau de logging."""
+        """Test changing the logging level."""
         initialize_root_logger(level="INFO")
         root_logger = logging.getLogger()
 
@@ -137,10 +135,10 @@ class TestSetLevel:
 
 
 class TestLoggerFunctionality:
-    """Tests pour la fonctionnalité du système de logging."""
+    """Tests for the logging system functionality."""
 
     def test_logger_levels_in_code(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Test que les différents niveaux de logging fonctionnent correctement."""
+        """Test that all logging levels work correctly."""
         logger = get_logger("test_levels")
 
         with caplog.at_level(logging.DEBUG):
@@ -150,7 +148,7 @@ class TestLoggerFunctionality:
             logger.error("Error message")
             logger.critical("Critical message")
 
-        # Vérifier que tous les messages sont présents
+        # Verify all messages are present
         assert "Debug message" in caplog.text
         assert "Info message" in caplog.text
         assert "Warning message" in caplog.text
@@ -158,7 +156,7 @@ class TestLoggerFunctionality:
         assert "Critical message" in caplog.text
 
     def test_logger_with_exception(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Test que l'exception logging fonctionne correctement."""
+        """Test that exception logging works correctly."""
         logger = get_logger("test_exception")
 
         with caplog.at_level(logging.ERROR):
@@ -167,13 +165,13 @@ class TestLoggerFunctionality:
             except ValueError:
                 logger.exception("An error occurred")
 
-        # Vérifier que le message et la stacktrace sont présents
+        # Verify that the message and stacktrace are present
         assert "An error occurred" in caplog.text
         assert "ValueError" in caplog.text
         assert "Test error" in caplog.text
 
     def test_log_format(self) -> None:
-        """Test que le format des logs contient les informations attendues."""
+        """Test that the log format contains the expected information."""
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".log", delete=False) as f:
             log_file = Path(f.name)
 
@@ -187,23 +185,21 @@ class TestLoggerFunctionality:
             logger = get_logger("test.module")
             logger.info("Test format message")
 
-            # Fermer tous les handlers pour libérer le fichier
+            # Close all handlers to release the file
             root_logger = logging.getLogger()
             for handler in root_logger.handlers[:]:
                 handler.close()
                 root_logger.removeHandler(handler)
 
-            # Lire le contenu du fichier
             content = log_file.read_text()
 
-            # Vérifier le format: timestamp - module - level - message
+            # Verify format: timestamp - module - level - message
             assert "test.module" in content
             assert "INFO" in content
             assert "Test format message" in content
-            # Vérifier qu'il y a un timestamp (format: YYYY-MM-DD HH:MM:SS)
+            # Verify there is a timestamp (format: YYYY-MM-DD HH:MM:SS)
             assert re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", content)
 
         finally:
-            # Supprimer le fichier seulement s'il existe toujours
             if log_file.exists():
                 log_file.unlink()

@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 """
-Tests pour les nouvelles fonctions I/O : save_operations, load_operations, save_history.
+Tests for the new I/O functions: save_operations, load_operations, save_history.
 """
 import json
 from pathlib import Path

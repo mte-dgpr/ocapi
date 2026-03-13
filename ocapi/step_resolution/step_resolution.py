@@ -27,11 +27,31 @@ _LOGGER = get_logger(__name__)
 def step_resolution(
     operations: list[Operation], arrete_files: list[ArreteFile]
 ) -> tuple[ArticleHistory, list[ArreteFile]]:
-    _LOGGER.info(f"Résolution: {len(operations)} opération(s) à traiter")
+    """Build the article history by applying the detected operations.
+
+    Builds the operations graph, then applies each operation in chronological
+    order. Updates the status of abrogated arrêtés.
+
+    Parameters
+    ----------
+    operations : list[Operation]
+        Operations detected by ``step_detection``.
+    arrete_files : list[ArreteFile]
+        Available arrêtés, sorted chronologically.
+
+    Returns
+    -------
+    ArticleHistory
+        Complete version history of each modified article,
+        indexed by ``NodeId(arrete_id, article_id)``.
+    list[ArreteFile]
+        Updated arrêtés (``status`` set to ``False`` for abrogated ones).
+    """
+    _LOGGER.info(f"Resolution: {len(operations)} operation(s) to process")
     operations_graph, arrete_files, skipped_ops_graph = build_graph(operations, arrete_files)
     history, skipped_ops_apply = apply_all_ops(
         operations_graph,
         arrete_files,
     )
-    _LOGGER.info(f"Résolution: {len(history)} article(s) dans l'historique")
+    _LOGGER.info(f"Resolution: {len(history)} article(s) in history")
     return history, arrete_files

@@ -17,10 +17,10 @@
 # limitations under the License.
 #
 """
-Configuration centralisée pour OCAPI.
+Centralised configuration for OCAPI.
 
-Ce module utilise Pydantic Settings pour charger et valider
-la configuration depuis les variables d'environnement et fichiers .env.
+This module uses Pydantic Settings to load and validate configuration
+from environment variables and .env files.
 """
 
 from pathlib import Path
@@ -29,97 +29,96 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Racine du projet (calculée une seule fois)
+# Project root (computed once)
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-# Type pour les niveaux de logging
+# Type alias for logging levels
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
-# Version Arrêtify supportée
-# OCAPI s'appuie sur le format HTML sémantique généré par Arrêtify.
-# Seule la version 0.1.X est actuellement supportée (0.1.0, 0.1.1, etc.)
-# Les versions majeures/mineures différentes peuvent introduire des breaking changes
-# dans le format HTML (attributs data-spec, classes CSS, structure du document).
+# Supported Arrêtify version
+# OCAPI relies on the semantic HTML format produced by Arrêtify.
+# Only version 0.1.X is currently supported (0.1.0, 0.1.1, etc.)
+# Different major/minor versions may introduce breaking changes to the HTML format
+# (data-spec attributes, CSS classes, document structure).
 SUPPORTED_ARRETIFY_VERSION = "0.1.X"
 SUPPORTED_ARRETIFY_VERSION_PATTERN = r"^0\.1\.\d+$"
 
 
 class LLMConfig(BaseSettings):
-    """Configuration des APIs LLM.
+    """Configuration for LLM APIs.
 
     Attributes:
-        piag_api_key: Clé API pour PIAG (optionnel, peut être None en dev)
-        piag_api_url: URL de l'API PIAG
-        openai_api_key: Clé API pour OpenAI (optionnel)
-        openai_api_url: URL de l'API OpenAI
+        piag_api_key: PIAG API key (optional, may be None in dev).
+        piag_api_url: PIAG API endpoint URL.
+        openai_api_key: OpenAI API key (optional).
+        openai_api_url: OpenAI API endpoint URL.
     """
 
     model_config = SettingsConfigDict(
         env_prefix="",
-        validate_assignment=True,  # Valider lors de l'assignation
+        validate_assignment=True,
     )
 
-    # PIAG API (défaut pour le MTE)
+    # PIAG API (default for MTE)
     piag_api_key: str | None = Field(
         default=None,
-        description="Clé API pour le service PIAG",
+        description="API key for the PIAG service",
     )
     piag_api_url: str = Field(
         default="https://preprod.api.piag.e2.rie.gouv.fr/v1/chat/completions",
-        description="URL de l'endpoint PIAG",
+        description="PIAG endpoint URL",
     )
 
-    # Mistral API (optionnel)
+    # Mistral API (optional)
     mistral_api_key: str | None = Field(
         default=None,
-        description="Clé API pour Mistral",
+        description="API key for Mistral",
     )
     mistral_api_url: str = Field(
         default="https://api.mistral.ai/v1/chat/completions",
-        description="URL de l'endpoint Mistral",
+        description="Mistral endpoint URL",
     )
 
-    # OpenAI API (optionnel)
+    # OpenAI API (optional)
     openai_api_key: str | None = Field(
         default=None,
-        description="Clé API pour OpenAI",
+        description="API key for OpenAI",
     )
     openai_api_url: str = Field(
         default="https://api.openai.com/v1/chat/completions",
-        description="URL de l'endpoint OpenAI",
+        description="OpenAI endpoint URL",
     )
 
     @field_validator("piag_api_key", "mistral_api_key", "openai_api_key")
     @classmethod
     def validate_api_key(cls, v: str | None) -> str | None:
-        """Valider le format des clés API (non vide si fournie)."""
+        """Validate that API keys are not empty when provided."""
         if v is not None and len(v.strip()) == 0:
-            raise ValueError("La clé API ne peut pas être vide")
+            raise ValueError("API key cannot be empty")
         return v
 
     @field_validator("piag_api_url", "mistral_api_url", "openai_api_url")
     @classmethod
     def validate_api_url(cls, v: str) -> str:
-        """Valider que l'URL est bien formée."""
+        """Validate that the URL is well-formed."""
         if not v.startswith(("http://", "https://")):
-            raise ValueError("L'URL de l'API doit commencer par http:// ou https://")
+            raise ValueError("API URL must start with http:// or https://")
         return v
 
     @model_validator(mode="after")
     def validate_at_least_one_api(self) -> "LLMConfig":
-        """Vérifier qu'au moins une API est configurée (clé présente)."""
+        """Verify that at least one API is configured (key present)."""
         if not self.piag_api_key and not self.openai_api_key:
-            # Permettre de ne pas avoir de clé en environnement de dev/test
-            # mais émettre un avertissement
+            # Allow missing keys in dev/test environments
             pass
         return self
 
 
 class PipelineConfig(BaseSettings):
-    """Configuration du pipeline de traitement.
+    """Configuration for the processing pipeline.
 
     Attributes:
-        full_section: Placeholder pour indiquer au LLM d'insérer la section complète
+        full_section: Placeholder to tell the LLM to insert the full section.
 
     Example:
         >>> pipeline = PipelineConfig(full_section="contenu entier")
@@ -132,28 +131,28 @@ class PipelineConfig(BaseSettings):
         validate_assignment=True,
     )
 
-    # Placeholder pour indiquer au LLM d'insérer la section complète
+    # Placeholder to tell the LLM to insert the full section
     full_section: str = Field(
         default="contenu entier",
-        description="Placeholder pour indiquer l'insertion de section complète",
+        description="Placeholder indicating full section insertion",
         min_length=1,
     )
 
     @field_validator("full_section")
     @classmethod
     def validate_non_empty_string(cls, v: str) -> str:
-        """Valider que les chaînes ne sont pas vides."""
+        """Validate that strings are not empty."""
         if not v or len(v.strip()) == 0:
-            raise ValueError("La valeur ne peut pas être vide")
+            raise ValueError("Value cannot be empty")
         return v.strip()
 
 
 class PathsConfig(BaseSettings):
-    """Configuration des chemins de fichiers.
+    """Configuration for file paths.
 
     Attributes:
-        project_root: Racine du projet (défaut: répertoire parent du package ocapi)
-        catalogue_path: Chemin vers le catalogue des arrêtés
+        project_root: Project root (default: parent directory of the ocapi package).
+        catalogue_path: Path to the arrêté catalogue.
 
     Example:
         >>> paths = PathsConfig()
@@ -165,65 +164,63 @@ class PathsConfig(BaseSettings):
         validate_assignment=True,
     )
 
-    # Racine du projet (défaut: répertoire parent du package ocapi)
+    # Project root (default: parent directory of the ocapi package)
     project_root: Path = Field(
         default=_PROJECT_ROOT,
-        description="Racine du projet",
+        description="Project root directory",
     )
-    # Chemin vers le catalogue des arrêtés
+    # Path to the arrêté catalogue
     catalogue_path: Path = Field(
         default=_PROJECT_ROOT / "data" / "0005804239" / "journaux" / "catalogue_ap.json",
-        description="Chemin vers le catalogue des arrêtés",
+        description="Path to the arrêté catalogue",
     )
-    # Chemin vers le template HTML fixe du permis consolidé
+    # Path to the consolidated permit HTML template
     permis_template_path: Path = Field(
         default=_PROJECT_ROOT / "templates" / "permis_consolide.html",
-        description="Chemin vers le template HTML du permis consolidé",
+        description="Path to the consolidated permit HTML template",
     )
-    # Chemin d'entrée par défaut pour les arrêtés HTML
+    # Default input directory for arrêté HTML files
     input_dir: Path | None = Field(default=None)
-    # Chemin de sortie par défaut pour le permis consolidé
+    # Default output path for the consolidated permit
     output_file: Path | None = Field(default=None)
 
     @field_validator("project_root")
     @classmethod
     def validate_project_root(cls, v: Path) -> Path:
-        """Valider que la racine du projet existe."""
+        """Validate that the project root exists."""
         if not v.exists():
-            raise ValueError(f"Le répertoire racine n'existe pas: {v}")
+            raise ValueError(f"Project root directory does not exist: {v}")
         if not v.is_dir():
-            raise ValueError(f"La racine du projet doit être un répertoire: {v}")
+            raise ValueError(f"Project root must be a directory: {v}")
         return v
 
     @field_validator("catalogue_path")
     @classmethod
     def validate_catalogue_path(cls, v: Path) -> Path:
-        """Valider le chemin du catalogue (peut ne pas exister encore)."""
-        # On vérifie juste que le chemin parent existe ou peut être créé
-        # Le fichier lui-même peut ne pas encore exister
+        """Validate the catalogue path (may not yet exist)."""
         return v
 
     @field_validator("permis_template_path")
     @classmethod
     def validate_permis_template_path(cls, v: Path) -> Path:
-        """Valider que le template HTML du permis consolidé existe."""
+        """Validate that the consolidated permit HTML template exists."""
         if not v.exists():
-            raise ValueError(f"Template HTML du permis consolidé introuvable: {v}")
+            raise ValueError(f"Consolidated permit HTML template not found: {v}")
         if not v.is_file():
-            raise ValueError(f"Le template du permis consolidé doit être un fichier: {v}")
+            raise ValueError(f"Consolidated permit template must be a file: {v}")
         return v.resolve()
 
 
 class LoggingConfig(BaseSettings):
-    """Configuration du système de logging.
+    """Configuration for the logging system.
 
     Attributes:
-        level: Niveau de logging par défaut (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        log_file: Chemin du fichier de log (None pour désactiver le logging fichier)
-        max_bytes: Taille maximale d'un fichier de log avant rotation (en octets)
-        backup_count: Nombre de fichiers de backup à conserver
-        use_timed_rotation: Si True, rotation quotidienne en plus de la rotation par taille
-        console_output: Si True, affiche les logs dans la console
+        level: Default logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+        log_file: Log file path (None to disable file logging).
+        max_bytes: Maximum log file size before rotation (in bytes).
+        backup_count: Number of backup files to keep.
+        use_timed_rotation: If True, enable daily rotation in addition to size-based rotation.
+        console_output: If True, print logs to the console.
 
     Example:
         >>> logging = LoggingConfig(level="DEBUG")
@@ -238,53 +235,53 @@ class LoggingConfig(BaseSettings):
 
     level: LogLevel = Field(
         default="INFO",
-        description="Niveau de logging par défaut",
+        description="Default logging level",
     )
     log_file: Path | None = Field(
         default=None,
-        description="Chemin du fichier de log (None pour désactiver)",
+        description="Log file path (None to disable)",
     )
     max_bytes: int = Field(
         default=1024 * 1024,  # 1024 KB
         ge=1024,  # Minimum 1 KB
-        description="Taille maximale d'un fichier de log avant rotation (octets)",
+        description="Maximum log file size before rotation (bytes)",
     )
     backup_count: int = Field(
         default=5,
         ge=0,
         le=100,
-        description="Nombre de fichiers de backup à conserver",
+        description="Number of backup files to keep",
     )
     use_timed_rotation: bool = Field(
         default=True,
-        description="Activer la rotation quotidienne",
+        description="Enable daily rotation",
     )
     console_output: bool = Field(
         default=True,
-        description="Afficher les logs dans la console",
+        description="Print logs to the console",
     )
 
     @field_validator("log_file")
     @classmethod
     def validate_log_file(cls, v: Path | None) -> Path | None:
-        """Valider le chemin du fichier de log."""
+        """Validate the log file path."""
         if v is None:
             return None
-        # On ne vérifie pas l'existence car le fichier sera créé automatiquement
+        # Do not check existence; the file will be created automatically
         return v
 
 
 class AppConfig(BaseSettings):
-    """Configuration principale de l'application.
+    """Main application configuration.
 
-    Cette classe combine toutes les configurations (LLM, Pipeline, Paths, Logging)
-    et charge automatiquement les variables d'environnement depuis .env.
+    Combines all sub-configurations (LLM, Pipeline, Paths, Logging) and
+    automatically loads environment variables from a .env file.
 
     Attributes:
-        llm: Configuration des APIs LLM
-        pipeline: Configuration du pipeline de traitement
-        paths: Configuration des chemins de fichiers
-        logging: Configuration du système de logging
+        llm: LLM API configuration.
+        pipeline: Processing pipeline configuration.
+        paths: File path configuration.
+        logging: Logging system configuration.
 
     Example:
         >>> config = AppConfig()
@@ -297,40 +294,38 @@ class AppConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        env_nested_delimiter="__",  # Permet PIPELINE__FULL_SECTION=... ou LOGGING__LEVEL=DEBUG
-        extra="ignore",  # Ignorer les variables d'environnement inconnues
+        env_nested_delimiter="__",  # Allows PIPELINE__FULL_SECTION=... or LOGGING__LEVEL=DEBUG
+        extra="ignore",
         validate_assignment=True,
     )
 
     llm: LLMConfig = Field(
         default_factory=LLMConfig,
-        description="Configuration des APIs LLM",
+        description="LLM API configuration",
     )
     pipeline: PipelineConfig = Field(
         default_factory=PipelineConfig,
-        description="Configuration du pipeline",
+        description="Pipeline configuration",
     )
     paths: PathsConfig = Field(
         default_factory=PathsConfig,
-        description="Configuration des chemins",
+        description="Path configuration",
     )
     logging: LoggingConfig = Field(
         default_factory=LoggingConfig,
-        description="Configuration du logging",
+        description="Logging configuration",
     )
 
     @model_validator(mode="after")
     def validate_complete_config(self) -> "AppConfig":
-        """Valider la cohérence globale de la configuration."""
-        # Vérifier que le projet est correctement initialisé
+        """Validate overall configuration consistency."""
         if not self.paths.project_root.exists():
-            raise ValueError(f"Racine du projet invalide: {self.paths.project_root}")
+            raise ValueError(f"Invalid project root: {self.paths.project_root}")
         return self
 
     def model_dump_safe(self) -> dict[str, Any]:
-        """Exporter la configuration sans les secrets (clés API)."""
+        """Export configuration without secrets (API keys masked)."""
         data = self.model_dump()
-        # Masquer les clés API
         if data.get("llm", {}).get("piag_api_key"):
             data["llm"]["piag_api_key"] = "***MASKED***"
         if data.get("llm", {}).get("mistral_api_key"):
@@ -340,15 +335,14 @@ class AppConfig(BaseSettings):
         return data
 
 
-# Instance singleton de la configuration
 settings = AppConfig()
 
 
 def reload_settings() -> AppConfig:
-    """Recharger la configuration (utile pour les tests).
+    """Reload the configuration (useful for tests).
 
     Returns:
-        Une nouvelle instance de AppConfig
+        A new AppConfig instance.
 
     Example:
         >>> from ocapi.config import reload_settings

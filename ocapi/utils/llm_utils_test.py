@@ -16,13 +16,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import unittest
 from unittest.mock import Mock, patch
 
 import pytest
 import requests  # type: ignore[import-untyped]
 
 import ocapi.utils.llm_utils as llm_utils_module
+from ocapi.exceptions import LLMNetworkError, LLMResponseError
 from ocapi.utils.llm_utils import (
     ResolvedLLMModel,
     call_llm_api,
@@ -31,67 +31,64 @@ from ocapi.utils.llm_utils import (
 )
 
 
-class TestLLMUtils(unittest.TestCase):
-    def test_parse_ops_llm_response_valid(self) -> None:
-        raw_response = """
-        [
-            {
-                "modification_type": "REPLACE",
-                "source_article": "2.1.3",
-                "target_arrete": "15/08/2023",
-                "target_article": "3.2.1",
-                "target_in_article": "le paragraphe concernant les horaires",
-                "new_content_ref": {
-                    "start_marker": "Le nouveau texte commence ici...",
-                    "end_marker": "...et se termine ici."
-                }
-            },
-            {
-                "modification_type": "ADD",
-                "source_article": null,
-                "target_arrete": "15/08/2023",
-                "target_article": "NEW_ARTICLE:4.1",
-                "target_in_article": "à la fin de l'article 4.1",
-                "new_content_ref": {
-                    "start_marker": "Le texte ajouté commence ici...",
-                    "end_marker": "...et se termine ici."
-                }
+def test_parse_llm_json_list_response_valid() -> None:
+    raw_response = """
+    [
+        {
+            "modification_type": "REPLACE",
+            "source_article": "2.1.3",
+            "target_arrete": "15/08/2023",
+            "target_article": "3.2.1",
+            "target_in_article": "le paragraphe concernant les horaires",
+            "new_content_ref": {
+                "start_marker": "Le nouveau texte commence ici...",
+                "end_marker": "...et se termine ici."
             }
-        ]
-        Merci.
-        """
-        expected_output: list[dict[str, object]] = [
-            {
-                "modification_type": "REPLACE",
-                "source_article": "2.1.3",
-                "target_arrete": "15/08/2023",
-                "target_article": "3.2.1",
-                "target_in_article": "le paragraphe concernant les horaires",
-                "new_content_ref": {
-                    "start_marker": "Le nouveau texte commence ici...",
-                    "end_marker": "...et se termine ici.",
-                },
+        },
+        {
+            "modification_type": "ADD",
+            "source_article": null,
+            "target_arrete": "15/08/2023",
+            "target_article": "NEW_ARTICLE:4.1",
+            "target_in_article": "à la fin de l'article 4.1",
+            "new_content_ref": {
+                "start_marker": "Le texte ajouté commence ici...",
+                "end_marker": "...et se termine ici."
+            }
+        }
+    ]
+    Merci.
+    """
+    result = parse_llm_json_list_response(raw_response)
+    assert result == [
+        {
+            "modification_type": "REPLACE",
+            "source_article": "2.1.3",
+            "target_arrete": "15/08/2023",
+            "target_article": "3.2.1",
+            "target_in_article": "le paragraphe concernant les horaires",
+            "new_content_ref": {
+                "start_marker": "Le nouveau texte commence ici...",
+                "end_marker": "...et se termine ici.",
             },
-            {
-                "modification_type": "ADD",
-                "source_article": None,
-                "target_arrete": "15/08/2023",
-                "target_article": "NEW_ARTICLE:4.1",
-                "target_in_article": "à la fin de l'article 4.1",
-                "new_content_ref": {
-                    "start_marker": "Le texte ajouté commence ici...",
-                    "end_marker": "...et se termine ici.",
-                },
+        },
+        {
+            "modification_type": "ADD",
+            "source_article": None,
+            "target_arrete": "15/08/2023",
+            "target_article": "NEW_ARTICLE:4.1",
+            "target_in_article": "à la fin de l'article 4.1",
+            "new_content_ref": {
+                "start_marker": "Le texte ajouté commence ici...",
+                "end_marker": "...et se termine ici.",
             },
-        ]
-        result = parse_llm_json_list_response(raw_response)
-        assert result == expected_output
+        },
+    ]
 
-    def test_parse_ops_llm_response_no_json(self) -> None:
-        raw_response = "Aucune opération détectée."
-        expected_output: list[dict[str, object]] = []
-        result = parse_llm_json_list_response(raw_response)
-        assert result == expected_output
+
+def test_parse_llm_json_list_response_no_json() -> None:
+    result = parse_llm_json_list_response("Aucune opération détectée.")
+    assert result == []
 
 
 def _make_success_response(content: str) -> Mock:
@@ -189,7 +186,7 @@ class TestLLMResilience:
                     "ocapi.utils.llm_utils.requests.post",
                     side_effect=[non_retryable_error],
                 ) as mocked_post:
-                    with pytest.raises(requests.exceptions.HTTPError):
+                    with pytest.raises(LLMNetworkError):
                         call_llm_api(cfg, "prompt")
 
         assert mocked_post.call_count == 1
@@ -326,7 +323,7 @@ class TestLLMResilience:
             "ocapi.utils.llm_utils._load_llm_resilience_config", return_value=resilience_cfg
         ):
             with patch("ocapi.utils.llm_utils.requests.post", return_value=bad_response):
-                with pytest.raises(ValueError, match="Format de réponse LLM invalide"):
+                with pytest.raises(LLMResponseError, match="Invalid LLM response format"):
                     call_llm_api(cfg, "prompt")
 
     def test_call_llm_api_rate_limit_applies_min_interval(self) -> None:

@@ -34,11 +34,11 @@ def make_id(counter: IdCounter) -> str:
 
 
 def minify_html_fragment(html: str) -> str:
-    """
-    Minification légère et normalisation Unicode pour un fragment HTML.
-    - supprime <script>/<style>
-    - normalize Unicode
-    - enlève espaces entre balises et runs d'espaces
+    """Light minification and Unicode normalisation for an HTML fragment.
+
+    - removes <script>/<style> tags
+    - normalises Unicode
+    - strips whitespace between tags and collapses whitespace runs
     """
     s = str(html or "")
     s = unicodedata.normalize("NFC", s)

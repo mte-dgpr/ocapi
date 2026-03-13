@@ -16,8 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import unittest
-
 from bs4 import BeautifulSoup
 
 from ocapi.types import (
@@ -33,135 +31,134 @@ from ocapi.types import (
 from .build_op_graph import build_graph
 
 
-class TestBuildOpGraph(unittest.TestCase):
+def test_build_graph() -> None:
+    """Verify that build_graph correctly builds the operations graph.
 
-    def test_build_graph(self) -> None:
-        # Create mock HTML content with the required articles
-        html_1980 = """
-        <section data-spec="section" data-number="2">Article 2 content</section>
-        <section data-spec="section" data-number="3">Article 3 content</section>
-        """
-        html_1981 = """
-        <section data-spec="section" data-number="1">Article 1 content</section>
-        <section data-spec="section" data-number="2">Article 2 content</section>
-        """
+    Creates two arrêtés and two operations (REPLACE and REMOVE), builds the
+    graph, and verifies the node count, edge count, and edge data.
+    """
+    html_1980 = """
+    <section data-spec="section" data-number="2">Article 2 content</section>
+    <section data-spec="section" data-number="3">Article 3 content</section>
+    """
+    html_1981 = """
+    <section data-spec="section" data-number="1">Article 1 content</section>
+    <section data-spec="section" data-number="2">Article 2 content</section>
+    """
 
-        arrete_files = [
-            ArreteFile(
-                id="1980-01-01",
-                aiot="aiot1",
-                filename="1980-01-01.html",
-                soup=BeautifulSoup(html_1980, "html.parser"),
-                file_type=FileType.AUTRE,
-            ),
-            ArreteFile(
-                id="1981-01-01",
-                aiot="aiot2",
-                filename="1981-01-01.html",
-                soup=BeautifulSoup(html_1981, "html.parser"),
-                file_type=FileType.AUTRE,
-            ),
-        ]
+    arrete_files = [
+        ArreteFile(
+            id="1980-01-01",
+            aiot="aiot1",
+            filename="1980-01-01.html",
+            soup=BeautifulSoup(html_1980, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+        ArreteFile(
+            id="1981-01-01",
+            aiot="aiot2",
+            filename="1981-01-01.html",
+            soup=BeautifulSoup(html_1981, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
 
-        operations = [
-            Operation(
-                id="1",
-                source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
-                target_id=NodeId(arrete_id="1980-01-01", article_id="2"),
-                operation_type=OperationType.REPLACE,
-                operand="article",
-                sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
-            ),
-            Operation(
-                id="2",
-                source_id=NodeId(arrete_id="1981-01-01", article_id="2"),
-                target_id=NodeId(arrete_id="1980-01-01", article_id="3"),
-                operation_type=OperationType.REMOVE,
-            ),
-        ]
-        G, updated_arrete_files, skipped_ops = build_graph(operations, arrete_files)
+    operations = [
+        Operation(
+            id="1",
+            source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="1980-01-01", article_id="2"),
+            operation_type=OperationType.REPLACE,
+            operand="article",
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
+        ),
+        Operation(
+            id="2",
+            source_id=NodeId(arrete_id="1981-01-01", article_id="2"),
+            target_id=NodeId(arrete_id="1980-01-01", article_id="3"),
+            operation_type=OperationType.REMOVE,
+        ),
+    ]
+    G, updated_arrete_files, skipped_ops = build_graph(operations, arrete_files)
 
-        assert len(G.nodes) == 4
-        assert len(G.edges) == 2
-        assert len(skipped_ops) == 0
+    assert len(G.nodes) == 4
+    assert len(G.edges) == 2
+    assert len(skipped_ops) == 0
 
-        # Les clés des noeuds sont maintenant des objets NodeId
-        node1 = NodeId(arrete_id="1980-01-01", article_id="2")
-        node2 = NodeId(arrete_id="1980-01-01", article_id="3")
-        node3 = NodeId(arrete_id="1981-01-01", article_id="1")
-        node4 = NodeId(arrete_id="1981-01-01", article_id="2")
+    node1 = NodeId(arrete_id="1980-01-01", article_id="2")
+    node2 = NodeId(arrete_id="1980-01-01", article_id="3")
+    node3 = NodeId(arrete_id="1981-01-01", article_id="1")
+    node4 = NodeId(arrete_id="1981-01-01", article_id="2")
 
-        assert G.has_edge(node3, node1) is True
-        assert G.has_edge(node4, node2) is True
-        assert "content" in G.nodes[node1]
-        assert "content" in G.nodes[node2]
-        assert "content" not in G.nodes[node3]
-        assert "content" not in G.nodes[node4]
+    assert G.has_edge(node3, node1) is True
+    assert G.has_edge(node4, node2) is True
+    assert "content" in G.nodes[node1]
+    assert "content" in G.nodes[node2]
+    assert "content" not in G.nodes[node3]
+    assert "content" not in G.nodes[node4]
 
-        target_node_1_soup = BeautifulSoup(G.nodes[node1]["content"], "html.parser")
-        target_node_2_soup = BeautifulSoup(G.nodes[node2]["content"], "html.parser")
-        assert target_node_1_soup.get_text(strip=True) == "Article 2 content"
-        assert target_node_2_soup.get_text(strip=True) == "Article 3 content"
+    target_node_1_soup = BeautifulSoup(G.nodes[node1]["content"], "html.parser")
+    target_node_2_soup = BeautifulSoup(G.nodes[node2]["content"], "html.parser")
+    assert target_node_1_soup.get_text(strip=True) == "Article 2 content"
+    assert target_node_2_soup.get_text(strip=True) == "Article 3 content"
 
-        edge_data_1 = G.get_edge_data(node3, node1, 0)
-        assert edge_data_1 == {
-            "id": "1",
-            "operation_type": "REPLACE",
-            "operand": "article",
-            "sub_target": {"type": "FULL_SECTION"},
-        }
+    assert G.get_edge_data(node3, node1, 0) == {
+        "id": "1",
+        "operation_type": "REPLACE",
+        "operand": "article",
+        "sub_target": {"type": "FULL_SECTION"},
+    }
+    assert G.get_edge_data(node4, node2, 0) == {"id": "2", "operation_type": "REMOVE"}
 
-        edge_data_2 = G.get_edge_data(node4, node2, 0)
-        assert edge_data_2 == {"id": "2", "operation_type": "REMOVE"}
 
-    def test_build_graph_keeps_target_content_with_multiple_ops_same_target(self) -> None:
-        html_1980 = """
-        <section data-spec="section" data-number="2">Article 2 content</section>
-        """
-        html_1981 = """
-        <section data-spec="section" data-number="1">Article 1 content</section>
-        <section data-spec="section" data-number="2">Article 2 content</section>
-        """
+def test_build_graph_keeps_target_content_with_multiple_ops_same_target() -> None:
+    html_1980 = """
+    <section data-spec="section" data-number="2">Article 2 content</section>
+    """
+    html_1981 = """
+    <section data-spec="section" data-number="1">Article 1 content</section>
+    <section data-spec="section" data-number="2">Article 2 content</section>
+    """
 
-        arrete_files = [
-            ArreteFile(
-                id="1980-01-01",
-                aiot="aiot1",
-                filename="1980-01-01.html",
-                soup=BeautifulSoup(html_1980, "html.parser"),
-                file_type=FileType.AUTRE,
-            ),
-            ArreteFile(
-                id="1981-01-01",
-                aiot="aiot2",
-                filename="1981-01-01.html",
-                soup=BeautifulSoup(html_1981, "html.parser"),
-                file_type=FileType.AUTRE,
-            ),
-        ]
+    arrete_files = [
+        ArreteFile(
+            id="1980-01-01",
+            aiot="aiot1",
+            filename="1980-01-01.html",
+            soup=BeautifulSoup(html_1980, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+        ArreteFile(
+            id="1981-01-01",
+            aiot="aiot2",
+            filename="1981-01-01.html",
+            soup=BeautifulSoup(html_1981, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
 
-        target = NodeId(arrete_id="1980-01-01", article_id="2")
-        operations = [
-            Operation(
-                id="1",
-                source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
-                target_id=target,
-                operation_type=OperationType.REPLACE,
-                operand="article",
-                sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
-            ),
-            Operation(
-                id="2",
-                source_id=NodeId(arrete_id="1981-01-01", article_id="2"),
-                target_id=target,
-                operation_type=OperationType.REMOVE,
-            ),
-        ]
+    target = NodeId(arrete_id="1980-01-01", article_id="2")
+    operations = [
+        Operation(
+            id="1",
+            source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+            target_id=target,
+            operation_type=OperationType.REPLACE,
+            operand="article",
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
+        ),
+        Operation(
+            id="2",
+            source_id=NodeId(arrete_id="1981-01-01", article_id="2"),
+            target_id=target,
+            operation_type=OperationType.REMOVE,
+        ),
+    ]
 
-        G, _updated_arrete_files, skipped_ops = build_graph(operations, arrete_files)
+    G, _updated_arrete_files, skipped_ops = build_graph(operations, arrete_files)
 
-        assert len(skipped_ops) == 0
-        assert G.in_degree(target) == 2
-        assert "content" in G.nodes[target]
-        target_soup = BeautifulSoup(G.nodes[target]["content"], "html.parser")
-        assert target_soup.get_text(strip=True) == "Article 2 content"
+    assert len(skipped_ops) == 0
+    assert G.in_degree(target) == 2
+    assert "content" in G.nodes[target]
+    target_soup = BeautifulSoup(G.nodes[target]["content"], "html.parser")
+    assert target_soup.get_text(strip=True) == "Article 2 content"
