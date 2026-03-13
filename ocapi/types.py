@@ -227,10 +227,22 @@ class PermitSources(_BaseModelWithConfig):
     sources: list[PermitSourceSpec]
 
 
-class PermitVisa(_BaseModelWithConfig):
-    """Ordered set of consolidated visas without duplicates."""
+class PermitVisaEntry(_BaseModelWithConfig):
+    """Visas extracted for a given arrêté."""
 
+    arrete_id: ArreteId
     visas: list[str]
+
+    @field_validator("arrete_id")
+    @classmethod
+    def validate_arrete_id_format(cls, v: str) -> str:
+        return parse_arrete_id(v)
+
+
+class PermitVisa(_BaseModelWithConfig):
+    """Consolidated visas, grouped by arrêté in chronological order."""
+
+    entries: list[PermitVisaEntry]
 
 
 class PermitMotifEntry(_BaseModelWithConfig):
