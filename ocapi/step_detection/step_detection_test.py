@@ -22,6 +22,7 @@ from unittest.mock import patch
 import pytest
 from langchain_core.documents import Document
 
+from ocapi.step_detection.prompts import prompt_detection
 from ocapi.step_detection.step_detection import (
     _OPERATION_ID_COUNTER,
     convert_raw_operation_to_operation,
@@ -118,3 +119,33 @@ def test_extractable_content_false_when_operand_extraction_fails(
 
     assert operation.extractable_content is False
     assert operation.operand is None
+
+
+def test_convert_raw_operation_replace_all_refonte() -> None:
+    """REPLACE with target_article=ALL (arrêté refonte) is converted correctly."""
+    block_html = Document(page_content="<section>Refonte complète</section>", metadata={})
+    raw_op = RawOperation(
+        operation_type=RawOperationType.REPLACE,
+        source_article="1.1.2",
+        target_arrete="2020-04-20",
+        target_article="ALL",
+        sub_target=None,
+        new_content_start_marker=None,
+        new_content_end_marker=None,
+    )
+
+    operation = convert_raw_operation_to_operation(
+        block_html.page_content, raw_op, "2021-09-24", {}
+    )
+
+    assert operation.operation_type == OperationType.REPLACE
+    assert operation.source_id == NodeId(arrete_id="2021-09-24", article_id="1.1.2")
+    assert operation.target_id == NodeId(arrete_id="2020-04-20", article_id="ALL")
+    assert operation.operand is None
+
+
+def test_prompt_detection_includes_replace_all_schema() -> None:
+    """The detection prompt must allow REPLACE with target_article ALL (refonte)."""
+    prompt = prompt_detection("<html>test</html>")
+    assert '"target_article": "ALL" | "x.x.x"' in prompt
+    assert "refonte" in prompt.lower()

@@ -146,6 +146,51 @@ def test_make_permit_sources_marks_abrogated_arretes() -> None:
     assert "(ABROGE)" in abroge_source.get_text()
 
 
+def test_make_permit_header_includes_abrogated_arrete_with_visas_and_motifs() -> None:
+    """Abrogated arrêté (refonte) must appear in header with ABROGE, its visas and motifs."""
+    ap_2020_abroge = _make_testing_arrete_file(
+        arrete_id="2020-04-20",
+        aiot="0001",
+        filename="ap_2020",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <div data-spec="arrete_title"><h1>AP 2020</h1></div>
+ <div data-spec="visa">VISA ARRETE 2020</div>
+ <div data-spec="motifs">CONSIDERANT ARRETE 2020</div>
+</body></html>
+""",
+        status=False,
+    )
+    ap_2021_refonte = _make_testing_arrete_file(
+        arrete_id="2021-09-24",
+        aiot="0001",
+        filename="ap_2021",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <div data-spec="arrete_title"><h1>AP 2021 Refonte</h1></div>
+ <div data-spec="visa">VISA ARRETE 2021</div>
+ <div data-spec="motifs">CONSIDERANT ARRETE 2021</div>
+</body></html>
+""",
+        status=True,
+    )
+
+    html = make_permit_header([ap_2020_abroge, ap_2021_refonte])
+    soup = BeautifulSoup(html, "html.parser")
+
+    sources = soup.find_all("li", attrs={"data-spec": "permit_source"})
+    assert len(sources) == 2
+    abroge_source = soup.find("li", attrs={"data-status": "abroge"})
+    assert abroge_source is not None
+    assert "(ABROGE)" in abroge_source.get_text()
+    assert "2020-04-20" in abroge_source.get_text()
+
+    assert "VISA ARRETE 2020" in html
+    assert "VISA ARRETE 2021" in html
+    assert "CONSIDERANT ARRETE 2020" in html
+    assert "CONSIDERANT ARRETE 2021" in html
+
+
 def test_make_permit_visa_is_collapsible() -> None:
     """Consolidated visas must be inside a <details> element."""
     arrete = _make_testing_arrete_file(
@@ -410,6 +455,48 @@ def test_make_section_version_full_remove_marks_abrogated() -> None:
 
     assert section["data-is_modified"] == "true"
     assert "Article abrogé" in str(section)
+
+
+def test_make_permit_content_starts_from_first_non_abrogated_arrete() -> None:
+    """When the initial arrêté is abrogated (refonte), content starts from the next one."""
+    ap_2020_abroge = _make_testing_arrete_file(
+        arrete_id="2020-01-01",
+        aiot="0001",
+        filename="ap_2020_abroge",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><p>Article 1 ancien</p></section>
+ </main>
+</body></html>
+""",
+        status=False,
+    )
+    ap_2021_refonte = _make_testing_arrete_file(
+        arrete_id="2021-01-01",
+        aiot="0001",
+        filename="ap_2021_refonte",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><p>Article 1 refonte</p></section>
+  <section data-spec="section" data-number="2"><p>Article 2 refonte</p></section>
+ </main>
+</body></html>
+""",
+        status=True,
+    )
+
+    history: ArticleHistory = {}
+    html = make_permit_content(
+        history=history,
+        arrete_files=[ap_2020_abroge, ap_2021_refonte],
+        operations=[],
+    )
+
+    assert "Article 1 refonte" in html
+    assert "Article 2 refonte" in html
+    assert "Article 1 ancien" not in html
 
 
 def test_make_permit_content_renders_full_main_with_section_versions() -> None:

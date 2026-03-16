@@ -35,12 +35,13 @@ def make_permit_content(
 ) -> str:
     """Generate the consolidated permit content from the modification history.
 
-    1. Starts from the initial AP (arrete_files[0])
-    2. For each article of the initial AP, applies the latest version from history
+    1. Starts from the first non-abrogated AP (status=True); if the initial arrêté
+       was replaced by a refonte (REPLACE ALL), it is skipped.
+    2. For each article of that AP, applies the latest version from history
     3. Returns the consolidated HTML (without header)
     """
-    # Retrieve the initial AP
-    ap_initial = arrete_files[0]
+    # Retrieve the first non-abrogated AP (refonte: initial arrêté may have status=False)
+    ap_initial = next((af for af in arrete_files if af.status), arrete_files[0])
     ap_initial_id = ap_initial.id
 
     # Clone the soup to avoid mutating the original

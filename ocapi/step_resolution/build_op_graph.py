@@ -148,6 +148,15 @@ def build_graph(
 
 
 def _is_abrogation_arrete(operation: Operation) -> bool:
-    return (
-        operation.operation_type == OperationType.REMOVE and operation.target_id.article_id == "ALL"
+    """Return True if the operation abrogates an entire arrêté (REMOVE ALL or REPLACE ALL).
+
+    REMOVE with target ALL = explicit abrogation.
+    REPLACE with target ALL = arrêté refonte : the source arrêté replaces the entire
+    target arrêté (e.g. 2021 replaces 2020), so the target is effectively abrogated.
+    """
+    if operation.target_id.article_id != "ALL":
+        return False
+    return operation.operation_type in (
+        OperationType.REMOVE,
+        OperationType.REPLACE,
     )
