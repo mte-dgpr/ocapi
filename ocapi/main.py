@@ -62,8 +62,13 @@ def main(
 
     Args:
         input_dir: Directory containing the arrêté HTML files.
-        output_dir: Output directory (defaults to input_dir/../ocapi_output).
-        aiot: AIOT identifier (defaults to the parent directory name).
+        output_dir: Output directory. When specified all outputs are written
+            into this single directory. When omitted the outputs are placed in
+            three separate canonical directories two levels above ``input_dir``:
+            ``<input_dir>/../../arretes_operations/<aiot>/``,
+            ``<input_dir>/../../arretes_history/<aiot>/`` and
+            ``<input_dir>/../../consolidated_permit/<aiot>/``.
+        aiot: AIOT identifier (defaults to the input directory name).
         include_ids: List of arrêté IDs to include (defaults to all).
         start_date: Detection start date (YYYY-MM-DD).
         enable_rendering: If True, generate the consolidated permit.
@@ -71,16 +76,11 @@ def main(
     Returns:
         Exit code (0 = success, 1 = error).
     """
-    # Determine output directory
-    if output_dir is None:
-        output_dir = input_dir.parent / "ocapi_output"
-
     _LOGGER.info(f"Input directory: {input_dir}")
-    _LOGGER.info(f"Output directory: {output_dir}")
 
     # Determine AIOT
     if aiot is None:
-        aiot = input_dir.parent.name
+        aiot = input_dir.name
     _LOGGER.info(f"AIOT: {aiot}")
     _LOGGER.info(f"LLM model: {config_model_llm().model_name}")
 
@@ -108,8 +108,16 @@ def main(
             _LOGGER.error("No arrêté matches the specified IDs")
             return 1
 
-    # Create output directory
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Determine output paths
+    if output_dir:
+        operations_dir = output_dir
+        history_dir = output_dir
+        permis_dir = output_dir
+    else:
+        base_dir = input_dir.parent.parent
+        operations_dir = base_dir / "arretes_operations" / aiot
+        history_dir = base_dir / "arretes_history" / aiot
+        permis_dir = base_dir / "consolidated_permit" / aiot
 
     try:
         # Run the pipeline
@@ -120,13 +128,13 @@ def main(
         )
 
         # Save operations
-        operations_path = output_dir / "operations.json"
+        operations_path = operations_dir / "operations.json"
         operations_dict = [op.model_dump(mode="json") for op in operations]
         write_json_output(operations_dict, operations_path)
         _LOGGER.info(f"Operations saved → {operations_path}")
 
         # Save history
-        history_path = output_dir / "history.json"
+        history_path = history_dir / "history.json"
 
         # Convert NodeId to string and ArticleHistory to serialisable format
         history_serializable = {
@@ -146,7 +154,7 @@ def main(
 
         # Save permit if generated
         if permis:
-            permis_path = output_dir / "permis.html"
+            permis_path = permis_dir / "permis.html"
             write_permis_output(permis, permis_path)
             _LOGGER.info(f"Consolidated permit saved → {permis_path}")
 
@@ -202,7 +210,11 @@ Examples:
         "-o",
         "--output",
         type=Path,
-        help="Output directory (default: <input_dir>/../ocapi_output)",
+        help=(
+            "Output directory. When specified all outputs go into this single directory. "
+            "By default outputs are split across arretes_operations/, arretes_history/ "
+            "and consolidated_permit/ directories relative to <input_dir>/."
+        ),
     )
     parser.add_argument(
         "--aiot",

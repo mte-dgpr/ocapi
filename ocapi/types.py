@@ -416,8 +416,7 @@ def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
             arrete_id = parse_arrete_id(stem)
         except InvalidArreteIdError as e:
             raise InvalidFileFormatError(
-                f"Invalid format: filename must contain at least a date "
-                f"and a type separated by '_': {filename}"
+                f"Invalid format: filename must contain at least a date: {filename}"
             ) from e
         return arrete_id, FileType.AUTRE
 
