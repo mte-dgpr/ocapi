@@ -42,7 +42,7 @@ MODIFICATION :
   "operation_type": "REPLACE",
   "source_article": "x.x.x" | null,
   "target_arrete": "YYYY-MM-DD",
-  "target_article": "x.x.x",
+  "target_article": "ALL" | "x.x.x",
   "sub_target": str | null,
   "new_content_start_marker": "80-100 premiers token EXACTS du début",
   "new_content_end_marker": "80-100 derniers token EXACTS de la fin"
@@ -77,7 +77,7 @@ Notes CRITIQUES :
   * Article existant à compléter : "x.x.x" (ex: "9.2.1")
   * Nouvel article à créer : "NEW_ARTICLE:x.x.x"
   * Ajout en fin d'arrêté : "END"
-  * "ALL" pour abrogation de tout l'arreté
+  * "ALL" pour abrogation de tout l'arreté (REMOVE) OU refonte complète (REPLACE : un arrêté remplace intégralement un arrêté antérieur)
 - sub_target :
   * "ALL" : remplacer TOUT l'article cible
   * "END" : ajouter à la FIN de l'article cible

@@ -19,8 +19,10 @@
 from typing import cast
 from unittest.mock import MagicMock, patch
 
+from bs4 import BeautifulSoup
+
 from ocapi.step_resolution.step_resolution import step_resolution
-from ocapi.types import ArreteFile, ArticleHistory, NodeId
+from ocapi.types import ArreteFile, ArticleHistory, FileType, NodeId, Operation, OperationType
 
 
 @patch("ocapi.step_resolution.step_resolution.apply_all_ops")
@@ -56,3 +58,46 @@ def test_step_resolution_empty_history(
 
     assert history == {}
     assert arretes == []
+
+
+def test_step_resolution_replace_all_marks_target_arrete_abrogated() -> None:
+    """REPLACE ALL (refonte) must mark the target arrêté as abrogated."""
+    html_2020 = """
+    <section data-spec="section" data-number="1">Article 1</section>
+    """
+    html_2021 = """
+    <section data-spec="section" data-number="1.1.2">Article refonte</section>
+    """
+
+    arrete_files = [
+        ArreteFile(
+            id="2020-04-20",
+            aiot="aiot1",
+            filename="2020-04-20.html",
+            soup=BeautifulSoup(html_2020, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+        ArreteFile(
+            id="2021-09-24",
+            aiot="aiot1",
+            filename="2021-09-24.html",
+            soup=BeautifulSoup(html_2021, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
+
+    operations = [
+        Operation(
+            id="1",
+            source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
+            target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
+            operation_type=OperationType.REPLACE,
+        ),
+    ]
+
+    history, updated_arrete_files = step_resolution(operations, arrete_files)
+
+    arrete_2020 = next(af for af in updated_arrete_files if af.id == "2020-04-20")
+    assert arrete_2020.status is False
+    arrete_2021 = next(af for af in updated_arrete_files if af.id == "2021-09-24")
+    assert arrete_2021.status is True

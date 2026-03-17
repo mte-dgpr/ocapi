@@ -28,7 +28,7 @@ from ocapi.types import (
     SubTargetType,
 )
 
-from .build_op_graph import build_graph
+from .build_op_graph import _is_abrogation_arrete, build_graph
 
 
 def test_build_graph() -> None:
@@ -109,6 +109,84 @@ def test_build_graph() -> None:
         "sub_target": {"type": "FULL_SECTION"},
     }
     assert G.get_edge_data(node4, node2, 0) == {"id": "2", "operation_type": "REMOVE"}
+
+
+def test_build_graph_replace_all_marks_arrete_abrogated() -> None:
+    """REPLACE with target ALL (arrêté refonte) must mark the target arrêté as abrogated."""
+    html_2020 = """
+    <section data-spec="section" data-number="1">Article 1</section>
+    <section data-spec="section" data-number="2">Article 2</section>
+    """
+    html_2021 = """
+    <section data-spec="section" data-number="1.1.2">Article refonte</section>
+    """
+
+    arrete_files = [
+        ArreteFile(
+            id="2020-04-20",
+            aiot="aiot1",
+            filename="2020-04-20.html",
+            soup=BeautifulSoup(html_2020, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+        ArreteFile(
+            id="2021-09-24",
+            aiot="aiot1",
+            filename="2021-09-24.html",
+            soup=BeautifulSoup(html_2021, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
+
+    operations = [
+        Operation(
+            id="1",
+            source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
+            target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
+            operation_type=OperationType.REPLACE,
+        ),
+    ]
+
+    G, updated_arrete_files, skipped_ops = build_graph(operations, arrete_files)
+
+    assert len(skipped_ops) == 0
+    arrete_2020 = next(af for af in updated_arrete_files if af.id == "2020-04-20")
+    assert arrete_2020.status is False
+    arrete_2021 = next(af for af in updated_arrete_files if af.id == "2021-09-24")
+    assert arrete_2021.status is True
+
+
+def test_is_abrogation_arrete_replace_all() -> None:
+    """_is_abrogation_arrete returns True for REPLACE with target ALL (refonte)."""
+    op_replace_all = Operation(
+        id="1",
+        source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
+        target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
+        operation_type=OperationType.REPLACE,
+    )
+    assert _is_abrogation_arrete(op_replace_all) is True
+
+
+def test_is_abrogation_arrete_remove_all() -> None:
+    """_is_abrogation_arrete returns True for REMOVE with target ALL."""
+    op_remove_all = Operation(
+        id="1",
+        source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
+        target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
+        operation_type=OperationType.REMOVE,
+    )
+    assert _is_abrogation_arrete(op_remove_all) is True
+
+
+def test_is_abrogation_arrete_replace_single_article() -> None:
+    """_is_abrogation_arrete returns False for REPLACE with single article target."""
+    op_replace = Operation(
+        id="1",
+        source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
+        target_id=NodeId(arrete_id="2020-04-20", article_id="1.2.1"),
+        operation_type=OperationType.REPLACE,
+    )
+    assert _is_abrogation_arrete(op_replace) is False
 
 
 def test_build_graph_keeps_target_content_with_multiple_ops_same_target() -> None:
