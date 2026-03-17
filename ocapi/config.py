@@ -23,6 +23,7 @@ This module uses Pydantic Settings to load and validate configuration
 from environment variables and .env files.
 """
 
+from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
 
@@ -42,6 +43,26 @@ LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 # (data-spec attributes, CSS classes, document structure).
 SUPPORTED_ARRETIFY_VERSION = "0.1.X"
 SUPPORTED_ARRETIFY_VERSION_PATTERN = r"^0\.1\.\d+$"
+
+
+class FullSectionName(str, Enum):
+    """All known names the LLM may use to indicate a full-section operation.
+
+    Centralises the different appellations so that detection and resolution
+    logic always resolve to the same canonical type, regardless of which
+    variant the model chose to return.
+
+    Example:
+        >>> FullSectionName.CONTENU_ENTIER.value
+        'contenu entier'
+        >>> FullSectionName.ALL.value
+        'ALL'
+        >>> {name.value for name in FullSectionName}
+        {'contenu entier', 'ALL'}
+    """
+
+    CONTENU_ENTIER = "contenu entier"
+    ALL = "ALL"
 
 
 class LLMConfig(BaseSettings):
@@ -358,6 +379,7 @@ __all__ = [
     "PathsConfig",
     "LoggingConfig",
     "LogLevel",
+    "FullSectionName",
     "settings",
     "reload_settings",
     "SUPPORTED_ARRETIFY_VERSION",

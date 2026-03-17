@@ -19,6 +19,7 @@
 
 from bs4 import BeautifulSoup, Tag
 
+from ocapi.config import FullSectionName
 from ocapi.types import (
     ArreteFile,
     ArticleHistory,
@@ -225,7 +226,7 @@ def _build_section_history_html(
     return "".join(history_parts)
 
 
-_FULL_REMOVAL_DESCRIPTIONS = {"ALL", "contenu entier"}
+_FULL_REMOVAL_DESCRIPTIONS: frozenset[str] = frozenset(name.value for name in FullSectionName)
 
 _UNRESOLVED_STATUS_CODES = {
     StatusCode.ERROR_EXTRACTING_OPERAND,
@@ -241,9 +242,9 @@ def _is_abrogated(
     """Return True if the latest article version corresponds to a full abrogation.
 
     An article is considered abrogated if and only if its last operation is a
-    REMOVE with sub_target ``FULL_SECTION`` (description ``ALL`` or ``contenu entier``)
-    or without a sub_target (implicit full abrogation), AND the operation was
-    successfully resolved.
+    REMOVE with sub_target ``FULL_SECTION`` and a description matching one of the
+    ``FullSectionName`` values, or without a sub_target (implicit full abrogation),
+    AND the operation was successfully resolved.
 
     Parameters
     ----------
