@@ -32,6 +32,7 @@ from ocapi.types import (
     OperationType,
     RawOperation,
     RawOperationType,
+    StatusCode,
     SubTarget,
     SubTargetType,
 )
@@ -48,7 +49,10 @@ def test_convert_raw_operation_to_operation(
     mock_parse_subtarget: mock.Mock,
     mock_extract_operand_with_images: mock.Mock,
 ) -> None:
-    mock_extract_operand_with_images.return_value = "<mocked>operand content</mocked>"
+    mock_extract_operand_with_images.return_value = (
+        "<mocked>operand content</mocked>",
+        StatusCode.RESOLVED,
+    )
     mock_parse_subtarget.return_value = SubTarget(type=SubTargetType.TABLEAU, position=1)
 
     block_html = Document(page_content="<section>Test content</section>", metadata={})
@@ -84,7 +88,7 @@ def test_convert_raw_operation_to_operation(
     assert op1.target_id == NodeId(arrete_id="1981-01-01", article_id="2")
     assert op1.operation_type == OperationType.REPLACE
     assert op1.sub_target.type == SubTargetType.TABLEAU
-    assert op1.extractable_content is True
+    assert op1.status_code == StatusCode.RESOLVED
     mock_extract_operand_with_images.assert_called_once()
     mock_parse_subtarget.assert_called_once_with("le tableau")
 
@@ -94,7 +98,7 @@ def test_convert_raw_operation_to_operation(
     assert op2.operation_type == OperationType.REMOVE
     assert op2.sub_target is None
     assert op2.operand is None
-    assert op2.extractable_content is True
+    assert op2.status_code is None
     assert op2.id == "2"
 
 
@@ -102,7 +106,7 @@ def test_convert_raw_operation_to_operation(
 def test_extractable_content_false_when_operand_extraction_fails(
     mock_extract_operand_with_images: mock.Mock,
 ) -> None:
-    mock_extract_operand_with_images.return_value = "ERROR_EXTRACTING_CONTENT"
+    mock_extract_operand_with_images.return_value = (None, StatusCode.ERROR_EXTRACTING_OPERAND)
     block_html = Document(page_content="<section>Test content</section>", metadata={})
     raw_operation = RawOperation(
         operation_type=RawOperationType.REPLACE,
@@ -117,7 +121,7 @@ def test_extractable_content_false_when_operand_extraction_fails(
         block_html.page_content, raw_operation, "1980-01-01", {}
     )
 
-    assert operation.extractable_content is False
+    assert operation.status_code == StatusCode.ERROR_EXTRACTING_OPERAND
     assert operation.operand is None
 
 

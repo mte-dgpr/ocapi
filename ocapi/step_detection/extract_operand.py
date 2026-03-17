@@ -26,11 +26,11 @@ import re
 
 from bs4 import BeautifulSoup
 
+from ocapi.types import StatusCode
 from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
 ImageMap = dict[str, str]  # mapping from placeholder src to real src
-ERROR_EXTRACTING_CONTENT = "ERROR_EXTRACTING_CONTENT"
 
 
 def _find_marker(haystack: str, marker: str) -> int:
@@ -50,7 +50,9 @@ def _find_marker(haystack: str, marker: str) -> int:
     return m.start() if m else -1
 
 
-def pick_arretify_section(html: str, source_article: str, operation_id: str | None = None) -> str:
+def pick_arretify_section(
+    html: str, source_article: str, operation_id: str | None = None
+) -> str | None:
     """Extract the HTML of a specific Arrêtify section from an HTML block.
 
     Parameters
@@ -64,8 +66,8 @@ def pick_arretify_section(html: str, source_article: str, operation_id: str | No
 
     Returns
     -------
-    str
-        HTML string of the found section, or ``"ERROR_EXTRACTING_CONTENT"`` if not found.
+    str | None
+        HTML string of the found section, or ``None`` if not found.
     """
     soup = BeautifulSoup(html, "html.parser")
 
@@ -78,7 +80,7 @@ def pick_arretify_section(html: str, source_article: str, operation_id: str | No
             f"No appendix footer found when extracting operand"
             f"{f' for operation {operation_id}' if operation_id else ''}"
         )
-        return ERROR_EXTRACTING_CONTENT
+        return None
 
     # Case 2: "APPENDIX:X" or "APPENDIX:X.Y.Z" — search inside the appendix footer
     if source_article.startswith("APPENDIX:"):
@@ -93,7 +95,7 @@ def pick_arretify_section(html: str, source_article: str, operation_id: str | No
             f"Section {source_article} not found in appendix"
             f"{f' for operation {operation_id}' if operation_id else ''}"
         )
-        return ERROR_EXTRACTING_CONTENT
+        return None
 
     # Case 3: Normal article (e.g. "2.1.3")
     for section in soup.find_all("section", attrs={"data-spec": "section"}):
@@ -103,7 +105,7 @@ def pick_arretify_section(html: str, source_article: str, operation_id: str | No
 
     op_info = f" for operation {operation_id}" if operation_id else ""
     _LOGGER.error(f"Section {source_article} not found when extracting operand{op_info}")
-    return ERROR_EXTRACTING_CONTENT
+    return None
 
 
 def _rehydrate_images(html_fragment: str, img_map: dict[str, str]) -> str:
@@ -139,7 +141,7 @@ def extract_operand_with_images(
     end_marker: str,
     img_map: ImageMap,
     operation_id: str | None = None,
-) -> str:
+) -> tuple[str | None, StatusCode]:
     """Extract the operand HTML between two markers, restoring original image URLs.
 
     Parameters
@@ -159,26 +161,35 @@ def extract_operand_with_images(
 
     Returns
     -------
-    str
-        Extracted HTML operand with images rehydrated, or ``"ERROR_EXTRACTING_CONTENT"``
-        if the markers are not found.
+    tuple[str | None, StatusCode]
+        A ``(operand, status_code)`` pair. On success, ``operand`` is the extracted
+        HTML with images rehydrated and ``status_code`` is ``StatusCode.RESOLVED``.
+        On failure, ``operand`` is ``None`` and ``status_code`` is
+        ``StatusCode.ERROR_EXTRACTING_OPERAND``.
     """
     section = pick_arretify_section(html_block, source_article, operation_id)
-    working_html = section
     op_info = f" for operation {operation_id}" if operation_id else ""
-    start_idx = _find_marker(working_html, start_marker)
+
+    # Try the section first; fall back to the full HTML block if the marker isn't found there
+    working_html: str = html_block
+    start_idx = -1
+    if section is not None:
+        start_idx = _find_marker(section, start_marker)
+        if start_idx != -1:
+            working_html = section
+
     if start_idx == -1:
+        start_idx = _find_marker(html_block, start_marker)
         working_html = html_block
-        start_idx = _find_marker(working_html, start_marker)
         if start_idx == -1:
             _LOGGER.warning("Start marker not found%s", op_info)
-            return ERROR_EXTRACTING_CONTENT
+            return None, StatusCode.ERROR_EXTRACTING_OPERAND
 
     end_idx = _find_marker(working_html, end_marker)
     if end_idx != -1:
         html_fragment = working_html[start_idx : end_idx + len(end_marker)]
         html_fragment = _rehydrate_images(html_fragment, img_map)
-        return html_fragment
+        return html_fragment, StatusCode.RESOLVED
     else:
         _LOGGER.warning("End marker not found%s", op_info)
-        return ERROR_EXTRACTING_CONTENT
+        return None, StatusCode.ERROR_EXTRACTING_OPERAND
