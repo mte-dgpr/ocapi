@@ -27,7 +27,15 @@ from ocapi.step_resolution.apply_ops import (
     build_next_subgraph,
 )
 from ocapi.step_resolution.build_op_graph import add_edge, add_node
-from ocapi.types import ArreteFile, ArticleHistory, FileType, NodeId, Operation, OperationType
+from ocapi.types import (
+    ArreteFile,
+    ArticleHistory,
+    FileType,
+    NodeId,
+    Operation,
+    OperationType,
+    StatusCode,
+)
 
 
 def test_build_subgraph() -> None:
@@ -168,7 +176,7 @@ def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) ->
             target_id=target,
             operation_type=OperationType.REPLACE,
             operand=None,
-            extractable_content=False,
+            status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
         ),
     )
 
@@ -178,7 +186,7 @@ def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) ->
                 "version": 0,
                 "content": "content v0",
                 "operation_id": None,
-                "status_code": "RESOLVED",
+                "status_code": StatusCode.RESOLVED,
             }
         ]
     }
@@ -190,7 +198,7 @@ def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) ->
         "version": 1,
         "content": "content v0",
         "operation_id": "op-unresolved",
-        "status_code": "ERROR_EXTRACTING_CONTENT",
+        "status_code": StatusCode.ERROR_EXTRACTING_OPERAND,
     }
 
 

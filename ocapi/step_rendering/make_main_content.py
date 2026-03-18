@@ -26,6 +26,7 @@ from ocapi.types import (
     NodeId,
     Operation,
     OperationType,
+    StatusCode,
     SubTargetType,
 )
 
@@ -157,10 +158,10 @@ def _build_section_history_html(
         return "".join(history_parts)
 
     last_version = versions[-1]
-    last_status_code = str(last_version.get("status_code", "RESOLVED"))
+    last_status_code = last_version.get("status_code")
     last_operation_id = last_version.get("operation_id")
     last_operation = operation_by_id.get(str(last_operation_id)) if last_operation_id else None
-    if last_operation and last_status_code == "ERROR_EXTRACTING_CONTENT":
+    if last_operation and last_status_code == StatusCode.ERROR_EXTRACTING_OPERAND:
         last_text = (
             f"Opération non résolue {_operation_label(last_operation)} de l'article "
             f"{last_operation.source_id.article_id} de l'arrêté "
@@ -187,12 +188,12 @@ def _build_section_history_html(
     history_parts.append(f'<p style="font-weight: bold; margin-top: 0.5rem;">{last_text}</p>')
 
     for index, version in enumerate(versions[:-1]):
-        status_code = str(version.get("status_code", "RESOLVED"))
+        status_code = version.get("status_code")
         operation_id = version.get("operation_id")
         operation = operation_by_id.get(str(operation_id)) if operation_id else None
         if index == 0 and not operation:
             text = "Version de l'arrêté initial"
-        elif operation and status_code == "ERROR_EXTRACTING_CONTENT":
+        elif operation and status_code == StatusCode.ERROR_EXTRACTING_OPERAND:
             text = (
                 f"Opération non résolue {_operation_label(operation)} de l'article "
                 f"{operation.source_id.article_id} de l'arrêté {operation.source_id.arrete_id}"

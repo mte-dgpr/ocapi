@@ -28,8 +28,6 @@ are applied in order. This builds a version history of modified articles across
 successive operations.
 """
 
-from typing import Literal
-
 import networkx as nx
 from bs4 import BeautifulSoup
 
@@ -44,6 +42,7 @@ from ocapi.types import (
     Operation,
     OperationId,
     OperationType,
+    StatusCode,
 )
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
 from ocapi.utils.logging_utils import get_logger
@@ -74,7 +73,7 @@ def _edge_to_operation(
         operation_type=op_type,
         operand=data.get("operand", None),
         sub_target=data.get("sub_target", None),
-        extractable_content=data.get("extractable_content", True),
+        status_code=data.get("status_code", None),
     )
     return operation
 
@@ -257,19 +256,19 @@ def apply_subgraph_operations(
 
                 current_content = history[tgt][-1]["content"]
 
-                status_code: Literal["RESOLVED", "ERROR_EXTRACTING_CONTENT"]
-                if not op.extractable_content:
+                article_status_code: StatusCode
+                if op.status_code == StatusCode.ERROR_EXTRACTING_OPERAND:
                     new_content = current_content
-                    status_code = "ERROR_EXTRACTING_CONTENT"
+                    article_status_code = StatusCode.ERROR_EXTRACTING_OPERAND
                 elif op.operation_type == OperationType.REPLACE:
                     new_content = apply_replace(op, BeautifulSoup(current_content, "html.parser"))
-                    status_code = "RESOLVED"
+                    article_status_code = StatusCode.RESOLVED
                 elif op.operation_type == OperationType.REMOVE:
                     new_content = apply_remove(op, BeautifulSoup(current_content, "html.parser"))
-                    status_code = "RESOLVED"
+                    article_status_code = StatusCode.RESOLVED
                 elif op.operation_type == OperationType.ADD:
                     new_content = apply_add(op, BeautifulSoup(current_content, "html.parser"))
-                    status_code = "RESOLVED"
+                    article_status_code = StatusCode.RESOLVED
                 else:
                     raise OperationError(f"Unknown operation type: {op.operation_type}")
 
@@ -279,8 +278,8 @@ def apply_subgraph_operations(
                     content=new_content,
                     operation_id=op.id,
                 )
-                if status_code != "RESOLVED":
-                    new_version["status_code"] = status_code
+                if article_status_code != StatusCode.RESOLVED:
+                    new_version["status_code"] = article_status_code
                 history[tgt].append(new_version)
             except Exception as e:
                 error_msg = f"Operation {op_id or 'unknown'} skipped: {str(e)}"

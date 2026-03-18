@@ -43,6 +43,7 @@ from ocapi.types import (
     Operation,
     OperationType,
     Permis,
+    StatusCode,
     SubTarget,
     SubTargetType,
 )
@@ -818,7 +819,7 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
         source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
         target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
         operation_type=OperationType.REPLACE,
-        extractable_content=False,
+        status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
     )
     history = {
         NodeId(arrete_id="2020-01-01", article_id="1"): [
@@ -828,7 +829,7 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
                     "version": 0,
                     "content": "<p>Article 1 version 0</p>",
                     "operation_id": None,
-                    "status_code": "RESOLVED",
+                    "status_code": StatusCode.RESOLVED,
                 },
             ),
             cast(
@@ -837,7 +838,7 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
                     "version": 1,
                     "content": "<p>Article 1 version 0</p>",
                     "operation_id": "op-1",
-                    "status_code": "ERROR_EXTRACTING_CONTENT",
+                    "status_code": StatusCode.ERROR_EXTRACTING_OPERAND,
                 },
             ),
         ]
