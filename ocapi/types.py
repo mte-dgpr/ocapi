@@ -165,6 +165,8 @@ class NodeId(BaseModel):
 class StatusCode(str, Enum):
     RESOLVED = "resolved"
     ERROR_EXTRACTING_OPERAND = "error_extracting_operand"
+    ERROR_FINDING_SUBTARGET = "error_finding_subtarget"
+    COMPLEX_SUBTARGET = "complex_subtarget"
 
 
 class ArticleVersion(TypedDict):
