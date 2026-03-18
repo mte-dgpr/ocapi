@@ -21,6 +21,7 @@ from unittest import mock
 import networkx as nx
 from bs4 import BeautifulSoup
 
+from ocapi.exceptions import ComplexSubtargetError, SubtargetNotFoundError
 from ocapi.step_resolution.apply_ops import (
     apply_all_ops,
     apply_subgraph_operations,
@@ -199,6 +200,76 @@ def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) ->
         "content": "content v0",
         "operation_id": "op-unresolved",
         "status_code": StatusCode.ERROR_EXTRACTING_OPERAND,
+    }
+
+
+@mock.patch(
+    "ocapi.step_resolution.apply_ops.apply_replace",
+    side_effect=SubtargetNotFoundError("subtarget not found"),
+)
+def test_subtarget_not_found_sets_error_finding_subtarget(mock_replace: mock.Mock) -> None:
+    G = nx.MultiDiGraph()
+    source = NodeId(arrete_id="1981-01-01", article_id="2")
+    target = NodeId(arrete_id="1980-01-01", article_id="1")
+    add_node(G, source)
+    add_node(G, target)
+    add_edge(
+        G,
+        Operation(
+            id="op-subtarget-missing",
+            source_id=source,
+            target_id=target,
+            operation_type=OperationType.REPLACE,
+            operand="new content",
+        ),
+    )
+
+    history: ArticleHistory = {
+        target: [{"version": 0, "content": "content v0", "operation_id": None}]
+    }
+    output_history, skipped_ops = apply_subgraph_operations(G, history)
+
+    assert skipped_ops == []
+    assert output_history[target][-1] == {
+        "version": 1,
+        "content": "content v0",
+        "operation_id": "op-subtarget-missing",
+        "status_code": StatusCode.ERROR_FINDING_SUBTARGET,
+    }
+
+
+@mock.patch(
+    "ocapi.step_resolution.apply_ops.apply_replace",
+    side_effect=ComplexSubtargetError("complex subtarget"),
+)
+def test_complex_subtarget_sets_complex_subtarget_status(mock_replace: mock.Mock) -> None:
+    G = nx.MultiDiGraph()
+    source = NodeId(arrete_id="1981-01-01", article_id="2")
+    target = NodeId(arrete_id="1980-01-01", article_id="1")
+    add_node(G, source)
+    add_node(G, target)
+    add_edge(
+        G,
+        Operation(
+            id="op-complex-subtarget",
+            source_id=source,
+            target_id=target,
+            operation_type=OperationType.REPLACE,
+            operand="new content",
+        ),
+    )
+
+    history: ArticleHistory = {
+        target: [{"version": 0, "content": "content v0", "operation_id": None}]
+    }
+    output_history, skipped_ops = apply_subgraph_operations(G, history)
+
+    assert skipped_ops == []
+    assert output_history[target][-1] == {
+        "version": 1,
+        "content": "content v0",
+        "operation_id": "op-complex-subtarget",
+        "status_code": StatusCode.COMPLEX_SUBTARGET,
     }
 
 

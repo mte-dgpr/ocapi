@@ -854,3 +854,57 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
 
     rendered = str(section)
     assert "Opération non résolue modification de l'article 2 de l'arrêté 2021-01-01" in rendered
+
+
+@pytest.mark.parametrize(
+    "status_code",
+    [StatusCode.ERROR_FINDING_SUBTARGET, StatusCode.COMPLEX_SUBTARGET],
+)
+def test_make_section_version_displays_unresolved_message_for_subtarget_errors(
+    status_code: StatusCode,
+) -> None:
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Article 1 initial</p></section>',
+        "html.parser",
+    ).find("section")
+    assert section is not None
+
+    operation = Operation(
+        id="op-1",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+    )
+    history = {
+        NodeId(arrete_id="2020-01-01", article_id="1"): [
+            cast(
+                ArticleVersion,
+                {
+                    "version": 0,
+                    "content": "<p>Article 1 version 0</p>",
+                    "operation_id": None,
+                    "status_code": StatusCode.RESOLVED,
+                },
+            ),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 1,
+                    "content": "<p>Article 1 version 0</p>",
+                    "operation_id": "op-1",
+                    "status_code": status_code,
+                },
+            ),
+        ]
+    }
+
+    make_section_version(
+        section=section,
+        article_id="1",
+        history=history,
+        ap_initial_id="2020-01-01",
+        operation_by_id={"op-1": operation},
+    )
+
+    rendered = str(section)
+    assert "Opération non résolue modification de l'article 2 de l'arrêté 2021-01-01" in rendered
