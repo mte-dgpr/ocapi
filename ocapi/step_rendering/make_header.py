@@ -95,22 +95,28 @@ def make_permit_sources(arrete_files: list[ArreteFile]) -> str:
 
 
 def make_permit_visa(arrete_files: list[ArreteFile]) -> str:
-    """Build PermitVisa by ordered union (set then list) of all visas."""
-    seen: set[str] = set()
-    ordered_unique_visas: list[str] = []
+    """Build PermitVisa by grouping visas per arrêté in chronological order."""
+    visa_sections: list[str] = []
     for arrete_file in _ordered_arretes(arrete_files):
-        for visa in _extract_visa(arrete_file.soup):
-            if visa not in seen:
-                seen.add(visa)
-                ordered_unique_visas.append(visa)
-    visas_html = "\n".join(ordered_unique_visas)
+        extracted_visas = _extract_visa(arrete_file.soup)
+        if not extracted_visas:
+            continue
+        title = extract_first_spec_text(arrete_file.soup, "arrete_title") or arrete_file.filename
+        visas_html = "\n".join(extracted_visas)
+        visa_sections.append(
+            f"""
+    <section data-spec="permit_visa_group" data-date="{arrete_file.id}">
+     <h3>Visas de l'arrêté {arrete_file.id}</h3>
+     <p>{title}</p>
+     {visas_html}
+    </section>
+"""
+        )
     return f"""
    <section data-spec="permit_visa" style="margin-top: var(--spacing-2);">
     <details>
      <summary><h2 style="display: inline;">Visas consolidés</h2></summary>
-     <div style="margin-left: 1rem; margin-top: 1rem;">
-{visas_html}
-     </div>
+{''.join(visa_sections)}
     </details>
    </section>
 """

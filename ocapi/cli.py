@@ -67,15 +67,17 @@ def run_main(
         Arrêté IDs to include; all arrêtés are included when None.
     aiot : str | None
         AIOT identifier; inferred from the parent directory when None.
-    output_dir : Path | None
-        Output directory; defaults to ``<input_dir>/../ocapi_output``.
+        output_dir : Path | None
+        Output directory. When specified all outputs are written into this
+        single directory. When omitted the outputs are placed in three
+        separate canonical directories two levels above ``input_dir``:
+        ``<input_dir>/../../arretes_operations/<aiot>/``,
+        ``<input_dir>/../../arretes_history/<aiot>/`` and
+        ``<input_dir>/../../consolidated_permit/<aiot>/``.
     start_date : str | None
         Detection start date (YYYY-MM-DD).
     """
-    resolved_output_dir = output_dir if output_dir else input_dir.parent / "ocapi_output"
-    _LOGGER.info(f"Output directory: {resolved_output_dir}")
-
-    resolved_aiot = aiot or input_dir.parent.name
+    resolved_aiot = aiot or input_dir.name
     _LOGGER.info(f"AIOT: {resolved_aiot}")
     _LOGGER.info(f"LLM model: {config_model_llm().model_name}")
 
@@ -95,8 +97,6 @@ def run_main(
             _LOGGER.error("No arrêté matches the specified IDs")
             return 1
 
-    resolved_output_dir.mkdir(parents=True, exist_ok=True)
-
     _LOGGER.info("Running pipeline...")
     try:
         operations, history, _arrete_files, permis = run_pipeline(
@@ -107,12 +107,22 @@ def run_main(
         )
         _LOGGER.info("Pipeline completed successfully.")
 
-        operations_path = resolved_output_dir / "operations.json"
+        if output_dir:
+            operations_dir = output_dir
+            history_dir = output_dir
+            permis_dir = output_dir
+        else:
+            base_dir = input_dir.parent.parent
+            operations_dir = base_dir / "arretes_operations" / resolved_aiot
+            history_dir = base_dir / "arretes_history" / resolved_aiot
+            permis_dir = base_dir / "consolidated_permit" / resolved_aiot
+
+        operations_path = operations_dir / "operations.json"
         operations_dict = [op.model_dump(mode="json") for op in operations]
         write_json_output(operations_dict, operations_path)
         _LOGGER.info(f"Operations saved → {operations_path}")
 
-        history_path = resolved_output_dir / "history.json"
+        history_path = history_dir / "history.json"
         history_serializable = {
             str(node_id): [
                 {
@@ -128,7 +138,7 @@ def run_main(
         _LOGGER.info(f"History saved → {history_path}")
 
         if permis:
-            permis_path = resolved_output_dir / "permis.html"
+            permis_path = permis_dir / "permis.html"
             write_permis_output(permis, permis_path)
             _LOGGER.info(f"Consolidated permit saved → {permis_path}")
 
@@ -259,7 +269,11 @@ Examples:
     run_parser.add_argument(
         "-o",
         "--output",
-        help="Output directory (default: <input_dir>/../ocapi_output)",
+        help=(
+            "Output directory. When specified all outputs go into this single directory. "
+            "By default outputs are split across arretes_operations/, arretes_history/ "
+            "and consolidated_permit/ directories relative to <input_dir>/."
+        ),
     )
     run_parser.add_argument(
         "--no-detection",

@@ -227,10 +227,22 @@ class PermitSources(_BaseModelWithConfig):
     sources: list[PermitSourceSpec]
 
 
-class PermitVisa(_BaseModelWithConfig):
-    """Ordered set of consolidated visas without duplicates."""
+class PermitVisaEntry(_BaseModelWithConfig):
+    """Visas extracted for a given arrêté."""
 
+    arrete_id: ArreteId
     visas: list[str]
+
+    @field_validator("arrete_id")
+    @classmethod
+    def validate_arrete_id_format(cls, v: str) -> str:
+        return parse_arrete_id(v)
+
+
+class PermitVisa(_BaseModelWithConfig):
+    """Consolidated visas, grouped by arrêté in chronological order."""
+
+    entries: list[PermitVisaEntry]
 
 
 class PermitMotifEntry(_BaseModelWithConfig):
@@ -372,7 +384,9 @@ def categorize_arrete(filename: str) -> FileType:
 def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
     """Parse an arrêté filename and return the arrêté ID and its type.
 
-    Expected format: YYYY-MM-DD_type_description.html
+    Accepted formats:
+    - ``YYYY-MM-DD.html`` – date-only, type defaults to :attr:`FileType.AUTRE`
+    - ``YYYY-MM-DD_type_description.html`` – date + type
 
     Parameters
     ----------
@@ -396,10 +410,15 @@ def parse_filename(filename: str) -> tuple[ArreteId, FileType]:
     # Split by underscore
     parts = filename.split("_")
     if len(parts) < 2:
-        raise InvalidFileFormatError(
-            f"Invalid format: filename must contain at least a date "
-            f"and a type separated by '_': {filename}"
-        )
+        # Accept date-only format: YYYY-MM-DD.html
+        stem = filename[:-5]  # strip .html
+        try:
+            arrete_id = parse_arrete_id(stem)
+        except InvalidArreteIdError as e:
+            raise InvalidFileFormatError(
+                f"Invalid format: filename must contain at least a date: {filename}"
+            ) from e
+        return arrete_id, FileType.AUTRE
 
     # Extract and validate the date (first part)
     try:

@@ -102,7 +102,7 @@ def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
     assert 'data-spec="permit_motif"' in html
     assert permit_visa is not None
     assert permit_title is not None
-    assert permit_visa.get_text(" ", strip=True).count("VISA UNIQUE 1") == 1
+    assert permit_visa.get_text(" ", strip=True).count("VISA UNIQUE 1") == 2
     assert permit_title.get_text(" ", strip=True).count("0001") == 1
     assert html.index('data-date="2020-01-01"') < html.index('data-date="2021-01-01"')
 
