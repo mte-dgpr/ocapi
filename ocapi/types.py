@@ -163,8 +163,8 @@ class NodeId(BaseModel):
 
 
 class StatusCode(str, Enum):
-    RESOLVED = "RESOLVED"
-    ERROR_EXTRACTING_OPERAND = "ERROR_EXTRACTING_OPERAND"
+    RESOLVED = "resolved"
+    ERROR_EXTRACTING_OPERAND = "error_extracting_operand"
 
 
 class ArticleVersion(TypedDict):
