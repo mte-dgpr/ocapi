@@ -17,15 +17,36 @@
 # limitations under the License.
 #
 """
-Tests for the new I/O functions: save_operations, load_operations, save_history.
+Tests for I/O utilities: load_html_files, initialize_arrete_files,
+save_operations, load_operations, save_history.
 """
 import json
+import tempfile
+import unittest
 from pathlib import Path
 
 import pytest
 
-from ocapi.types import ArticleHistory, ArticleVersion, NodeId, Operation, OperationType
-from ocapi.utils.io_utils import InputOutputError, load_operations, save_history, save_operations
+from ocapi.types import ArticleHistory, ArticleVersion, FileType, NodeId, Operation, OperationType
+from ocapi.utils.io_utils import (
+    InputOutputError,
+    initialize_arrete_files,
+    load_html_files,
+    load_operations,
+    save_history,
+    save_operations,
+)
+
+# Minimal valid Arrêtify HTML (version 0.1.0)
+_VALID_HTML = '<html><body data-arretify_version="0.1.0"><p>Content</p></body></html>'
+# HTML without data-arretify_version attribute
+_HTML_NO_VERSION = "<html><body><p>Content without version</p></body></html>"
+# HTML with unsupported Arrêtify version
+_HTML_UNSUPPORTED_VERSION = '<html><body data-arretify_version="0.2.0"><p>Content</p></body></html>'
+
+
+def _write(path: Path, content: str) -> None:
+    path.write_text(content, encoding="utf-8")
 
 
 def _make_operation(op_id: str = "op1") -> Operation:
@@ -36,6 +57,90 @@ def _make_operation(op_id: str = "op1") -> Operation:
         operation_type=OperationType.REPLACE,
         operand="<p>new content</p>",
     )
+
+
+class TestLoadHtmlFiles(unittest.TestCase):
+    """Tests for load_html_files."""
+
+    def test_raises_if_directory_does_not_exist(self) -> None:
+        with self.assertRaises(InputOutputError) as ctx:
+            load_html_files(Path("/tmp/nonexistent_ocapi_dir"))
+        assert "does not exist" in str(ctx.exception)
+
+    def test_raises_if_path_is_a_file(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".html") as f:
+            with self.assertRaises(InputOutputError) as ctx:
+                load_html_files(Path(f.name))
+        assert "not a directory" in str(ctx.exception)
+
+    def test_raises_if_no_html_files(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "readme.txt").write_text("text", encoding="utf-8")
+            with self.assertRaises(InputOutputError) as ctx:
+                load_html_files(Path(d))
+        assert "No HTML files found" in str(ctx.exception)
+
+    def test_returns_sorted_html_files(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            _write(root / "2023-01-01.html", _VALID_HTML)
+            _write(root / "2021-06-15.html", _VALID_HTML)
+            _write(root / "2025-12-31.html", _VALID_HTML)
+            _write(root / "not_html.txt", "ignored")
+
+            result = load_html_files(root)
+
+        assert [p.name for p in result] == [
+            "2021-06-15.html",
+            "2023-01-01.html",
+            "2025-12-31.html",
+        ]
+
+    def test_ignores_non_html_files(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            _write(root / "2023-01-01.html", _VALID_HTML)
+            _write(root / "document.pdf", "pdf")
+            _write(root / "notes.txt", "txt")
+
+            result = load_html_files(root)
+
+        assert len(result) == 1
+        assert result[0].name == "2023-01-01.html"
+
+
+class TestInitializeArreteFiles(unittest.TestCase):
+    """Tests for initialize_arrete_files."""
+
+    def test_loads_legacy_format_with_type(self) -> None:
+        """A YYYY-MM-DD_type_desc.html file is loaded correctly."""
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            _write(root / "2020-04-30_ap prescriptions complémentaires_desc.html", _VALID_HTML)
+
+            result = initialize_arrete_files(
+                [root / "2020-04-30_ap prescriptions complémentaires_desc.html"],
+                aiot="0001234567",
+            )
+
+        assert len(result) == 1
+        assert result[0].id == "2020-04-30"
+        assert result[0].file_type == FileType.AP_COMPLEMENTAIRE
+
+    def test_skips_file_with_invalid_name(self) -> None:
+        """A file with an invalid name is skipped without raising."""
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            _write(root / "invalid_name.html", _VALID_HTML)
+
+            result = initialize_arrete_files([root / "invalid_name.html"], aiot="0001234567")
+
+        assert result == []
+
+    def test_empty_list_returns_empty(self) -> None:
+        """An empty input list returns an empty list without error."""
+        result = initialize_arrete_files([], aiot="0001234567")
+        assert result == []
 
 
 class TestSaveOperations:
