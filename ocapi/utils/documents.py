@@ -20,34 +20,11 @@
 TODO: replace this file with PY - arrete_utils when the library is ready.
 """
 
-import re
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, TypedDict
 from uuid import uuid4
 
 from langchain_core.documents import Document
-
-
-@dataclass(frozen=True)
-class FieldsImport:
-    champ_10_siret: str
-    champ_14_code_dechet: str
-    """
-    CED waste code format: 12 34 56
-    """
-
-    def __post_init__(self) -> None:
-        if not re.match(
-            r"^\d\d \d\d \d\d$",
-            self.champ_14_code_dechet,
-        ):
-            raise ValueError(f"Invalid code dechet format: {self.champ_14_code_dechet}")
-
-
-@dataclass(frozen=True)
-class FieldsExport:
-    pass
 
 
 class ContentType(Enum):

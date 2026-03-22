@@ -129,6 +129,7 @@ def run_main(
                     "version": v["version"],
                     "content": v["content"],
                     "operation_id": v["operation_id"],
+                    "status_code": v.get("status_code"),
                 }
                 for v in versions
             ]
