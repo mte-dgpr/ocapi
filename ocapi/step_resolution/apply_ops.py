@@ -43,6 +43,7 @@ from ocapi.types import (
     OperationId,
     OperationType,
     StatusCode,
+    SubTargetType,
 )
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
 from ocapi.utils.logging_utils import get_logger
@@ -50,6 +51,22 @@ from ocapi.utils.subtarget_utils import is_simple_subtarget, replace_subtarget
 
 _LOGGER = get_logger(__name__)
 LLM_CFG = config_model_llm()
+
+
+def _is_unambiguous_all_operation(op: Operation) -> bool:
+    """Return True when the operation fully replaces or removes an article.
+
+    Such operations do not depend on the current content of the target article
+    (the whole content is discarded) so they can be applied even if a previous
+    version had an unresolved error.
+
+    Unambiguous cases:
+    - REPLACE with ``sub_target.type == FULL_SECTION`` ("replace all")
+    - REMOVE  with ``sub_target.type == FULL_SECTION`` ("remove all")
+    """
+    if op.operation_type not in (OperationType.REPLACE, OperationType.REMOVE):
+        return False
+    return op.sub_target is not None and op.sub_target.type == SubTargetType.FULL_SECTION
 
 
 def _to_operation_type(raw_type: OperationType | str) -> OperationType:
@@ -291,6 +308,17 @@ def apply_subgraph_operations(
     Operations may carry ``status_code=COMPLEX_SUBTARGET`` to indicate that the
     sub-target requires LLM consolidation; that code is **not** copied onto the
     article history as an error — the apply functions run the LLM path instead.
+
+    Error propagation
+    -----------------
+    If the latest version of a target article carries a non-resolved
+    ``status_code`` (``ERROR_EXTRACTING_OPERAND`` or ``PROPAGATED_ERROR``),
+    the new operation is *not* applied and the new version receives
+    ``status_code = PROPAGATED_ERROR`` — unless the operation is *unambiguous*
+    (see :func:`_is_unambiguous_all_operation`).  Unambiguous operations
+    (REPLACE or REMOVE with ``sub_target.type == FULL_SECTION``) discard the
+    existing content entirely, so the previous error is irrelevant and the
+    operation is applied normally.
     """
     skipped_ops: list[tuple[OperationId, str]] = []  # list of (operation_id, error_message)
     start_nodes = [node for node in subG.nodes if subG.in_degree(node) == 0]
@@ -326,40 +354,61 @@ def apply_subgraph_operations(
                 raw_src = subG.nodes[src].get("content", "") or ""
                 source_html = raw_src if isinstance(raw_src, str) else str(raw_src)
 
+                # Propagate an earlier error unless the operation is unambiguous
+                # (i.e. it replaces/removes the full article and does not rely on
+                # the current — potentially corrupted — content).
+                previous_status = history[tgt][-1].get("status_code")
+                previous_has_error = (
+                    previous_status is not None
+                    and previous_status != StatusCode.RESOLVED
+                )
+
                 article_status_code: StatusCode
                 new_content = current_content
-                try:
-                    if op.status_code in (
-                        StatusCode.ERROR_EXTRACTING_OPERAND,
-                        StatusCode.ERROR_EXTRACTING_TARGET,
-                    ):
-                        article_status_code = op.status_code
-                    elif op.operation_type == OperationType.REPLACE:
-                        new_content = apply_replace(
-                            op,
-                            BeautifulSoup(current_content, "html.parser"),
-                            source_content=source_html,
+                if previous_has_error and not _is_unambiguous_all_operation(op):
+                    article_status_code = StatusCode.PROPAGATED_ERROR
+                    _LOGGER.warning(
+                        f"Operation {op.id} skipped (propagated_error): "
+                        f"target={tgt} had previous status_code={previous_status}"
+                    )
+                else:
+                    try:
+                        if op.status_code in (
+                            StatusCode.ERROR_EXTRACTING_OPERAND,
+                            StatusCode.ERROR_EXTRACTING_TARGET,
+                        ):
+                            article_status_code = op.status_code
+                        elif op.operation_type == OperationType.REPLACE:
+                            new_content = apply_replace(
+                                op,
+                                BeautifulSoup(current_content, "html.parser"),
+                                source_content=source_html,
+                            )
+                            article_status_code = StatusCode.RESOLVED
+                        elif op.operation_type == OperationType.REMOVE:
+                            new_content = apply_remove(
+                                op,
+                                BeautifulSoup(current_content, "html.parser"),
+                                source_content=source_html,
+                            )
+                            article_status_code = StatusCode.RESOLVED
+                        elif op.operation_type == OperationType.ADD:
+                            new_content = apply_add(
+                                op,
+                                BeautifulSoup(current_content, "html.parser"),
+                                source_content=source_html,
+                            )
+                            article_status_code = StatusCode.RESOLVED
+                        else:
+                            raise OperationError(f"Unknown operation type: {op.operation_type}")
+                    except SubtargetNotFoundError as e:
+                        _LOGGER.warning(f"Operation {op_id}: sub-target element not found — {e}")
+                        article_status_code = StatusCode.ERROR_FINDING_SUBTARGET
+                    except ComplexSubtargetError as e:
+                        _LOGGER.warning(
+                            f"Operation {op_id}: complex sub-target, not resolved — {e}"
                         )
-                        article_status_code = StatusCode.RESOLVED
-                    elif op.operation_type == OperationType.REMOVE:
-                        new_content = apply_remove(
-                            op,
-                            BeautifulSoup(current_content, "html.parser"),
-                            source_content=source_html,
-                        )
-                        article_status_code = StatusCode.RESOLVED
-                    elif op.operation_type == OperationType.ADD:
-                        new_content = apply_add(
-                            op,
-                            BeautifulSoup(current_content, "html.parser"),
-                            source_content=source_html,
-                        )
-                        article_status_code = StatusCode.RESOLVED
-                    else:
-                        raise OperationError(f"Unknown operation type: {op.operation_type}")
-                except SubtargetNotFoundError as e:
-                    _LOGGER.warning(f"Operation {op_id}: sub-target element not found — {e}")
-                    article_status_code = StatusCode.ERROR_FINDING_SUBTARGET
+                        article_status_code = StatusCode.COMPLEX_SUBTARGET
 
                 # Append the new version to the history
                 new_version = ArticleVersion(
