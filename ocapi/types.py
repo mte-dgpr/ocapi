@@ -306,6 +306,7 @@ class RawOperation(_BaseModelWithConfig):
     new_content_start_marker: str | None = None
     new_content_end_marker: str | None = None
     failure_message: str | None = None
+    confidence_score: int | None = None
 
 
 class SubTargetType(Enum):
@@ -348,6 +349,7 @@ class Operation(_BaseModelWithConfig):
     operand: str | None = None
     sub_target: SubTarget | None = None
     status_code: StatusCode | None = None
+    confidence_score: int | None = None
 
     @field_validator("operation_type", mode="before")
     @classmethod

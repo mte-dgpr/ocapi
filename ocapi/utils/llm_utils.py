@@ -83,6 +83,11 @@ _DEFAULT_LLM_RESILIENCE_CONFIG: dict[str, Any] = {
             "jitter": True,
         },
     },
+    "confidence_score": {
+        "enabled": False,
+        "min_threshold": 70,
+        "action_below_threshold": "pass",
+    },
 }
 
 _DEFAULT_LLM_RATE_LIMIT_CONFIG: dict[str, Any] = {
@@ -457,6 +462,51 @@ def call_llm_api(cfg: ResolvedLLMModel, prompt: str) -> str:
         return _execute_model_call(
             fallback_cfg, prompt, timeout_seconds, secondary_retry, rate_limit_cfg
         )
+
+
+@dataclass(frozen=True)
+class ConfidenceScoreConfig:
+    """Validated confidence-score filtering settings from ``llm_resilience.json``."""
+
+    enabled: bool
+    min_threshold: int  # 0-100 inclusive
+    action_below_threshold: str  # "pass" | "retry"
+
+
+def get_confidence_score_config() -> ConfidenceScoreConfig:
+    """Return the validated confidence-score configuration from ``llm_resilience.json``.
+
+    Attributes
+    ----------
+    enabled : bool
+        Whether confidence-score filtering is active.
+    min_threshold : int
+        Operations whose ``confidence_score < min_threshold`` are acted on (0-100).
+    action_below_threshold : str
+        ``"pass"`` to skip the low-confidence operation immediately;
+        ``"retry"`` to re-run the LLM call for the block first, then skip if still low.
+    """
+    resilience_cfg = _load_llm_resilience_config()
+    raw = resilience_cfg.get("confidence_score", {})
+    if not isinstance(raw, dict):
+        raw = {}
+
+    defaults = _DEFAULT_LLM_RESILIENCE_CONFIG["confidence_score"]
+
+    enabled = _to_bool_or_default(raw.get("enabled"), defaults["enabled"])
+    raw_threshold = raw.get("min_threshold", defaults["min_threshold"])
+    min_threshold = max(
+        0, min(100, _to_int_or_default(raw_threshold, defaults["min_threshold"], 0))
+    )
+    action = raw.get("action_below_threshold", defaults["action_below_threshold"])
+    if not isinstance(action, str) or action not in ("pass", "retry"):
+        action = defaults["action_below_threshold"]
+
+    return ConfidenceScoreConfig(
+        enabled=enabled,
+        min_threshold=min_threshold,
+        action_below_threshold=action,
+    )
 
 
 def parse_llm_json_list_response(raw: str) -> list[dict[str, Any]]:
