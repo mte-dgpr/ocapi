@@ -555,6 +555,53 @@ def test_make_permit_content_renders_full_main_with_section_versions() -> None:
     assert 'data-date_version="2020-01-01"' in html
 
 
+def test_make_permit_content_inserts_new_article_after_predecessor() -> None:
+    """NEW_ARTICLE sections are inserted after the greatest existing article id below them."""
+    ap_initial = _make_testing_arrete_file(
+        arrete_id="2020-01-01",
+        aiot="0001",
+        filename="ap_initial",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><p>Article 1 initial</p></section>
+  <section data-spec="section" data-number="3"><p>Article 3 initial</p></section>
+ </main>
+</body></html>
+""",
+    )
+    new_key = NodeId(arrete_id="2020-01-01", article_id="NEW_ARTICLE:2")
+    history = {
+        new_key: [
+            cast(
+                ArticleVersion,
+                {
+                    "version": 0,
+                    "content": (
+                        '<section data-spec="section" data-number="2">'
+                        "<p>Article 2 inséré</p></section>"
+                    ),
+                    "operation_id": "op-create-2",
+                },
+            )
+        ]
+    }
+    op_create = Operation(
+        id="op-create-2",
+        source_id=NodeId(arrete_id="2021-06-01", article_id="1"),
+        target_id=new_key,
+        operation_type=OperationType.ADD,
+        sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="contenu entier"),
+    )
+    html = make_permit_content(
+        history=history,
+        arrete_files=[ap_initial],
+        operations=[op_create],
+    )
+    assert html.index("Article 1 initial") < html.index("Article 2 inséré")
+    assert html.index("Article 2 inséré") < html.index("Article 3 initial")
+
+
 @patch("ocapi.step_rendering.step_rendering.make_permit_other", return_value="<other/>")
 @patch("ocapi.step_rendering.step_rendering.make_permit_header", return_value="<header/>")
 @patch("ocapi.step_rendering.step_rendering.make_permit_content", return_value="<content/>")

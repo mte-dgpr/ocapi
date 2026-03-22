@@ -19,7 +19,11 @@
 from bs4 import BeautifulSoup
 
 from ocapi.types import SubTargetType
-from ocapi.utils.subtarget_utils import parse_subtarget, replace_subtarget
+from ocapi.utils.subtarget_utils import (
+    insert_content_after_subtarget,
+    parse_subtarget,
+    replace_subtarget,
+)
 
 
 def test_simple_table_detection() -> None:
@@ -77,3 +81,13 @@ def test_replace_alinea() -> None:
     subtarget = parse_subtarget("le 2ème alinea")
     result = replace_subtarget(soup, subtarget, "Alinea modifié")
     assert result.get_text() == "Alinea 1Alinea modifié"
+
+
+def test_insert_content_after_tableau() -> None:
+    html = "<div><table><tr><td>Cell</td></tr></table></div>"
+    soup = BeautifulSoup(html, "html.parser")
+    subtarget = parse_subtarget("le tableau")
+    result = insert_content_after_subtarget(soup, subtarget, "<p>Après tableau</p>")
+    assert str(result) == (
+        "<div><table><tr><td>Cell</td></tr></table><p>Après tableau</p></div>"
+    )

@@ -28,6 +28,8 @@ are applied in order. This builds a version history of modified articles across
 successive operations.
 """
 
+from copy import copy
+
 import networkx as nx
 from bs4 import BeautifulSoup
 
@@ -44,10 +46,15 @@ from ocapi.types import (
     OperationType,
     StatusCode,
     SubTargetType,
+    article_display_number,
 )
 from ocapi.utils.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
 from ocapi.utils.logging_utils import get_logger
-from ocapi.utils.subtarget_utils import is_simple_subtarget, replace_subtarget
+from ocapi.utils.subtarget_utils import (
+    insert_content_after_subtarget,
+    is_simple_subtarget,
+    replace_subtarget,
+)
 
 _LOGGER = get_logger(__name__)
 LLM_CFG = config_model_llm()
@@ -244,6 +251,34 @@ def apply_remove(
     return output
 
 
+def _append_operand_to_section_body(soup: BeautifulSoup, operand: str) -> str:
+    """Append operand HTML fragments at the end of an existing article section."""
+    operand_soup = BeautifulSoup(operand, "html.parser")
+    for child in list(operand_soup.contents):
+        if isinstance(child, str) and not str(child).strip():
+            continue
+        soup.append(copy(child))
+    return str(soup)
+
+
+def _wrap_new_article_section_html(article_id: str, operand: str) -> str:
+    """Build a full ``<section>`` for a brand-new article (``NEW_ARTICLE:x.x``)."""
+    num = article_display_number(article_id)
+    return f'<section data-spec="section" data-number="{num}">{operand}</section>'
+
+
+def _is_new_article_full_section_add(op: Operation) -> bool:
+    """True when ADD creates a full new article (single initial history version)."""
+    if op.operation_type != OperationType.ADD or op.sub_target is None:
+        return False
+    st = op.sub_target.type
+    if isinstance(st, str):
+        st = SubTargetType(st)
+    return bool(
+        st == SubTargetType.FULL_SECTION and op.target_id.article_id.startswith("NEW_ARTICLE")
+    )
+
+
 def apply_add(
     operation: Operation,
     soup_input: Content | BeautifulSoup,
@@ -252,8 +287,10 @@ def apply_add(
 ) -> Content:
     """Apply an ADD operation to an article's content.
 
-    Simple sub-targets are not yet supported for ADD. COMPLEX sub-targets raise
-    ``ComplexSubtargetError``.
+    - ``FULL_SECTION`` + ``NEW_ARTICLE:…``: wrap operand as a new section (no LLM).
+    - ``FULL_SECTION`` on an existing article: append operand at the end of the section.
+    - Other simple sub-targets: insert operand after the matched fragment (regex).
+    - ``COMPLEX`` sub-target: LLM-assisted insertion via ``<NEWCONTENT>``.
 
     Parameters
     ----------
@@ -271,30 +308,36 @@ def apply_add(
     ------
     OperationError
         If ``sub_target`` or ``operand`` is missing from the operation.
-    ComplexSubtargetError
-        If the sub-target is of type COMPLEX.
-    NotImplementedError
-        If the sub-target is simple (not yet supported for ADD).
     """
     if operation.sub_target is None or operation.operand is None:
         raise OperationError("ADD operations require sub_target and operand.")
     sub_target = operation.sub_target
     soup = _ensure_soup(soup_input)
+    st = sub_target.type
+    if isinstance(st, str):
+        st = SubTargetType(st)
+
+    if _is_new_article_full_section_add(operation):
+        return _wrap_new_article_section_html(operation.target_id.article_id, operation.operand)
+
+    if st == SubTargetType.FULL_SECTION:
+        return _append_operand_to_section_body(soup, operation.operand)
+
     if is_simple_subtarget(sub_target):
-        raise NotImplementedError("apply_add is not implemented for simple subtargets yet.")
-    else:
-        _llm_consolidation_log(operation, "add")
-        desc = sub_target.description or ""
-        prompt = query_llm_for_subtarget(
-            OperationType.ADD, str(soup), desc, source_content=source_content
-        )
-        raw = call_llm_api(LLM_CFG, prompt)
-        output = str(soup)
-        for line in raw.splitlines():
-            if "<NEWCONTENT>" in line:
-                output = line.replace("<NEWCONTENT>", operation.operand)
-                break
-        return output
+        modified = insert_content_after_subtarget(soup, sub_target, operation.operand)
+        return str(modified)
+
+    desc = sub_target.description or ""
+    prompt = query_llm_for_subtarget(
+        OperationType.ADD, str(soup), desc, source_content=source_content
+    )
+    raw = call_llm_api(LLM_CFG, prompt)
+    output = str(soup)
+    for line in raw.splitlines():
+        if "<NEWCONTENT>" in line:
+            output = line.replace("<NEWCONTENT>", operation.operand)
+            break
+    return output
 
 
 def apply_subgraph_operations(
@@ -303,6 +346,9 @@ def apply_subgraph_operations(
     """Apply sub-graph operations and update the article history.
 
     For each operation, appends a new version to the target article's history.
+    For ADD + ``FULL_SECTION`` + ``NEW_ARTICLE:…``, a **single** version ``0`` is
+    stored with ``operation_id`` set to the creation operation (#377).
+
     Returns the updated history and the list of failed operations.
 
     Operations may carry ``status_code=COMPLEX_SUBTARGET`` to indicate that the
@@ -335,20 +381,24 @@ def apply_subgraph_operations(
                 op = _edge_to_operation(subG, src, tgt, key)
                 op_id = op.id
 
+                creation = _is_new_article_full_section_add(op)
+
                 # Retrieve current content (latest version) of the target article
                 if tgt not in history:
-                    # Initialise history with version 0 from the target node content
-                    # (fallback: empty string)
-                    initial_content = subG.nodes[tgt].get("content", "")
-                    history[tgt] = [
-                        ArticleVersion(
-                            version=0,
-                            content=initial_content,
-                            operation_id=None,
-                        )
-                    ]
+                    if not creation:
+                        initial_content = subG.nodes[tgt].get("content", "")
+                        history[tgt] = [
+                            ArticleVersion(
+                                version=0,
+                                content=initial_content,
+                                operation_id=None,
+                            )
+                        ]
 
-                current_content = history[tgt][-1]["content"]
+                if tgt not in history:
+                    current_content = subG.nodes[tgt].get("content", "") or ""
+                else:
+                    current_content = history[tgt][-1]["content"]
 
                 # HTML of the source article (arrêté modifiant), for LLM consolidation prompts.
                 raw_src = subG.nodes[src].get("content", "") or ""
@@ -408,6 +458,17 @@ def apply_subgraph_operations(
                             f"Operation {op_id}: complex sub-target, not resolved — {e}"
                         )
                         article_status_code = StatusCode.COMPLEX_SUBTARGET
+
+                if creation:
+                    new_version = ArticleVersion(
+                        version=0,
+                        content=new_content,
+                        operation_id=op.id,
+                    )
+                    if article_status_code != StatusCode.RESOLVED:
+                        new_version["status_code"] = article_status_code
+                    history[tgt] = [new_version]
+                    continue
 
                 # Append the new version to the history
                 new_version = ArticleVersion(
