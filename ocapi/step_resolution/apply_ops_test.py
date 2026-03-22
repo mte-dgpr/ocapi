@@ -36,6 +36,8 @@ from ocapi.types import (
     Operation,
     OperationType,
     StatusCode,
+    SubTarget,
+    SubTargetType,
 )
 
 
@@ -160,6 +162,38 @@ def test_apply_subgraph_operations(
         "content"
     ]
     assert history_content_2 == mock_add.return_value
+
+
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
+def test_complex_subtarget_on_operation_still_applies_replace(mock_replace: mock.Mock) -> None:
+    """COMPLEX_SUBTARGET marks LLM consolidation; it must not block application (#371)."""
+    mock_replace.return_value = "consolidated"
+    G = nx.MultiDiGraph()
+    source = NodeId(arrete_id="1981-01-01", article_id="2")
+    target = NodeId(arrete_id="1980-01-01", article_id="1")
+    add_node(G, source, "<section>source html</section>")
+    add_node(G, target, "<section>target html</section>")
+    add_edge(
+        G,
+        Operation(
+            id="op-complex",
+            source_id=source,
+            target_id=target,
+            operation_type=OperationType.REPLACE,
+            operand="<p>x</p>",
+            sub_target=SubTarget(type=SubTargetType.COMPLEX, description="ligne 7 du tableau"),
+            status_code=StatusCode.COMPLEX_SUBTARGET,
+        ),
+    )
+    history: ArticleHistory = {
+        target: [{"version": 0, "content": "content v0", "operation_id": None}],
+    }
+    output_history, skipped_ops = apply_subgraph_operations(G, history)
+
+    assert skipped_ops == []
+    mock_replace.assert_called_once()
+    assert output_history[target][-1]["content"] == "consolidated"
+    assert output_history[target][-1].get("status_code") is None
 
 
 @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
