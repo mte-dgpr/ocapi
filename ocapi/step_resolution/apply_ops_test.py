@@ -449,3 +449,37 @@ def test_apply_all_operations(
     assert NodeId(arrete_id="1980-01-01", article_id="2") in history
     assert len(history[NodeId(arrete_id="1980-01-01", article_id="1")]) > 1
     assert len(history[NodeId(arrete_id="1980-01-01", article_id="2")]) > 1
+
+
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
+def test_error_extracting_target_keeps_content_and_stores_status(
+    mock_replace: mock.Mock,
+) -> None:
+    """ERROR_EXTRACTING_TARGET must not call apply_* and must store the status code (#339)."""
+    G = nx.MultiDiGraph()
+    source = NodeId(arrete_id="1981-01-01", article_id="1")
+    target = NodeId(arrete_id="1980-01-01", article_id="99")
+    add_node(G, source)
+    add_node(G, target, "")
+    add_edge(
+        G,
+        Operation(
+            id="op-missing-target",
+            source_id=source,
+            target_id=target,
+            operation_type=OperationType.REPLACE,
+            operand="new",
+            status_code=StatusCode.ERROR_EXTRACTING_TARGET,
+        ),
+    )
+    history: ArticleHistory = {
+        target: [{"version": 0, "content": "", "operation_id": None}],
+    }
+    output_history, skipped_ops = apply_subgraph_operations(G, history)
+
+    assert skipped_ops == []
+    mock_replace.assert_not_called()
+    last = output_history[target][-1]
+    assert last["content"] == ""
+    assert last["status_code"] == StatusCode.ERROR_EXTRACTING_TARGET
+    assert last["operation_id"] == "op-missing-target"

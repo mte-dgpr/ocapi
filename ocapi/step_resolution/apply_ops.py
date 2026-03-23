@@ -241,30 +241,38 @@ def apply_subgraph_operations(
 
                 article_status_code: StatusCode
                 new_content = current_content
-                try:
-                    if op.status_code == StatusCode.ERROR_EXTRACTING_OPERAND:
-                        article_status_code = StatusCode.ERROR_EXTRACTING_OPERAND
-                    elif op.operation_type == OperationType.REPLACE:
-                        new_content = apply_replace(
-                            op, BeautifulSoup(current_content, "html.parser")
+                if op.status_code in (
+                    StatusCode.ERROR_EXTRACTING_OPERAND,
+                    StatusCode.ERROR_EXTRACTING_TARGET,
+                ):
+                    article_status_code = op.status_code
+                else:
+                    try:
+                        if op.operation_type == OperationType.REPLACE:
+                            new_content = apply_replace(
+                                op, BeautifulSoup(current_content, "html.parser")
+                            )
+                            article_status_code = StatusCode.RESOLVED
+                        elif op.operation_type == OperationType.REMOVE:
+                            new_content = apply_remove(
+                                op, BeautifulSoup(current_content, "html.parser")
+                            )
+                            article_status_code = StatusCode.RESOLVED
+                        elif op.operation_type == OperationType.ADD:
+                            new_content = apply_add(
+                                op, BeautifulSoup(current_content, "html.parser")
+                            )
+                            article_status_code = StatusCode.RESOLVED
+                        else:
+                            raise OperationError(f"Unknown operation type: {op.operation_type}")
+                    except SubtargetNotFoundError as e:
+                        _LOGGER.warning(f"Operation {op_id}: sub-target element not found — {e}")
+                        article_status_code = StatusCode.ERROR_FINDING_SUBTARGET
+                    except ComplexSubtargetError as e:
+                        _LOGGER.warning(
+                            f"Operation {op_id}: complex sub-target, not resolved — {e}"
                         )
-                        article_status_code = StatusCode.RESOLVED
-                    elif op.operation_type == OperationType.REMOVE:
-                        new_content = apply_remove(
-                            op, BeautifulSoup(current_content, "html.parser")
-                        )
-                        article_status_code = StatusCode.RESOLVED
-                    elif op.operation_type == OperationType.ADD:
-                        new_content = apply_add(op, BeautifulSoup(current_content, "html.parser"))
-                        article_status_code = StatusCode.RESOLVED
-                    else:
-                        raise OperationError(f"Unknown operation type: {op.operation_type}")
-                except SubtargetNotFoundError as e:
-                    _LOGGER.warning(f"Operation {op_id}: sub-target element not found — {e}")
-                    article_status_code = StatusCode.ERROR_FINDING_SUBTARGET
-                except ComplexSubtargetError as e:
-                    _LOGGER.warning(f"Operation {op_id}: complex sub-target, not resolved — {e}")
-                    article_status_code = StatusCode.COMPLEX_SUBTARGET
+                        article_status_code = StatusCode.COMPLEX_SUBTARGET
 
                 # Append the new version to the history
                 new_version = ArticleVersion(

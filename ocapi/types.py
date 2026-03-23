@@ -167,6 +167,7 @@ class StatusCode(str, Enum):
     ERROR_EXTRACTING_OPERAND = "error_extracting_operand"
     ERROR_FINDING_SUBTARGET = "error_finding_subtarget"
     COMPLEX_SUBTARGET = "complex_subtarget"
+    ERROR_EXTRACTING_TARGET = "error_extracting_target"
 
 
 class ArticleVersion(TypedDict):

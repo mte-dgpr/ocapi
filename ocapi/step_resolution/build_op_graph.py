@@ -28,7 +28,15 @@ import networkx as nx
 from bs4 import BeautifulSoup
 
 from ocapi.exceptions import SectionNotFoundError
-from ocapi.types import ArreteFile, ArreteId, Content, NodeId, Operation, OperationType
+from ocapi.types import (
+    ArreteFile,
+    ArreteId,
+    Content,
+    NodeId,
+    Operation,
+    OperationType,
+    StatusCode,
+)
 from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
@@ -123,15 +131,35 @@ def build_graph(
     for op in ops:
         try:
             if _is_abrogation_arrete(op):
-                # Find the arrêté and mark its status as False (abrogated)
                 for arrete_file in arrete_files:
                     if arrete_file.id == op.target_id.arrete_id:
                         arrete_file.status = False
                         break
                 continue
-            target_soup = soups[op.target_id.arrete_id]
-            # Verify that the target article content exists and store it in the graph.
-            target_content = get_node_content(op.target_id, target_soup)
+
+            target_soup = soups.get(op.target_id.arrete_id)
+            if target_soup is None:
+                error_msg = (
+                    f"Operation {op.id}: arrêté {op.target_id.arrete_id} not found in files"
+                )
+                _LOGGER.warning(error_msg)
+                skipped_ops.append((op, error_msg))
+                continue
+
+            try:
+                target_content = get_node_content(op.target_id, target_soup)
+            except SectionNotFoundError:
+                _LOGGER.warning(
+                    "Operation %s: target section %s not found — "
+                    "creating empty node with ERROR_EXTRACTING_TARGET",
+                    op.id,
+                    op.target_id,
+                )
+                target_content = ""
+                op = op.model_copy(
+                    update={"status_code": StatusCode.ERROR_EXTRACTING_TARGET}
+                )
+
             add_node(G, op.source_id)
             add_node(G, op.target_id, target_content)
             add_edge(G, op)
