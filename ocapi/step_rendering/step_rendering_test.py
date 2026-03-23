@@ -29,7 +29,9 @@ from ocapi.step_rendering.make_header import (
     make_permit_visa,
 )
 from ocapi.step_rendering.make_main_content import (
+    _STATUS_CODE_MESSAGES,
     _is_abrogated,
+    _status_code_reason,
     make_permit_content,
     make_section_version,
 )
@@ -854,6 +856,37 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
 
     rendered = str(section)
     assert "Opération non résolue modification de l'article 2 de l'arrêté 2021-01-01" in rendered
+    assert "(raison :" in rendered
+    assert "n'a pas pu être extrait de l'arrêté modificatif" in rendered
+
+
+# _status_code_reason helper
+
+
+def test_status_code_reason_returns_none_for_resolved() -> None:
+    assert _status_code_reason(StatusCode.RESOLVED) is None
+
+
+def test_status_code_reason_returns_none_for_none() -> None:
+    assert _status_code_reason(None) is None
+
+
+def test_status_code_reason_covers_all_non_resolved_codes() -> None:
+    non_resolved = [sc for sc in StatusCode if sc != StatusCode.RESOLVED]
+    for sc in non_resolved:
+        assert sc in _STATUS_CODE_MESSAGES, f"Missing message for StatusCode.{sc.name}"
+
+
+def test_status_code_reason_returns_message_for_error_extracting_operand() -> None:
+    reason = _status_code_reason(StatusCode.ERROR_EXTRACTING_OPERAND)
+    assert reason is not None
+    assert "extrait de l'arrêté modificatif" in reason
+
+
+def test_status_code_reason_returns_message_for_error_extracting_target() -> None:
+    reason = _status_code_reason(StatusCode.ERROR_EXTRACTING_TARGET)
+    assert reason is not None
+    assert "article cible" in reason
 
 
 @pytest.mark.parametrize(
@@ -908,3 +941,47 @@ def test_make_section_version_displays_unresolved_message_for_subtarget_errors(
 
     rendered = str(section)
     assert "Opération non résolue modification de l'article 2 de l'arrêté 2021-01-01" in rendered
+
+
+def test_make_section_version_displays_error_extracting_target_reason() -> None:
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Initial</p></section>',
+        "html.parser",
+    ).find("section")
+    assert section is not None
+
+    operation = Operation(
+        id="op-target",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+        status_code=StatusCode.ERROR_EXTRACTING_TARGET,
+    )
+    history = {
+        NodeId(arrete_id="2020-01-01", article_id="1"): [
+            cast(
+                ArticleVersion,
+                {"version": 0, "content": "", "operation_id": None},
+            ),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 1,
+                    "content": "",
+                    "operation_id": "op-target",
+                    "status_code": StatusCode.ERROR_EXTRACTING_TARGET,
+                },
+            ),
+        ]
+    }
+    make_section_version(
+        section=section,
+        article_id="1",
+        history=history,
+        ap_initial_id="2020-01-01",
+        operation_by_id={"op-target": operation},
+    )
+    rendered = str(section)
+    assert "Opération non résolue" in rendered
+    assert "(raison :" in rendered
+    assert "article cible" in rendered
