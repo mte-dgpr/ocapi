@@ -245,10 +245,14 @@ def apply_subgraph_operations(
                     if op.status_code == StatusCode.ERROR_EXTRACTING_OPERAND:
                         article_status_code = StatusCode.ERROR_EXTRACTING_OPERAND
                     elif op.operation_type == OperationType.REPLACE:
-                        new_content = apply_replace(op, BeautifulSoup(current_content, "html.parser"))
+                        new_content = apply_replace(
+                            op, BeautifulSoup(current_content, "html.parser")
+                        )
                         article_status_code = StatusCode.RESOLVED
                     elif op.operation_type == OperationType.REMOVE:
-                        new_content = apply_remove(op, BeautifulSoup(current_content, "html.parser"))
+                        new_content = apply_remove(
+                            op, BeautifulSoup(current_content, "html.parser")
+                        )
                         article_status_code = StatusCode.RESOLVED
                     elif op.operation_type == OperationType.ADD:
                         new_content = apply_add(op, BeautifulSoup(current_content, "html.parser"))
