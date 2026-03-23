@@ -245,7 +245,7 @@ def test_build_graph_keeps_target_content_with_multiple_ops_same_target() -> Non
 
 def test_build_graph_missing_target_section_creates_empty_node_with_error() -> None:
     """When the target section is not found in the HTML, the node is created with empty
-    content and the operation carries ERROR_EXTRACTING_TARGET (#326 / #327)."""
+    content and the operation carries ERROR_EXTRACTING_TARGET."""
     html_1980 = """
     <section data-spec="section" data-number="1">Article 1</section>
     """

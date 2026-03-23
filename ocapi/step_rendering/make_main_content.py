@@ -31,13 +31,18 @@ from ocapi.types import (
     SubTargetType,
 )
 
-
 _STATUS_CODE_MESSAGES: dict[StatusCode, str] = {
     StatusCode.ERROR_EXTRACTING_OPERAND: (
         "Le contenu de l'opération n'a pas pu être extrait de l'arrêté modificatif"
     ),
     StatusCode.ERROR_EXTRACTING_TARGET: (
         "L'article cible de l'opération n'a pas pu être extrait de l'arrêté concerné"
+    ),
+    StatusCode.ERROR_FINDING_SUBTARGET: (
+        "La sous-cible de l'opération n'a pas pu être trouvée dans l'article"
+    ),
+    StatusCode.COMPLEX_SUBTARGET: (
+        "La sous-cible de l'opération est trop complexe pour être résolue automatiquement"
     ),
 }
 

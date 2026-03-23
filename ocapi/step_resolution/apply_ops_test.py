@@ -455,7 +455,7 @@ def test_apply_all_operations(
 def test_error_extracting_target_keeps_content_and_stores_status(
     mock_replace: mock.Mock,
 ) -> None:
-    """ERROR_EXTRACTING_TARGET must not call apply_* and must store the status code (#339)."""
+    """ERROR_EXTRACTING_TARGET must not call apply_* and must store the status code."""
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1981-01-01", article_id="1")
     target = NodeId(arrete_id="1980-01-01", article_id="99")
