@@ -31,7 +31,7 @@ successive operations.
 import networkx as nx
 from bs4 import BeautifulSoup
 
-from ocapi.exceptions import OperationError
+from ocapi.exceptions import ComplexSubtargetError, OperationError, SubtargetNotFoundError
 from ocapi.types import (
     ArreteFile,
     ArreteId,
@@ -44,12 +44,10 @@ from ocapi.types import (
     OperationType,
     StatusCode,
 )
-from ocapi.utils.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
 from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.subtarget_utils import is_simple_subtarget, replace_subtarget
 
 _LOGGER = get_logger(__name__)
-LLM_CFG = config_model_llm()
 
 
 def _to_operation_type(raw_type: OperationType | str) -> OperationType:
@@ -89,8 +87,9 @@ def _ensure_soup(soup_input: Content | BeautifulSoup) -> BeautifulSoup:
 def apply_replace(operation: Operation, soup_input: Content | BeautifulSoup) -> Content:
     """Apply a REPLACE operation to an article's content.
 
-    Tries a regex-based resolution first (simple sub_target). Falls back to the
-    LLM on ambiguity or for complex sub-targets.
+    Only handles simple sub-targets via regex. Raises ``ComplexSubtargetError``
+    for COMPLEX sub-targets and ``SubtargetNotFoundError`` when the target element
+    cannot be located.
 
     Parameters
     ----------
@@ -108,36 +107,29 @@ def apply_replace(operation: Operation, soup_input: Content | BeautifulSoup) -> 
     ------
     OperationError
         If ``sub_target`` or ``operand`` is missing from the operation.
+    ComplexSubtargetError
+        If the sub-target is of type COMPLEX.
+    SubtargetNotFoundError
+        If the target element is not found or ambiguous.
     """
     if operation.sub_target is None or operation.operand is None:
         raise OperationError("REPLACE operations require sub_target and operand.")
+    if not is_simple_subtarget(operation.sub_target):
+        raise ComplexSubtargetError(
+            f"Sub-target is COMPLEX for operation {operation.id}: "
+            f"'{operation.sub_target.description}'"
+        )
     soup = _ensure_soup(soup_input)
-    if is_simple_subtarget(operation.sub_target):
-        try:
-            modified_soup = replace_subtarget(soup, operation.sub_target, operation.operand)
-            return str(modified_soup)
-        except ValueError:
-            # Ambiguity detected, fall back to LLM
-            # TODO: add a warning in the logs
-            pass
-    # Complex or ambiguous case: use the LLM
-    prompt = query_llm_for_subtarget(
-        OperationType.REPLACE, str(soup), operation.sub_target.description or ""
-    )
-    raw = call_llm_api(LLM_CFG, prompt)
-    output = str(soup)
-    for line in raw.splitlines():
-        if "<NEWCONTENT>" in line:
-            output = line.replace("<NEWCONTENT>", operation.operand)
-            break
-    return output
+    modified_soup = replace_subtarget(soup, operation.sub_target, operation.operand)
+    return str(modified_soup)
 
 
 def apply_remove(operation: Operation, soup_input: Content | BeautifulSoup) -> Content:
     """Apply a REMOVE operation to an article's content.
 
-    For simple sub-targets, replaces the target with an empty string.
-    For complex sub-targets, delegates to the LLM.
+    Only handles simple sub-targets via regex. Raises ``ComplexSubtargetError``
+    for COMPLEX sub-targets and ``SubtargetNotFoundError`` when the target element
+    cannot be located.
 
     Parameters
     ----------
@@ -155,31 +147,28 @@ def apply_remove(operation: Operation, soup_input: Content | BeautifulSoup) -> C
     ------
     OperationError
         If ``sub_target`` is missing from the operation.
+    ComplexSubtargetError
+        If the sub-target is of type COMPLEX.
+    SubtargetNotFoundError
+        If the target element is not found or ambiguous.
     """
     if operation.sub_target is None:
         raise OperationError("REMOVE operations require sub_target.")
     sub_target = operation.sub_target
-    soup = _ensure_soup(soup_input)
-    if is_simple_subtarget(sub_target):
-        modified_soup = replace_subtarget(soup, sub_target, "")
-        return str(modified_soup)
-    else:
-        prompt = query_llm_for_subtarget(
-            OperationType.REMOVE, str(soup), sub_target.description or ""
+    if not is_simple_subtarget(sub_target):
+        raise ComplexSubtargetError(
+            f"Sub-target is COMPLEX for operation {operation.id}: " f"'{sub_target.description}'"
         )
-        raw = call_llm_api(LLM_CFG, prompt)
-        output = str(soup)
-        for line in raw.splitlines():
-            if "<NEWCONTENT>" in line:
-                output = line.replace("<NEWCONTENT>", "")
-                break
-        return output
+    soup = _ensure_soup(soup_input)
+    modified_soup = replace_subtarget(soup, sub_target, "")
+    return str(modified_soup)
 
 
 def apply_add(operation: Operation, soup_input: Content | BeautifulSoup) -> Content:
     """Apply an ADD operation to an article's content.
 
-    Simple sub-targets are not yet supported for ADD; all cases are handled by the LLM.
+    Simple sub-targets are not yet supported for ADD. COMPLEX sub-targets raise
+    ``ComplexSubtargetError``.
 
     Parameters
     ----------
@@ -197,25 +186,19 @@ def apply_add(operation: Operation, soup_input: Content | BeautifulSoup) -> Cont
     ------
     OperationError
         If ``sub_target`` or ``operand`` is missing from the operation.
+    ComplexSubtargetError
+        If the sub-target is of type COMPLEX.
     NotImplementedError
-        If the sub-target is simple (not yet supported).
+        If the sub-target is simple (not yet supported for ADD).
     """
     if operation.sub_target is None or operation.operand is None:
         raise OperationError("ADD operations require sub_target and operand.")
     sub_target = operation.sub_target
-    soup = _ensure_soup(soup_input)
-    if is_simple_subtarget(sub_target):
-        raise NotImplementedError("apply_add is not implemented for simple subtargets yet.")
-    else:
-        desc = sub_target.description or ""
-        prompt = query_llm_for_subtarget(OperationType.ADD, str(soup), desc)
-        raw = call_llm_api(LLM_CFG, prompt)
-        output = str(soup)
-        for line in raw.splitlines():
-            if "<NEWCONTENT>" in line:
-                output = line.replace("<NEWCONTENT>", operation.operand)
-                break
-        return output
+    if not is_simple_subtarget(sub_target):
+        raise ComplexSubtargetError(
+            f"Sub-target is COMPLEX for operation {operation.id}: " f"'{sub_target.description}'"
+        )
+    raise NotImplementedError("apply_add is not implemented for simple subtargets yet.")
 
 
 def apply_subgraph_operations(
@@ -257,20 +240,31 @@ def apply_subgraph_operations(
                 current_content = history[tgt][-1]["content"]
 
                 article_status_code: StatusCode
-                if op.status_code == StatusCode.ERROR_EXTRACTING_OPERAND:
-                    new_content = current_content
-                    article_status_code = StatusCode.ERROR_EXTRACTING_OPERAND
-                elif op.operation_type == OperationType.REPLACE:
-                    new_content = apply_replace(op, BeautifulSoup(current_content, "html.parser"))
-                    article_status_code = StatusCode.RESOLVED
-                elif op.operation_type == OperationType.REMOVE:
-                    new_content = apply_remove(op, BeautifulSoup(current_content, "html.parser"))
-                    article_status_code = StatusCode.RESOLVED
-                elif op.operation_type == OperationType.ADD:
-                    new_content = apply_add(op, BeautifulSoup(current_content, "html.parser"))
-                    article_status_code = StatusCode.RESOLVED
-                else:
-                    raise OperationError(f"Unknown operation type: {op.operation_type}")
+                new_content = current_content
+                try:
+                    if op.status_code == StatusCode.ERROR_EXTRACTING_OPERAND:
+                        article_status_code = StatusCode.ERROR_EXTRACTING_OPERAND
+                    elif op.operation_type == OperationType.REPLACE:
+                        new_content = apply_replace(
+                            op, BeautifulSoup(current_content, "html.parser")
+                        )
+                        article_status_code = StatusCode.RESOLVED
+                    elif op.operation_type == OperationType.REMOVE:
+                        new_content = apply_remove(
+                            op, BeautifulSoup(current_content, "html.parser")
+                        )
+                        article_status_code = StatusCode.RESOLVED
+                    elif op.operation_type == OperationType.ADD:
+                        new_content = apply_add(op, BeautifulSoup(current_content, "html.parser"))
+                        article_status_code = StatusCode.RESOLVED
+                    else:
+                        raise OperationError(f"Unknown operation type: {op.operation_type}")
+                except SubtargetNotFoundError as e:
+                    _LOGGER.warning(f"Operation {op_id}: sub-target element not found — {e}")
+                    article_status_code = StatusCode.ERROR_FINDING_SUBTARGET
+                except ComplexSubtargetError as e:
+                    _LOGGER.warning(f"Operation {op_id}: complex sub-target, not resolved — {e}")
+                    article_status_code = StatusCode.COMPLEX_SUBTARGET
 
                 # Append the new version to the history
                 new_version = ArticleVersion(

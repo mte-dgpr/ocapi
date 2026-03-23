@@ -35,6 +35,7 @@ from typing import TypeVar
 
 from bs4 import BeautifulSoup
 
+from ocapi.exceptions import SubtargetNotFoundError
 from ocapi.types import SubTarget, SubTargetType
 
 # Ordinal patterns (masculine/feminine)
@@ -174,11 +175,11 @@ def _find_target_element(
 
     Raises
     ------
-    ValueError
+    SubtargetNotFoundError
         If no elements found, position is out of range, or ambiguous (None with multiple elements).
     """
     if not elements:
-        raise ValueError(f"No {element_name} found for '{description}'.")
+        raise SubtargetNotFoundError(f"No {element_name} found for '{description}'.")
 
     if position == -1:
         return elements[-1]
@@ -186,13 +187,13 @@ def _find_target_element(
         if len(elements) == 1:
             return elements[0]
         else:
-            raise ValueError(
+            raise SubtargetNotFoundError(
                 f"Ambiguous: '{description}' but {len(elements)} {element_name} found."
             )
     elif position and 1 <= position <= len(elements):
         return elements[position - 1]
     else:
-        raise ValueError(
+        raise SubtargetNotFoundError(
             f"Invalid position {position} for '{description}': "
             f"{len(elements)} {element_name} available."
         )
@@ -301,7 +302,7 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
             if subtarget.position is None and rows:
                 first_row_cols = rows[0].find_all(["td", "th"])
                 if len(first_row_cols) != 1:
-                    raise ValueError(
+                    raise SubtargetNotFoundError(
                         f"Ambiguous: '{subtarget.description}' but "
                         f"{len(first_row_cols)} columns found."
                     )

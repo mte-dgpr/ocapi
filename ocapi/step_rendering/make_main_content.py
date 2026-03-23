@@ -161,7 +161,7 @@ def _build_section_history_html(
     last_status_code = last_version.get("status_code")
     last_operation_id = last_version.get("operation_id")
     last_operation = operation_by_id.get(str(last_operation_id)) if last_operation_id else None
-    if last_operation and last_status_code == StatusCode.ERROR_EXTRACTING_OPERAND:
+    if last_operation and last_status_code in _UNRESOLVED_STATUS_CODES:
         last_text = (
             f"Opération non résolue {_operation_label(last_operation)} de l'article "
             f"{last_operation.source_id.article_id} de l'arrêté "
@@ -193,7 +193,7 @@ def _build_section_history_html(
         operation = operation_by_id.get(str(operation_id)) if operation_id else None
         if index == 0 and not operation:
             text = "Version de l'arrêté initial"
-        elif operation and status_code == StatusCode.ERROR_EXTRACTING_OPERAND:
+        elif operation and status_code in _UNRESOLVED_STATUS_CODES:
             text = (
                 f"Opération non résolue {_operation_label(operation)} de l'article "
                 f"{operation.source_id.article_id} de l'arrêté {operation.source_id.arrete_id}"
@@ -227,6 +227,12 @@ def _build_section_history_html(
 
 _FULL_REMOVAL_DESCRIPTIONS = {"ALL", "contenu entier"}
 
+_UNRESOLVED_STATUS_CODES = {
+    StatusCode.ERROR_EXTRACTING_OPERAND,
+    StatusCode.ERROR_FINDING_SUBTARGET,
+    StatusCode.COMPLEX_SUBTARGET,
+}
+
 
 def _is_abrogated(
     latest_version: ArticleVersion,
@@ -236,7 +242,8 @@ def _is_abrogated(
 
     An article is considered abrogated if and only if its last operation is a
     REMOVE with sub_target ``FULL_SECTION`` (description ``ALL`` or ``contenu entier``)
-    or without a sub_target (implicit full abrogation).
+    or without a sub_target (implicit full abrogation), AND the operation was
+    successfully resolved.
 
     Parameters
     ----------
@@ -250,6 +257,9 @@ def _is_abrogated(
     bool
         ``True`` if the article should be marked as abrogated.
     """
+    status_code = latest_version.get("status_code")
+    if status_code in _UNRESOLVED_STATUS_CODES:
+        return False
     operation_id = latest_version.get("operation_id")
     if not operation_id:
         return False
