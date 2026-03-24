@@ -119,7 +119,7 @@ def make_permit_content(
 
 def _top_level_sections(main: Tag) -> list[Tag]:
     """Direct ``<section>`` children of ``main`` (ignore nested sections e.g. in history)."""
-    return [c for c in main.children if getattr(c, "name", None) == "section"]
+    return [c for c in main.children if isinstance(c, Tag) and c.name == "section"]
 
 
 def _find_predecessor_display_id(new_display: str, pool: set[str]) -> str | None:
