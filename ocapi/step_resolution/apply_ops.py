@@ -44,10 +44,12 @@ from ocapi.types import (
     OperationType,
     StatusCode,
 )
+from ocapi.utils.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
 from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.subtarget_utils import is_simple_subtarget, replace_subtarget
 
 _LOGGER = get_logger(__name__)
+LLM_CFG = config_model_llm()
 
 
 def _to_operation_type(raw_type: OperationType | str) -> OperationType:
@@ -321,35 +323,42 @@ def apply_subgraph_operations(
                 source_html = raw_src if isinstance(raw_src, str) else str(raw_src)
 
                 article_status_code: StatusCode
-                if op.status_code in (
-                    StatusCode.ERROR_EXTRACTING_OPERAND,
-                    StatusCode.ERROR_EXTRACTING_TARGET,
-                ):
-                    new_content = current_content
-                    article_status_code = op.status_code
-                elif op.operation_type == OperationType.REPLACE:
-                    new_content = apply_replace(
-                        op,
-                        BeautifulSoup(current_content, "html.parser"),
-                        source_content=source_html,
-                    )
-                    article_status_code = StatusCode.RESOLVED
-                elif op.operation_type == OperationType.REMOVE:
-                    new_content = apply_remove(
-                        op,
-                        BeautifulSoup(current_content, "html.parser"),
-                        source_content=source_html,
-                    )
-                    article_status_code = StatusCode.RESOLVED
-                elif op.operation_type == OperationType.ADD:
-                    new_content = apply_add(
-                        op,
-                        BeautifulSoup(current_content, "html.parser"),
-                        source_content=source_html,
-                    )
-                    article_status_code = StatusCode.RESOLVED
-                else:
-                    raise OperationError(f"Unknown operation type: {op.operation_type}")
+                new_content = current_content
+                try:
+                    if op.status_code in (
+                        StatusCode.ERROR_EXTRACTING_OPERAND,
+                        StatusCode.ERROR_EXTRACTING_TARGET,
+                    ):
+                        article_status_code = op.status_code
+                    elif op.operation_type == OperationType.REPLACE:
+                        new_content = apply_replace(
+                            op,
+                            BeautifulSoup(current_content, "html.parser"),
+                            source_content=source_html,
+                        )
+                        article_status_code = StatusCode.RESOLVED
+                    elif op.operation_type == OperationType.REMOVE:
+                        new_content = apply_remove(
+                            op,
+                            BeautifulSoup(current_content, "html.parser"),
+                            source_content=source_html,
+                        )
+                        article_status_code = StatusCode.RESOLVED
+                    elif op.operation_type == OperationType.ADD:
+                        new_content = apply_add(
+                            op,
+                            BeautifulSoup(current_content, "html.parser"),
+                            source_content=source_html,
+                        )
+                        article_status_code = StatusCode.RESOLVED
+                    else:
+                        raise OperationError(f"Unknown operation type: {op.operation_type}")
+                except SubtargetNotFoundError as e:
+                    _LOGGER.warning(f"Operation {op_id}: sub-target element not found — {e}")
+                    article_status_code = StatusCode.ERROR_FINDING_SUBTARGET
+                except ComplexSubtargetError as e:
+                    _LOGGER.warning(f"Operation {op_id}: complex sub-target, not resolved — {e}")
+                    article_status_code = StatusCode.COMPLEX_SUBTARGET
 
                 # Append the new version to the history
                 new_version = ArticleVersion(
