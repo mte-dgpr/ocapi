@@ -312,7 +312,7 @@ def apply_subgraph_operations(
     Error propagation
     -----------------
     If the latest version of a target article carries a non-resolved
-    ``status_code`` (``ERROR_EXTRACTING_OPERAND`` or ``PROPAGATED_ERROR``),
+    ``status_code`` (e.g. ``ERROR_EXTRACTING_OPERAND`` or ``PROPAGATED_ERROR``),
     the new operation is *not* applied and the new version receives
     ``status_code = PROPAGATED_ERROR`` — unless the operation is *unambiguous*
     (see :func:`_is_unambiguous_all_operation`).  Unambiguous operations
@@ -359,8 +359,7 @@ def apply_subgraph_operations(
                 # the current — potentially corrupted — content).
                 previous_status = history[tgt][-1].get("status_code")
                 previous_has_error = (
-                    previous_status is not None
-                    and previous_status != StatusCode.RESOLVED
+                    previous_status is not None and previous_status != StatusCode.RESOLVED
                 )
 
                 article_status_code: StatusCode
