@@ -1,8 +1,25 @@
 #!/usr/bin/env python3
-"""Regenerate docs/index.html from docs/examples/ (GitHub Pages).
+#
+# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+#
+# This file is part of OCAPI.
+# See https://github.com/mte-dgpr/ocapi for further info.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+"""Regenerate docs/index.html from examples/ (GitHub Pages).
 
 Usage (from repo root):
-  cp -R examples docs/examples   # mirror examples first
   python scripts/generate_docs_index.py
 """
 from __future__ import annotations
@@ -46,9 +63,7 @@ def main() -> None:
     for aiot in all_aiots:
         arr_links = []
         for p in sorted(arretes_by.get(aiot, []), key=lambda x: x.name):
-            arr_links.append(
-                f'<a href="{html.escape(rel(p))}">{html.escape(p.name)}</a>'
-            )
+            arr_links.append(f'<a href="{html.escape(rel(p))}">{html.escape(p.name)}</a>')
         arr_cell = "<br>".join(arr_links) if arr_links else "—"
         if aiot in permis_by:
             p = permis_by[aiot]
@@ -65,29 +80,42 @@ def main() -> None:
 
     table_body = "\n".join(rows)
 
+    css = """
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      line-height: 1.5;
+    }
+    h1 { color: #1a1a2e; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 0.5rem 0.75rem;
+      vertical-align: top;
+      text-align: left;
+    }
+    th { background: #f4f4f6; }
+    code { font-size: 0.95em; }
+    .note { color: #444; font-size: 0.95rem; margin-top: 1.5rem; }
+    a { color: #0d47a1; }
+"""
+
+    repo_link = f'<a href="{html.escape(REPO_URL)}">mte-dgpr/ocapi</a>'
     page = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>OCAPI — Exemples ICPE (arrêtés & permis HTML)</title>
-  <style>
-    body {{ font-family: system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }}
-    h1 {{ color: #1a1a2e; }}
-    table {{ border-collapse: collapse; width: 100%; margin-top: 1rem; }}
-    th, td {{ border: 1px solid #ccc; padding: 0.5rem 0.75rem; vertical-align: top; text-align: left; }}
-    th {{ background: #f4f4f6; }}
-    code {{ font-size: 0.95em; }}
-    .note {{ color: #444; font-size: 0.95rem; margin-top: 1.5rem; }}
-    a {{ color: #0d47a1; }}
-  </style>
+  <title>OCAPI — Exemples ICPE (arrêtés &amp; permis HTML)</title>
+  <style>{css}  </style>
 </head>
 <body>
   <h1>OCAPI — Exemples ICPE (tests)</h1>
   <p>
-    Cette page est publiée via <strong>GitHub Pages</strong> à partir du dossier <code>docs/</code> du dépôt
-    <a href="{html.escape(REPO_URL)}">mte-dgpr/ocapi</a>.
-    Les fichiers ci-dessous proviennent du dossier <code>examples/</code> (copie sous <code>docs/examples/</code> pour l’hébergement statique).
+    Cette page est publiée via <strong>GitHub Pages</strong>
+    à partir du dossier <code>examples/</code> du dépôt {repo_link}.
   </p>
   <table>
     <thead>
@@ -102,7 +130,8 @@ def main() -> None:
     </tbody>
   </table>
   <p class="note">
-    Pour activer le site : <em>Settings → Pages → Build and deployment → Branch → main, folder /docs</em>.
+    Pour activer le site :
+    <em>Settings → Pages → Build and deployment → GitHub Actions</em>.
   </p>
 </body>
 </html>
