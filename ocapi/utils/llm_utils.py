@@ -221,8 +221,7 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
         return {
             "model": model.model_name,
             "messages": [{"role": "user", "content": prompt}],
-            "verbosity": "low",
-            "reasoning_effort": "minimal",
+            "temperature": 0,
             "n": 1,
         }
 
