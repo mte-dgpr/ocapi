@@ -199,7 +199,8 @@ def step_detection(
                 if had_low_confidence:
                     _LOGGER.warning(
                         f"Low confidence score(s) detected in block (arrêté={arrete_id}). "
-                        "Retrying LLM call for this block."
+                        "Retrying LLM call once for this block and continuing "
+                        "regardless of the confidence score for detected operations."
                     )
                     raw = call_llm_api(LLM_CFG, prompt_detection(html_block.page_content))
                     valid_operations = _parse_and_validate_raw_operations(raw, arrete_id)
