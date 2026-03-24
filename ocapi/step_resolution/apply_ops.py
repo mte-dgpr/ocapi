@@ -284,7 +284,7 @@ def apply_subgraph_operations(
 
     Operations may carry ``status_code=COMPLEX_SUBTARGET`` to indicate that the
     sub-target requires LLM consolidation; that code is **not** copied onto the
-    article history as an error — the apply functions run the LLM path instead (#371).
+    article history as an error — the apply functions run the LLM path instead.
     """
     skipped_ops: list[tuple[OperationId, str]] = []  # list of (operation_id, error_message)
     start_nodes = [node for node in subG.nodes if subG.in_degree(node) == 0]

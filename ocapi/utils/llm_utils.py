@@ -477,7 +477,7 @@ def parse_llm_json_list_response(raw: str) -> list[dict[str, Any]]:
 
 
 def query_llm_for_subtarget(
-    typemodif: OperationType,
+    op_type: OperationType,
     target_content: str,
     sub_target: str,
     *,
@@ -563,9 +563,9 @@ def query_llm_for_subtarget(
         """
     ).strip()
 
-    if typemodif == OperationType.REPLACE:
+    if op_type == OperationType.REPLACE:
         return prompt_REPLACE
-    elif typemodif == OperationType.ADD:
+    elif op_type == OperationType.ADD:
         return prompt_ADD
-    elif typemodif == OperationType.REMOVE:
+    elif op_type == OperationType.REMOVE:
         return prompt_REMOVE

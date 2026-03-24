@@ -166,7 +166,7 @@ def test_apply_subgraph_operations(
 
 @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
 def test_complex_subtarget_on_operation_still_applies_replace(mock_replace: mock.Mock) -> None:
-    """COMPLEX_SUBTARGET marks LLM consolidation; it must not block application (#371)."""
+    """COMPLEX_SUBTARGET marks LLM consolidation; it must not block application."""
     mock_replace.return_value = "consolidated"
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1981-01-01", article_id="2")
