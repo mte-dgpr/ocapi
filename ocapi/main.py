@@ -24,12 +24,12 @@ Usage:
     python ocapi/main.py <input_dir> [options]
 
 Examples:
-    python -m ocapi.main data/<AIOT>/arretes_html/
-    python -m ocapi.main data/<AIOT>/arretes_html/ --output output/
-    python -m ocapi.main data/<AIOT>/arretes_html/ --start-date 2014-01-09
-    python -m ocapi.main data/<AIOT>/arretes_html/ --include 2024-09-27 2023-12-04
-    python -m ocapi.main data/<AIOT>/arretes_html/ --no-detection
-    python -m ocapi.main data/<AIOT>/arretes_html/ --no-rendering
+    python -m ocapi.main examples/arretes_html/<AIOT>/
+    python -m ocapi.main examples/arretes_html/<AIOT>/ --output output/
+    python -m ocapi.main examples/arretes_html/<AIOT>/ --start-date 2014-01-09
+    python -m ocapi.main examples/arretes_html/<AIOT>/ --include 2024-09-27 2023-12-04
+    python -m ocapi.main examples/arretes_html/<AIOT>/ --no-detection
+    python -m ocapi.main examples/arretes_html/<AIOT>/ --no-rendering
 """
 
 import argparse

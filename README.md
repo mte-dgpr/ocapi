@@ -133,19 +133,19 @@ ocapi --help
 ocapi run --help
 
 # Traiter tous les arrêtés d'un répertoire
-ocapi run data/0005804239/arretes_html/
+ocapi run examples/arretes_html/0005804239/
 
 # Avec options
-ocapi run data/0005804239/arretes_html/ \
+ocapi run examples/arretes_html/0005804239/ \
     --aiot 0005804239 \
     --output resultat.json
 
 # Filtrer sur des arrêtés spécifiques
-ocapi run data/0005804239/arretes_html/ \
+ocapi run examples/arretes_html/0005804239/ \
     --include 2024-09-27 2023-12-04
 
 # Mode verbose
-ocapi --verbose run data/0005804239/arretes_html/
+ocapi --verbose run examples/arretes_html/0005804239/
 ```
 
 **Options disponibles :**
@@ -164,28 +164,28 @@ Point d'entrée direct avec options avancées :
 python -m ocapi.main --help
 
 # Usage basique
-python -m ocapi.main data/0005804239/arretes_html/
+python -m ocapi.main examples/arretes_html/0005804239/
 
 # Répertoire de sortie personnalisé
-python -m ocapi.main data/0005804239/arretes_html/ \
+python -m ocapi.main examples/arretes_html/0005804239/ \
     --output custom_output/
 
-# Ignorer le premier arrêté (AP initial)
-python -m ocapi.main data/0005804239/arretes_html/ --skip-first
+# Désactiver la détection (utiliser les opérations préchargées)
+python -m ocapi.main examples/arretes_html/0005804239/ --no-detection
 
 # Désactiver le rendering (étapes 1-3 uniquement)
-python -m ocapi.main data/0005804239/arretes_html/ --no-rendering
+python -m ocapi.main examples/arretes_html/0005804239/ --no-rendering
 
 # Combiner plusieurs options
-python -m ocapi.main data/0005804239/arretes_html/ \
+python -m ocapi.main examples/arretes_html/0005804239/ \
     --include 2024-09-27 2023-12-04 \
-    --skip-first \
+    --no-detection \
     --output output/ \
     --verbose
 ```
 
 **Options supplémentaires :**
-- `--skip-first` : Ignorer le premier arrêté (AP initial)
+- `--no-detection` : Désactiver la détection (utiliser les opérations préchargées)
 - `--no-rendering` : Désactiver la génération du permis consolidé
 
 ## 📁 Structure du projet
@@ -318,18 +318,18 @@ ocapi_output/
 
 ```bash
 # Traiter tous les arrêtés et générer le permis
-ocapi run data/0005804239/arretes_html/ \
-    --output data/0005804239/permis.json
+ocapi run examples/arretes_html/0005804239/ \
+    --output examples/consolidated_permit/0005804239/permis.html
 
 # Ou avec main.py
-python -m ocapi.main data/0005804239/arretes_html/ \
-    --output data/0005804239/ocapi_output/
+python -m ocapi.main examples/arretes_html/0005804239/ \
+    --output examples/consolidated_permit/0005804239/
 ```
 
 ### Exemple 2 : Detection uniquement (pas de rendering)
 
 ```bash
-python -m ocapi.main data/0005804239/arretes_html/ \
+python -m ocapi.main examples/arretes_html/0005804239/ \
     --no-rendering \
     --output output/detection_only/
 ```
@@ -337,7 +337,7 @@ python -m ocapi.main data/0005804239/arretes_html/ \
 ### Exemple 3 : Filtrage sur arrêtés récents
 
 ```bash
-ocapi run data/0005804239/arretes_html/ \
+ocapi run examples/arretes_html/0005804239/ \
     --include 2024-09-27 2023-12-04 \
     --output recent_only.json
 ```
@@ -345,10 +345,10 @@ ocapi run data/0005804239/arretes_html/ \
 ### Exemple 4 : Mode debug avec logs détaillés
 
 ```bash
-ocapi --verbose run data/0005804239/arretes_html/
+ocapi --verbose run examples/arretes_html/0005804239/
 
 # Rediriger les logs vers un fichier
-ocapi --verbose run data/0005804239/arretes_html/ 2>&1 | tee debug.log
+ocapi --verbose run examples/arretes_html/0005804239/ 2>&1 | tee debug.log
 ```
 
 ## 🛠️ Développement
@@ -458,19 +458,19 @@ Vérifiez que :
 
 Utilisez l'option `--include` :
 ```bash
-ocapi run data/AIOT/arretes/ --include 2024-09-27 2023-12-04
+ocapi run examples/arretes_html/<AIOT>/ --include 2024-09-27 2023-12-04
 ```
 
 ### Comment désactiver le rendering ?
 
 Avec `main.py`, utilisez `--no-rendering` :
 ```bash
-python -m ocapi.main data/AIOT/arretes/ --no-rendering
+python -m ocapi.main examples/arretes_html/<AIOT>/ --no-rendering
 ```
 
 ### Les logs affichent trop d'informations
 
 Utilisez l'option `--quiet` pour n'afficher que les warnings et erreurs :
 ```bash
-ocapi --quiet run data/AIOT/arretes/
+ocapi --quiet run examples/arretes_html/<AIOT>/
 ```
