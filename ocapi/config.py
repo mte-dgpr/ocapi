@@ -57,12 +57,15 @@ class FullSectionName(str, Enum):
         'contenu entier'
         >>> FullSectionName.ALL.value
         'ALL'
+        >>> FullSectionName.TOUT.value
+        'tout'
         >>> {name.value for name in FullSectionName}
-        {'contenu entier', 'ALL'}
+        {'contenu entier', 'ALL', 'tout'}
     """
 
     CONTENU_ENTIER = "contenu entier"
     ALL = "ALL"
+    TOUT = "tout"
 
 
 class LLMConfig(BaseSettings):
@@ -133,39 +136,6 @@ class LLMConfig(BaseSettings):
             # Allow missing keys in dev/test environments
             pass
         return self
-
-
-class PipelineConfig(BaseSettings):
-    """Configuration for the processing pipeline.
-
-    Attributes:
-        full_section: Placeholder to tell the LLM to insert the full section.
-
-    Example:
-        >>> pipeline = PipelineConfig(full_section="contenu entier")
-        >>> print(pipeline.full_section)
-        contenu entier
-    """
-
-    model_config = SettingsConfigDict(
-        env_prefix="",
-        validate_assignment=True,
-    )
-
-    # Placeholder to tell the LLM to insert the full section
-    full_section: str = Field(
-        default="contenu entier",
-        description="Placeholder indicating full section insertion",
-        min_length=1,
-    )
-
-    @field_validator("full_section")
-    @classmethod
-    def validate_non_empty_string(cls, v: str) -> str:
-        """Validate that strings are not empty."""
-        if not v or len(v.strip()) == 0:
-            raise ValueError("Value cannot be empty")
-        return v.strip()
 
 
 class PathsConfig(BaseSettings):
@@ -295,19 +265,17 @@ class LoggingConfig(BaseSettings):
 class AppConfig(BaseSettings):
     """Main application configuration.
 
-    Combines all sub-configurations (LLM, Pipeline, Paths, Logging) and
+    Combines all sub-configurations (LLM, Paths, Logging) and
     automatically loads environment variables from a .env file.
 
     Attributes:
         llm: LLM API configuration.
-        pipeline: Processing pipeline configuration.
         paths: File path configuration.
         logging: Logging system configuration.
 
     Example:
         >>> config = AppConfig()
         >>> print(config.llm.piag_api_url)
-        >>> print(config.pipeline.full_section)
         >>> print(config.paths.project_root)
         >>> print(config.logging.level)
     """
@@ -315,7 +283,7 @@ class AppConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        env_nested_delimiter="__",  # Allows PIPELINE__FULL_SECTION=... or LOGGING__LEVEL=DEBUG
+        env_nested_delimiter="__",  # Allows LOGGING__LEVEL=DEBUG
         extra="ignore",
         validate_assignment=True,
     )
@@ -323,10 +291,6 @@ class AppConfig(BaseSettings):
     llm: LLMConfig = Field(
         default_factory=LLMConfig,
         description="LLM API configuration",
-    )
-    pipeline: PipelineConfig = Field(
-        default_factory=PipelineConfig,
-        description="Pipeline configuration",
     )
     paths: PathsConfig = Field(
         default_factory=PathsConfig,
@@ -375,7 +339,6 @@ def reload_settings() -> AppConfig:
 __all__ = [
     "AppConfig",
     "LLMConfig",
-    "PipelineConfig",
     "PathsConfig",
     "LoggingConfig",
     "LogLevel",

@@ -26,14 +26,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from ocapi.config import (
-    AppConfig,
-    LLMConfig,
-    PathsConfig,
-    PipelineConfig,
-    reload_settings,
-    settings,
-)
+from ocapi.config import AppConfig, LLMConfig, PathsConfig, reload_settings, settings
 
 
 class TestLLMConfig:
@@ -82,40 +75,6 @@ class TestLLMConfig:
         """Test that an HTTP URL is accepted."""
         config = LLMConfig(piag_api_url="http://localhost:8000/v1/chat")
         assert "localhost" in str(config.piag_api_url)
-
-
-class TestPipelineConfig:
-    """Tests for PipelineConfig."""
-
-    def test_default_values(self) -> None:
-        """Test default values."""
-        config = PipelineConfig()
-        assert config.full_section == "contenu entier"
-
-    def test_custom_values(self) -> None:
-        """Test with custom values."""
-        config = PipelineConfig(full_section="contenu complet")
-        assert config.full_section == "contenu complet"
-
-    def test_empty_full_section_raises_error(self) -> None:
-        """Test that an empty full_section raises an error."""
-        with pytest.raises(ValidationError) as exc_info:
-            PipelineConfig(full_section="")
-        # Pydantic validates min_length=1 before the custom validator
-        assert "at least 1 character" in str(exc_info.value) or "Value cannot be empty" in str(
-            exc_info.value
-        )
-
-    def test_whitespace_full_section_raises_error(self) -> None:
-        """Test that a whitespace-only full_section raises an error."""
-        with pytest.raises(ValidationError) as exc_info:
-            PipelineConfig(full_section="   ")
-        assert "Value cannot be empty" in str(exc_info.value)
-
-    def test_full_section_strips_whitespace(self) -> None:
-        """Test that leading/trailing whitespace is stripped from full_section."""
-        config = PipelineConfig(full_section="  contenu complet  ")
-        assert config.full_section == "contenu complet"
 
 
 class TestPathsConfig:
@@ -170,14 +129,12 @@ class TestAppConfig:
         """Test default values."""
         config = AppConfig()
         assert isinstance(config.llm, LLMConfig)
-        assert isinstance(config.pipeline, PipelineConfig)
         assert isinstance(config.paths, PathsConfig)
 
     def test_nested_configuration(self) -> None:
         """Test nested configuration."""
         config = AppConfig(_env_file=None)
         assert config.llm.piag_api_key is None
-        assert config.pipeline.full_section == "contenu entier"
         assert config.paths.project_root.exists()
 
     def test_model_dump_safe_masks_secrets(self) -> None:
@@ -201,21 +158,11 @@ class TestAppConfig:
         """Test loading from a .env file."""
         with patch.dict(
             os.environ,
-            {
-                "LLM__PIAG_API_KEY": "test-key-from-env",
-                "PIPELINE__FULL_SECTION": "section complete",
-            },
+            {"LLM__PIAG_API_KEY": "test-key-from-env"},
             clear=False,
         ):
             config = AppConfig(_env_file=None)
             assert config.llm.piag_api_key == "test-key-from-env"
-            assert config.pipeline.full_section == "section complete"
-
-    def test_validation_on_assignment(self) -> None:
-        """Test that validation works on assignment."""
-        config = AppConfig()
-        with pytest.raises(ValidationError):
-            config.pipeline.full_section = "   "
 
     def test_extra_env_vars_ignored(self) -> None:
         """Test that unknown environment variables are ignored."""
@@ -238,7 +185,6 @@ class TestSettingsSingleton:
     def test_settings_accessible(self) -> None:
         """Test that settings is accessible."""
         assert settings.llm is not None
-        assert settings.pipeline is not None
         assert settings.paths is not None
 
     def test_settings_llm_config(self) -> None:
@@ -247,10 +193,6 @@ class TestSettingsSingleton:
         assert hasattr(settings.llm, "piag_api_url")
         assert hasattr(settings.llm, "openai_api_key")
         assert hasattr(settings.llm, "openai_api_url")
-
-    def test_settings_pipeline_config(self) -> None:
-        """Test the Pipeline configuration."""
-        assert hasattr(settings.pipeline, "full_section")
 
     def test_settings_paths_config(self) -> None:
         """Test the Paths configuration."""
@@ -287,10 +229,8 @@ class TestIntegration:
         config = AppConfig()
 
         assert config.llm is not None
-        assert config.pipeline is not None
         assert config.paths is not None
 
-        assert config.pipeline.full_section
         assert config.paths.project_root.exists()
 
     def test_configuration_with_all_env_vars(self) -> None:
@@ -301,7 +241,6 @@ class TestIntegration:
                 "PIAG_API_KEY": "piag-key",
                 "OPENAI_API_KEY": "openai-key",
                 "PIAG_API_URL": "https://custom.piag.example.com/v1/chat",
-                "PIPELINE__FULL_SECTION": "contenu integral",
             },
             clear=False,
         ):
@@ -309,21 +248,14 @@ class TestIntegration:
             assert config.llm.piag_api_key == "piag-key"
             assert config.llm.openai_api_key == "openai-key"
             assert "custom.piag.example.com" in str(config.llm.piag_api_url)
-            assert config.pipeline.full_section == "contenu integral"
 
     def test_partial_configuration(self) -> None:
         """Test with only some environment variables set."""
         with patch.dict(
             os.environ,
-            {
-                "PIAG_API_KEY": "partial-key",
-                "PIPELINE__FULL_SECTION": "section partielle",
-            },
+            {"PIAG_API_KEY": "partial-key"},
             clear=False,
         ):
             config = AppConfig(_env_file=None)
-            # Custom values
             assert config.llm.piag_api_key == "partial-key"
-            assert config.pipeline.full_section == "section partielle"
-            # Default values
             assert config.llm.openai_api_key is None
