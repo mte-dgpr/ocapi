@@ -83,11 +83,44 @@ def test_replace_alinea() -> None:
     assert result.get_text() == "Alinea 1Alinea modifié"
 
 
-def test_insert_content_after_tableau() -> None:
+def test_insert_content_after_table() -> None:
     html = "<div><table><tr><td>Cell</td></tr></table></div>"
     soup = BeautifulSoup(html, "html.parser")
     subtarget = parse_subtarget("le tableau")
     result = insert_content_after_subtarget(soup, subtarget, "<p>Après tableau</p>")
-    assert str(result) == (
-        "<div><table><tr><td>Cell</td></tr></table><p>Après tableau</p></div>"
+    assert str(result) == ("<div><table><tr><td>Cell</td></tr></table><p>Après tableau</p></div>")
+
+
+def test_insert_content_after_alinea() -> None:
+    html = (
+        "<div>"
+        "<div class='arretify-alinea' data-number='1'>Alinea 1</div>"
+        "<div class='arretify-alinea' data-number='2'>Alinea 2</div>"
+        "</div>"
     )
+    soup = BeautifulSoup(html, "html.parser")
+    subtarget = parse_subtarget("le 1er alinea")
+    result = insert_content_after_subtarget(soup, subtarget, "<p>Nouveau contenu</p>")
+    text = str(result)
+    assert "<p>Nouveau contenu</p>" in text
+    assert text.index("Alinea 1") < text.index("Nouveau contenu") < text.index("Alinea 2")
+
+
+def test_insert_content_after_sentence() -> None:
+    html = "<div>First sentence. Second sentence. Third sentence.</div>"
+    soup = BeautifulSoup(html, "html.parser")
+    subtarget = parse_subtarget("la 2ème phrase")
+    result = insert_content_after_subtarget(soup, subtarget, "<p>Inserted</p>")
+    text = str(result)
+    assert "<p>Inserted</p>" in text
+    assert text.index("Second sentence") < text.index("Inserted")
+
+
+def test_insert_line_in_table() -> None:
+    html = "<div><table>" "<tr><td>Row 1</td></tr>" "<tr><td>Row 2</td></tr>" "</table></div>"
+    soup = BeautifulSoup(html, "html.parser")
+    subtarget = parse_subtarget("la 1ère ligne du tableau")
+    result = insert_content_after_subtarget(soup, subtarget, "<tr><td>New Row</td></tr>")
+    text = str(result)
+    assert "<td>New Row</td>" in text
+    assert text.index("Row 1") < text.index("New Row") < text.index("Row 2")
