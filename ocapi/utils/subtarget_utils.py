@@ -35,8 +35,13 @@ from typing import TypeVar
 
 from bs4 import BeautifulSoup
 
+from ocapi.config import FullSectionName
 from ocapi.exceptions import SubtargetNotFoundError
 from ocapi.types import SubTarget, SubTargetType
+
+_FULL_SECTION_NAMES_LOWER: frozenset[str] = frozenset(
+    name.value.lower() for name in FullSectionName
+)
 
 # Ordinal patterns (masculine/feminine)
 ORDINAUX = {
@@ -108,8 +113,7 @@ def parse_subtarget(text: str) -> SubTarget:
 
     text_lower = text.lower().strip()
 
-    # Special case: "tout" or variations
-    if re.match(r"contenu entier", text_lower) or text_lower == "all":
+    if text_lower in _FULL_SECTION_NAMES_LOWER:
         return SubTarget(type=SubTargetType.FULL_SECTION, description=text)
 
     # Try simple patterns first
