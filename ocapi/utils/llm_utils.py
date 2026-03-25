@@ -233,6 +233,7 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": model.model_name,
             "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
             "n": 1,
         }
         if model.reasoning_model:
