@@ -31,6 +31,33 @@ from ocapi.types import (
     SubTargetType,
 )
 
+_STATUS_CODE_MESSAGES: dict[StatusCode, str] = {
+    StatusCode.ERROR_EXTRACTING_OPERAND: (
+        "Le contenu de l'opération n'a pas pu être extrait de l'arrêté modificatif"
+    ),
+    StatusCode.ERROR_EXTRACTING_TARGET: (
+        "L'article cible de l'opération n'a pas pu être extrait de l'arrêté concerné"
+    ),
+    StatusCode.ERROR_FINDING_SUBTARGET: (
+        "La sous-cible de l'opération n'a pas pu être trouvée dans l'article"
+    ),
+    StatusCode.COMPLEX_SUBTARGET: (
+        "La sous-cible de l'opération est trop complexe pour être résolue automatiquement"
+    ),
+}
+
+_DEFAULT_STATUS_CODE_MESSAGE = "Opération non résolue automatiquement"
+
+
+def _status_code_reason(status_code: StatusCode | None) -> str | None:
+    """Return the human-readable reason for a non-resolved *status_code*.
+
+    Returns ``None`` for ``RESOLVED`` or ``None`` inputs (no error to display).
+    """
+    if status_code is None or status_code == StatusCode.RESOLVED:
+        return None
+    return _STATUS_CODE_MESSAGES.get(status_code, _DEFAULT_STATUS_CODE_MESSAGE)
+
 
 def make_permit_content(
     history: ArticleHistory, arrete_files: list[ArreteFile], operations: list[Operation]
@@ -162,11 +189,13 @@ def _build_section_history_html(
     last_status_code = last_version.get("status_code")
     last_operation_id = last_version.get("operation_id")
     last_operation = operation_by_id.get(str(last_operation_id)) if last_operation_id else None
-    if last_operation and last_status_code in _UNRESOLVED_STATUS_CODES:
+    last_reason = _status_code_reason(last_status_code)
+    if last_operation and last_reason is not None:
         last_text = (
             f"Opération non résolue {_operation_label(last_operation)} de l'article "
             f"{last_operation.source_id.article_id} de l'arrêté "
             f"{last_operation.source_id.arrete_id}"
+            f" (raison : {last_reason})"
         )
     elif last_operation:
         last_operation_label = (
@@ -192,12 +221,14 @@ def _build_section_history_html(
         status_code = version.get("status_code")
         operation_id = version.get("operation_id")
         operation = operation_by_id.get(str(operation_id)) if operation_id else None
+        reason = _status_code_reason(status_code)
         if index == 0 and not operation:
             text = "Version de l'arrêté initial"
-        elif operation and status_code in _UNRESOLVED_STATUS_CODES:
+        elif operation and reason is not None:
             text = (
                 f"Opération non résolue {_operation_label(operation)} de l'article "
                 f"{operation.source_id.article_id} de l'arrêté {operation.source_id.arrete_id}"
+                f" (raison : {reason})"
             )
         elif operation:
             operation_label = _operation_label(operation)

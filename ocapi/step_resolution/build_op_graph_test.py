@@ -24,6 +24,7 @@ from ocapi.types import (
     NodeId,
     Operation,
     OperationType,
+    StatusCode,
     SubTarget,
     SubTargetType,
 )
@@ -240,3 +241,49 @@ def test_build_graph_keeps_target_content_with_multiple_ops_same_target() -> Non
     assert "content" in G.nodes[target]
     target_soup = BeautifulSoup(G.nodes[target]["content"], "html.parser")
     assert target_soup.get_text(strip=True) == "Article 2 content"
+
+
+def test_build_graph_missing_target_section_creates_empty_node_with_error() -> None:
+    """When the target section is not found in the HTML, the node is created with empty
+    content and the operation carries ERROR_EXTRACTING_TARGET."""
+    html_1980 = """
+    <section data-spec="section" data-number="1">Article 1</section>
+    """
+    html_1981 = """
+    <section data-spec="section" data-number="1">Article 1 source</section>
+    """
+    arrete_files = [
+        ArreteFile(
+            id="1980-01-01",
+            aiot="aiot1",
+            filename="1980-01-01.html",
+            soup=BeautifulSoup(html_1980, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+        ArreteFile(
+            id="1981-01-01",
+            aiot="aiot1",
+            filename="1981-01-01.html",
+            soup=BeautifulSoup(html_1981, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
+    operations = [
+        Operation(
+            id="op-missing-target",
+            source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="1980-01-01", article_id="99"),
+            operation_type=OperationType.REPLACE,
+            operand="new",
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
+        ),
+    ]
+    G, _, skipped_ops = build_graph(operations, arrete_files)
+
+    assert len(skipped_ops) == 0
+    target = NodeId(arrete_id="1980-01-01", article_id="99")
+    assert G.has_node(target)
+    assert G.nodes[target].get("content") == ""
+    edge_data = G.get_edge_data(NodeId(arrete_id="1981-01-01", article_id="1"), target, 0)
+    assert edge_data is not None
+    assert edge_data["status_code"] == StatusCode.ERROR_EXTRACTING_TARGET.value
