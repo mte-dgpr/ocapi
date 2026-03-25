@@ -284,8 +284,6 @@ def test_build_graph_missing_target_section_creates_empty_node_with_error() -> N
     target = NodeId(arrete_id="1980-01-01", article_id="99")
     assert G.has_node(target)
     assert G.nodes[target].get("content") == ""
-    edge_data = G.get_edge_data(
-        NodeId(arrete_id="1981-01-01", article_id="1"), target, 0
-    )
+    edge_data = G.get_edge_data(NodeId(arrete_id="1981-01-01", article_id="1"), target, 0)
     assert edge_data is not None
     assert edge_data["status_code"] == StatusCode.ERROR_EXTRACTING_TARGET.value
