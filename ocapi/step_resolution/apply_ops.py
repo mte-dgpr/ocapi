@@ -262,21 +262,34 @@ def _append_operand_to_section_body(soup: BeautifulSoup, operand: str) -> str:
 
 
 def _wrap_new_article_section_html(article_id: str, operand: str) -> str:
-    """Build a full ``<section>`` for a brand-new article (``NEW_ARTICLE:x.x``)."""
+    """Build a full ``<section>`` for a brand-new article (``NEW_ARTICLE:x.x``).
+
+    When the operand is already a ``<section>`` element, return it as-is to
+    avoid double-wrapping.
+    """
+    stripped = operand.strip()
+    if stripped.startswith("<section"):
+        return stripped
     num = article_display_number(article_id)
     return f'<section data-spec="section" data-number="{num}">{operand}</section>'
 
 
 def _is_new_article_full_section_add(op: Operation) -> bool:
-    """True when ADD creates a full new article (single initial history version)."""
-    if op.operation_type != OperationType.ADD or op.sub_target is None:
+    """True when ADD creates a full new article (single initial history version).
+
+    Covers both the explicit ``FULL_SECTION`` sub-target case and the case where
+    the detection step produced a ``NEW_ARTICLE`` target with no sub-target.
+    """
+    if op.operation_type != OperationType.ADD:
         return False
+    if not op.target_id.article_id.startswith("NEW_ARTICLE"):
+        return False
+    if op.sub_target is None:
+        return True
     st = op.sub_target.type
     if isinstance(st, str):
         st = SubTargetType(st)
-    return bool(
-        st == SubTargetType.FULL_SECTION and op.target_id.article_id.startswith("NEW_ARTICLE")
-    )
+    return st == SubTargetType.FULL_SECTION
 
 
 def apply_add(
@@ -309,16 +322,19 @@ def apply_add(
     OperationError
         If ``sub_target`` or ``operand`` is missing from the operation.
     """
-    if operation.sub_target is None or operation.operand is None:
-        raise OperationError("ADD operations require sub_target and operand.")
+    if operation.operand is None:
+        raise OperationError("ADD operations require operand.")
+
+    if _is_new_article_full_section_add(operation):
+        return _wrap_new_article_section_html(operation.target_id.article_id, operation.operand)
+
+    if operation.sub_target is None:
+        raise OperationError("ADD operations require sub_target.")
     sub_target = operation.sub_target
     soup = _ensure_soup(soup_input)
     st = sub_target.type
     if isinstance(st, str):
         st = SubTargetType(st)
-
-    if _is_new_article_full_section_add(operation):
-        return _wrap_new_article_section_html(operation.target_id.article_id, operation.operand)
 
     if st == SubTargetType.FULL_SECTION:
         return _append_operand_to_section_body(soup, operation.operand)
