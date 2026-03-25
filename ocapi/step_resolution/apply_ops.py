@@ -31,7 +31,7 @@ successive operations.
 import networkx as nx
 from bs4 import BeautifulSoup
 
-from ocapi.exceptions import ComplexSubtargetError, OperationError, SubtargetNotFoundError
+from ocapi.exceptions import OperationError, SubtargetNotFoundError
 from ocapi.types import (
     ArreteFile,
     ArreteId,
@@ -356,9 +356,6 @@ def apply_subgraph_operations(
                 except SubtargetNotFoundError as e:
                     _LOGGER.warning(f"Operation {op_id}: sub-target element not found — {e}")
                     article_status_code = StatusCode.ERROR_FINDING_SUBTARGET
-                except ComplexSubtargetError as e:
-                    _LOGGER.warning(f"Operation {op_id}: complex sub-target, not resolved — {e}")
-                    article_status_code = StatusCode.COMPLEX_SUBTARGET
 
                 # Append the new version to the history
                 new_version = ArticleVersion(

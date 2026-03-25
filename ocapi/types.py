@@ -348,7 +348,6 @@ class Operation(_BaseModelWithConfig):
     operand: str | None = None
     sub_target: SubTarget | None = None
     status_code: StatusCode | None = None
-    extractable_content: bool | None = None
 
     @field_validator("operation_type", mode="before")
     @classmethod
