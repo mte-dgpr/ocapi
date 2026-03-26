@@ -48,13 +48,19 @@ _DEFAULT_LLM_MODELS_CONFIG: dict[str, Any] = {
             "provider": "mte-piag",
             "model_id": "mte-api-piag-mistral-medium-latest",
         },
+        "openai_gpt4o": {
+            "provider": "openai",
+            "model_id": "gpt-4o",
+        },
         "openai_gpt5": {
             "provider": "openai",
             "model_id": "gpt-5",
+            "reasoning_model": True,
         },
         "openai_gpt5mini": {
             "provider": "openai",
             "model_id": "gpt-5-mini",
+            "reasoning_model": True,
         },
     },
 }
@@ -95,6 +101,7 @@ class ResolvedLLMModel:
     model_name: str
     api_key: str | None
     api_url: str
+    reasoning_model: bool | None = None
 
 
 def _read_json_config(path: Path, default_value: dict[str, Any]) -> dict[str, Any]:
@@ -218,12 +225,17 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
         }
 
     if model.provider == "openai":
-        return {
+        payload: dict[str, Any] = {
             "model": model.model_name,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0,
             "n": 1,
         }
+        if model.reasoning_model:
+            payload["reasoning_effort"] = "high"
+            payload["verbosity"] = 0
+        else:
+            payload["temperature"] = 0
+        return payload
 
     raise LLMConfigError(f"Unsupported LLM provider: {model.provider}")
 
@@ -357,6 +369,8 @@ def config_model_llm(model: str | None = None) -> ResolvedLLMModel:
     if not isinstance(provider, str) or not isinstance(model_name, str):
         raise LLMConfigError(f"Invalid configuration for model: {model_key}")
 
+    reasoning_model = model_cfg.get("reasoning_model")
+
     api_key, api_url = _provider_api_config(provider)
     return ResolvedLLMModel(
         model_key=model_key,
@@ -364,6 +378,7 @@ def config_model_llm(model: str | None = None) -> ResolvedLLMModel:
         model_name=model_name,
         api_key=api_key,
         api_url=api_url,
+        reasoning_model=reasoning_model if isinstance(reasoning_model, bool) else None,
     )
 
 
@@ -476,7 +491,7 @@ def parse_llm_json_list_response(raw: str) -> list[dict[str, Any]]:
 
 
 def query_llm_for_subtarget(
-    op_type: OperationType,
+    operation_type: OperationType,
     target_content: str,
     sub_target: str,
     *,
@@ -562,9 +577,9 @@ def query_llm_for_subtarget(
         """
     ).strip()
 
-    if op_type == OperationType.REPLACE:
+    if operation_type == OperationType.REPLACE:
         return prompt_REPLACE
-    elif op_type == OperationType.ADD:
+    elif operation_type == OperationType.ADD:
         return prompt_ADD
-    elif op_type == OperationType.REMOVE:
+    elif operation_type == OperationType.REMOVE:
         return prompt_REMOVE

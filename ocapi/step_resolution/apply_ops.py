@@ -204,23 +204,27 @@ def apply_remove(
     sub_target = operation.sub_target
     soup = _ensure_soup(soup_input)
     if is_simple_subtarget(sub_target):
-        modified_soup = replace_subtarget(soup, sub_target, "")
-        return str(modified_soup)
+        try:
+            modified_soup = replace_subtarget(soup, sub_target, "")
+            return str(modified_soup)
+        except ValueError:
+            _llm_consolidation_log(operation, "remove")
     else:
         _llm_consolidation_log(operation, "remove")
-        prompt = query_llm_for_subtarget(
-            OperationType.REMOVE,
-            str(soup),
-            sub_target.description or "",
-            source_content=source_content,
-        )
-        raw = call_llm_api(LLM_CFG, prompt)
-        output = str(soup)
-        for line in raw.splitlines():
-            if "<NEWCONTENT>" in line:
-                output = line.replace("<NEWCONTENT>", "")
-                break
-        return output
+    # Complex or ambiguous case: use the LLM
+    prompt = query_llm_for_subtarget(
+        OperationType.REMOVE,
+        str(soup),
+        sub_target.description or "",
+        source_content=source_content,
+    )
+    raw = call_llm_api(LLM_CFG, prompt)
+    output = str(soup)
+    for line in raw.splitlines():
+        if "<NEWCONTENT>" in line:
+            output = line.replace("<NEWCONTENT>", "")
+            break
+    return output
 
 
 def apply_add(
