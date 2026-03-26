@@ -82,7 +82,8 @@ Notes CRITIQUES :
   * Article existant à compléter : "x.x.x" (ex: "9.2.1")
   * Nouvel article à créer : "NEW_ARTICLE:x.x.x"
   * Ajout en fin d'arrêté : "END"
-  * "ALL" pour abrogation de tout l'arreté (REMOVE) OU refonte complète (REPLACE : un arrêté remplace intégralement un arrêté antérieur)
+  * "ALL" UNIQUEMENT pour : abrogation totale (REMOVE) OU refonte complète (REPLACE) quand le texte dit explicitement que l'arrêté antérieur est "abrogé et remplacé" ou "se substitue intégralement à".
+  * NE PAS utiliser "ALL" quand l'arrêté modifie des dispositions ponctuelles (ex. "les dispositions... sont modifiées de la façon suivante" suivi d'une liste d'articles). Dans ce cas, créer UNE opération par article cible avec son numéro exact.
 - sub_target :
   * "ALL" : remplacer TOUT l'article cible
   * "END" : ajouter à la FIN de l'article cible

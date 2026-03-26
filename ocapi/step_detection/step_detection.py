@@ -214,8 +214,23 @@ def step_detection(
             for raw_op in valid_operations
         )
 
+
     _LOGGER.info(f"Detection: {len(all_ops)} operation(s) detected")
     return all_ops
+
+
+def _drop_spurious_replace_all(ops: list[Operation]) -> list[Operation]:
+    """Drop REPLACE operations targeting ALL — only REMOVE ALL (abrogation) is valid."""
+    kept: list[Operation] = []
+    for op in ops:
+        if op.operation_type == OperationType.REPLACE and op.target_id.article_id == "ALL":
+            _LOGGER.warning(
+                f"Operation {op.id} dropped: REPLACE with target_article=ALL "
+                f"on {op.target_id.arrete_id} is not supported"
+            )
+            continue
+        kept.append(op)
+    return kept
 
 
 def convert_raw_operation_to_operation(
