@@ -184,25 +184,25 @@ if __name__ == "__main__":
         epilog="""
 Examples:
   # Process all arrêtés in a directory
-  python -m ocapi.main data/<AIOT>/arretes_html/
+  python -m ocapi.main examples/arretes_html/<AIOT>/
 
   # Specify a custom output directory
-  python -m ocapi.main data/<AIOT>/arretes_html/ --output output/
+  python -m ocapi.main examples/arretes_html/<AIOT>/ --output output/
 
   # Start detection from a given date
-  python -m ocapi.main data/<AIOT>/arretes_html/ --start-date 2014-01-09
+  python -m ocapi.main examples/arretes_html/<AIOT>/ --start-date 2014-01-09
 
   # Filter on specific arrêtés
-  python -m ocapi.main data/<AIOT>/arretes_html/ --include 2024-09-27 2023-12-04
+  python -m ocapi.main examples/arretes_html/<AIOT>/ --include 2024-09-27 2023-12-04
 
   # Disable rendering (steps 1-3 only)
-  python -m ocapi.main data/<AIOT>/arretes_html/ --no-rendering
+  python -m ocapi.main examples/arretes_html/<AIOT>/ --no-rendering
 
   # Specify AIOT
-  python -m ocapi.main data/<AIOT>/arretes_html/ --aiot <AIOT>
+  python -m ocapi.main examples/arretes_html/<AIOT>/ --aiot <AIOT>
 
   # Verbose mode
-  python -m ocapi.main data/<AIOT>/arretes_html/ --verbose
+  python -m ocapi.main examples/arretes_html/<AIOT>/ --verbose
         """,
     )
 
