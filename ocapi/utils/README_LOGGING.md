@@ -43,10 +43,10 @@ Le CLI OCAPI offre deux options pour contrôler le niveau de logging :
 
 ```bash
 # Mode verbose (niveau DEBUG) - affiche tous les détails
-ocapi -v run data/arretes_html
+ocapi -v run examples/arretes_html/<AIOT>
 
 # Mode silencieux (niveau WARNING) - affiche uniquement les avertissements et erreurs
-ocapi -q run data/arretes_html
+ocapi -q run examples/arretes_html/<AIOT>
 
 # Les deux options ne peuvent pas être utilisées ensemble
 ```
@@ -100,7 +100,7 @@ Vous n'avez **pas besoin** d'initialiser le logger dans vos modules, utilisez si
 Les logs suivent ce format détaillé :
 
 ```
-2026-02-04 14:30:45 - ocapi.cli - INFO - Chargement des arrêtés depuis: data/arretes_html
+2026-02-04 14:30:45 - ocapi.cli - INFO - Chargement des arrêtés depuis: examples/arretes_html/<AIOT>
 2026-02-04 14:30:45 - ocapi.step_chunking - DEBUG - Processing document 1/10
 2026-02-04 14:30:46 - ocapi.step_detection - WARNING - Opération ignorée: format invalide
 ```
@@ -132,31 +132,31 @@ logs/
 
 ```bash
 # Configuration par défaut (niveau INFO)
-ocapi run data/arretes_html
+ocapi run examples/arretes_html/<AIOT>
 ```
 
 ### Exemple 2 : Debug détaillé
 
 ```bash
 # Voir tous les détails (niveau DEBUG)
-ocapi -v run data/arretes_html
+ocapi -v run examples/arretes_html/<AIOT>
 
 # Ou via variable d'environnement
-LOG__LEVEL=DEBUG ocapi run data/arretes_html
+LOG__LEVEL=DEBUG ocapi run examples/arretes_html/<AIOT>
 ```
 
 ### Exemple 3 : Mode silencieux
 
 ```bash
 # Voir uniquement les warnings et erreurs
-ocapi -q run data/arretes_html
+ocapi -q run examples/arretes_html/<AIOT>
 ```
 
 ### Exemple 4 : Logs dans un fichier
 
 ```bash
 # Configurer via variable d'environnement
-LOG__LOG_FILE=logs/ocapi.log ocapi run data/arretes_html
+LOG__LOG_FILE=logs/ocapi.log ocapi run examples/arretes_html/<AIOT>
 
 # Le fichier de log sera créé automatiquement avec rotation
 ```
@@ -217,7 +217,7 @@ LOG__LEVEL=WARNING  # Afficher uniquement warnings et erreurs
 
 Passez en mode debug :
 ```bash
-ocapi -v run data/arretes_html
+ocapi -v run examples/arretes_html/<AIOT>
 ```
 
 ## Bonnes pratiques

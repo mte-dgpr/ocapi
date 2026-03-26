@@ -129,6 +129,7 @@ def run_main(
                     "version": v["version"],
                     "content": v["content"],
                     "operation_id": v["operation_id"],
+                    "status_code": v.get("status_code"),
                 }
                 for v in versions
             ]
@@ -182,19 +183,19 @@ Examples:
   ocapi run --help
 
   # Process all arrêtés in a directory
-  ocapi run data/0999.99999/arretes/
+  ocapi run examples/arretes_html/0999.99999/
 
   # Process with a specific AIOT
-  ocapi run data/0999.99999/arretes/ --aiot 0999.99999
+  ocapi run examples/arretes_html/0999.99999/ --aiot 0999.99999
 
   # Save result to a file
-  ocapi run data/0999.99999/arretes/ --output result.json
+  ocapi run examples/arretes_html/0999.99999/ --output result.json
 
   # Verbose mode for debugging
-  ocapi --verbose run data/0999.99999/arretes/
+  ocapi --verbose run examples/arretes_html/0999.99999/
 
   # Quiet mode
-  ocapi --quiet run data/0999.99999/arretes/
+  ocapi --quiet run examples/arretes_html/0999.99999/
         """,
     )
     parser.add_argument(
@@ -226,25 +227,25 @@ Examples:
         epilog="""
 Examples:
   # Process all arrêtés in a directory
-  ocapi run data/0999.99999/arretes/
+  ocapi run examples/arretes_html/0999.99999/
 
   # Process with a specific AIOT (default: inferred from parent directory)
-  ocapi run data/0999.99999/arretes/ --aiot 0999.99999
+  ocapi run examples/arretes_html/0999.99999/ --aiot 0999.99999
 
   # Filter on specific arrêtés (by date)
-  ocapi run data/0999.99999/arretes/ --include 2024-09-27 2023-12-04
+  ocapi run examples/arretes_html/0999.99999/ --include 2024-09-27 2023-12-04
 
   # Save results to a specific directory
-  ocapi run data/0999.99999/arretes/ --output output/
+  ocapi run examples/arretes_html/0999.99999/ --output output/
 
   # Combine: filter and save
-  ocapi run data/0999.99999/arretes/ --include 2024-09-27 --output output/
+  ocapi run examples/arretes_html/0999.99999/ --include 2024-09-27 --output output/
 
   # Verbose mode to see detailed logs
-  ocapi --verbose run data/0999.99999/arretes/
+  ocapi --verbose run examples/arretes_html/0999.99999/
 
   # Quiet mode (errors and warnings only)
-  ocapi --quiet run data/0999.99999/arretes/
+  ocapi --quiet run examples/arretes_html/0999.99999/
         """,
     )
     run_parser.add_argument(
