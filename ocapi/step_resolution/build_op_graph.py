@@ -148,7 +148,9 @@ def build_graph(
                 target_content = ""
                 op = op.model_copy(update={"status_code": StatusCode.ERROR_EXTRACTING_TARGET})
 
-            add_node(G, op.source_id)
+            source_soup = soups[op.source_id.arrete_id]
+            source_content = get_node_content(op.source_id, source_soup)
+            add_node(G, op.source_id, source_content)
             add_node(G, op.target_id, target_content)
             add_edge(G, op)
         except Exception as e:

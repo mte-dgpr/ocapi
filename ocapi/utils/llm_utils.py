@@ -48,13 +48,19 @@ _DEFAULT_LLM_MODELS_CONFIG: dict[str, Any] = {
             "provider": "mte-piag",
             "model_id": "mte-api-piag-mistral-medium-latest",
         },
+        "openai_gpt4o": {
+            "provider": "openai",
+            "model_id": "gpt-4o",
+        },
         "openai_gpt5": {
             "provider": "openai",
             "model_id": "gpt-5",
+            "reasoning_model": True,
         },
         "openai_gpt5mini": {
             "provider": "openai",
             "model_id": "gpt-5-mini",
+            "reasoning_model": True,
         },
     },
 }
@@ -95,6 +101,7 @@ class ResolvedLLMModel:
     model_name: str
     api_key: str | None
     api_url: str
+    reasoning_model: bool | None = None
 
 
 def _read_json_config(path: Path, default_value: dict[str, Any]) -> dict[str, Any]:
@@ -218,13 +225,17 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
         }
 
     if model.provider == "openai":
-        return {
+        payload: dict[str, Any] = {
             "model": model.model_name,
             "messages": [{"role": "user", "content": prompt}],
-            "verbosity": "low",
-            "reasoning_effort": "minimal",
             "n": 1,
         }
+        if model.reasoning_model:
+            payload["reasoning_effort"] = "high"
+            payload["verbosity"] = 0
+        else:
+            payload["temperature"] = 0
+        return payload
 
     raise LLMConfigError(f"Unsupported LLM provider: {model.provider}")
 
@@ -358,6 +369,8 @@ def config_model_llm(model: str | None = None) -> ResolvedLLMModel:
     if not isinstance(provider, str) or not isinstance(model_name, str):
         raise LLMConfigError(f"Invalid configuration for model: {model_key}")
 
+    reasoning_model = model_cfg.get("reasoning_model")
+
     api_key, api_url = _provider_api_config(provider)
     return ResolvedLLMModel(
         model_key=model_key,
@@ -365,6 +378,7 @@ def config_model_llm(model: str | None = None) -> ResolvedLLMModel:
         model_name=model_name,
         api_key=api_key,
         api_url=api_url,
+        reasoning_model=reasoning_model if isinstance(reasoning_model, bool) else None,
     )
 
 
@@ -476,54 +490,96 @@ def parse_llm_json_list_response(raw: str) -> list[dict[str, Any]]:
         return []
 
 
-def query_llm_for_subtarget(typemodif: OperationType, target_content: str, sub_target: str) -> str:
-    """Query a LLM to locate a sub-target described in natural language within an HTML context.
+def query_llm_for_subtarget(
+    operation_type: OperationType,
+    target_content: str,
+    sub_target: str,
+    *,
+    source_content: str | None = None,
+) -> str:
+    """Build a prompt for LLM-assisted consolidation (locate sub-target in HTML).
+
+    When ``source_content`` is provided, it is the HTML of the *source* article
+    (arrêté modifiant) that motivates the operation; it helps disambiguate
+    complex cases (e.g. table rows, nested structures).
 
     Returns a prompt string for a REPLACE, REMOVE or ADD operation.
     """
+    source_block = ""
+    if source_content is not None and source_content.strip():
+        source_block = textwrap.dedent(
+            f"""
+            Contexte — article source (arrêté modifiant), d'où provient la modification :
+
+            {source_content}
+
+            ---
+
+            """
+        ).strip()
+        source_block = source_block + "\n\n"
+
     prompt_REPLACE = textwrap.dedent(
         f"""
-        Vous êtes un assistant spécialisé dans l'analyse juridique. Dans le texte suivant :
+        {source_block}Vous aidez à consolider des arrêtés ICPE. Vous recevez l'article **cible**
+        (à modifier) en HTML. Le sous-emplacement à remplacer est décrit en langage naturel.
+
+        Tâche : dans le HTML cible ci-dessous, localisez précisément le segment décrit,
+        remplacez-le par le seul placeholder <NEWCONTENT> (sans autre balise autour du placeholder),
+        et renvoyez **une seule ligne** contenant ce HTML modifié, avec la ligne qui contient
+        <NEWCONTENT> clairement identifiable.
+
+        Article cible (HTML) :
 
         {target_content}
 
-        Supprime le contenu décrit de la manière suivante :
+        Description du sous-emplacement à remplacer :
 
         {sub_target}
-
-        et remplace le par le placeholder <NEWCONTENT>.
         """
     ).strip()
 
     prompt_ADD = textwrap.dedent(
         f"""
-        Vous êtes un assistant spécialisé dans l'analyse juridique. Dans le texte suivant :
+        {source_block}Vous aidez à consolider des arrêtés ICPE. Vous recevez l'article **cible**
+        (à modifier) en HTML. L'insertion doit se faire à l'endroit décrit.
+
+        Tâche : dans le HTML cible ci-dessous, insérez le placeholder <NEWCONTENT> à l'emplacement
+        indiqué, et renvoyez **une seule ligne** contenant ce HTML modifié.
+
+        Article cible (HTML) :
 
         {target_content}
 
-        A l'endroit décrit de la manière suivante :
+        Description de l'emplacement d'insertion :
 
         {sub_target}
-
-        insère le placeholder <NEWCONTENT>.
         """
     ).strip()
 
     prompt_REMOVE = textwrap.dedent(
         f"""
-        Vous êtes un assistant spécialisé dans l'analyse juridique. Dans le texte suivant :
+        {source_block}Vous aidez à consolider des arrêtés ICPE. Vous recevez l'article **cible**
+        (à modifier) en HTML. Le segment à supprimer est décrit en langage naturel.
+
+        Tâche : dans le HTML cible ci-dessous, supprimez le segment décrit (remplacez-le par
+        vide ou retirez-le) et renvoyez **une seule ligne** contenant le HTML résultant.
+        Si vous utilisez une ligne avec <NEWCONTENT>, utilisez <NEWCONTENT> pour marquer le
+        contenu supprimé (remplacé par vide).
+
+        Article cible (HTML) :
 
         {target_content}
 
-        Supprime le segment décrit de la manière suivante :
+        Description du segment à supprimer :
 
         {sub_target}
         """
     ).strip()
 
-    if typemodif == OperationType.REPLACE:
+    if operation_type == OperationType.REPLACE:
         return prompt_REPLACE
-    elif typemodif == OperationType.ADD:
+    elif operation_type == OperationType.ADD:
         return prompt_ADD
-    elif typemodif == OperationType.REMOVE:
+    elif operation_type == OperationType.REMOVE:
         return prompt_REMOVE

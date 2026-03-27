@@ -95,13 +95,18 @@ def test_build_graph() -> None:
     assert G.has_edge(node4, node2) is True
     assert "content" in G.nodes[node1]
     assert "content" in G.nodes[node2]
-    assert "content" not in G.nodes[node3]
-    assert "content" not in G.nodes[node4]
+    assert "content" in G.nodes[node3]
+    assert "content" in G.nodes[node4]
 
     target_node_1_soup = BeautifulSoup(G.nodes[node1]["content"], "html.parser")
     target_node_2_soup = BeautifulSoup(G.nodes[node2]["content"], "html.parser")
     assert target_node_1_soup.get_text(strip=True) == "Article 2 content"
     assert target_node_2_soup.get_text(strip=True) == "Article 3 content"
+
+    source_node_3_soup = BeautifulSoup(G.nodes[node3]["content"], "html.parser")
+    source_node_4_soup = BeautifulSoup(G.nodes[node4]["content"], "html.parser")
+    assert source_node_3_soup.get_text(strip=True) == "Article 1 content"
+    assert source_node_4_soup.get_text(strip=True) == "Article 2 content"
 
     assert G.get_edge_data(node3, node1, 0) == {
         "id": "1",

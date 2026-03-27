@@ -166,6 +166,7 @@ class StatusCode(str, Enum):
     RESOLVED = "resolved"
     ERROR_EXTRACTING_OPERAND = "error_extracting_operand"
     ERROR_FINDING_SUBTARGET = "error_finding_subtarget"
+    # Sub-target requires LLM consolidation; must not block later operations as an error.
     COMPLEX_SUBTARGET = "complex_subtarget"
     ERROR_EXTRACTING_TARGET = "error_extracting_target"
 

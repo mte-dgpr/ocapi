@@ -23,11 +23,13 @@ import requests  # type: ignore[import-untyped]
 
 import ocapi.utils.llm_utils as llm_utils_module
 from ocapi.exceptions import LLMNetworkError, LLMResponseError
+from ocapi.types import OperationType
 from ocapi.utils.llm_utils import (
     ResolvedLLMModel,
     call_llm_api,
     config_model_llm,
     parse_llm_json_list_response,
+    query_llm_for_subtarget,
 )
 
 
@@ -404,3 +406,27 @@ class TestLLMResilience:
         assert mocked_post.call_count == 1
         assert mocked_sleep.call_count == 0
         llm_utils_module._RATE_LIMIT_LAST_CALL_MONOTONIC = None
+
+
+def test_query_llm_for_subtarget_includes_source_article_when_provided() -> None:
+    """Source HTML is embedded in the prompt when ``source_content`` is set."""
+    prompt = query_llm_for_subtarget(
+        OperationType.REPLACE,
+        "<section>target</section>",
+        "la septième ligne du tableau",
+        source_content="<section>source article</section>",
+    )
+    assert "source article" in prompt
+    assert "target" in prompt
+    assert "septième ligne" in prompt
+
+
+def test_query_llm_for_subtarget_omits_source_block_when_empty() -> None:
+    prompt = query_llm_for_subtarget(
+        OperationType.REPLACE,
+        "<section>target</section>",
+        "sous-emplacement",
+        source_content=None,
+    )
+    assert "Contexte — article source" not in prompt
+    assert "target" in prompt
