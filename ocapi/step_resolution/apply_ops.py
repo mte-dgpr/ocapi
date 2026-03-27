@@ -343,6 +343,7 @@ def apply_add(
         modified = insert_content_after_subtarget(soup, sub_target, operation.operand)
         return str(modified)
 
+    _llm_consolidation_log(operation, "add")
     desc = sub_target.description or ""
     prompt = query_llm_for_subtarget(
         OperationType.ADD, str(soup), desc, source_content=source_content
