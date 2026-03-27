@@ -169,7 +169,6 @@ class StatusCode(str, Enum):
     # Sub-target requires LLM consolidation; must not block later operations as an error.
     COMPLEX_SUBTARGET = "complex_subtarget"
     ERROR_EXTRACTING_TARGET = "error_extracting_target"
-    PROPAGATED_ERROR = "propagated_error"
 
 
 class ArticleVersion(TypedDict):
