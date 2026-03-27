@@ -16,6 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 from unittest import mock
 from unittest.mock import patch
 
@@ -25,7 +26,9 @@ from langchain_core.documents import Document
 from ocapi.step_detection.prompts import prompt_detection
 from ocapi.step_detection.step_detection import (
     _OPERATION_ID_COUNTER,
+    _filter_low_confidence_operations,
     convert_raw_operation_to_operation,
+    step_detection,
 )
 from ocapi.types import (
     NodeId,
@@ -36,6 +39,7 @@ from ocapi.types import (
     SubTarget,
     SubTargetType,
 )
+from ocapi.utils.llm_utils import ConfidenceScoreConfig
 
 
 @pytest.fixture(autouse=True)
@@ -153,3 +157,201 @@ def test_prompt_detection_includes_replace_all_schema() -> None:
     prompt = prompt_detection("<html>test</html>")
     assert '"target_article": "ALL" | "x.x.x"' in prompt
     assert "refonte" in prompt.lower()
+
+
+def test_prompt_detection_includes_confidence_score_field() -> None:
+    """The detection prompt must ask for a confidence_score on every operation."""
+    prompt = prompt_detection("<html>test</html>")
+    assert "confidence_score" in prompt
+
+
+# ---------------------------------------------------------------------------
+# confidence_score propagation through convert_raw_operation_to_operation
+# ---------------------------------------------------------------------------
+
+
+@patch("ocapi.step_detection.step_detection.extract_operand_with_images")
+def test_convert_raw_operation_propagates_confidence_score(
+    mock_extract: mock.Mock,
+) -> None:
+    mock_extract.return_value = (None, None)
+    raw_op = RawOperation(
+        operation_type=RawOperationType.REMOVE,
+        source_article="1",
+        target_arrete="2021-01-01",
+        target_article="2",
+        confidence_score=85,
+    )
+    op = convert_raw_operation_to_operation("<section/>", raw_op, "2022-01-01", {})
+    assert op.confidence_score == 85
+
+
+@patch("ocapi.step_detection.step_detection.extract_operand_with_images")
+def test_convert_raw_operation_confidence_score_none_when_absent(
+    mock_extract: mock.Mock,
+) -> None:
+    mock_extract.return_value = (None, None)
+    raw_op = RawOperation(
+        operation_type=RawOperationType.REMOVE,
+        source_article="1",
+        target_arrete="2021-01-01",
+        target_article="2",
+    )
+    op = convert_raw_operation_to_operation("<section/>", raw_op, "2022-01-01", {})
+    assert op.confidence_score is None
+
+
+# ---------------------------------------------------------------------------
+# _filter_low_confidence_operations
+# ---------------------------------------------------------------------------
+
+
+def _make_raw_op(score: int | None, source: str = "1", target: str = "2") -> RawOperation:
+    return RawOperation(
+        operation_type=RawOperationType.REPLACE,
+        source_article=source,
+        target_arrete="2021-01-01",
+        target_article=target,
+        confidence_score=score,
+    )
+
+
+def test_filter_low_confidence_keeps_all_when_above_threshold() -> None:
+    ops = [_make_raw_op(80), _make_raw_op(100), _make_raw_op(70)]
+    kept, had_low = _filter_low_confidence_operations(ops, min_threshold=70, arrete_id="2022-01-01")
+    assert len(kept) == 3
+    assert had_low is False
+
+
+def test_filter_low_confidence_drops_below_threshold(caplog: pytest.LogCaptureFixture) -> None:
+    ops = [_make_raw_op(80), _make_raw_op(40), _make_raw_op(None)]
+    with caplog.at_level("WARNING"):
+        kept, had_low = _filter_low_confidence_operations(
+            ops, min_threshold=70, arrete_id="2022-01-01"
+        )
+    assert len(kept) == 2
+    assert had_low is True
+    assert any("confidence_score=40" in msg for msg in caplog.messages)
+
+
+def test_filter_low_confidence_keeps_op_with_none_score() -> None:
+    """Operations without a confidence score are always kept (score is optional)."""
+    ops = [_make_raw_op(None)]
+    kept, had_low = _filter_low_confidence_operations(ops, min_threshold=70, arrete_id="2022-01-01")
+    assert len(kept) == 1
+    assert had_low is False
+
+
+# ---------------------------------------------------------------------------
+# step_detection – confidence filtering integration
+# ---------------------------------------------------------------------------
+
+
+def _llm_response_with_ops(*scores: int | None) -> str:
+    ops = [
+        {
+            "operation_type": "REMOVE",
+            "source_article": str(i + 1),
+            "target_arrete": "2020-01-01",
+            "target_article": str(i + 2),
+            "confidence_score": score,
+        }
+        for i, score in enumerate(scores)
+    ]
+    return json.dumps(ops)
+
+
+@patch("ocapi.step_detection.step_detection.get_confidence_score_config")
+@patch("ocapi.step_detection.step_detection.call_llm_api")
+@patch("ocapi.step_detection.step_detection.extract_operand_with_images", return_value=(None, None))
+def test_step_detection_pass_skips_low_confidence_ops(
+    _mock_extract: mock.Mock,
+    mock_llm: mock.Mock,
+    mock_conf: mock.Mock,
+) -> None:
+    """action=pass → low-confidence operation is dropped, no retry."""
+    mock_conf.return_value = ConfidenceScoreConfig(
+        enabled=True, min_threshold=70, action_below_threshold="pass"
+    )
+    mock_llm.return_value = _llm_response_with_ops(90, 40)
+
+    blocks = [Document(page_content="<section/>", metadata={})]
+    ops = step_detection(blocks, arrete_id="2022-01-01", img_map={})
+
+    assert len(ops) == 1
+    assert ops[0].confidence_score == 90
+    mock_llm.assert_called_once()
+
+
+@patch("ocapi.step_detection.step_detection.get_confidence_score_config")
+@patch("ocapi.step_detection.step_detection.call_llm_api")
+@patch("ocapi.step_detection.step_detection.extract_operand_with_images", return_value=(None, None))
+def test_step_detection_retry_reruns_llm_on_low_confidence(
+    _mock_extract: mock.Mock,
+    mock_llm: mock.Mock,
+    mock_conf: mock.Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """action=retry → LLM is called a second time when low confidence detected."""
+    mock_conf.return_value = ConfidenceScoreConfig(
+        enabled=True, min_threshold=70, action_below_threshold="retry"
+    )
+    # First call: one operation with low confidence; second call: one good operation
+    mock_llm.side_effect = [
+        _llm_response_with_ops(40),
+        _llm_response_with_ops(95),
+    ]
+
+    blocks = [Document(page_content="<section/>", metadata={})]
+    with caplog.at_level("WARNING"):
+        ops = step_detection(blocks, arrete_id="2022-01-01", img_map={})
+
+    assert mock_llm.call_count == 2
+    assert len(ops) == 1
+    assert ops[0].confidence_score == 95
+    assert any("Retrying LLM call" in msg for msg in caplog.messages)
+
+
+@patch("ocapi.step_detection.step_detection.get_confidence_score_config")
+@patch("ocapi.step_detection.step_detection.call_llm_api")
+@patch("ocapi.step_detection.step_detection.extract_operand_with_images", return_value=(None, None))
+def test_step_detection_retry_still_drops_low_confidence_after_retry(
+    _mock_extract: mock.Mock,
+    mock_llm: mock.Mock,
+    mock_conf: mock.Mock,
+) -> None:
+    """action=retry → if the retry also returns low confidence, the op is still dropped."""
+    mock_conf.return_value = ConfidenceScoreConfig(
+        enabled=True, min_threshold=70, action_below_threshold="retry"
+    )
+    mock_llm.side_effect = [
+        _llm_response_with_ops(30),
+        _llm_response_with_ops(20),
+    ]
+
+    blocks = [Document(page_content="<section/>", metadata={})]
+    ops = step_detection(blocks, arrete_id="2022-01-01", img_map={})
+
+    assert mock_llm.call_count == 2
+    assert len(ops) == 0
+
+
+@patch("ocapi.step_detection.step_detection.get_confidence_score_config")
+@patch("ocapi.step_detection.step_detection.call_llm_api")
+@patch("ocapi.step_detection.step_detection.extract_operand_with_images", return_value=(None, None))
+def test_step_detection_disabled_keeps_all_ops_regardless_of_score(
+    _mock_extract: mock.Mock,
+    mock_llm: mock.Mock,
+    mock_conf: mock.Mock,
+) -> None:
+    """When confidence filtering is disabled all operations pass through."""
+    mock_conf.return_value = ConfidenceScoreConfig(
+        enabled=False, min_threshold=70, action_below_threshold="pass"
+    )
+    mock_llm.return_value = _llm_response_with_ops(10, 0)
+
+    blocks = [Document(page_content="<section/>", metadata={})]
+    ops = step_detection(blocks, arrete_id="2022-01-01", img_map={})
+
+    assert len(ops) == 2
+    mock_llm.assert_called_once()

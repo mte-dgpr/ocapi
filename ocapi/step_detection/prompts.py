@@ -34,7 +34,8 @@ ABROGATION :
   "source_article": "x.x.x" | null,
   "target_arrete": "YYYY-MM-DD",
   "target_article": "ALL" | "x.x.x",
-  "sub_target": "ALL" | str | null
+  "sub_target": "ALL" | str | null,
+  "confidence_score": integer (0-100)
 }}
 
 MODIFICATION :
@@ -45,7 +46,8 @@ MODIFICATION :
   "target_article": "ALL" | "x.x.x",
   "sub_target": str | null,
   "new_content_start_marker": "80-100 premiers token EXACTS du début",
-  "new_content_end_marker": "80-100 derniers token EXACTS de la fin"
+  "new_content_end_marker": "80-100 derniers token EXACTS de la fin",
+  "confidence_score": integer (0-100)
 }}
 
 AJOUT :
@@ -56,7 +58,8 @@ AJOUT :
   "target_article": "END" | "NEW_ARTICLE:x.x.x" | "x.x.x",
   "sub_target": "END" | str | null,
   "new_content_start_marker": "80-100 premiers token EXACTS du début",
-  "new_content_end_marker": "80-100 derniers token EXACTS de la fin"
+  "new_content_end_marker": "80-100 derniers token EXACTS de la fin",
+  "confidence_score": integer (0-100)
 }}
 
 AUTRE :
@@ -65,10 +68,12 @@ AUTRE :
   "source_article": "x.x.x" | null,
   "target_arrete": "YYYY-MM-DD",
   "target_article": "x.x.x" | null,
-  "failure_message": "description brève de pourquoi l'operation n'a pu etre caracterisée"
+  "failure_message": "description brève de pourquoi l'operation n'a pu etre caracterisée",
+  "confidence_score": integer (0-100)
 }}
 
 Notes CRITIQUES :
+- confidence_score : entier entre 0 et 100 indiquant ta certitude sur la détection de l'opération (0 = très incertain, 100 = totalement certain)
 - source_article : prendre EXACTEMENT le "data-number" de la section ou tu trouves l'opération
   * Le numéro d'article du TEXTE FOURNI contenant l'opération (ex: "2.1.3")
   * Si l'opération provient d'un article dans une ANNEXE (balise <footer data-spec="appendix">): ajoute le suffixe "APPENDIX:" (devant "x.x" le data-number exact de la section dans l'annexe si existant)
