@@ -44,6 +44,9 @@ _STATUS_CODE_MESSAGES: dict[StatusCode, str] = {
     StatusCode.COMPLEX_SUBTARGET: (
         "La sous-cible de l'opération est trop complexe pour être résolue automatiquement"
     ),
+    StatusCode.PROPAGATED_ERROR: (
+        "Une erreur sur une opération précédente empêche l'application de cette opération"
+    ),
 }
 
 _DEFAULT_STATUS_CODE_MESSAGE = "Opération non résolue automatiquement"

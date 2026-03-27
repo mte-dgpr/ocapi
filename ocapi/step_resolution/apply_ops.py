@@ -31,7 +31,7 @@ successive operations.
 import networkx as nx
 from bs4 import BeautifulSoup
 
-from ocapi.exceptions import OperationError, SubtargetNotFoundError
+from ocapi.exceptions import ComplexSubtargetError, OperationError, SubtargetNotFoundError
 from ocapi.types import (
     ArreteFile,
     ArreteId,

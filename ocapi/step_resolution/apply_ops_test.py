@@ -485,7 +485,6 @@ def test_error_extracting_target_keeps_content_and_stores_status(
     assert last["operation_id"] == "op-missing-target"
 
 
-
 # ---------------------------------------------------------------------------
 # _is_unambiguous_all_operation
 # ---------------------------------------------------------------------------
