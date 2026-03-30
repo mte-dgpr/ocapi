@@ -326,3 +326,109 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
                     target_col.replace_with(replacement or operand_fragment)
         return soup
     return soup
+
+
+def insert_content_after_subtarget(
+    soup: BeautifulSoup, subtarget: SubTarget, operand: str
+) -> BeautifulSoup:
+    """Insert ``operand`` HTML immediately *after* the element matched by ``subtarget``.
+
+    Used for ADD operations with a simple sub-target (not ``FULL_SECTION`` / ``COMPLEX``).
+
+    Parameters
+    ----------
+    soup : BeautifulSoup
+        Parsed HTML of the article section to modify.
+    subtarget : SubTarget
+        Parsed sub-target describing the anchor after which to insert.
+    operand : str
+        HTML fragment to insert.
+
+    Returns
+    -------
+    BeautifulSoup
+        Modified soup (in-place).
+
+    Raises
+    ------
+    ValueError
+        If the sub-target is ambiguous or not found (same as :func:`replace_subtarget`).
+    """
+    operand_soup = BeautifulSoup(operand, "html.parser")
+    operand_children = [
+        c for c in operand_soup.contents if not (isinstance(c, str) and c.strip() == "")
+    ]
+    operand_fragment = operand_children[0] if len(operand_children) == 1 else operand_soup
+    operand_fragment = copy(operand_fragment)
+    subtarget_type = _ensure_subtarget_type(subtarget.type)
+
+    if subtarget_type == SubTargetType.FULL_SECTION:
+        raise ValueError("FULL_SECTION ADD must be handled in apply_add, not insert_after.")
+    if subtarget_type == SubTargetType.COMPLEX:
+        raise ValueError("COMPLEX sub-target requires the LLM path.")
+
+    if subtarget_type == SubTargetType.TABLEAU:
+        tables = soup.find_all("table")
+        target_table = _find_target_element(
+            tables, subtarget.position, subtarget.description, "tables"
+        )
+        if target_table:
+            target_table.insert_after(operand_fragment)
+        return soup
+
+    if subtarget_type == SubTargetType.PHRASE:
+        full_text = soup.get_text()
+        phrases = [p.strip() for p in full_text.split(".") if p.strip()]
+        target_phrase = _find_target_element(
+            phrases, subtarget.position, subtarget.description, "sentences"
+        )
+        for text_node in soup.find_all(string=True):
+            if target_phrase in text_node:
+                parent = text_node.parent
+                if parent:
+                    parent.insert_after(operand_fragment)
+                break
+        return soup
+
+    if subtarget_type == SubTargetType.ALINEA:
+        alineas = soup.find_all("div", class_="arretify-alinea")
+        target_alinea = _find_target_element(
+            alineas, subtarget.position, subtarget.description, "alineas"
+        )
+        if target_alinea:
+            target_alinea.insert_after(operand_fragment)
+        return soup
+
+    if subtarget_type == SubTargetType.LIGNE_TABLEAU:
+        table = soup.find("table")
+        if table:
+            rows = table.find_all("tr")
+            target_row = _find_target_element(
+                rows, subtarget.position, subtarget.description, "rows"
+            )
+            if target_row:
+                target_row.insert_after(operand_fragment)
+        return soup
+
+    if subtarget_type == SubTargetType.COLONNE_TABLEAU:
+        table = soup.find("table")
+        if table:
+            rows = table.find_all("tr")
+            if subtarget.position is None and rows:
+                first_row_cols = rows[0].find_all(["td", "th"])
+                if len(first_row_cols) != 1:
+                    raise ValueError(
+                        f"Ambiguous: '{subtarget.description}' but "
+                        f"{len(first_row_cols)} columns found."
+                    )
+            for row in rows:
+                cols = row.find_all(["td", "th"])
+                target_col = _find_target_element(
+                    cols, subtarget.position, subtarget.description, "columns"
+                )
+                if target_col:
+                    target_col.insert_after(operand_fragment)
+                    break
+        return soup
+
+    return soup

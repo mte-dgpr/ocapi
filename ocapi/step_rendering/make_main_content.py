@@ -17,6 +17,8 @@
 # limitations under the License.
 #
 
+import logging
+
 from bs4 import BeautifulSoup, Tag
 
 from ocapi.config import FullSectionName
@@ -29,7 +31,11 @@ from ocapi.types import (
     OperationType,
     StatusCode,
     SubTargetType,
+    article_display_number,
+    article_id_sort_tuple,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 _STATUS_CODE_MESSAGES: dict[StatusCode, str] = {
     StatusCode.ERROR_EXTRACTING_OPERAND: (
@@ -101,7 +107,94 @@ def make_permit_content(
             operation_by_id=operation_by_id,
         )
 
+    _insert_new_article_sections(
+        main=main,
+        history=history,
+        ap_initial_id=ap_initial_id,
+        operation_by_id=operation_by_id,
+    )
+
     return str(main)
+
+
+def _top_level_sections(main: Tag) -> list[Tag]:
+    """Direct ``<section>`` children of ``main`` (ignore nested sections e.g. in history)."""
+    return [c for c in main.children if isinstance(c, Tag) and c.name == "section"]
+
+
+def _find_predecessor_display_id(new_display: str, pool: set[str]) -> str | None:
+    """Return the greatest article number in ``pool`` strictly before ``new_display``."""
+    new_t = article_id_sort_tuple(new_display)
+    candidates = [p for p in pool if article_id_sort_tuple(p) < new_t]
+    if not candidates:
+        return None
+    return max(candidates, key=article_id_sort_tuple)
+
+
+def _insert_new_article_sections(
+    main: Tag,
+    history: ArticleHistory,
+    ap_initial_id: str,
+    operation_by_id: dict[str, Operation],
+) -> None:
+    """Insert sections for ``NEW_ARTICLE:…`` keys after the numerically preceding article (#378)."""
+    new_keys = [
+        k
+        for k in history
+        if k.arrete_id == ap_initial_id and k.article_id.startswith("NEW_ARTICLE")
+    ]
+    if not new_keys:
+        return
+
+    new_keys_sorted = sorted(new_keys, key=lambda k: article_id_sort_tuple(k.article_id))
+
+    pool: dict[str, Tag] = {}
+    for sec in _top_level_sections(main):
+        num = sec.get("data-number")
+        if isinstance(num, str):
+            pool[num] = sec
+
+    for node_key in new_keys_sorted:
+        disp = article_display_number(node_key.article_id)
+        if disp in pool:
+            _LOGGER.info("New article %s already present in main content, skipping", disp)
+            continue
+        latest = history[node_key][-1]
+        latest_content = latest.get("content", "")
+        if not isinstance(latest_content, str) or not latest_content.strip():
+            continue
+
+        frag = BeautifulSoup(latest_content, "html.parser")
+        section_el = frag.find("section", attrs={"data-spec": "section"})
+        if section_el is None:
+            section_el = frag.find("section")
+        if section_el is None:
+            _LOGGER.warning("Could not find <section> element for new article %s", disp)
+            continue
+
+        pred = _find_predecessor_display_id(disp, set(pool))
+        if pred is None:
+            first = next(iter(pool.values()), None)
+            if first is not None:
+                first.insert_before(section_el)
+            else:
+                main.append(section_el)
+        else:
+            anchor = pool.get(pred)
+            if anchor is None:
+                main.append(section_el)
+            else:
+                anchor.insert_after(section_el)
+
+        pool[disp] = section_el
+
+        make_section_version(
+            section=section_el,
+            article_id=node_key.article_id,
+            history=history,
+            ap_initial_id=ap_initial_id,
+            operation_by_id=operation_by_id,
+        )
 
 
 def make_section_version(

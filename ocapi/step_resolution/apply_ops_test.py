@@ -24,6 +24,7 @@ from bs4 import BeautifulSoup
 from ocapi.exceptions import SubtargetNotFoundError
 from ocapi.step_resolution.apply_ops import (
     _is_unambiguous_all_operation,
+    apply_add,
     apply_all_ops,
     apply_subgraph_operations,
     build_next_subgraph,
@@ -741,3 +742,63 @@ def test_remove_all_bypasses_propagation(mock_remove: mock.Mock) -> None:
     last = output_history[target][-1]
     assert last["content"] == ""
     assert last.get("status_code") is None  # RESOLVED
+
+
+def test_apply_add_full_section_new_article_wraps_operand() -> None:
+    op = Operation(
+        id="add-new",
+        source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="1980-01-01", article_id="NEW_ARTICLE:4.1"),
+        operation_type=OperationType.ADD,
+        operand="<p>Corps neuf</p>",
+        sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="contenu entier"),
+    )
+    out = apply_add(op, BeautifulSoup("", "html.parser"))
+    assert 'data-number="4.1"' in out
+    assert "Corps neuf" in out
+    assert 'data-spec="section"' in out
+
+
+def test_apply_add_simple_inserts_after_table() -> None:
+    html = """
+    <section data-spec="section" data-number="1">
+      <table><tr><td>a</td></tr></table>
+    </section>
+    """
+    op = Operation(
+        id="add-after-tab",
+        source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
+        operation_type=OperationType.ADD,
+        operand="<p>Suite</p>",
+        sub_target=SubTarget(type=SubTargetType.TABLEAU, position=None, description="le tableau"),
+    )
+    out = apply_add(op, BeautifulSoup(html, "html.parser"))
+    assert out.index("<table") < out.index("Suite")
+
+
+def test_new_article_full_section_history_is_single_version_with_op_id() -> None:
+    G = nx.MultiDiGraph()
+    src = NodeId(arrete_id="1981-01-01", article_id="1")
+    tgt = NodeId(arrete_id="1980-01-01", article_id="NEW_ARTICLE:2.1")
+    add_node(G, src, "<section>x</section>")
+    add_node(G, tgt, "")
+    add_edge(
+        G,
+        Operation(
+            id="create-21",
+            source_id=src,
+            target_id=tgt,
+            operation_type=OperationType.ADD,
+            operand="<p>Nouvel article</p>",
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="contenu entier"),
+        ),
+    )
+    history: ArticleHistory = {}
+    out, skipped = apply_subgraph_operations(G, history)
+    assert skipped == []
+    versions = out[tgt]
+    assert len(versions) == 1
+    assert versions[0]["version"] == 0
+    assert versions[0]["operation_id"] == "create-21"
+    assert "Nouvel article" in str(versions[0]["content"])

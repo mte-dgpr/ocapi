@@ -30,6 +30,8 @@ from .types import (
     PermitTitleSpec,
     SectionVersionSpec,
     _BaseModelWithConfig,
+    article_display_number,
+    article_id_sort_tuple,
     parse_arrete_id,
     parse_article_id,
     parse_filename,
@@ -85,6 +87,17 @@ class TestParseArticleId:
             parse_article_id("abc")
         with pytest.raises(InvalidArticleIdError):
             parse_article_id("1.2.")
+
+
+def test_article_display_number_strips_new_article_prefix() -> None:
+    assert article_display_number("NEW_ARTICLE:4.1") == "4.1"
+    assert article_display_number("2.3") == "2.3"
+
+
+def test_article_id_sort_tuple_orders_dotted_numbers() -> None:
+    assert article_id_sort_tuple("1") < article_id_sort_tuple("2")
+    assert article_id_sort_tuple("1.2") < article_id_sort_tuple("1.10")
+    assert article_id_sort_tuple("NEW_ARTICLE:3.1") == article_id_sort_tuple("3.1")
 
 
 class TestParseArreteId:

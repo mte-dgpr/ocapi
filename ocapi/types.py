@@ -70,6 +70,19 @@ def parse_article_id(article_id: str) -> str:
     )
 
 
+def article_display_number(article_id: str) -> str:
+    """Return the dotted article number for DOM ``data-number`` (strips ``NEW_ARTICLE:``)."""
+    if article_id.startswith("NEW_ARTICLE:"):
+        return article_id[len("NEW_ARTICLE:") :]
+    return article_id
+
+
+def article_id_sort_tuple(article_id: str) -> tuple[int, ...]:
+    """Lexicographic order key for dotted article ids (e.g. ``4.1`` < ``4.2`` < ``10``)."""
+    s = article_display_number(article_id)
+    return tuple(int(x) for x in s.split("."))
+
+
 def parse_arrete_id(v: str) -> str:
     """Validate that an arrete_id is in YYYY-MM-DD format.
 

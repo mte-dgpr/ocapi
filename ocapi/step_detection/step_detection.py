@@ -213,7 +213,6 @@ def step_detection(
             convert_raw_operation_to_operation(html_block.page_content, raw_op, arrete_id, img_map)
             for raw_op in valid_operations
         )
-
     _LOGGER.info(f"Detection: {len(all_ops)} operation(s) detected")
     return all_ops
 

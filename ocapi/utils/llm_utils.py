@@ -107,6 +107,7 @@ class ResolvedLLMModel:
     api_key: str | None
     api_url: str
     reasoning_model: bool | None = None
+    temperature: float | None = 0.0
 
 
 def _read_json_config(path: Path, default_value: dict[str, Any]) -> dict[str, Any]:
@@ -238,8 +239,8 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
         if model.reasoning_model:
             payload["reasoning_effort"] = "high"
             payload["verbosity"] = 0
-        else:
-            payload["temperature"] = 0
+        if model.temperature is not None:
+            payload["temperature"] = model.temperature
         return payload
 
     raise LLMConfigError(f"Unsupported LLM provider: {model.provider}")
@@ -259,6 +260,20 @@ def _is_retryable_http_error(error: requests.exceptions.RequestException) -> boo
         status_code = error.response.status_code if error.response is not None else None
         return status_code == 429 or (status_code is not None and 500 <= status_code <= 599)
     return isinstance(error, requests.exceptions.RequestException)
+
+
+def _extract_retry_after(exc: requests.exceptions.RequestException) -> float | None:
+    """Return the Retry-After delay (in seconds) from a 429 response, if present."""
+    resp = getattr(exc, "response", None)
+    if resp is None:
+        return None
+    header = resp.headers.get("Retry-After") or resp.headers.get("retry-after")
+    if header is None:
+        return None
+    try:
+        return float(header)
+    except (ValueError, TypeError):
+        return None
 
 
 def _retry_delay_seconds(attempt: int, strategy: dict[str, Any]) -> float:
@@ -342,6 +357,9 @@ def _execute_model_call(
                 raise LLMNetworkError(f"LLM API call failed ({model.model_name}): {exc}") from exc
 
             delay_seconds = _retry_delay_seconds(attempt, strategy)
+            retry_after = _extract_retry_after(exc)
+            if retry_after is not None and retry_after > delay_seconds:
+                delay_seconds = retry_after
             _LOGGER.warning(
                 f"Retrying LLM API call ({model.model_name}) attempt {attempt}/{max_attempts} "
                 f"in {delay_seconds:.2f}s: {exc}"
@@ -375,6 +393,8 @@ def config_model_llm(model: str | None = None) -> ResolvedLLMModel:
         raise LLMConfigError(f"Invalid configuration for model: {model_key}")
 
     reasoning_model = model_cfg.get("reasoning_model")
+    raw_temperature = model_cfg.get("temperature", 0.0)
+    temperature = float(raw_temperature) if raw_temperature is not None else None
 
     api_key, api_url = _provider_api_config(provider)
     return ResolvedLLMModel(
@@ -384,6 +404,7 @@ def config_model_llm(model: str | None = None) -> ResolvedLLMModel:
         api_key=api_key,
         api_url=api_url,
         reasoning_model=reasoning_model if isinstance(reasoning_model, bool) else None,
+        temperature=temperature,
     )
 
 
