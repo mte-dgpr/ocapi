@@ -33,7 +33,7 @@ from copy import copy
 import networkx as nx
 from bs4 import BeautifulSoup
 
-from ocapi.exceptions import ComplexSubtargetError, OperationError, SubtargetNotFoundError
+from ocapi.exceptions import OperationError, SubtargetNotFoundError
 from ocapi.types import (
     ArreteFile,
     ArreteId,
@@ -134,9 +134,8 @@ def apply_replace(
 ) -> Content:
     """Apply a REPLACE operation to an article's content.
 
-    Only handles simple sub-targets via regex. Raises ``ComplexSubtargetError``
-    for COMPLEX sub-targets and ``SubtargetNotFoundError`` when the target element
-    cannot be located.
+    Simple sub-targets are resolved via regex; complex or ambiguous ones fall
+    back to the LLM.
 
     Parameters
     ----------
@@ -157,10 +156,6 @@ def apply_replace(
     ------
     OperationError
         If ``sub_target`` or ``operand`` is missing from the operation.
-    ComplexSubtargetError
-        If the sub-target is of type COMPLEX.
-    SubtargetNotFoundError
-        If the target element is not found or ambiguous.
     """
     if operation.sub_target is None or operation.operand is None:
         raise OperationError("REPLACE operations require sub_target and operand.")
@@ -198,9 +193,8 @@ def apply_remove(
 ) -> Content:
     """Apply a REMOVE operation to an article's content.
 
-    Only handles simple sub-targets via regex. Raises ``ComplexSubtargetError``
-    for COMPLEX sub-targets and ``SubtargetNotFoundError`` when the target element
-    cannot be located.
+    Simple sub-targets are resolved via regex; complex or ambiguous ones fall
+    back to the LLM.
 
     Parameters
     ----------
@@ -218,10 +212,6 @@ def apply_remove(
     ------
     OperationError
         If ``sub_target`` is missing from the operation.
-    ComplexSubtargetError
-        If the sub-target is of type COMPLEX.
-    SubtargetNotFoundError
-        If the target element is not found or ambiguous.
     """
     if operation.sub_target is None:
         raise OperationError("REMOVE operations require sub_target.")
@@ -470,11 +460,6 @@ def apply_subgraph_operations(
                     except SubtargetNotFoundError as e:
                         _LOGGER.warning(f"Operation {op_id}: sub-target element not found — {e}")
                         article_status_code = StatusCode.ERROR_FINDING_SUBTARGET
-                    except ComplexSubtargetError as e:
-                        _LOGGER.warning(
-                            f"Operation {op_id}: complex sub-target, not resolved — {e}"
-                        )
-                        article_status_code = StatusCode.COMPLEX_SUBTARGET
 
                 if creation:
                     new_version = ArticleVersion(

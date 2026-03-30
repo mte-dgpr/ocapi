@@ -312,6 +312,13 @@ ocapi_output/
 └── permis_consolidé.html       # Permis consolidé final
 ```
 
+## 🌐 Démo HTML (GitHub Pages)
+
+Les exemples ICPE (arrêtés et permis consolidés en HTML) sont consultables dans le navigateur une fois **GitHub Pages** activé sur la branche `main` (source : répertoire `examples/`).
+
+- **Index des exemples** : `https://mte-dgpr.github.io/ocapi/`
+- Chaque AIOT dispose de ses arrêtés source et du permis consolidé généré par le pipeline.
+
 ## 🔍 Exemples complets
 
 ### Exemple 1 : Traitement complet
