@@ -27,9 +27,18 @@ from pathlib import Path
 
 import pytest
 
-from ocapi.types import ArticleHistory, ArticleVersion, FileType, NodeId, Operation, OperationType
+from ocapi.types import (
+    ArticleHistory,
+    ArticleVersion,
+    FileType,
+    NodeId,
+    Operation,
+    OperationType,
+    StatusCode,
+)
 from ocapi.utils.io_utils import (
     InputOutputError,
+    article_history_to_json_dict,
     initialize_arrete_files,
     load_html_files,
     load_operations,
@@ -273,3 +282,34 @@ class TestSaveHistory:
         data = json.loads((tmp_path / "history.json").read_text(encoding="utf-8"))
         assert "2020-01-01#1" in data
         assert "2020-01-01#2" in data
+
+    def test_status_code_is_serialized_as_string_value(self, tmp_path: Path) -> None:
+        node_id = NodeId(arrete_id="2020-01-01", article_id="1")
+        history: ArticleHistory = {
+            node_id: [
+                ArticleVersion(
+                    version=0,
+                    content="<p>x</p>",
+                    operation_id=None,
+                    status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
+                )
+            ]
+        }
+        save_history(history, tmp_path)
+        data = json.loads((tmp_path / "history.json").read_text(encoding="utf-8"))
+        assert data["2020-01-01#1"][0]["status_code"] == "error_extracting_operand"
+
+
+def test_article_history_to_json_dict_matches_save_history_shape() -> None:
+    node_id = NodeId(arrete_id="2020-01-01", article_id="1")
+    v: ArticleVersion = {
+        "version": 0,
+        "content": "c",
+        "operation_id": None,
+        "status_code": StatusCode.RESOLVED,
+    }
+    assert article_history_to_json_dict({node_id: [v]}) == {
+        "2020-01-01#1": [
+            {"version": 0, "content": "c", "operation_id": None, "status_code": "resolved"}
+        ]
+    }

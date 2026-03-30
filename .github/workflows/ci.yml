@@ -9,34 +9,43 @@ env:
   LC_ALL: C
 
 jobs:
-  test-and-lint:
+  unit-tests:
     runs-on: ubuntu-latest
-    container: python:3.12
-    strategy:
-      matrix:
-        name: [unit-tests, lint]
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        run: |
-          pip install --upgrade pip
-          pip install .[dev]
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install .[dev]
 
       - name: Run unit tests
-        if: matrix.name == 'unit-tests'
-        run: pytest --cov-report=html:htmlcov
+        run: pytest -m "not snapshot" --cov --cov-report=html:htmlcov --cov-report=term-missing --cov-fail-under=80
+
+      - name: Run snapshot tests
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 5
+        run: pytest -m snapshot -v --no-cov
 
       - name: Upload coverage report
-        if: matrix.name == 'unit-tests'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: htmlcov/
 
-      - name: Run linters
-        if: matrix.name == 'lint'
-        run: |
-          mypy
-          black . --check
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install .[dev]
+
+      - run: mypy
+      - run: black . --check

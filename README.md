@@ -351,6 +351,33 @@ ocapi --verbose run examples/arretes_html/0005804239/
 ocapi --verbose run examples/arretes_html/0005804239/ 2>&1 | tee debug.log
 ```
 
+### Exemple 5 : Mode snapshot (sans LLM)
+
+Exécuter le pipeline avec des opérations pré-chargées, sans appeler le LLM :
+
+```bash
+ocapi run examples/arretes_html/0005804239/ \
+    --operations-from examples/arretes_operations/0005804239/ \
+    --output output/snapshot/
+```
+
+## 📸 Snapshot testing
+
+Des tests de non-régression sur des cas ICPE réels sont disponibles. Ils s'exécutent **sans LLM** (opérations pré-chargées + mock).
+
+```bash
+# Exécuter les tests snapshot
+pytest -m snapshot -v
+
+# Mettre à jour les snapshots attendus (après modification intentionnelle)
+ocapi update-snapshots
+
+# Ou via variable d'environnement
+UPDATE_SNAPSHOTS=1 pytest -m snapshot -v
+```
+
+Les cas de test sont configurés dans `ocapi/snapshots/config.py`.
+
 ## 🛠️ Développement
 
 ### Ajouter une nouvelle étape au pipeline

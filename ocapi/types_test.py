@@ -319,7 +319,7 @@ class TestParseFilename:
 
     def test_parse_invalid_missing_parts_not_a_date(self) -> None:
         with pytest.raises(InvalidFileFormatError, match="Invalid format"):
-            parse_filename("not-a-date.html")
+            parse_filename("not-a-valid-name.html")
 
     def test_parse_complex_filename(self) -> None:
         filename = (

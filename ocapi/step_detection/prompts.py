@@ -45,10 +45,14 @@ MODIFICATION :
   "target_arrete": "YYYY-MM-DD",
   "target_article": "ALL" | "x.x.x",
   "sub_target": str | null,
-  "new_content_start_marker": "80-100 premiers token EXACTS du début",
-  "new_content_end_marker": "80-100 derniers token EXACTS de la fin",
+  "new_content_start_marker": "80-100 premiers token EXACTS du début" | null,
+  "new_content_end_marker": "80-100 derniers token EXACTS de la fin" | null,
   "confidence_score": integer (0-100)
 }}
+
+REMPLACEMENT TOTAL (arrêté refonte) : Quand un arrêté remplace ENTIÈREMENT un arrêté antérieur
+(« remplace l'arrêté du... », « abroge et remplace... »), utiliser target_article: "ALL".
+Dans ce cas, new_content_start_marker et new_content_end_marker peuvent être null.
 
 AJOUT :
 {{

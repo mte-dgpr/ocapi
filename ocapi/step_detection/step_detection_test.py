@@ -18,7 +18,7 @@
 #
 import json
 from unittest import mock
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from langchain_core.documents import Document
@@ -50,8 +50,8 @@ def reset_operation_id_counter() -> None:
 @patch("ocapi.step_detection.step_detection.extract_operand_with_images")
 @patch("ocapi.step_detection.step_detection.parse_subtarget")
 def test_convert_raw_operation_to_operation(
-    mock_parse_subtarget: mock.Mock,
-    mock_extract_operand_with_images: mock.Mock,
+    mock_parse_subtarget: Mock,
+    mock_extract_operand_with_images: Mock,
 ) -> None:
     mock_extract_operand_with_images.return_value = (
         "<mocked>operand content</mocked>",
@@ -59,7 +59,7 @@ def test_convert_raw_operation_to_operation(
     )
     mock_parse_subtarget.return_value = SubTarget(type=SubTargetType.TABLEAU, position=1)
 
-    block_html = Document(page_content="<section>Test content</section>", metadata={})
+    html_block = Document(page_content="<section>Test content</section>", metadata={})
     source_arrete_id = "1980-01-01"
 
     raw_operations = [
@@ -80,7 +80,7 @@ def test_convert_raw_operation_to_operation(
         ),
     ]
     operations = [
-        convert_raw_operation_to_operation(block_html.page_content, raw_op, source_arrete_id, {})
+        convert_raw_operation_to_operation(html_block.page_content, raw_op, source_arrete_id, {})
         for raw_op in raw_operations
     ]
 
@@ -107,11 +107,11 @@ def test_convert_raw_operation_to_operation(
 
 
 @patch("ocapi.step_detection.step_detection.extract_operand_with_images")
-def test_extractable_content_false_when_operand_extraction_fails(
-    mock_extract_operand_with_images: mock.Mock,
+def test_status_code_error_when_operand_extraction_fails(
+    mock_extract_operand_with_images: Mock,
 ) -> None:
     mock_extract_operand_with_images.return_value = (None, StatusCode.ERROR_EXTRACTING_OPERAND)
-    block_html = Document(page_content="<section>Test content</section>", metadata={})
+    html_block = Document(page_content="<section>Test content</section>", metadata={})
     raw_operation = RawOperation(
         operation_type=RawOperationType.REPLACE,
         source_article="1",
@@ -122,7 +122,7 @@ def test_extractable_content_false_when_operand_extraction_fails(
     )
 
     operation = convert_raw_operation_to_operation(
-        block_html.page_content, raw_operation, "1980-01-01", {}
+        html_block.page_content, raw_operation, "1980-01-01", {}
     )
 
     assert operation.status_code == StatusCode.ERROR_EXTRACTING_OPERAND
@@ -131,7 +131,7 @@ def test_extractable_content_false_when_operand_extraction_fails(
 
 def test_convert_raw_operation_replace_all_refonte() -> None:
     """REPLACE with target_article=ALL (arrêté refonte) is converted correctly."""
-    block_html = Document(page_content="<section>Refonte complète</section>", metadata={})
+    html_block = Document(page_content="<section>Refonte complète</section>", metadata={})
     raw_op = RawOperation(
         operation_type=RawOperationType.REPLACE,
         source_article="1.1.2",
@@ -143,7 +143,7 @@ def test_convert_raw_operation_replace_all_refonte() -> None:
     )
 
     operation = convert_raw_operation_to_operation(
-        block_html.page_content, raw_op, "2021-09-24", {}
+        html_block.page_content, raw_op, "2021-09-24", {}
     )
 
     assert operation.operation_type == OperationType.REPLACE
@@ -154,7 +154,8 @@ def test_convert_raw_operation_replace_all_refonte() -> None:
 
 def test_prompt_detection_includes_replace_all_schema() -> None:
     """The detection prompt must allow REPLACE with target_article ALL (refonte)."""
-    prompt = prompt_detection("<html>test</html>")
+    html_block = "<html>test</html>"
+    prompt = prompt_detection(html_block)
     assert '"target_article": "ALL" | "x.x.x"' in prompt
     assert "refonte" in prompt.lower()
 
@@ -269,7 +270,7 @@ def test_step_detection_pass_skips_low_confidence_ops(
     mock_llm: mock.Mock,
     mock_conf: mock.Mock,
 ) -> None:
-    """action=pass → low-confidence operation is dropped, no retry."""
+    """action=pass -> low-confidence operation is dropped, no retry."""
     mock_conf.return_value = ConfidenceScoreConfig(
         enabled=True, min_threshold=70, action_below_threshold="pass"
     )
@@ -292,11 +293,10 @@ def test_step_detection_retry_reruns_llm_on_low_confidence(
     mock_conf: mock.Mock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """action=retry → LLM is called a second time when low confidence detected."""
+    """action=retry -> LLM is called a second time when low confidence detected."""
     mock_conf.return_value = ConfidenceScoreConfig(
         enabled=True, min_threshold=70, action_below_threshold="retry"
     )
-    # First call: one operation with low confidence; second call: one good operation
     mock_llm.side_effect = [
         _llm_response_with_ops(40),
         _llm_response_with_ops(95),
@@ -320,7 +320,7 @@ def test_step_detection_retry_still_drops_low_confidence_after_retry(
     mock_llm: mock.Mock,
     mock_conf: mock.Mock,
 ) -> None:
-    """action=retry → if the retry also returns low confidence, the op is still dropped."""
+    """action=retry -> if the retry also returns low confidence, the op is still dropped."""
     mock_conf.return_value = ConfidenceScoreConfig(
         enabled=True, min_threshold=70, action_below_threshold="retry"
     )

@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, patch
 from bs4 import BeautifulSoup
 
 from ocapi.pipeline import run_pipeline
-from ocapi.types import ArreteFile
+from ocapi.types import ArreteFile, NodeId, Operation, OperationType
 
 
 def _make_arrete(arrete_id: str) -> ArreteFile:
@@ -115,6 +115,40 @@ def test_start_date_passes_all_arretes_to_resolution(
     assert "2009-12-08" in resolved_ids
     assert "2014-01-09" in resolved_ids
     assert "2023-12-04" in resolved_ids
+
+
+@patch("ocapi.pipeline.step_resolution", return_value=({}, []))
+@patch("ocapi.pipeline.step_detection", return_value=[])
+@patch("ocapi.pipeline.step_chunking", return_value=([], {}))
+def test_run_pipeline_with_preloaded_operations(
+    mock_chunking: MagicMock,
+    mock_detection: MagicMock,
+    mock_resolution: MagicMock,
+) -> None:
+    """When operations are provided and enable_detection=False, detection is skipped."""
+    arretes = [_make_arrete("2009-12-08"), _make_arrete("2014-01-09")]
+    preloaded = [
+        Operation(
+            id="1",
+            source_id=NodeId(arrete_id="2014-01-09", article_id="1"),
+            target_id=NodeId(arrete_id="2009-12-08", article_id="1"),
+            operation_type=OperationType.REPLACE,
+            operand="<p>test</p>",
+            sub_target=None,
+        )
+    ]
+
+    ops, history, _arretes, _permis = run_pipeline(
+        arretes,
+        enable_detection=False,
+        enable_rendering=False,
+        operations=preloaded,
+    )
+
+    assert ops == preloaded
+    assert mock_chunking.call_count == 0
+    assert mock_detection.call_count == 0
+    mock_resolution.assert_called_once_with(preloaded, arretes)
 
 
 @patch("ocapi.pipeline.step_detection", return_value=[])

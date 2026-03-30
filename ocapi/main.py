@@ -39,9 +39,12 @@ from pathlib import Path
 from ocapi.config import settings
 from ocapi.exceptions import OcapiError
 from ocapi.pipeline import run_pipeline
+from ocapi.types import Operation
 from ocapi.utils.io_utils import (
     InputOutputError,
+    article_history_to_json_dict,
     load_arrete_files,
+    load_operations,
     write_json_output,
     write_permis_output,
 )
@@ -59,6 +62,7 @@ def main(
     start_date: str | None = None,
     enable_detection: bool = True,
     enable_rendering: bool = True,
+    operations_from: Path | None = None,
 ) -> int:
     """Run the complete OCAPI pipeline end to end.
 
@@ -75,6 +79,7 @@ def main(
         start_date: Detection start date (YYYY-MM-DD).
         enable_detection: If False, skip the LLM detection step (step 2).
         enable_rendering: If True, generate the consolidated permit.
+        operations_from: If set, loads ``operations.json`` from that directory; skips detection.
 
     Returns:
         Exit code (0 = success, 1 = error).
@@ -122,6 +127,17 @@ def main(
         history_dir = base_dir / "arretes_history" / aiot
         permis_dir = base_dir / "consolidated_permit" / aiot
 
+    preloaded_ops: list[Operation] | None = None
+    if operations_from is not None:
+        try:
+            preloaded_ops = load_operations(operations_from)
+        except InputOutputError as e:
+            _LOGGER.error(f"Error: {e}")
+            return 1
+        _LOGGER.info(f"Loaded {len(preloaded_ops)} operation(s) from {operations_from}")
+
+    enable_detection = operations_from is None
+
     try:
         # Run the pipeline
         operations, history, arrete_files, permis = run_pipeline(
@@ -129,6 +145,7 @@ def main(
             start_date=start_date,
             enable_detection=enable_detection,
             enable_rendering=enable_rendering,
+            operations=preloaded_ops,
         )
 
         # Save operations
@@ -139,22 +156,7 @@ def main(
 
         # Save history
         history_path = history_dir / "history.json"
-
-        # Convert NodeId to string and ArticleHistory to serialisable format
-        history_serializable = {
-            str(node_id): [
-                {
-                    "version": v["version"],
-                    "content": v["content"],
-                    "operation_id": v["operation_id"],
-                    "status_code": v.get("status_code"),
-                }
-                for v in versions
-            ]
-            for node_id, versions in history.items()
-        }
-
-        write_json_output(history_serializable, history_path)
+        write_json_output(article_history_to_json_dict(history), history_path)
         _LOGGER.info(f"History saved → {history_path}")
 
         # Save permit if generated
@@ -237,14 +239,15 @@ Examples:
         help="Start date: only arrêtés >= this date go through detection",
     )
     parser.add_argument(
-        "--no-detection",
-        action="store_true",
-        help="Disable LLM detection step (step 2)",
+        "--operations-from",
+        type=Path,
+        metavar="DIR",
+        help="Directory containing operations.json (skips detection; snapshot mode, no LLM)",
     )
     parser.add_argument(
         "--no-rendering",
         action="store_true",
-        help="Disable consolidated permit generation (step 4)",
+        help="Skip consolidated permit generation (step 4)",
     )
     parser.add_argument(
         "-v",
@@ -278,6 +281,8 @@ Examples:
 
     _LOGGER.debug(f"Logging initialised at level {log_level}")
 
+    operations_from = getattr(args, "operations_from", None)
+
     exit_code = main(
         input_dir=args.input_dir,
         output_dir=args.output,
@@ -286,6 +291,7 @@ Examples:
         start_date=args.start_date,
         enable_detection=not args.no_detection,
         enable_rendering=not args.no_rendering,
+        operations_from=operations_from,
     )
 
     sys.exit(exit_code)

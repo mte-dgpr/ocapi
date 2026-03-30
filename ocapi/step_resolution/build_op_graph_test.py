@@ -118,7 +118,10 @@ def test_build_graph() -> None:
 
 
 def test_build_graph_replace_all_marks_arrete_abrogated() -> None:
-    """REPLACE with target ALL (arrêté refonte) must mark the target arrêté as abrogated."""
+    """REPLACE with target_article ALL (arrêté refonte) must mark the target arrêté as abrogated.
+
+    The operation is not added to the graph (no article-level resolution needed).
+    """
     html_2020 = """
     <section data-spec="section" data-number="1">Article 1</section>
     <section data-spec="section" data-number="2">Article 2</section>
@@ -144,18 +147,19 @@ def test_build_graph_replace_all_marks_arrete_abrogated() -> None:
         ),
     ]
 
-    operations = [
-        Operation(
-            id="1",
-            source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
-            target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
-            operation_type=OperationType.REPLACE,
-        ),
-    ]
+    replace_all_op = Operation(
+        id="1",
+        source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
+        target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
+        operation_type=OperationType.REPLACE,
+    )
 
-    G, updated_arrete_files, skipped_ops = build_graph(operations, arrete_files)
+    G, updated_arrete_files, skipped_ops = build_graph([replace_all_op], arrete_files)
 
+    assert len(G.nodes) == 0
+    assert len(G.edges) == 0
     assert len(skipped_ops) == 0
+
     arrete_2020 = next(af for af in updated_arrete_files if af.id == "2020-04-20")
     assert arrete_2020.status is False
     arrete_2021 = next(af for af in updated_arrete_files if af.id == "2021-09-24")
@@ -193,6 +197,36 @@ def test_is_abrogation_arrete_replace_single_article() -> None:
         operation_type=OperationType.REPLACE,
     )
     assert _is_abrogation_arrete(op_replace) is False
+
+
+def test_build_graph_remove_all_marks_arrete_abrogated() -> None:
+    """REMOVE with target_article ALL must mark the target arrêté as abrogated."""
+    html_2020 = """
+    <section data-spec="section" data-number="1">Article 1</section>
+    """
+    arrete_files = [
+        ArreteFile(
+            id="2020-04-20",
+            aiot="aiot1",
+            filename="2020-04-20.html",
+            soup=BeautifulSoup(html_2020, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
+
+    remove_all_op = Operation(
+        id="1",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
+        operation_type=OperationType.REMOVE,
+    )
+
+    G, updated_arrete_files, _ = build_graph([remove_all_op], arrete_files)
+
+    assert len(G.nodes) == 0
+    assert len(G.edges) == 0
+    arrete_2020 = updated_arrete_files[0]
+    assert arrete_2020.status is False
 
 
 def test_build_graph_keeps_target_content_with_multiple_ops_same_target() -> None:

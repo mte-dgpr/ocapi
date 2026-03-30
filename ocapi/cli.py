@@ -27,13 +27,19 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 from ocapi.config import settings
 from ocapi.exceptions import OcapiError
 from ocapi.pipeline import run_pipeline
+from ocapi.snapshots.config import SNAPSHOT_CASES
+from ocapi.snapshots.llm_mock import mock_call_llm_api_for_subtarget
+from ocapi.types import Operation
 from ocapi.utils.io_utils import (
     InputOutputError,
+    article_history_to_json_dict,
     load_arrete_files,
+    load_operations,
     write_json_output,
     write_permis_output,
 )
@@ -46,12 +52,12 @@ _LOGGER = get_logger(__name__)
 def run_main(
     input_dir: Path,
     *,
-    enable_detection: bool = True,
     enable_rendering: bool = True,
     include_ids: list[str] | None = None,
     aiot: str | None = None,
     output_dir: Path | None = None,
     start_date: str | None = None,
+    operations_from: Path | None = None,
 ) -> int:
     """Run the OCAPI pipeline with explicit parameters.
 
@@ -59,8 +65,6 @@ def run_main(
     ----------
     input_dir : Path
         Directory containing the arrêté HTML files.
-    enable_detection : bool
-        If False, skip the detection step (steps 1–2).
     enable_rendering : bool
         If False, skip the rendering step (step 4).
     include_ids : list[str] | None
@@ -76,6 +80,9 @@ def run_main(
         ``<input_dir>/../../consolidated_permit/<aiot>/``.
     start_date : str | None
         Detection start date (YYYY-MM-DD).
+    operations_from : Path | None
+        Directory containing ``operations.json``. Loads operations and skips detection
+        (snapshot mode, no LLM).
     """
     resolved_aiot = aiot or input_dir.name
     _LOGGER.info(f"AIOT: {resolved_aiot}")
@@ -97,6 +104,17 @@ def run_main(
             _LOGGER.error("No arrêté matches the specified IDs")
             return 1
 
+    preloaded_ops: list[Operation] | None = None
+    if operations_from is not None:
+        try:
+            preloaded_ops = load_operations(operations_from)
+        except InputOutputError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+        _LOGGER.info(f"Loaded {len(preloaded_ops)} operation(s) from {operations_from}")
+
+    enable_detection = operations_from is None
+
     _LOGGER.info("Running pipeline...")
     try:
         operations, history, _arrete_files, permis = run_pipeline(
@@ -104,6 +122,7 @@ def run_main(
             start_date=start_date,
             enable_detection=enable_detection,
             enable_rendering=enable_rendering,
+            operations=preloaded_ops,
         )
         _LOGGER.info("Pipeline completed successfully.")
 
@@ -123,19 +142,7 @@ def run_main(
         _LOGGER.info(f"Operations saved → {operations_path}")
 
         history_path = history_dir / "history.json"
-        history_serializable = {
-            str(node_id): [
-                {
-                    "version": v["version"],
-                    "content": v["content"],
-                    "operation_id": v["operation_id"],
-                    "status_code": v.get("status_code"),
-                }
-                for v in versions
-            ]
-            for node_id, versions in history.items()
-        }
-        write_json_output(history_serializable, history_path)
+        write_json_output(article_history_to_json_dict(history), history_path)
         _LOGGER.info(f"History saved → {history_path}")
 
         if permis:
@@ -153,16 +160,84 @@ def run_main(
         return 1
 
 
+def cmd_generate_snapshot_fixtures(args: argparse.Namespace) -> int:
+    """Generate operations.json for each ICPE by running full pipeline (with LLM).
+
+    Saves operations to examples/arretes_operations/<ICPE>/. Run once to create
+    fixtures for snapshot tests. Requires LLM API configured.
+    """
+    for arretes_dir, operations_dir in SNAPSHOT_CASES:
+        if not arretes_dir.exists():
+            _LOGGER.warning(f"Skipping {arretes_dir.name}: arretes dir not found")
+            continue
+        aiot = arretes_dir.name
+        _LOGGER.info(f"Generating operations for {aiot} (full pipeline with LLM)...")
+        try:
+            arrete_files = load_arrete_files(arretes_dir, aiot)
+        except InputOutputError as e:
+            _LOGGER.warning(f"Skipping {aiot}: {e}")
+            continue
+        try:
+            ops, _history, _arretes, _permis = run_pipeline(
+                arrete_files,
+                enable_detection=True,
+                enable_rendering=False,
+            )
+        except OcapiError as e:
+            _LOGGER.error(f"Pipeline failed for {aiot}: {e}")
+            return 1
+        operations_dir.mkdir(parents=True, exist_ok=True)
+        ops_dict = [op.model_dump(mode="json") for op in ops]
+        write_json_output(ops_dict, operations_dir / "operations.json")
+        _LOGGER.info(f"Saved {len(ops)} operations → {operations_dir}")
+    return 0
+
+
+def cmd_update_snapshots(args: argparse.Namespace) -> int:
+    """Update snapshot baselines by running pipeline with mocked LLM."""
+    snapshot_expected = Path(__file__).parent / "snapshots" / "expected"
+    for arretes_dir, operations_dir in SNAPSHOT_CASES:
+        if not arretes_dir.exists() or not operations_dir.exists():
+            _LOGGER.warning(f"Skipping {arretes_dir.name}: fixtures not found")
+            continue
+        aiot = arretes_dir.name
+        arrete_files = load_arrete_files(arretes_dir, aiot)
+        if not arrete_files:
+            _LOGGER.warning(f"Skipping {aiot}: no arrêtés loaded (incompatible Arrêtify version?)")
+            continue
+        operations = load_operations(operations_dir)
+        with patch(
+            "ocapi.utils.llm_utils.call_llm_api",
+            side_effect=mock_call_llm_api_for_subtarget,
+        ):
+            ops, history, _arretes, permis = run_pipeline(
+                arrete_files,
+                enable_detection=False,
+                enable_rendering=True,
+                operations=operations,
+            )
+        out_dir = snapshot_expected / arretes_dir.name
+        out_dir.mkdir(parents=True, exist_ok=True)
+        ops_dict = [op.model_dump(mode="json") for op in ops]
+        write_json_output(ops_dict, out_dir / "operations.json")
+        write_json_output(article_history_to_json_dict(history), out_dir / "history.json")
+        if permis:
+            write_permis_output(permis, out_dir / "permis.html")
+        _LOGGER.info(f"Updated snapshots → {out_dir}")
+    return 0
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     """Parse CLI args and delegate to :func:`run_main`."""
+    operations_from = getattr(args, "operations_from", None)
     return run_main(
         input_dir=Path(args.input_dir),
-        enable_detection=not getattr(args, "no_detection", False),
-        enable_rendering=not getattr(args, "no_rendering", False),
+        enable_rendering=not args.no_rendering,
         include_ids=args.include or None,
         aiot=args.aiot or None,
         output_dir=Path(args.output) if args.output else None,
         start_date=getattr(args, "start_date", None),
+        operations_from=operations_from,
     )
 
 
@@ -277,18 +352,31 @@ Examples:
         ),
     )
     run_parser.add_argument(
-        "--no-detection",
-        action="store_true",
-        default=False,
-        help="Skip the detection step (steps 1-2)",
-    )
-    run_parser.add_argument(
         "--no-rendering",
         action="store_true",
-        default=False,
-        help="Skip the rendering step (step 4)",
+        help="Skip the rendering step (step 4).",
+    )
+    run_parser.add_argument(
+        "--operations-from",
+        type=Path,
+        metavar="DIR",
+        help="Load DIR/operations.json and skip detection (snapshot mode, no LLM)",
     )
     run_parser.set_defaults(func=cmd_run)
+
+    generate_fixtures_parser = subparsers.add_parser(
+        "generate-snapshot-fixtures",
+        help="Generate operations.json for all 4 ICPEs (full pipeline with LLM)",
+        description="Run full pipeline on each ICPE to create operations.json.",
+    )
+    generate_fixtures_parser.set_defaults(func=cmd_generate_snapshot_fixtures)
+
+    update_snapshots_parser = subparsers.add_parser(
+        "update-snapshots",
+        help="Update snapshot baselines for non-regression tests",
+        description="Run pipeline on snapshot ICPE cases (no LLM) and save outputs as expected.",
+    )
+    update_snapshots_parser.set_defaults(func=cmd_update_snapshots)
 
     args = parser.parse_args(argv)
 
