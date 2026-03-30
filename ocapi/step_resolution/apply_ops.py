@@ -424,7 +424,7 @@ def apply_subgraph_operations(
                 # Propagate an earlier error unless the operation is unambiguous
                 # (i.e. it replaces/removes the full article and does not rely on
                 # the current — potentially corrupted — content).
-                previous_status = history[tgt][-1].get("status_code")
+                previous_status = history[tgt][-1].get("status_code") if tgt in history else None
                 previous_has_error = (
                     previous_status is not None and previous_status != StatusCode.RESOLVED
                 )

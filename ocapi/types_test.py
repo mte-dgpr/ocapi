@@ -22,8 +22,6 @@ from pydantic import ValidationError
 
 from .exceptions import InvalidArreteIdError, InvalidArticleIdError, InvalidFileFormatError
 from .types import (
-    article_display_number,
-    article_id_sort_tuple,
     FileType,
     NodeId,
     Permis,
@@ -32,6 +30,8 @@ from .types import (
     PermitTitleSpec,
     SectionVersionSpec,
     _BaseModelWithConfig,
+    article_display_number,
+    article_id_sort_tuple,
     parse_arrete_id,
     parse_article_id,
     parse_filename,
