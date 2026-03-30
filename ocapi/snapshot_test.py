@@ -92,7 +92,7 @@ def test_snapshot_pipeline_output(arretes_dir: Path, operations_dir: Path, tmp_p
     operations = load_operations(operations_dir)
 
     with patch(
-        "ocapi.utils.llm_utils.call_llm_api",
+        "ocapi.step_resolution.apply_ops.call_llm_api",
         side_effect=mock_call_llm_api_for_subtarget,
     ):
         ops, history, _arretes, permis = run_pipeline(
