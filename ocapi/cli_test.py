@@ -24,15 +24,15 @@ from ocapi.cli import main
 
 @patch("ocapi.cli.initialize_root_logger")
 @patch("ocapi.cli.run_main", return_value=0)
-def test_cli_no_detection_is_forwarded(
+def test_cli_operations_from_is_forwarded(
     mock_main: MagicMock,
     mock_logger: MagicMock,
 ) -> None:
-    """--no-detection is parsed and forwarded to run_main."""
-    main(["run", "some/arretes_html/0005804239", "--no-detection"])
+    """--operations-from is parsed; run_main loads operations and skips detection."""
+    main(["run", "some/arretes_html/0005804239", "--operations-from", "/data/ops"])
     mock_main.assert_called_once()
     _, kwargs = mock_main.call_args
-    assert kwargs.get("enable_detection") is False
+    assert kwargs.get("operations_from") == Path("/data/ops")
     assert kwargs.get("enable_rendering") is True
 
 
@@ -46,7 +46,6 @@ def test_cli_no_rendering_is_forwarded(
     main(["run", "some/arretes_html/0005804239", "--no-rendering"])
     mock_main.assert_called_once()
     _, kwargs = mock_main.call_args
-    assert kwargs.get("enable_detection") is True
     assert kwargs.get("enable_rendering") is False
 
 
@@ -144,11 +143,10 @@ def test_cli_defaults(
     mock_main: MagicMock,
     mock_logger: MagicMock,
 ) -> None:
-    """Without flags, detection and rendering are both enabled by default."""
+    """Without flags, rendering is enabled (detection runs unless --operations-from)."""
     main(["run", "some/arretes_html/0005804239"])
     mock_main.assert_called_once()
     _, kwargs = mock_main.call_args
-    assert kwargs.get("enable_detection") is True
     assert kwargs.get("enable_rendering") is True
     assert kwargs.get("output_dir") is None
     assert kwargs.get("aiot") is None

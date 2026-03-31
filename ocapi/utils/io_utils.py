@@ -29,6 +29,7 @@ from ocapi.exceptions import InputOutputError, InvalidFileFormatError
 from ocapi.types import (
     ArreteFile,
     ArticleHistory,
+    ArticleVersion,
     NodeId,
     Operation,
     Permis,
@@ -51,6 +52,7 @@ __all__ = [
     "save_operations",
     "load_operations",
     "save_history",
+    "article_history_to_json_dict",
 ]
 
 
@@ -263,6 +265,30 @@ def load_operations(input_dir: Path) -> list[Operation]:
         raise InputOutputError(f"Cannot parse operations file: {e}") from e
 
 
+def _article_version_to_json_dict(version: ArticleVersion) -> dict[str, Any]:
+    """Convert an :class:`ArticleVersion` to a JSON-serialisable dict (incl. ``status_code``)."""
+    out: dict[str, Any] = {
+        "version": version["version"],
+        "content": version["content"],
+        "operation_id": version["operation_id"],
+    }
+    if "status_code" in version:
+        out["status_code"] = version["status_code"].value
+    return out
+
+
+def article_history_to_json_dict(history: ArticleHistory) -> dict[str, list[dict[str, Any]]]:
+    """Serialize :class:`ArticleHistory` to nested dicts suitable for ``json.dump``.
+
+    ``NodeId`` keys become ``"{arrete_id}#{article_id}"`` strings.
+    ``status_code`` enum values are written as their string values.
+    """
+    return {
+        str(node_id): [_article_version_to_json_dict(v) for v in versions]
+        for node_id, versions in history.items()
+    }
+
+
 def save_history(history: ArticleHistory, output_dir: Path) -> None:
     """Serialize an article history to ``{output_dir}/history.json``.
 
@@ -283,7 +309,7 @@ def save_history(history: ArticleHistory, output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "history.json"
     try:
-        serialized = {str(node_id): versions for node_id, versions in history.items()}
+        serialized = article_history_to_json_dict(history)
         with output_path.open("w", encoding="utf-8") as f:
             json.dump(serialized, f, ensure_ascii=False, indent=2)
     except OSError as e:

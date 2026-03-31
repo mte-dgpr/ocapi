@@ -111,7 +111,6 @@ class TestExtractOperand(unittest.TestCase):
             end_marker=end_marker,
             img_map=img_map,
         )
-
         assert status_code == StatusCode.RESOLVED
         assert operand is not None
         assert "Voici le nouveau" in operand

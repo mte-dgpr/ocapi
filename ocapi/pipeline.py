@@ -31,6 +31,7 @@ def run_pipeline(
     start_date: str | None = None,
     enable_detection: bool = True,
     enable_rendering: bool = True,
+    operations: list[Operation] | None = None,
 ) -> tuple[list[Operation], ArticleHistory, list[ArreteFile], Permis | None]:
     """Run the full OCAPI pipeline.
 
@@ -46,6 +47,9 @@ def run_pipeline(
         If True, run the detection step (steps 1-2).
     enable_rendering : bool
         If True, generate the consolidated permit (step 4).
+    operations : list[Operation] | None
+        Pre-loaded operations to use when enable_detection is False (snapshot mode).
+        Callers load from disk via :func:`ocapi.utils.io_utils.load_operations` when needed.
 
     Returns
     -------
@@ -58,7 +62,7 @@ def run_pipeline(
     if start_date:
         _LOGGER.info(f"Detection start date: {start_date}")
 
-    operations: list[Operation] = []
+    ops: list[Operation] = operations if operations is not None else []
 
     if enable_detection:
         # ========================================
@@ -81,10 +85,12 @@ def run_pipeline(
             _LOGGER.debug(f"  → {len(img_map)} images mapped")
 
             detected_ops = step_detection(docs, arrete_file.id, img_map)
-            operations.extend(detected_ops)
+            ops.extend(detected_ops)
             _LOGGER.info(f"  → {len(detected_ops)} operations detected")
+    else:
+        _LOGGER.info(f"Using {len(ops)} pre-loaded operation(s) (snapshot mode, no LLM)")
 
-    _LOGGER.info(f"Total: {len(operations)} operation(s) detected")
+    _LOGGER.info(f"Total: {len(ops)} operation(s) detected")
 
     # ========================================
     # STEP 3: RESOLUTION
@@ -93,7 +99,7 @@ def run_pipeline(
     _LOGGER.info("STEP 3: RESOLUTION")
     _LOGGER.info("=" * 60)
 
-    history, arrete_files = step_resolution(operations, arrete_files)
+    history, arrete_files = step_resolution(ops, arrete_files)
     if history:
         _LOGGER.info(f"{len(history)} articles with history")
     else:
@@ -108,8 +114,8 @@ def run_pipeline(
         _LOGGER.info("STEP 4: RENDERING")
         _LOGGER.info("=" * 60)
 
-        permis = step_rendering(history, operations, arrete_files)
+        permis = step_rendering(history, ops, arrete_files)
         _LOGGER.info("Consolidated permit generated")
 
     _LOGGER.info("Pipeline completed successfully!")
-    return operations, history, arrete_files, permis
+    return ops, history, arrete_files, permis

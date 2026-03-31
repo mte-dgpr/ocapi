@@ -77,22 +77,19 @@ class LLMResponseError(LLMError):
     """Invalid or unparsable LLM response (unexpected JSON structure)."""
 
 
-# ── Sub-target resolution ─────────────────────────────────────────────────────
-
-
-class SubtargetNotFoundError(OcapiError):
-    """Target element not found or ambiguous when applying a sub-target operation."""
-
-
-class ComplexSubtargetError(OcapiError):
-    """Sub-target is of type COMPLEX and cannot be resolved without an LLM."""
-
-
 # ── Operations ────────────────────────────────────────────────────────────────
 
 
 class OperationError(OcapiError):
     """Error during the construction or application of an operation."""
+
+
+class SubtargetNotFoundError(OperationError):
+    """A sub-target element could not be located in the article HTML."""
+
+
+class ComplexSubtargetError(OperationError):
+    """Sub-target is too complex to resolve without an LLM (or not supported yet)."""
 
 
 # ── Operations graph ──────────────────────────────────────────────────────────

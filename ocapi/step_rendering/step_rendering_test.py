@@ -503,6 +503,7 @@ def test_make_permit_content_starts_from_first_non_abrogated_arrete() -> None:
 
 
 def test_make_permit_content_renders_full_main_with_section_versions() -> None:
+    """Layout / section_version behaviour; kept for future refonte of permit HTML."""
     ap_initial = _make_testing_arrete_file(
         arrete_id="2020-01-01",
         aiot="0001",

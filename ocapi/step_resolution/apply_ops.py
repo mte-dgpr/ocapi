@@ -374,7 +374,10 @@ def apply_subgraph_operations(
     operation is applied normally.
     """
     skipped_ops: list[tuple[OperationId, str]] = []  # list of (operation_id, error_message)
-    start_nodes = [node for node in subG.nodes if subG.in_degree(node) == 0]
+    start_nodes = sorted(
+        [node for node in subG.nodes if subG.in_degree(node) == 0],
+        key=lambda n: (n.arrete_id, n.article_id),
+    )
     for start_node in start_nodes:
         for succ in subG.successors(start_node):
             if len(list(subG.successors(succ))) > 1:
@@ -382,7 +385,11 @@ def apply_subgraph_operations(
                     "Branches with multiple successors are not supported yet."
                 )
 
-        for src, tgt, key in subG.out_edges(start_node, keys=True):
+        edges = sorted(
+            subG.out_edges(start_node, keys=True),
+            key=lambda e: (e[1].arrete_id, e[1].article_id, e[2]),
+        )
+        for src, tgt, key in edges:
             op_id = None
             try:
                 op = _edge_to_operation(subG, src, tgt, key)
@@ -530,7 +537,18 @@ def build_next_subgraph(
             for successor in operations_graph.successors(node):
                 filtered_nodes.add(successor)
 
-    new_graph = operations_graph.subgraph(filtered_nodes).copy()
+    # Build subgraph with deterministic node/edge ordering (set iteration is random)
+    ordered = sorted(filtered_nodes, key=lambda n: (n.arrete_id, n.article_id))
+    new_graph = nx.MultiDiGraph()
+    for node in ordered:
+        new_graph.add_node(node, **operations_graph.nodes[node])
+    for u in ordered:
+        for _, v, k, data in sorted(
+            operations_graph.out_edges(u, keys=True, data=True),
+            key=lambda e: (e[1].arrete_id, e[1].article_id, e[2]),
+        ):
+            if v in filtered_nodes:
+                new_graph.add_edge(u, v, key=k, **data)
 
     # Update node contents with their latest version from the history
     for node in new_graph.nodes:
