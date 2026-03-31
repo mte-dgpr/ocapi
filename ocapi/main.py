@@ -28,7 +28,6 @@ Examples:
     python -m ocapi.main examples/arretes_html/<AIOT>/ --output output/
     python -m ocapi.main examples/arretes_html/<AIOT>/ --start-date 2014-01-09
     python -m ocapi.main examples/arretes_html/<AIOT>/ --include 2024-09-27 2023-12-04
-    python -m ocapi.main examples/arretes_html/<AIOT>/ --no-detection
     python -m ocapi.main examples/arretes_html/<AIOT>/ --no-rendering
 """
 
@@ -60,7 +59,6 @@ def main(
     aiot: str | None = None,
     include_ids: list[str] | None = None,
     start_date: str | None = None,
-    enable_detection: bool = True,
     enable_rendering: bool = True,
     operations_from: Path | None = None,
 ) -> int:
@@ -77,7 +75,6 @@ def main(
         aiot: AIOT identifier (defaults to the input directory name).
         include_ids: List of arrêté IDs to include (defaults to all).
         start_date: Detection start date (YYYY-MM-DD).
-        enable_detection: If False, skip the LLM detection step (step 2).
         enable_rendering: If True, generate the consolidated permit.
         operations_from: If set, loads ``operations.json`` from that directory; skips detection.
 
@@ -289,7 +286,6 @@ Examples:
         aiot=args.aiot,
         include_ids=args.include,
         start_date=args.start_date,
-        enable_detection=not args.no_detection,
         enable_rendering=not args.no_rendering,
         operations_from=operations_from,
     )
