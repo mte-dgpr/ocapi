@@ -19,6 +19,7 @@
 """
 Utilities for input/output operations.
 """
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, cast
@@ -30,6 +31,7 @@ from ocapi.types import (
     ArreteFile,
     ArticleHistory,
     ArticleVersion,
+    FileType,
     NodeId,
     Operation,
     Permis,
@@ -40,11 +42,39 @@ from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
 
+# Filename patterns for document types that should be excluded from the pipeline.
+# Checked longest-first so "rapport d'ap d'autorisation" matches before "rapport".
+EXCLUDED_FILE_TYPE_PATTERNS: list[str] = sorted(
+    [
+        "rapport d'ap d'autorisation",
+        "rapport",
+        "document de procédure",
+        "fiche seveso",
+        "inspection",
+        "arrêté de mise en demeure",
+        "ap mise en demeure",
+        "ap levée de mise en demeure",
+        "ap mesures conservatoires",
+        "ap mesures d'urgence",
+    ],
+    key=len,
+    reverse=True,
+)
+
+# Lower value = higher priority when deduplicating files sharing the same date.
+FILE_TYPE_PRIORITY: dict[FileType, int] = {
+    FileType.AP_AUTORISATION: 0,
+    FileType.ARRETE_PREFECTORAL: 1,
+    FileType.AP_COMPLEMENTAIRE: 2,
+    FileType.AUTRE: 3,
+}
+
 # Re-export for backward compatibility
 __all__ = [
     "InputOutputError",
     "load_html_files",
     "initialize_arrete_files",
+    "filter_and_deduplicate_arrete_files",
     "load_arrete_files",
     "write_permis_output",
     "write_json_output",
@@ -99,6 +129,93 @@ def load_html_files(input_dir: Path) -> list[Path]:
     return html_files
 
 
+def _is_excluded_file_type(filename: str) -> bool:
+    """Return True if *filename* matches one of the excluded document-type patterns."""
+    filename_lower = filename.lower()
+    return any(pattern in filename_lower for pattern in EXCLUDED_FILE_TYPE_PATTERNS)
+
+
+def _html_checksum(soup: BeautifulSoup) -> str:
+    """Return an MD5 hex digest of the serialised HTML."""
+    return hashlib.md5(str(soup).encode("utf-8")).hexdigest()
+
+
+def filter_and_deduplicate_arrete_files(
+    arrete_files: list[ArreteFile],
+) -> list[ArreteFile]:
+    """Filter excluded document types and deduplicate files sharing the same date.
+
+    1. Remove files whose filename matches an excluded type pattern (#412).
+    2. For files at the same date and same type: keep the first encountered,
+       log info when checksums match (#414), warning otherwise (#415).
+    3. For files at the same date but different types: keep the highest-priority
+       type according to ``FILE_TYPE_PRIORITY`` (#418).
+    """
+    # --- Step 1: exclude non-AP types ---
+    kept: list[ArreteFile] = []
+    for af in arrete_files:
+        if _is_excluded_file_type(af.filename):
+            _LOGGER.info(f"File excluded (non-AP type): {af.filename}")
+            continue
+        kept.append(af)
+
+    # --- Step 2: group by date ---
+    by_date: dict[str, list[ArreteFile]] = {}
+    for af in kept:
+        by_date.setdefault(af.id, []).append(af)
+
+    result: list[ArreteFile] = []
+    for _date, files in by_date.items():
+        if len(files) == 1:
+            result.append(files[0])
+            continue
+
+        # Group by file type
+        by_type: dict[FileType, list[ArreteFile]] = {}
+        for af in files:
+            ft = af.file_type or FileType.AUTRE
+            by_type.setdefault(ft, []).append(af)
+
+        # Deduplicate within each type group
+        deduped: dict[FileType, ArreteFile] = {}
+        for ft, type_files in by_type.items():
+            keeper = type_files[0]
+            if len(type_files) > 1:
+                keeper_cs = _html_checksum(keeper.soup)
+                for other in type_files[1:]:
+                    if _html_checksum(other.soup) == keeper_cs:
+                        _LOGGER.info(
+                            f"AP doublon rencontré: {other.filename} "
+                            f"(identique à {keeper.filename})"
+                        )
+                    else:
+                        _LOGGER.warning(
+                            f"Deux documents différents rencontrés, "
+                            f"on ne garde que le premier rencontré: "
+                            f"{keeper.filename} (ignoré: {other.filename})"
+                        )
+            deduped[ft] = keeper
+
+        # Keep only the highest-priority type for this date
+        if len(deduped) > 1:
+            best_ft = min(deduped, key=lambda ft: FILE_TYPE_PRIORITY.get(ft, 99))
+            winner = deduped[best_ft]
+            for ft, af in deduped.items():
+                if ft != best_ft:
+                    _LOGGER.info(
+                        f"AP doublon rencontré: {af.filename} "
+                        f"(même date, type moins prioritaire que {winner.filename})"
+                    )
+            result.append(winner)
+        else:
+            result.append(next(iter(deduped.values())))
+
+    # Preserve original ordering (by filename / date)
+    index = {af.filename: i for i, af in enumerate(arrete_files)}
+    result.sort(key=lambda af: index.get(af.filename, 0))
+    return result
+
+
 def initialize_arrete_files(html_files: list[Path], aiot: str) -> list["ArreteFile"]:
     """Initialise ArreteFile objects from a list of HTML files."""
     arrete_files: list[ArreteFile] = []
@@ -137,7 +254,7 @@ def initialize_arrete_files(html_files: list[Path], aiot: str) -> list["ArreteFi
         file_type_str = file_type.value if file_type else "unknown"
         _LOGGER.info(f"Loaded: {html_path.name} (id={arrete_id}, type={file_type_str})")
 
-    return arrete_files
+    return filter_and_deduplicate_arrete_files(arrete_files)
 
 
 def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:

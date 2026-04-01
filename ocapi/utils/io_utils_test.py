@@ -21,13 +21,16 @@ Tests for I/O utilities: load_html_files, initialize_arrete_files,
 save_operations, load_operations, save_history.
 """
 import json
+import logging
 import tempfile
 import unittest
 from pathlib import Path
 
 import pytest
+from bs4 import BeautifulSoup
 
 from ocapi.types import (
+    ArreteFile,
     ArticleHistory,
     ArticleVersion,
     FileType,
@@ -39,6 +42,7 @@ from ocapi.types import (
 from ocapi.utils.io_utils import (
     InputOutputError,
     article_history_to_json_dict,
+    filter_and_deduplicate_arrete_files,
     initialize_arrete_files,
     load_html_files,
     load_operations,
@@ -298,6 +302,213 @@ class TestSaveHistory:
         save_history(history, tmp_path)
         data = json.loads((tmp_path / "history.json").read_text(encoding="utf-8"))
         assert data["2020-01-01#1"][0]["status_code"] == "error_extracting_operand"
+
+
+def _make_arrete_file(
+    arrete_id: str,
+    filename: str,
+    file_type: FileType,
+    html: str = _VALID_HTML,
+    aiot: str = "0001234567",
+) -> ArreteFile:
+    return ArreteFile(
+        id=arrete_id,
+        aiot=aiot,
+        filename=filename,
+        soup=BeautifulSoup(html, "html.parser"),
+        file_type=file_type,
+    )
+
+
+class TestFilterAndDeduplicateArreteFiles:
+    """Tests for filter_and_deduplicate_arrete_files."""
+
+    # --- #412: excluded file types ---
+
+    def test_excludes_rapport(self) -> None:
+        files = [
+            _make_arrete_file("2020-01-01", "2020-01-01_rapport.html", FileType.AUTRE),
+        ]
+        assert filter_and_deduplicate_arrete_files(files) == []
+
+    def test_excludes_rapport_ap_autorisation(self) -> None:
+        files = [
+            _make_arrete_file(
+                "2020-01-01",
+                "2020-01-01_rapport d'ap d'autorisation.html",
+                FileType.AP_AUTORISATION,
+            ),
+        ]
+        assert filter_and_deduplicate_arrete_files(files) == []
+
+    @pytest.mark.parametrize(
+        "pattern",
+        [
+            "document de procédure",
+            "fiche seveso",
+            "inspection",
+            "arrêté de mise en demeure",
+            "ap mise en demeure",
+            "ap levée de mise en demeure",
+            "ap mesures conservatoires",
+            "ap mesures d'urgence",
+        ],
+    )
+    def test_excludes_various_non_ap_types(self, pattern: str) -> None:
+        files = [
+            _make_arrete_file("2020-01-01", f"2020-01-01_{pattern}.html", FileType.AUTRE),
+        ]
+        assert filter_and_deduplicate_arrete_files(files) == []
+
+    def test_keeps_ap_autorisation(self) -> None:
+        files = [
+            _make_arrete_file(
+                "2020-01-01",
+                "2020-01-01_ap d'autorisation.html",
+                FileType.AP_AUTORISATION,
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0].filename == "2020-01-01_ap d'autorisation.html"
+
+    # --- #413/#414: same date + same type + identical checksum ---
+
+    def test_dedup_same_date_type_identical_content(self, caplog: pytest.LogCaptureFixture) -> None:
+        html = '<html><body data-arretify_version="0.1.0"><p>Same</p></body></html>'
+        files = [
+            _make_arrete_file(
+                "2023-09-12",
+                "2023-09-12_ap prescriptions complémentaires_a.html",
+                FileType.AP_COMPLEMENTAIRE,
+                html,
+            ),
+            _make_arrete_file(
+                "2023-09-12",
+                "2023-09-12_ap prescriptions complémentaires_b.html",
+                FileType.AP_COMPLEMENTAIRE,
+                html,
+            ),
+        ]
+        with caplog.at_level(logging.INFO, logger="ocapi.utils.io_utils"):
+            result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0].filename == files[0].filename
+        assert "AP doublon rencontré" in caplog.text
+        assert "identique" in caplog.text
+
+    # --- #415: same date + same type + different checksum ---
+
+    def test_dedup_same_date_type_different_content(self, caplog: pytest.LogCaptureFixture) -> None:
+        html_a = '<html><body data-arretify_version="0.1.0"><p>Version A</p></body></html>'
+        html_b = '<html><body data-arretify_version="0.1.0"><p>Version B</p></body></html>'
+        files = [
+            _make_arrete_file(
+                "2023-09-12",
+                "2023-09-12_ap prescriptions complémentaires_a.html",
+                FileType.AP_COMPLEMENTAIRE,
+                html_a,
+            ),
+            _make_arrete_file(
+                "2023-09-12",
+                "2023-09-12_ap prescriptions complémentaires_b.html",
+                FileType.AP_COMPLEMENTAIRE,
+                html_b,
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0].filename == files[0].filename
+        assert "Deux documents différents rencontrés" in caplog.text
+
+    # --- #418: same date + different types → keep highest priority ---
+
+    def test_dedup_same_date_different_types_keeps_highest_priority(self) -> None:
+        files = [
+            _make_arrete_file(
+                "2020-11-03", "2020-11-03_arrêté préfectoral_a.html", FileType.ARRETE_PREFECTORAL
+            ),
+            _make_arrete_file(
+                "2020-11-03",
+                "2020-11-03_ap prescriptions complémentaires_b.html",
+                FileType.AP_COMPLEMENTAIRE,
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0].file_type == FileType.ARRETE_PREFECTORAL
+
+    def test_dedup_ap_autorisation_wins_over_arrete_prefectoral(self) -> None:
+        files = [
+            _make_arrete_file(
+                "2022-02-02",
+                "2022-02-02_ap prescriptions complémentaires.html",
+                FileType.AP_COMPLEMENTAIRE,
+            ),
+            _make_arrete_file(
+                "2022-02-02", "2022-02-02_ap d'autorisation.html", FileType.AP_AUTORISATION
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0].file_type == FileType.AP_AUTORISATION
+
+    # --- mixed: excluded + duplicates ---
+
+    def test_excludes_rapport_and_keeps_ap_on_same_date(self) -> None:
+        files = [
+            _make_arrete_file(
+                "2017-09-22", "2017-09-22_arrêté préfectoral.html", FileType.ARRETE_PREFECTORAL
+            ),
+            _make_arrete_file("2017-09-22", "2017-09-22_rapport.html", FileType.AUTRE),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0].file_type == FileType.ARRETE_PREFECTORAL
+
+    def test_five_identical_duplicates_keeps_one(self) -> None:
+        html = '<html><body data-arretify_version="0.1.0"><p>Same content</p></body></html>'
+        files = [
+            _make_arrete_file(
+                "2024-01-17",
+                f"2024-01-17_ap prescriptions complémentaires_{i}.html",
+                FileType.AP_COMPLEMENTAIRE,
+                html,
+            )
+            for i in range(5)
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+
+    def test_preserves_order_across_dates(self) -> None:
+        files = [
+            _make_arrete_file(
+                "2020-01-01", "2020-01-01_arrêté préfectoral.html", FileType.ARRETE_PREFECTORAL
+            ),
+            _make_arrete_file(
+                "2021-06-15",
+                "2021-06-15_ap prescriptions complémentaires.html",
+                FileType.AP_COMPLEMENTAIRE,
+            ),
+            _make_arrete_file(
+                "2023-12-01", "2023-12-01_ap d'autorisation.html", FileType.AP_AUTORISATION
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert [af.id for af in result] == ["2020-01-01", "2021-06-15", "2023-12-01"]
+
+    def test_empty_input(self) -> None:
+        assert filter_and_deduplicate_arrete_files([]) == []
+
+    def test_single_file_passes_through(self) -> None:
+        files = [
+            _make_arrete_file(
+                "2020-01-01", "2020-01-01_arrêté préfectoral.html", FileType.ARRETE_PREFECTORAL
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0] is files[0]
 
 
 def test_article_history_to_json_dict_matches_save_history_shape() -> None:
