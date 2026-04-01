@@ -24,6 +24,7 @@ from bs4 import BeautifulSoup
 from ocapi.exceptions import SubtargetNotFoundError
 from ocapi.step_resolution.apply_ops import (
     _is_unambiguous_all_operation,
+    _strip_duplicate_section_title,
     apply_add,
     apply_all_ops,
     apply_subgraph_operations,
@@ -802,3 +803,110 @@ def test_new_article_full_section_history_is_single_version_with_op_id() -> None
     assert versions[0]["version"] == 0
     assert versions[0]["operation_id"] == "create-21"
     assert "Nouvel article" in str(versions[0]["content"])
+
+
+# ---------------------------------------------------------------------------
+# _strip_duplicate_section_title
+# ---------------------------------------------------------------------------
+
+
+def test_strip_duplicate_section_title_removes_matching_title() -> None:
+    target_content = (
+        '<section data-spec="section" data-number="1.1">'
+        "<h2>Article 1.1. Dispositions générales</h2>"
+        "<p>old content</p></section>"
+    )
+    operand = (
+        '<section data-spec="section" data-number="1.1">'
+        "<h2>Article 1.1. Dispositions générales</h2>"
+        "<p>new content</p></section>"
+    )
+    result = _strip_duplicate_section_title(operand, "1.1", target_content)
+    assert "<h2>" not in result
+    assert "<section" not in result
+    assert "new content" in result
+
+
+def test_strip_duplicate_section_title_ignores_different_title() -> None:
+    target_content = (
+        '<section data-spec="section" data-number="1.1">'
+        "<h2>Article 1.1. Dispositions générales</h2>"
+        "<p>old</p></section>"
+    )
+    operand = (
+        '<section data-spec="section" data-number="1.1">'
+        "<h2>Article 1.1. Autre titre</h2>"
+        "<p>new</p></section>"
+    )
+    result = _strip_duplicate_section_title(operand, "1.1", target_content)
+    assert "<h2>" in result
+    assert "Autre titre" in result
+
+
+def test_strip_duplicate_section_title_ignores_no_section() -> None:
+    target_content = "<h2>Article 1.1. Titre</h2><p>old</p>"
+    operand = "<p>just content</p>"
+    result = _strip_duplicate_section_title(operand, "1.1", target_content)
+    assert result == operand
+
+
+def test_strip_duplicate_section_title_ignores_different_data_number() -> None:
+    target_content = (
+        '<section data-spec="section" data-number="1.1">'
+        "<h2>Article 1.1. Titre</h2><p>old</p></section>"
+    )
+    operand = (
+        '<section data-spec="section" data-number="2.3">'
+        "<h2>Article 1.1. Titre</h2><p>new</p></section>"
+    )
+    result = _strip_duplicate_section_title(operand, "1.1", target_content)
+    assert "<h2>" in result
+
+
+def test_strip_duplicate_section_title_normalizes_whitespace() -> None:
+    target_content = (
+        '<section data-number="4.2"><h2>Article  4.2.  Émissions</h2><p>old</p></section>'
+    )
+    operand = '<section data-number="4.2"><h2>Article 4.2. Émissions</h2><p>new</p></section>'
+    result = _strip_duplicate_section_title(operand, "4.2", target_content)
+    assert "<h2>" not in result
+    assert "new" in result
+
+
+def test_strip_duplicate_section_title_applied_in_replace() -> None:
+    """Full integration: REPLACE + FULL_SECTION with duplicate title in operand."""
+    G = nx.MultiDiGraph()
+    src = NodeId(arrete_id="2020-01-01", article_id="6")
+    tgt = NodeId(arrete_id="2010-01-01", article_id="1.1.1.1")
+    target_html = (
+        '<section data-spec="section" data-number="1.1.1.1">'
+        "<h2>Article 1.1.1.1. Conditions</h2>"
+        "<p>old body</p></section>"
+    )
+    operand_html = (
+        '<section data-spec="section" data-number="1.1.1.1">'
+        "<h2>Article 1.1.1.1. Conditions</h2>"
+        "<p>new body</p></section>"
+    )
+    add_node(G, src, "<section>source</section>")
+    add_node(G, tgt, target_html)
+    add_edge(
+        G,
+        Operation(
+            id="op-dup",
+            source_id=src,
+            target_id=tgt,
+            operation_type=OperationType.REPLACE,
+            operand=operand_html,
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="ALL"),
+        ),
+    )
+    history: ArticleHistory = {}
+    out, skipped = apply_subgraph_operations(G, history)
+    assert skipped == []
+    content = out[tgt][-1]["content"]
+    titles = BeautifulSoup(content, "html.parser").find_all(["h1", "h2", "h3", "h4", "h5", "h6"])
+    assert (
+        len(titles) == 1
+    ), f"Expected 1 title, got {len(titles)}: {[t.get_text() for t in titles]}"
+    assert "new body" in content

@@ -298,9 +298,7 @@ def _build_section_history_html(
             "modification"
             if last_operation.operation_type == OperationType.REPLACE
             else (
-                "abrogation"
-                if last_operation.operation_type == OperationType.REMOVE
-                else "création"
+                "abrogation" if last_operation.operation_type == OperationType.REMOVE else "ajout"
             )
         )
         last_text = (
@@ -408,5 +406,5 @@ def _operation_label(operation: Operation) -> str:
     return (
         "modification"
         if operation.operation_type == OperationType.REPLACE
-        else ("abrogation" if operation.operation_type == OperationType.REMOVE else "création")
+        else ("abrogation" if operation.operation_type == OperationType.REMOVE else "ajout")
     )

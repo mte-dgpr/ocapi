@@ -28,6 +28,7 @@ are applied in order. This builds a version history of modified articles across
 successive operations.
 """
 
+import re
 from copy import copy
 
 import networkx as nx
@@ -124,6 +125,49 @@ def _llm_consolidation_log(operation: Operation, action: str) -> None:
         op_type,
         operation.target_id,
     )
+
+
+def _normalize_title_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _strip_duplicate_section_title(
+    operand: str, target_data_number: str, target_content: str
+) -> str:
+    """Remove section envelope and title from operand when they duplicate the target's.
+
+    When the detection step includes the section wrapper in the operand,
+    applying a REPLACE creates duplicate titles (the existing title is kept by
+    ``replace_subtarget`` and the operand adds another one).  This strips the
+    redundant ``<section>`` + title before application.
+    """
+    operand_soup = BeautifulSoup(operand, "html.parser")
+    section = operand_soup.find("section", attrs={"data-number": target_data_number})
+    if section is None:
+        return operand
+
+    operand_title = section.find(["h1", "h2", "h3", "h4", "h5", "h6"])
+    if operand_title is None:
+        return operand
+
+    target_soup = BeautifulSoup(target_content, "html.parser")
+    target_title = target_soup.find(["h1", "h2", "h3", "h4", "h5", "h6"])
+    if target_title is None:
+        return operand
+
+    if _normalize_title_text(operand_title.get_text()) != _normalize_title_text(
+        target_title.get_text()
+    ):
+        return operand
+
+    _LOGGER.debug(
+        "Stripping duplicate section title from operand (data-number=%s, title=%r)",
+        target_data_number,
+        operand_title.get_text(strip=True)[:80],
+    )
+    operand_title.decompose()
+    section.unwrap()
+    return str(operand_soup).strip()
 
 
 def apply_replace(
@@ -442,6 +486,14 @@ def apply_subgraph_operations(
                         ):
                             article_status_code = op.status_code
                         elif op.operation_type == OperationType.REPLACE:
+                            if op.operand:
+                                cleaned = _strip_duplicate_section_title(
+                                    op.operand,
+                                    article_display_number(op.target_id.article_id),
+                                    current_content,
+                                )
+                                if cleaned != op.operand:
+                                    op = op.model_copy(update={"operand": cleaned})
                             new_content = apply_replace(
                                 op,
                                 BeautifulSoup(current_content, "html.parser"),

@@ -9,6 +9,11 @@ OCAPI permet de :
 - **Résoudre** les conflits et construire l'historique des articles
 - **Générer** un permis consolidé en HTML regroupant toutes les prescriptions applicables
 
+Les exemples ICPE (arrêtés et permis consolidés en HTML) sont consultables dans le navigateur une fois GitHub Pages activé sur la branche `main` (source : répertoire `examples/`).
+
+- **Index des exemples** : https://mte-dgpr.github.io/ocapi/examples/
+- Chaque AIOT dispose de ses arrêtés source et du permis consolidé généré par le pipeline.
+
 ## 🏗️ Architecture du pipeline
 
 Le pipeline OCAPI se décompose en 4 étapes principales :
@@ -311,13 +316,6 @@ ocapi_output/
 │   └── history.json            # Historique des versions d'articles
 └── permis_consolidé.html       # Permis consolidé final
 ```
-
-## 🌐 Démo HTML (GitHub Pages)
-
-Les exemples ICPE (arrêtés et permis consolidés en HTML) sont consultables dans le navigateur une fois **GitHub Pages** activé sur la branche `main` (source : répertoire `examples/`).
-
-- **Index des exemples** : `https://mte-dgpr.github.io/ocapi/`
-- Chaque AIOT dispose de ses arrêtés source et du permis consolidé généré par le pipeline.
 
 ## 🔍 Exemples complets
 
