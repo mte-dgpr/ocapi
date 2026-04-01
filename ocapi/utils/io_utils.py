@@ -145,11 +145,11 @@ def filter_and_deduplicate_arrete_files(
 ) -> list[ArreteFile]:
     """Filter excluded document types and deduplicate files sharing the same date.
 
-    1. Remove files whose filename matches an excluded type pattern (#412).
+    1. Remove files whose filename matches an excluded type pattern.
     2. For files at the same date and same type: keep the first encountered,
-       log info when checksums match (#414), warning otherwise (#415).
+       log info when checksums match, warning otherwise.
     3. For files at the same date but different types: keep the highest-priority
-       type according to ``FILE_TYPE_PRIORITY`` (#418).
+       type according to ``FILE_TYPE_PRIORITY``.
     """
     # --- Step 1: exclude non-AP types ---
     kept: list[ArreteFile] = []

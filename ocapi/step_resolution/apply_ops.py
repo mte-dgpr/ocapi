@@ -354,7 +354,7 @@ def apply_subgraph_operations(
 
     For each operation, appends a new version to the target article's history.
     For ADD + ``FULL_SECTION`` + ``NEW_ARTICLE:…``, a **single** version ``0`` is
-    stored with ``operation_id`` set to the creation operation (#377).
+    stored with ``operation_id`` set to the creation operation.
 
     Returns the updated history and the list of failed operations.
 

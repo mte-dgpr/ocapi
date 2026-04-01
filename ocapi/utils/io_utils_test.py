@@ -323,27 +323,13 @@ def _make_arrete_file(
 class TestFilterAndDeduplicateArreteFiles:
     """Tests for filter_and_deduplicate_arrete_files."""
 
-    # --- #412: excluded file types ---
-
-    def test_excludes_rapport(self) -> None:
-        files = [
-            _make_arrete_file("2020-01-01", "2020-01-01_rapport.html", FileType.AUTRE),
-        ]
-        assert filter_and_deduplicate_arrete_files(files) == []
-
-    def test_excludes_rapport_ap_autorisation(self) -> None:
-        files = [
-            _make_arrete_file(
-                "2020-01-01",
-                "2020-01-01_rapport d'ap d'autorisation.html",
-                FileType.AP_AUTORISATION,
-            ),
-        ]
-        assert filter_and_deduplicate_arrete_files(files) == []
+    # --- excluded file types ---
 
     @pytest.mark.parametrize(
         "pattern",
         [
+            "rapport",
+            "rapport d'ap d'autorisation",
             "document de procédure",
             "fiche seveso",
             "inspection",
@@ -372,7 +358,7 @@ class TestFilterAndDeduplicateArreteFiles:
         assert len(result) == 1
         assert result[0].filename == "2020-01-01_ap d'autorisation.html"
 
-    # --- #413/#414: same date + same type + identical checksum ---
+    # --- same date + same type + identical checksum ---
 
     def test_dedup_same_date_type_identical_content(self, caplog: pytest.LogCaptureFixture) -> None:
         html = '<html><body data-arretify_version="0.1.0"><p>Same</p></body></html>'
@@ -397,7 +383,7 @@ class TestFilterAndDeduplicateArreteFiles:
         assert "AP doublon rencontré" in caplog.text
         assert "identique" in caplog.text
 
-    # --- #415: same date + same type + different checksum ---
+    # --- same date + same type + different checksum ---
 
     def test_dedup_same_date_type_different_content(self, caplog: pytest.LogCaptureFixture) -> None:
         html_a = '<html><body data-arretify_version="0.1.0"><p>Version A</p></body></html>'
@@ -421,7 +407,7 @@ class TestFilterAndDeduplicateArreteFiles:
         assert result[0].filename == files[0].filename
         assert "Deux documents différents rencontrés" in caplog.text
 
-    # --- #418: same date + different types → keep highest priority ---
+    # --- same date + different types → keep highest priority ---
 
     def test_dedup_same_date_different_types_keeps_highest_priority(self) -> None:
         files = [

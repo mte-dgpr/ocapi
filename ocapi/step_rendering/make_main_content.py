@@ -137,7 +137,7 @@ def _insert_new_article_sections(
     ap_initial_id: str,
     operation_by_id: dict[str, Operation],
 ) -> None:
-    """Insert sections for ``NEW_ARTICLE:…`` keys after the numerically preceding article (#378)."""
+    """Insert sections for ``NEW_ARTICLE:…`` keys after the numerically preceding article."""
     new_keys = [
         k
         for k in history
