@@ -1,0 +1,156 @@
+#
+# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+#
+# This file is part of OCAPI.
+# See https://github.com/mte-dgpr/ocapi for further info.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+import pytest
+from bs4 import BeautifulSoup, Tag
+
+from ocapi.step_rendering.article_filter import (
+    _normalize_section_title,
+    filter_superfluous_sections,
+    is_superfluous_section,
+)
+
+
+def _section(title: str, number: str = "1") -> Tag:
+    html = (
+        f'<section data-spec="section" data-number="{number}">'
+        f'<div data-spec="section_title">{title}</div>'
+        f"<p>Contenu</p></section>"
+    )
+    tag = BeautifulSoup(html, "html.parser").find("section")
+    assert tag is not None
+    return tag
+
+
+class TestNormalizeSectionTitle:
+    def test_strips_accents(self) -> None:
+        assert (
+            _normalize_section_title("DÉLAIS ET VOIES DE RECOURS") == "delais et voies de recours"
+        )
+
+    def test_collapses_whitespace(self) -> None:
+        assert _normalize_section_title("  FRAIS  ") == "frais"
+
+    def test_lowercases(self) -> None:
+        assert _normalize_section_title("Sanctions") == "sanctions"
+
+
+class TestIsSuperfluous:
+    @pytest.mark.parametrize(
+        "title",
+        [
+            "FRAIS",
+            "Frais",
+            "frais",
+            "SANCTIONS",
+            "DIFFUSION",
+            "EXÉCUTION",
+            "Execution",
+            "MODALITÉS D'EXÉCUTION",
+            "MODALITES D'EXECUTION",
+            "TRANSMISSION À L'EXPLOITANT",
+            "TRANSMISSION A L'EXPLOITANT",
+            "DÉLAIS ET VOIES DE RECOURS",
+            "DELAIS ET VOIES DE RECOURS",
+            "MODIFICATIONS ET COMPLÉMENTS APPORTÉS AUX PRESCRIPTIONS DES ACTES ANTÉRIEURS",
+        ],
+    )
+    def test_superfluous_titles_detected(self, title: str) -> None:
+        assert is_superfluous_section(_section(title)) is True
+
+    def test_regular_article_not_filtered(self) -> None:
+        assert is_superfluous_section(_section("DISPOSITIONS GÉNÉRALES")) is False
+
+    def test_section_without_title_not_filtered(self) -> None:
+        html = '<section data-spec="section" data-number="1"><p>Contenu</p></section>'
+        tag = BeautifulSoup(html, "html.parser").find("section")
+        assert tag is not None
+        assert is_superfluous_section(tag) is False
+
+
+class TestFilterSuperfluousSections:
+    def test_removes_superfluous_and_keeps_others(self) -> None:
+        soup = BeautifulSoup(
+            '<main data-spec="main">'
+            '<section data-spec="section" data-number="1">'
+            '<div data-spec="section_title">DISPOSITIONS GÉNÉRALES</div><p>A</p></section>'
+            '<section data-spec="section" data-number="2">'
+            '<div data-spec="section_title">FRAIS</div><p>B</p></section>'
+            '<section data-spec="section" data-number="3">'
+            '<div data-spec="section_title">SANCTIONS</div><p>C</p></section>'
+            "</main>",
+            "html.parser",
+        )
+        sections = soup.find_all("section", attrs={"data-spec": "section"})
+        removed = filter_superfluous_sections(sections)
+
+        assert len(removed) == 2
+        remaining = soup.find_all("section", attrs={"data-spec": "section"})
+        assert len(remaining) == 1
+        assert "DISPOSITIONS" in remaining[0].get_text()
+
+    def test_returns_empty_when_no_superfluous(self) -> None:
+        soup = BeautifulSoup(
+            '<main><section data-spec="section" data-number="1">'
+            '<div data-spec="section_title">DISPOSITIONS</div></section></main>',
+            "html.parser",
+        )
+        sections = soup.find_all("section", attrs={"data-spec": "section"})
+        removed = filter_superfluous_sections(sections)
+        assert removed == []
+
+
+class TestIntegrationWithMakePermitContent:
+    """Verify superfluous sections are excluded from the consolidated HTML."""
+
+    def test_superfluous_articles_excluded_from_permit(self) -> None:
+        from ocapi.step_rendering.make_main_content import make_permit_content
+        from ocapi.types import ArreteFile, ArticleHistory
+
+        html = """
+<html><body data-arretify_version="0.1.0">
+ <main data-spec="main">
+  <section data-spec="section" data-number="1">
+   <div data-spec="section_title">DISPOSITIONS GÉNÉRALES</div>
+   <p>Article important</p>
+  </section>
+  <section data-spec="section" data-number="2">
+   <div data-spec="section_title">FRAIS</div>
+   <p>Article superflu</p>
+  </section>
+  <section data-spec="section" data-number="3">
+   <div data-spec="section_title">SANCTIONS</div>
+   <p>Autre article superflu</p>
+  </section>
+ </main>
+</body></html>
+"""
+        arrete = ArreteFile(
+            id="2020-01-01",
+            aiot="0001",
+            filename="ap_initial",
+            soup=BeautifulSoup(html, "html.parser"),
+            status=True,
+        )
+        history: ArticleHistory = {}
+        result = make_permit_content(history, [arrete], [])
+
+        assert "Article important" in result
+        assert "Article superflu" not in result
+        assert "Autre article superflu" not in result
