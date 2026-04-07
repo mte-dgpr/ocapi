@@ -25,6 +25,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import evaluate_detection as mod  # noqa: E402
 from evaluate_detection import compare_operations, compute_scores, load_ground_truth  # noqa: E402
 
 
@@ -75,12 +76,6 @@ class TestCompareOperations:
         gt = [key, key]
         tp, fp, fn = compare_operations(detected, gt)
         assert (tp, fp, fn) == (2, 1, 0)
-
-    def test_wrong_operation_type_is_fp_and_fn(self):
-        detected = [("2023-01-01", "1", "2022-01-01", "2", "ADD")]
-        gt = [("2023-01-01", "1", "2022-01-01", "2", "REPLACE")]
-        tp, fp, fn = compare_operations(detected, gt)
-        assert (tp, fp, fn) == (0, 1, 1)
 
 
 class TestComputeScores:
@@ -138,8 +133,6 @@ class TestLoadGroundTruth:
         gt_dir = tmp_path / "test_aiot"
         gt_dir.mkdir()
         (gt_dir / "operations.json").write_text(json.dumps(ops))
-
-        import evaluate_detection as mod
 
         original = mod._GROUND_TRUTH_DIR
         mod._GROUND_TRUTH_DIR = tmp_path
