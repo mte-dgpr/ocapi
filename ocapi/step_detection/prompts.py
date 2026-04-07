@@ -27,10 +27,10 @@ Ne pas générer d'opération pour un arrêté initial ou une simple référence
 Générer une opération seulement si le texte contient explicitement un verbe d'opération sur un arrêté antérieur.
 
 Voici une liste non exhaustive des formulations courantes et l'operation_type à utiliser :
-- REMOVE : "est abrogé", "est supprimé", "est annulé" (UNIQUEMENT quand le verbe est seul, sans verbe de remplacement)
-- REPLACE : "est modifié", "est remplacé", "est substitué", "est mis à jour", "est modifié et rédigé", "est modifié et remplacé", "est remplacé et complété", "est abrogé et remplacé", "est abrogé et substitué", "est supprimé et remplacé", "est annulé et remplacé", "est modifié ou supprimé et remplacé"
-- ADD : "est créé", "est inséré", "est complété", "est ajouté", "est modifié par l'ajout"
-ATTENTION : quand un verbe d'abrogation/suppression est suivi d'un verbe de remplacement (ex. "abrogé et remplacé", "supprimé et remplacé"), il s'agit d'un REPLACE, pas d'un REMOVE.
+- REMOVE : "abroger", "supprimer", "annuler" (UNIQUEMENT quand le verbe est seul, sans verbe de remplacement)
+- REPLACE : "modifier", "remplacer", "substituer", "mettre à jour", "modifier et rédiger", "modifier et remplacer", "remplacer et compléter", "abroger et remplacer", "abroger et substituer", "supprimer et remplacer", "annuler et remplacer", "modifier ou supprimer et remplacer"
+- ADD : "créer", "insérer", "compléter", "ajouter", "modifier par l'ajout"
+ATTENTION : quand un verbe d'abrogation/suppression est suivi d'un verbe de remplacement (ex. "abroger et remplacer", "supprimer et remplacer"), il s'agit d'un REPLACE, pas d'un REMOVE.
 
 Réponds avec une liste JSON uniquement. Si aucune modification trouvée, retourne [].
 
