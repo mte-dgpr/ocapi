@@ -24,7 +24,13 @@ Voici un extrait HTML d'arrêté préfectoral :
 Tu dois me fournir une liste des opérations juridiques de cet arrêté par rapport à un arrêté antérieur.
 IMPORTANT : Détecte UNIQUEMENT les modifications, ajouts ou abrogations d'arrêtés EXISTANTS.
 Ne pas générer d'opération pour un arrêté initial ou une simple référence ("conformément à...").
-Générer une opération seulement si le texte dit explicitement "est modifié", "est abrogé", "est ajouté à l'arrêté du...".
+Générer une opération seulement si le texte contient explicitement un verbe d'opération sur un arrêté antérieur.
+
+Voici une liste non exhaustive des formulations courantes et l'operation_type à utiliser :
+- REMOVE : "est abrogé", "est supprimé", "est annulé" (UNIQUEMENT quand le verbe est seul, sans verbe de remplacement)
+- REPLACE : "est modifié", "est remplacé", "est substitué", "est mis à jour", "est modifié et rédigé", "est modifié et remplacé", "est remplacé et complété", "est abrogé et remplacé", "est abrogé et substitué", "est supprimé et remplacé", "est annulé et remplacé", "est modifié ou supprimé et remplacé"
+- ADD : "est créé", "est inséré", "est complété", "est ajouté", "est modifié par l'ajout"
+ATTENTION : quand un verbe d'abrogation/suppression est suivi d'un verbe de remplacement (ex. "abrogé et remplacé", "supprimé et remplacé"), il s'agit d'un REPLACE, pas d'un REMOVE.
 
 Réponds avec une liste JSON uniquement. Si aucune modification trouvée, retourne [].
 
