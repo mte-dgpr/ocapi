@@ -20,17 +20,14 @@
 import pytest
 from bs4 import BeautifulSoup, Tag
 
-from ocapi.step_rendering.article_filter import (
-    _normalize_section_title,
-    filter_superfluous_sections,
-    is_superfluous_section,
-)
+from ocapi.step_rendering.article_filter import filter_superfluous_sections, is_superfluous_section
+from ocapi.utils.utils import normalize_section_title
 
 
 def _section(title: str, number: str = "1") -> Tag:
     html = (
-        f'<section data-spec="section" data-number="{number}">'
-        f'<div data-spec="section_title">{title}</div>'
+        f'<section data-spec="section" data-number="{number}" data-title="{title}">'
+        f'<h1 data-spec="section_title">ARTICLE {number} {title}</h1>'
         f"<p>Contenu</p></section>"
     )
     tag = BeautifulSoup(html, "html.parser").find("section")
@@ -40,15 +37,13 @@ def _section(title: str, number: str = "1") -> Tag:
 
 class TestNormalizeSectionTitle:
     def test_strips_accents(self) -> None:
-        assert (
-            _normalize_section_title("DÉLAIS ET VOIES DE RECOURS") == "delais et voies de recours"
-        )
+        assert normalize_section_title("DÉLAIS ET VOIES DE RECOURS") == "delais et voies de recours"
 
     def test_collapses_whitespace(self) -> None:
-        assert _normalize_section_title("  FRAIS  ") == "frais"
+        assert normalize_section_title("  FRAIS  ") == "frais"
 
     def test_lowercases(self) -> None:
-        assert _normalize_section_title("Sanctions") == "sanctions"
+        assert normalize_section_title("Sanctions") == "sanctions"
 
 
 class TestIsSuperfluous:
@@ -77,8 +72,12 @@ class TestIsSuperfluous:
     def test_regular_article_not_filtered(self) -> None:
         assert is_superfluous_section(_section("DISPOSITIONS GÉNÉRALES")) is False
 
-    def test_section_without_title_not_filtered(self) -> None:
-        html = '<section data-spec="section" data-number="1"><p>Contenu</p></section>'
+    def test_section_without_data_title_not_filtered(self) -> None:
+        html = (
+            '<section data-spec="section" data-number="1">'
+            '<h1 data-spec="section_title">FRAIS</h1>'
+            "<p>Contenu</p></section>"
+        )
         tag = BeautifulSoup(html, "html.parser").find("section")
         assert tag is not None
         assert is_superfluous_section(tag) is False
@@ -88,12 +87,12 @@ class TestFilterSuperfluousSections:
     def test_removes_superfluous_and_keeps_others(self) -> None:
         soup = BeautifulSoup(
             '<main data-spec="main">'
-            '<section data-spec="section" data-number="1">'
-            '<div data-spec="section_title">DISPOSITIONS GÉNÉRALES</div><p>A</p></section>'
-            '<section data-spec="section" data-number="2">'
-            '<div data-spec="section_title">FRAIS</div><p>B</p></section>'
-            '<section data-spec="section" data-number="3">'
-            '<div data-spec="section_title">SANCTIONS</div><p>C</p></section>'
+            '<section data-spec="section" data-number="1" data-title="DISPOSITIONS GÉNÉRALES">'
+            '<h1 data-spec="section_title">ARTICLE 1 DISPOSITIONS GÉNÉRALES</h1><p>A</p></section>'
+            '<section data-spec="section" data-number="2" data-title="FRAIS">'
+            '<h1 data-spec="section_title">ARTICLE 2 FRAIS</h1><p>B</p></section>'
+            '<section data-spec="section" data-number="3" data-title="SANCTIONS">'
+            '<h1 data-spec="section_title">ARTICLE 3 SANCTIONS</h1><p>C</p></section>'
             "</main>",
             "html.parser",
         )
@@ -107,8 +106,8 @@ class TestFilterSuperfluousSections:
 
     def test_returns_empty_when_no_superfluous(self) -> None:
         soup = BeautifulSoup(
-            '<main><section data-spec="section" data-number="1">'
-            '<div data-spec="section_title">DISPOSITIONS</div></section></main>',
+            '<main><section data-spec="section" data-number="1" data-title="DISPOSITIONS">'
+            '<h1 data-spec="section_title">ARTICLE 1 DISPOSITIONS</h1></section></main>',
             "html.parser",
         )
         sections = soup.find_all("section", attrs={"data-spec": "section"})
@@ -126,16 +125,16 @@ class TestIntegrationWithMakePermitContent:
         html = """
 <html><body data-arretify_version="0.1.0">
  <main data-spec="main">
-  <section data-spec="section" data-number="1">
-   <div data-spec="section_title">DISPOSITIONS GÉNÉRALES</div>
+  <section data-spec="section" data-number="1" data-title="DISPOSITIONS GÉNÉRALES">
+   <h1 data-spec="section_title">ARTICLE 1 DISPOSITIONS GÉNÉRALES</h1>
    <p>Article important</p>
   </section>
-  <section data-spec="section" data-number="2">
-   <div data-spec="section_title">FRAIS</div>
+  <section data-spec="section" data-number="2" data-title="FRAIS">
+   <h1 data-spec="section_title">ARTICLE 2 FRAIS</h1>
    <p>Article superflu</p>
   </section>
-  <section data-spec="section" data-number="3">
-   <div data-spec="section_title">SANCTIONS</div>
+  <section data-spec="section" data-number="3" data-title="SANCTIONS">
+   <h1 data-spec="section_title">ARTICLE 3 SANCTIONS</h1>
    <p>Autre article superflu</p>
   </section>
  </main>

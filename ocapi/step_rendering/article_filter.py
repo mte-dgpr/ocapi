@@ -18,17 +18,17 @@
 #
 
 import logging
-import re
-import unicodedata
 
 from bs4 import Tag
+
+from ocapi.utils.utils import normalize_section_title
 
 _LOGGER = logging.getLogger(__name__)
 
 # Exact titles (after normalisation) considered superfluous in the consolidated permit.
 _SUPERFLUOUS_TITLES: frozenset[str] = frozenset(
-    _normalize
-    for _raw in (
+    normalize_section_title(raw)
+    for raw in (
         "MODIFICATIONS ET COMPLÉMENTS APPORTÉS AUX PRESCRIPTIONS DES ACTES ANTÉRIEURS",
         "MODALITÉS D'EXÉCUTION",
         "FRAIS",
@@ -38,43 +38,27 @@ _SUPERFLUOUS_TITLES: frozenset[str] = frozenset(
         "EXÉCUTION",
         "DÉLAIS ET VOIES DE RECOURS",
     )
-    if (
-        _normalize := re.sub(r"\s+", " ", unicodedata.normalize("NFD", _raw))
-        .encode("ascii", "ignore")
-        .decode("ascii")
-        .strip()
-        .lower()
-    )
 )
 
 
-def _strip_accents(text: str) -> str:
-    """Remove diacritical marks (é→e, à→a, …)."""
-    return unicodedata.normalize("NFD", text).encode("ascii", "ignore").decode("ascii")
-
-
-def _normalize_section_title(text: str) -> str:
-    return re.sub(r"\s+", " ", _strip_accents(text)).strip().lower()
-
-
 def is_superfluous_section(section: Tag) -> bool:
-    """Return True when *section*'s title matches one of the superfluous titles."""
-    title_el = section.find(attrs={"data-spec": "section_title"})
-    if title_el is None:
+    """Return True when *section*'s data-title matches one of the superfluous titles."""
+    data_title = section.get("data-title")
+    if not data_title or not isinstance(data_title, str):
         return False
-    normalized = _normalize_section_title(title_el.get_text())
-    return normalized in _SUPERFLUOUS_TITLES
+    return normalize_section_title(data_title) in _SUPERFLUOUS_TITLES
 
 
 def filter_superfluous_sections(sections: list[Tag]) -> list[Tag]:
     """Remove superfluous sections from *sections* in-place and return those removed."""
     removed: list[Tag] = []
     for section in sections:
+        if section.attrs is None:
+            continue
         if is_superfluous_section(section):
             display = section.get("data-number", "?")
-            title_el = section.find(attrs={"data-spec": "section_title"})
-            title_text = title_el.get_text(strip=True) if title_el else "?"
-            _LOGGER.info("Filtered superfluous article %s: %s", display, title_text)
+            data_title = section.get("data-title", "?")
+            _LOGGER.info("Filtered superfluous article %s: %s", display, data_title)
             section.decompose()
             removed.append(section)
     return removed
