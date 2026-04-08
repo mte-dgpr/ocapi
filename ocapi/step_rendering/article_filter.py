@@ -43,7 +43,7 @@ _SUPERFLUOUS_TITLES: frozenset[str] = frozenset(
 
 def is_superfluous_section(section: Tag) -> bool:
     """Return True when *section*'s data-title matches one of the superfluous titles."""
-    if section.attrs is None:
+    if not getattr(section, "attrs", None):
         return False
     data_title = section.get("data-title")
     if not data_title or not isinstance(data_title, str):
@@ -55,7 +55,7 @@ def filter_superfluous_sections(sections: list[Tag]) -> list[Tag]:
     """Remove superfluous sections from *sections* in-place and return those removed."""
     removed: list[Tag] = []
     for section in sections:
-        if section.attrs is None:
+        if not getattr(section, "attrs", None):
             continue
         if is_superfluous_section(section):
             display = section.get("data-number", "?")
