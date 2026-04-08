@@ -276,6 +276,15 @@ def convert_raw_operation_to_operation(
     op_type_value = getattr(raw_op_type, "value", raw_op_type)
     op_type = OperationType(op_type_value)
 
+    # A full-arrêté REPLACE (target_article=ALL) is in practice an abrogation.
+    if op_type == OperationType.REPLACE and raw_operation.target_article == "ALL":
+        _LOGGER.info(
+            f"Operation {operation_id}: REPLACE ALL converted to REMOVE "
+            f"(target_arrete={raw_operation.target_arrete})"
+        )
+        op_type = OperationType.REMOVE
+        operand = None
+
     return Operation(
         id=operation_id,
         source_id=NodeId(
