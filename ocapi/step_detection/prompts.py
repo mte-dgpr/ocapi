@@ -76,6 +76,32 @@ AUTRE :
   "confidence_score": integer (0-100)
 }}
 
+REPORTS D'ÉCHÉANCES :
+Quand le texte reporte une échéance figurant dans un article d'un arrêté antérieur
+(ex. « l'échéance figurant à l'article 7.2.2 de l'arrêté du… est reportée au… »,
+« le délai prévu à l'article X est prolongé jusqu'au… »), cela NE constitue PAS un
+remplacement complet de l'article cible.
+Utiliser un REPLACE avec un sub_target décrivant précisément la partie concernée
+(ex. "l'échéance de réalisation du zonage", "la date limite de mise en conformité").
+NE PAS utiliser sub_target "ALL" pour un simple report d'échéance.
+Les marqueurs de contenu doivent délimiter le texte de la nouvelle disposition dans l'article source.
+
+Exemple :
+Texte source (article 1) : « L'échéance de réalisation du zonage des dangers internes
+à l'établissement, selon les dispositions des articles 7.2.2 et 7.3.4 de l'arrêté du
+10 décembre 2008, est reportée au 31 décembre 2010 »
+→ Génère UNE opération par article cible :
+{{
+  "operation_type": "REPLACE",
+  "source_article": "1",
+  "target_arrete": "2008-12-10",
+  "target_article": "7.2.2",
+  "sub_target": "l'échéance de réalisation du zonage des dangers internes",
+  "new_content_start_marker": "L'échéance de réalisation du zonage des dangers internes à l'établissement...",
+  "new_content_end_marker": "...est reportée au 31 décembre 2010 ;",
+  "confidence_score": 85
+}}
+
 Notes CRITIQUES :
 - confidence_score : entier entre 0 et 100 indiquant ta certitude sur la détection de l'opération (0 = très incertain, 100 = totalement certain)
 - source_article : prendre EXACTEMENT le "data-number" de la section ou tu trouves l'opération

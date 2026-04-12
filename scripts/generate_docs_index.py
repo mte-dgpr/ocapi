@@ -17,7 +17,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Regenerate docs/index.html from examples/ (GitHub Pages).
+"""Regenerate docs/index.html from snapshots/ (GitHub Pages).
 
 Usage (from repo root):
   python scripts/generate_docs_index.py
@@ -34,15 +34,15 @@ REPO_URL = "https://github.com/mte-dgpr/ocapi"
 def main() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     docs = repo_root / "docs"
-    root = docs / "examples"
+    root = docs / "snapshots"
     if not root.is_dir():
         raise SystemExit(
-            f"Missing {root}: copy examples first, e.g. "
-            "`rm -rf docs/examples && cp -R examples docs/examples`"
+            f"Missing {root}: copy snapshots first, e.g. "
+            "`rm -rf docs/snapshots && cp -R snapshots docs/snapshots`"
         )
 
     arretes = sorted(root.glob("arretes_html/*/*.html"))
-    permis = sorted(root.glob("consolidated_permit/*/permis*.html"))
+    permis = sorted(root.glob("arretes_consolidation/*/permis*.html"))
 
     arretes_by: dict[str, list[Path]] = defaultdict(list)
     for p in arretes:
@@ -115,7 +115,7 @@ def main() -> None:
   <h1>OCAPI — Exemples ICPE (tests)</h1>
   <p>
     Cette page est publiée via <strong>GitHub Pages</strong>
-    à partir du dossier <code>examples/</code> du dépôt {repo_link}.
+    à partir du dossier <code>snapshots/</code> du dépôt {repo_link}.
   </p>
   <table>
     <thead>

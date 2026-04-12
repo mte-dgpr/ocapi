@@ -79,17 +79,19 @@ def _strip_none_values(obj: Any) -> Any:
 
 
 @pytest.mark.snapshot
-@pytest.mark.parametrize("arretes_dir,operations_dir", SNAPSHOT_CASES)
-def test_snapshot_pipeline_output(arretes_dir: Path, operations_dir: Path, tmp_path: Path) -> None:
+@pytest.mark.parametrize("arretes_dir,consolidation_dir", SNAPSHOT_CASES)
+def test_snapshot_pipeline_output(
+    arretes_dir: Path, consolidation_dir: Path, tmp_path: Path
+) -> None:
     """Run pipeline with pre-loaded operations (no LLM) and compare outputs."""
-    if not arretes_dir.exists() or not operations_dir.exists():
-        pytest.skip(f"Snapshot fixtures not found: {arretes_dir} or {operations_dir}")
+    if not arretes_dir.exists() or not consolidation_dir.exists():
+        pytest.skip(f"Snapshot fixtures not found: {arretes_dir} or {consolidation_dir}")
 
     aiot = arretes_dir.name
     arrete_files = load_arrete_files(arretes_dir, aiot)
     if not arrete_files:
         pytest.skip(f"No arrêtés loaded for {aiot} (incompatible Arrêtify version)")
-    operations = load_operations(operations_dir)
+    operations = load_operations(consolidation_dir)
 
     with patch(
         "ocapi.step_resolution.apply_ops.call_llm_api",
@@ -115,7 +117,7 @@ def test_snapshot_pipeline_output(arretes_dir: Path, operations_dir: Path, tmp_p
     if permis:
         (output_dir / "permis.html").write_text(permis.to_html(), encoding="utf-8")
 
-    snapshot_dir = Path(__file__).parent / "snapshots" / "expected" / arretes_dir.name
+    snapshot_dir = consolidation_dir
 
     if UPDATE_SNAPSHOTS:
         snapshot_dir.mkdir(parents=True, exist_ok=True)
