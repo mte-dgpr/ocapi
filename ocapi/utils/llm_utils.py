@@ -566,6 +566,8 @@ def query_llm_for_subtarget(
     target_content: str,
     sub_target: str,
     *,
+    target_article_id: str | None = None,
+    operand: str | None = None,
     source_content: str | None = None,
 ) -> str:
     """Build a prompt for LLM-assisted consolidation (locate sub-target in HTML).
@@ -575,6 +577,8 @@ def query_llm_for_subtarget(
     complex cases (e.g. table rows, nested structures).
 
     Returns a prompt string for a REPLACE, REMOVE or ADD operation.
+    The prompt asks the LLM to return the complete modified HTML directly
+    (no placeholder).
     """
     source_block = ""
     if source_content is not None and source_content.strip():
@@ -590,15 +594,29 @@ def query_llm_for_subtarget(
         ).strip()
         source_block = source_block + "\n\n"
 
+    article_label = f" (article {target_article_id})" if target_article_id else ""
+
+    operand_block = ""
+    if operand is not None and operand.strip():
+        operand_block = f"\n\nNouveau contenu à intégrer :\n\n{operand}"
+
+    preamble = (
+        f"{source_block}Vous aidez à consolider des arrêtés ICPE."
+        f" Vous recevez l'article **cible**{article_label} en HTML."
+    )
+    output_instruction = (
+        "Renvoyez UNIQUEMENT le HTML modifié complet de l'article,"
+        " sans explication ni balisage markdown."
+    )
+
     prompt_REPLACE = textwrap.dedent(
         f"""
-        {source_block}Vous aidez à consolider des arrêtés ICPE. Vous recevez l'article **cible**
-        (à modifier) en HTML. Le sous-emplacement à remplacer est décrit en langage naturel.
+        {preamble}
+        Le sous-emplacement à remplacer est décrit en langage naturel.
 
-        Tâche : dans le HTML cible ci-dessous, localisez précisément le segment décrit,
-        remplacez-le par le seul placeholder <NEWCONTENT> (sans autre balise autour du placeholder),
-        et renvoyez **une seule ligne** contenant ce HTML modifié, avec la ligne qui contient
-        <NEWCONTENT> clairement identifiable.
+        Tâche : localisez précisément le segment décrit et remplacez-le
+        par le nouveau contenu fourni.
+        {output_instruction}
 
         Article cible (HTML) :
 
@@ -606,17 +624,17 @@ def query_llm_for_subtarget(
 
         Description du sous-emplacement à remplacer :
 
-        {sub_target}
+        {sub_target}{operand_block}
         """
     ).strip()
 
     prompt_ADD = textwrap.dedent(
         f"""
-        {source_block}Vous aidez à consolider des arrêtés ICPE. Vous recevez l'article **cible**
-        (à modifier) en HTML. L'insertion doit se faire à l'endroit décrit.
+        {preamble}
+        L'insertion doit se faire à l'endroit décrit.
 
-        Tâche : dans le HTML cible ci-dessous, insérez le placeholder <NEWCONTENT> à l'emplacement
-        indiqué, et renvoyez **une seule ligne** contenant ce HTML modifié.
+        Tâche : insérez le nouveau contenu à l'emplacement indiqué.
+        {output_instruction}
 
         Article cible (HTML) :
 
@@ -624,19 +642,17 @@ def query_llm_for_subtarget(
 
         Description de l'emplacement d'insertion :
 
-        {sub_target}
+        {sub_target}{operand_block}
         """
     ).strip()
 
     prompt_REMOVE = textwrap.dedent(
         f"""
-        {source_block}Vous aidez à consolider des arrêtés ICPE. Vous recevez l'article **cible**
-        (à modifier) en HTML. Le segment à supprimer est décrit en langage naturel.
+        {preamble}
+        Le segment à supprimer est décrit en langage naturel.
 
-        Tâche : dans le HTML cible ci-dessous, supprimez le segment décrit (remplacez-le par
-        vide ou retirez-le) et renvoyez **une seule ligne** contenant le HTML résultant.
-        Si vous utilisez une ligne avec <NEWCONTENT>, utilisez <NEWCONTENT> pour marquer le
-        contenu supprimé (remplacé par vide).
+        Tâche : supprimez le segment décrit.
+        {output_instruction}
 
         Article cible (HTML) :
 

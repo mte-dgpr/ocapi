@@ -111,6 +111,17 @@ def _ensure_soup(soup_input: Content | BeautifulSoup) -> BeautifulSoup:
     )
 
 
+def _extract_html_from_llm_response(raw: str, fallback: str) -> str:
+    """Extract HTML content from an LLM response, stripping code fences if present."""
+    text = raw.strip()
+    if not text:
+        return fallback
+    m = re.search(r"```(?:html)?\s*\n([\s\S]*?)\n```", text)
+    if m:
+        return m.group(1).strip()
+    return text
+
+
 def _llm_consolidation_log(operation: Operation, action: str) -> None:
     """Log LLM fallback for add / replace / remove (complex or ambiguous sub-target)."""
     op_type = (
@@ -218,15 +229,12 @@ def apply_replace(
         OperationType.REPLACE,
         str(soup),
         operation.sub_target.description or "",
+        target_article_id=operation.target_id.article_id,
+        operand=operation.operand,
         source_content=source_content,
     )
     raw = call_llm_api(LLM_CFG, prompt)
-    output = str(soup)
-    for line in raw.splitlines():
-        if "<NEWCONTENT>" in line:
-            output = line.replace("<NEWCONTENT>", operation.operand)
-            break
-    return output
+    return _extract_html_from_llm_response(raw, str(soup))
 
 
 def apply_remove(
@@ -274,15 +282,11 @@ def apply_remove(
         OperationType.REMOVE,
         str(soup),
         sub_target.description or "",
+        target_article_id=operation.target_id.article_id,
         source_content=source_content,
     )
     raw = call_llm_api(LLM_CFG, prompt)
-    output = str(soup)
-    for line in raw.splitlines():
-        if "<NEWCONTENT>" in line:
-            output = line.replace("<NEWCONTENT>", "")
-            break
-    return output
+    return _extract_html_from_llm_response(raw, str(soup))
 
 
 def _append_operand_to_section_body(soup: BeautifulSoup, operand: str) -> str:
@@ -337,7 +341,7 @@ def apply_add(
     - ``FULL_SECTION`` + ``NEW_ARTICLE:…``: wrap operand as a new section (no LLM).
     - ``FULL_SECTION`` on an existing article: append operand at the end of the section.
     - Other simple sub-targets: insert operand after the matched fragment (regex).
-    - ``COMPLEX`` sub-target: LLM-assisted insertion via ``<NEWCONTENT>``.
+    - ``COMPLEX`` sub-target: LLM-assisted insertion.
 
     Parameters
     ----------
@@ -380,15 +384,15 @@ def apply_add(
     _llm_consolidation_log(operation, "add")
     desc = sub_target.description or ""
     prompt = query_llm_for_subtarget(
-        OperationType.ADD, str(soup), desc, source_content=source_content
+        OperationType.ADD,
+        str(soup),
+        desc,
+        target_article_id=operation.target_id.article_id,
+        operand=operation.operand,
+        source_content=source_content,
     )
     raw = call_llm_api(LLM_CFG, prompt)
-    output = str(soup)
-    for line in raw.splitlines():
-        if "<NEWCONTENT>" in line:
-            output = line.replace("<NEWCONTENT>", operation.operand)
-            break
-    return output
+    return _extract_html_from_llm_response(raw, str(soup))
 
 
 def apply_subgraph_operations(
