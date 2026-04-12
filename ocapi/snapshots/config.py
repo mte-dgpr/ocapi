@@ -23,25 +23,25 @@ from pathlib import Path
 # Base path: project root (parent of ocapi package)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-# Snapshot cases: (arretes_dir, operations_dir)
+# Snapshot cases: (arretes_dir, consolidation_dir)
 # Each case runs pipeline with --no-detection using pre-loaded operations (no LLM).
 # Run `ocapi generate-snapshot-fixtures` once (with LLM) to create operations.json
 # for ICPEs that don't have them yet.
 SNAPSHOT_CASES: list[tuple[Path, Path]] = [
     (
-        _PROJECT_ROOT / "examples" / "arretes_html" / "0003013459",
-        _PROJECT_ROOT / "examples" / "arretes_operations" / "0003013459",
+        _PROJECT_ROOT / "snapshots" / "arretes_html" / "0003013459",
+        _PROJECT_ROOT / "snapshots" / "arretes_consolidation" / "0003013459",
     ),
     (
-        _PROJECT_ROOT / "examples" / "arretes_html" / "0005302394",
-        _PROJECT_ROOT / "examples" / "arretes_operations" / "0005302394",
+        _PROJECT_ROOT / "snapshots" / "arretes_html" / "0005302394",
+        _PROJECT_ROOT / "snapshots" / "arretes_consolidation" / "0005302394",
     ),
     (
-        _PROJECT_ROOT / "examples" / "arretes_html" / "0005800425",
-        _PROJECT_ROOT / "examples" / "arretes_operations" / "0005800425",
+        _PROJECT_ROOT / "snapshots" / "arretes_html" / "0005800425",
+        _PROJECT_ROOT / "snapshots" / "arretes_consolidation" / "0005800425",
     ),
     (
-        _PROJECT_ROOT / "examples" / "arretes_html" / "0005804239",
-        _PROJECT_ROOT / "examples" / "arretes_operations" / "0005804239",
+        _PROJECT_ROOT / "snapshots" / "arretes_html" / "0005804239",
+        _PROJECT_ROOT / "snapshots" / "arretes_consolidation" / "0005804239",
     ),
 ]

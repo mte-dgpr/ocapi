@@ -73,11 +73,8 @@ def run_main(
         AIOT identifier; inferred from the parent directory when None.
         output_dir : Path | None
         Output directory. When specified all outputs are written into this
-        single directory. When omitted the outputs are placed in three
-        separate canonical directories two levels above ``input_dir``:
-        ``<input_dir>/../../arretes_operations/<aiot>/``,
-        ``<input_dir>/../../arretes_history/<aiot>/`` and
-        ``<input_dir>/../../consolidated_permit/<aiot>/``.
+        single directory. When omitted the outputs are placed in
+        ``<input_dir>/../../arretes_consolidation/<aiot>/``.
     start_date : str | None
         Detection start date (YYYY-MM-DD).
     operations_from : Path | None
@@ -127,26 +124,22 @@ def run_main(
         _LOGGER.info("Pipeline completed successfully.")
 
         if output_dir:
-            operations_dir = output_dir
-            history_dir = output_dir
-            permis_dir = output_dir
+            consolidation_dir = output_dir
         else:
             base_dir = input_dir.parent.parent
-            operations_dir = base_dir / "arretes_operations" / resolved_aiot
-            history_dir = base_dir / "arretes_history" / resolved_aiot
-            permis_dir = base_dir / "consolidated_permit" / resolved_aiot
+            consolidation_dir = base_dir / "arretes_consolidation" / resolved_aiot
 
-        operations_path = operations_dir / "operations.json"
+        operations_path = consolidation_dir / "operations.json"
         operations_dict = [op.model_dump(mode="json") for op in operations]
         write_json_output(operations_dict, operations_path)
         _LOGGER.info(f"Operations saved → {operations_path}")
 
-        history_path = history_dir / "history.json"
+        history_path = consolidation_dir / "history.json"
         write_json_output(article_history_to_json_dict(history), history_path)
         _LOGGER.info(f"History saved → {history_path}")
 
         if permis:
-            permis_path = permis_dir / "permis.html"
+            permis_path = consolidation_dir / "permis.html"
             write_permis_output(permis, permis_path)
             _LOGGER.info(f"Consolidated permit saved → {permis_path}")
 
@@ -163,8 +156,8 @@ def run_main(
 def cmd_generate_snapshot_fixtures(args: argparse.Namespace) -> int:
     """Generate operations.json for each ICPE by running full pipeline (with LLM).
 
-    Saves operations to examples/arretes_operations/<ICPE>/. Run once to create
-    fixtures for snapshot tests. Requires LLM API configured.
+    Saves operations to snapshots/arretes_consolidation/<ICPE>/. Run once to
+    create fixtures for snapshot tests. Requires LLM API configured.
     """
     for arretes_dir, operations_dir in SNAPSHOT_CASES:
         if not arretes_dir.exists():
@@ -195,9 +188,8 @@ def cmd_generate_snapshot_fixtures(args: argparse.Namespace) -> int:
 
 def cmd_update_snapshots(args: argparse.Namespace) -> int:
     """Update snapshot baselines by running pipeline with mocked LLM."""
-    snapshot_expected = Path(__file__).parent / "snapshots" / "expected"
-    for arretes_dir, operations_dir in SNAPSHOT_CASES:
-        if not arretes_dir.exists() or not operations_dir.exists():
+    for arretes_dir, consolidation_dir in SNAPSHOT_CASES:
+        if not arretes_dir.exists() or not consolidation_dir.exists():
             _LOGGER.warning(f"Skipping {arretes_dir.name}: fixtures not found")
             continue
         aiot = arretes_dir.name
@@ -205,7 +197,7 @@ def cmd_update_snapshots(args: argparse.Namespace) -> int:
         if not arrete_files:
             _LOGGER.warning(f"Skipping {aiot}: no arrêtés loaded (incompatible Arrêtify version?)")
             continue
-        operations = load_operations(operations_dir)
+        operations = load_operations(consolidation_dir)
         with patch(
             "ocapi.step_resolution.apply_ops.call_llm_api",
             side_effect=mock_call_llm_api_for_subtarget,
@@ -216,14 +208,13 @@ def cmd_update_snapshots(args: argparse.Namespace) -> int:
                 enable_rendering=True,
                 operations=operations,
             )
-        out_dir = snapshot_expected / arretes_dir.name
-        out_dir.mkdir(parents=True, exist_ok=True)
+        consolidation_dir.mkdir(parents=True, exist_ok=True)
         ops_dict = [op.model_dump(mode="json") for op in ops]
-        write_json_output(ops_dict, out_dir / "operations.json")
-        write_json_output(article_history_to_json_dict(history), out_dir / "history.json")
+        write_json_output(ops_dict, consolidation_dir / "operations.json")
+        write_json_output(article_history_to_json_dict(history), consolidation_dir / "history.json")
         if permis:
-            write_permis_output(permis, out_dir / "permis.html")
-        _LOGGER.info(f"Updated snapshots → {out_dir}")
+            write_permis_output(permis, consolidation_dir / "permis.html")
+        _LOGGER.info(f"Updated snapshots → {consolidation_dir}")
     return 0
 
 
@@ -258,19 +249,19 @@ Examples:
   ocapi run --help
 
   # Process all arrêtés in a directory
-  ocapi run examples/arretes_html/0999.99999/
+  ocapi run snapshots/arretes_html/0999.99999/
 
   # Process with a specific AIOT
-  ocapi run examples/arretes_html/0999.99999/ --aiot 0999.99999
+  ocapi run snapshots/arretes_html/0999.99999/ --aiot 0999.99999
 
   # Save result to a file
-  ocapi run examples/arretes_html/0999.99999/ --output result.json
+  ocapi run snapshots/arretes_html/0999.99999/ --output result.json
 
   # Verbose mode for debugging
-  ocapi --verbose run examples/arretes_html/0999.99999/
+  ocapi --verbose run snapshots/arretes_html/0999.99999/
 
   # Quiet mode
-  ocapi --quiet run examples/arretes_html/0999.99999/
+  ocapi --quiet run snapshots/arretes_html/0999.99999/
         """,
     )
     parser.add_argument(
@@ -302,25 +293,25 @@ Examples:
         epilog="""
 Examples:
   # Process all arrêtés in a directory
-  ocapi run examples/arretes_html/0999.99999/
+  ocapi run snapshots/arretes_html/0999.99999/
 
   # Process with a specific AIOT (default: inferred from parent directory)
-  ocapi run examples/arretes_html/0999.99999/ --aiot 0999.99999
+  ocapi run snapshots/arretes_html/0999.99999/ --aiot 0999.99999
 
   # Filter on specific arrêtés (by date)
-  ocapi run examples/arretes_html/0999.99999/ --include 2024-09-27 2023-12-04
+  ocapi run snapshots/arretes_html/0999.99999/ --include 2024-09-27 2023-12-04
 
   # Save results to a specific directory
-  ocapi run examples/arretes_html/0999.99999/ --output output/
+  ocapi run snapshots/arretes_html/0999.99999/ --output output/
 
   # Combine: filter and save
-  ocapi run examples/arretes_html/0999.99999/ --include 2024-09-27 --output output/
+  ocapi run snapshots/arretes_html/0999.99999/ --include 2024-09-27 --output output/
 
   # Verbose mode to see detailed logs
-  ocapi --verbose run examples/arretes_html/0999.99999/
+  ocapi --verbose run snapshots/arretes_html/0999.99999/
 
   # Quiet mode (errors and warnings only)
-  ocapi --quiet run examples/arretes_html/0999.99999/
+  ocapi --quiet run snapshots/arretes_html/0999.99999/
         """,
     )
     run_parser.add_argument(
@@ -347,8 +338,7 @@ Examples:
         "--output",
         help=(
             "Output directory. When specified all outputs go into this single directory. "
-            "By default outputs are split across arretes_operations/, arretes_history/ "
-            "and consolidated_permit/ directories relative to <input_dir>/."
+            "By default outputs go into arretes_consolidation/ relative to <input_dir>/."
         ),
     )
     run_parser.add_argument(
