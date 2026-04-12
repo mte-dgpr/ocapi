@@ -38,11 +38,19 @@ LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 # Supported Arrêtify version
 # OCAPI relies on the semantic HTML format produced by Arrêtify.
-# Only version 0.1.X is currently supported (0.1.0, 0.1.1, etc.)
+# The supported major.minor must match the installed arretify package.
 # Different major/minor versions may introduce breaking changes to the HTML format
 # (data-spec attributes, CSS classes, document structure).
-SUPPORTED_ARRETIFY_VERSION = "0.1.X"
-SUPPORTED_ARRETIFY_VERSION_PATTERN = r"^0\.1\.\d+$"
+try:
+    from importlib.metadata import version as _pkg_version
+
+    _ARRETIFY_VERSION = _pkg_version("arretify")
+    _major, _minor, *_ = _ARRETIFY_VERSION.split(".")
+    SUPPORTED_ARRETIFY_VERSION = f"{_major}.{_minor}.X"
+    SUPPORTED_ARRETIFY_VERSION_PATTERN = rf"^{_major}\.{_minor}\.\d+$"
+except Exception:
+    SUPPORTED_ARRETIFY_VERSION = "0.1.X"
+    SUPPORTED_ARRETIFY_VERSION_PATTERN = r"^0\.1\.\d+$"
 
 
 class FullSectionName(str, Enum):
