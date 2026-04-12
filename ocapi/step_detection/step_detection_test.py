@@ -130,7 +130,7 @@ def test_status_code_error_when_operand_extraction_fails(
 
 
 def test_convert_raw_operation_replace_all_refonte() -> None:
-    """REPLACE with target_article=ALL (arrêté refonte) is converted correctly."""
+    """REPLACE with target_article=ALL is converted to REMOVE (abrogation)."""
     html_block = Document(page_content="<section>Refonte complète</section>", metadata={})
     raw_op = RawOperation(
         operation_type=RawOperationType.REPLACE,
@@ -146,7 +146,7 @@ def test_convert_raw_operation_replace_all_refonte() -> None:
         html_block.page_content, raw_op, "2021-09-24", {}
     )
 
-    assert operation.operation_type == OperationType.REPLACE
+    assert operation.operation_type == OperationType.REMOVE
     assert operation.source_id == NodeId(arrete_id="2021-09-24", article_id="1.1.2")
     assert operation.target_id == NodeId(arrete_id="2020-04-20", article_id="ALL")
     assert operation.operand is None
