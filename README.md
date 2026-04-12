@@ -234,8 +234,14 @@ ocapi/
 │       ├── utils.py
 │       └── README_LOGGING.md
 │
+├── examples/
+│   ├── arretes_html/             # Arrêtés HTML par AIOT
+│   ├── arretes_operations/       # Opérations détectées (fixtures)
+│   ├── ground-truth/             # Opérations annotées manuellement
+│   └── consolidated_permit/      # Permis consolidés
 ├── data/                         # Données de test (non versionnées)
-├── scripts/                      # Scripts utilitaires
+├── scripts/
+│   └── evaluate_detection.py     # Évaluation détection vs ground-truth
 ├── .env.example                  # Template de configuration
 ├── .pre-commit-config.yaml       # Configuration pre-commit
 ├── pyproject.toml                # Configuration du projet
@@ -382,6 +388,30 @@ UPDATE_SNAPSHOTS=1 pytest -m snapshot -v
 ```
 
 Les cas de test sont configurés dans `ocapi/snapshots/config.py`.
+
+## 📏 Évaluation de la détection
+
+Le script `scripts/evaluate_detection.py` mesure la qualité de la détection des opérations par le LLM en comparant sa sortie aux opérations ground-truth annotées manuellement (dans `examples/ground-truth/`).
+
+Une opération est considérée comme correctement détectée si et seulement si le source (arrêté + article), le target (arrêté + article) et le type d'opération (ADD / REPLACE / REMOVE) correspondent exactement au ground-truth.
+
+Le script produit trois métriques par AIOT et au global : **précision**, **rappel** et **F1-score**.
+
+```bash
+# Évaluer sur tous les AIOT avec un modèle donné
+python scripts/evaluate_detection.py --model openai_gpt5mini
+
+# Évaluer avec Mistral medium
+python scripts/evaluate_detection.py --model mistral_medium
+
+# Restreindre à un AIOT
+python scripts/evaluate_detection.py --model openai_gpt5mini --aiot 0003013459
+
+# Mode verbose
+python scripts/evaluate_detection.py --model mistral_medium -v
+```
+
+Les clés de modèle disponibles sont celles de `config/llm_models.json`.
 
 ## 🛠️ Développement
 
