@@ -20,7 +20,6 @@
 
 import json
 import os
-import re
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -36,37 +35,10 @@ from ocapi.utils.io_utils import article_history_to_json_dict, load_arrete_files
 UPDATE_SNAPSHOTS = os.environ.get("UPDATE_SNAPSHOTS", "").strip() in ("1", "true", "yes")
 
 
-def _normalize_html_whitespace(html: str) -> str:
-    """Normalize HTML whitespace for stable comparison across environments."""
-    return re.sub(r"\s+", " ", html).strip()
-
-
-def _strip_content_for_structure(obj: Any) -> Any:
-    """Drop ``content`` values to ignore LLM-mock noise.
-
-    The mock LLM returns the target article unchanged but its output varies
-    depending on the (non-deterministic) graph traversal order, creating
-    cascading content diffs.  Structural fields (keys, operation_id,
-    status_code, version) are kept and fully compared.
-    """
-    if isinstance(obj, dict):
-        out = {}
-        for k, v in sorted(obj.items()):
-            if k == "content":
-                continue
-            out[k] = _strip_content_for_structure(v)
-        return out
-    if isinstance(obj, list):
-        return [_strip_content_for_structure(x) for x in obj]
-    return obj
-
-
-def _normalize_snapshot(obj: Any) -> Any:
-    """Normalise a snapshot object for deterministic comparison."""
-    stripped = _strip_content_for_structure(obj)
-    if isinstance(stripped, dict):
-        return dict(sorted(stripped.items()))
-    return stripped
+def _normalize_html(html: str) -> str:
+    """Normalize trailing whitespace so stored snapshots match pipeline output."""
+    lines = [line.rstrip() for line in html.splitlines()]
+    return "\n".join(lines).strip() + "\n"
 
 
 def _strip_none_values(obj: Any) -> Any:
@@ -78,19 +50,12 @@ def _strip_none_values(obj: Any) -> Any:
     return obj
 
 
-@pytest.mark.snapshot
-@pytest.mark.parametrize("arretes_dir,consolidation_dir", SNAPSHOT_CASES)
-def test_snapshot_pipeline_output(
-    arretes_dir: Path, consolidation_dir: Path, tmp_path: Path
-) -> None:
-    """Run pipeline with pre-loaded operations (no LLM) and compare outputs."""
-    if not arretes_dir.exists() or not consolidation_dir.exists():
-        pytest.skip(f"Snapshot fixtures not found: {arretes_dir} or {consolidation_dir}")
-
+def _run_snapshot_pipeline(
+    arretes_dir: Path, consolidation_dir: Path
+) -> tuple[list[dict[str, Any]], dict[str, Any], str]:
+    """Run the pipeline and return (ops_json, history_json, permis_html)."""
     aiot = arretes_dir.name
     arrete_files = load_arrete_files(arretes_dir, aiot)
-    if not arrete_files:
-        pytest.skip(f"No arrêtés loaded for {aiot} (incompatible Arrêtify version)")
     operations = load_operations(consolidation_dir)
 
     with patch(
@@ -104,30 +69,40 @@ def test_snapshot_pipeline_output(
             operations=operations,
         )
 
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
+    ops_json = _strip_none_values([op.model_dump(mode="json") for op in ops])
+    history_json = _strip_none_values(article_history_to_json_dict(history))
+    permis_html = permis.to_html() if permis else ""
+    return ops_json, history_json, permis_html
 
-    ops_dict = [op.model_dump(mode="json") for op in ops]
-    with (output_dir / "operations.json").open("w", encoding="utf-8") as f:
-        json.dump(ops_dict, f, ensure_ascii=False, indent=2)
 
-    with (output_dir / "history.json").open("w", encoding="utf-8") as f:
-        json.dump(article_history_to_json_dict(history), f, ensure_ascii=False, indent=2)
+@pytest.mark.snapshot
+@pytest.mark.parametrize("arretes_dir,consolidation_dir", SNAPSHOT_CASES)
+def test_snapshot_pipeline_output(
+    arretes_dir: Path, consolidation_dir: Path, tmp_path: Path
+) -> None:
+    """Run pipeline with pre-loaded operations (no LLM) and compare outputs exactly."""
+    if not arretes_dir.exists() or not consolidation_dir.exists():
+        pytest.skip(f"Snapshot fixtures not found: {arretes_dir} or {consolidation_dir}")
 
-    if permis:
-        (output_dir / "permis.html").write_text(permis.to_html(), encoding="utf-8")
+    aiot = arretes_dir.name
+    arrete_files = load_arrete_files(arretes_dir, aiot)
+    if not arrete_files:
+        pytest.skip(f"No arrêtés loaded for {aiot} (incompatible Arrêtify version)")
+
+    ops_json, history_json, permis_html = _run_snapshot_pipeline(arretes_dir, consolidation_dir)
 
     snapshot_dir = consolidation_dir
 
     if UPDATE_SNAPSHOTS:
         snapshot_dir.mkdir(parents=True, exist_ok=True)
-        for filename in ["operations.json", "history.json"]:
-            data = json.loads((output_dir / filename).read_text(encoding="utf-8"))
+        for filename, data in [("operations.json", ops_json), ("history.json", history_json)]:
             (snapshot_dir / filename).write_text(
                 json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8"
             )
-        if permis:
-            (snapshot_dir / "permis.html").write_bytes((output_dir / "permis.html").read_bytes())
+        if permis_html:
+            (snapshot_dir / "permis.html").write_text(
+                _normalize_html(permis_html), encoding="utf-8"
+            )
         pytest.skip("Snapshots updated. Run without UPDATE_SNAPSHOTS=1 to verify.")
 
     if not snapshot_dir.exists():
@@ -136,18 +111,35 @@ def test_snapshot_pipeline_output(
             "Run with UPDATE_SNAPSHOTS=1 to generate."
         )
 
-    for filename in ["operations.json", "history.json"]:
+    for filename, actual_data in [("operations.json", ops_json), ("history.json", history_json)]:
         expected_path = snapshot_dir / filename
         if expected_path.exists():
             expected = _strip_none_values(json.loads(expected_path.read_text(encoding="utf-8")))
-            actual = _strip_none_values(
-                json.loads((output_dir / filename).read_text(encoding="utf-8"))
-            )
-            assert _normalize_snapshot(actual) == _normalize_snapshot(
-                expected
-            ), f"Snapshot mismatch: {filename}"
+            assert actual_data == expected, f"Snapshot mismatch: {filename}"
 
-    if permis:
-        actual_html = (output_dir / "permis.html").read_text(encoding="utf-8")
-        assert len(actual_html) > 0, "permis.html is empty"
-        assert "data-spec" in actual_html, "permis.html has no data-spec attributes"
+    expected_html_path = snapshot_dir / "permis.html"
+    if expected_html_path.exists() and permis_html:
+        expected_html = expected_html_path.read_text(encoding="utf-8")
+        assert _normalize_html(permis_html) == _normalize_html(
+            expected_html
+        ), "Snapshot mismatch: permis.html"
+
+
+@pytest.mark.snapshot
+@pytest.mark.parametrize("arretes_dir,consolidation_dir", SNAPSHOT_CASES)
+def test_snapshot_pipeline_is_deterministic(arretes_dir: Path, consolidation_dir: Path) -> None:
+    """Run the pipeline twice and verify that outputs are identical."""
+    if not arretes_dir.exists() or not consolidation_dir.exists():
+        pytest.skip(f"Snapshot fixtures not found: {arretes_dir} or {consolidation_dir}")
+
+    aiot = arretes_dir.name
+    arrete_files = load_arrete_files(arretes_dir, aiot)
+    if not arrete_files:
+        pytest.skip(f"No arrêtés loaded for {aiot} (incompatible Arrêtify version)")
+
+    ops_1, history_1, html_1 = _run_snapshot_pipeline(arretes_dir, consolidation_dir)
+    ops_2, history_2, html_2 = _run_snapshot_pipeline(arretes_dir, consolidation_dir)
+
+    assert ops_1 == ops_2, "operations.json differs between runs"
+    assert history_1 == history_2, "history.json differs between runs"
+    assert _normalize_html(html_1) == _normalize_html(html_2), "permis.html differs between runs"
