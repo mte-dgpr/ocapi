@@ -24,11 +24,11 @@ Usage:
     python ocapi/main.py <input_dir> [options]
 
 Examples:
-    python -m ocapi.main examples/arretes_html/<AIOT>/
-    python -m ocapi.main examples/arretes_html/<AIOT>/ --output output/
-    python -m ocapi.main examples/arretes_html/<AIOT>/ --start-date 2014-01-09
-    python -m ocapi.main examples/arretes_html/<AIOT>/ --include 2024-09-27 2023-12-04
-    python -m ocapi.main examples/arretes_html/<AIOT>/ --no-rendering
+    python -m ocapi.main snapshots/arretes_html/<AIOT>/
+    python -m ocapi.main snapshots/arretes_html/<AIOT>/ --output output/
+    python -m ocapi.main snapshots/arretes_html/<AIOT>/ --start-date 2014-01-09
+    python -m ocapi.main snapshots/arretes_html/<AIOT>/ --include 2024-09-27 2023-12-04
+    python -m ocapi.main snapshots/arretes_html/<AIOT>/ --no-rendering
 """
 
 import argparse
@@ -68,10 +68,7 @@ def main(
         input_dir: Directory containing the arrêté HTML files.
         output_dir: Output directory. When specified all outputs are written
             into this single directory. When omitted the outputs are placed in
-            three separate canonical directories two levels above ``input_dir``:
-            ``<input_dir>/../../arretes_operations/<aiot>/``,
-            ``<input_dir>/../../arretes_history/<aiot>/`` and
-            ``<input_dir>/../../consolidated_permit/<aiot>/``.
+            ``<input_dir>/../../arretes_consolidation/<aiot>/``.
         aiot: AIOT identifier (defaults to the input directory name).
         include_ids: List of arrêté IDs to include (defaults to all).
         start_date: Detection start date (YYYY-MM-DD).
@@ -115,14 +112,10 @@ def main(
 
     # Determine output paths
     if output_dir:
-        operations_dir = output_dir
-        history_dir = output_dir
-        permis_dir = output_dir
+        consolidation_dir = output_dir
     else:
         base_dir = input_dir.parent.parent
-        operations_dir = base_dir / "arretes_operations" / aiot
-        history_dir = base_dir / "arretes_history" / aiot
-        permis_dir = base_dir / "consolidated_permit" / aiot
+        consolidation_dir = base_dir / "arretes_consolidation" / aiot
 
     preloaded_ops: list[Operation] | None = None
     if operations_from is not None:
@@ -146,19 +139,19 @@ def main(
         )
 
         # Save operations
-        operations_path = operations_dir / "operations.json"
+        operations_path = consolidation_dir / "operations.json"
         operations_dict = [op.model_dump(mode="json") for op in operations]
         write_json_output(operations_dict, operations_path)
         _LOGGER.info(f"Operations saved → {operations_path}")
 
         # Save history
-        history_path = history_dir / "history.json"
+        history_path = consolidation_dir / "history.json"
         write_json_output(article_history_to_json_dict(history), history_path)
         _LOGGER.info(f"History saved → {history_path}")
 
         # Save permit if generated
         if permis:
-            permis_path = permis_dir / "permis.html"
+            permis_path = consolidation_dir / "permis.html"
             write_permis_output(permis, permis_path)
             _LOGGER.info(f"Consolidated permit saved → {permis_path}")
 
@@ -183,25 +176,25 @@ if __name__ == "__main__":
         epilog="""
 Examples:
   # Process all arrêtés in a directory
-  python -m ocapi.main examples/arretes_html/<AIOT>/
+  python -m ocapi.main snapshots/arretes_html/<AIOT>/
 
   # Specify a custom output directory
-  python -m ocapi.main examples/arretes_html/<AIOT>/ --output output/
+  python -m ocapi.main snapshots/arretes_html/<AIOT>/ --output output/
 
   # Start detection from a given date
-  python -m ocapi.main examples/arretes_html/<AIOT>/ --start-date 2014-01-09
+  python -m ocapi.main snapshots/arretes_html/<AIOT>/ --start-date 2014-01-09
 
   # Filter on specific arrêtés
-  python -m ocapi.main examples/arretes_html/<AIOT>/ --include 2024-09-27 2023-12-04
+  python -m ocapi.main snapshots/arretes_html/<AIOT>/ --include 2024-09-27 2023-12-04
 
   # Disable rendering (steps 1-3 only)
-  python -m ocapi.main examples/arretes_html/<AIOT>/ --no-rendering
+  python -m ocapi.main snapshots/arretes_html/<AIOT>/ --no-rendering
 
   # Specify AIOT
-  python -m ocapi.main examples/arretes_html/<AIOT>/ --aiot <AIOT>
+  python -m ocapi.main snapshots/arretes_html/<AIOT>/ --aiot <AIOT>
 
   # Verbose mode
-  python -m ocapi.main examples/arretes_html/<AIOT>/ --verbose
+  python -m ocapi.main snapshots/arretes_html/<AIOT>/ --verbose
         """,
     )
 
@@ -216,8 +209,7 @@ Examples:
         type=Path,
         help=(
             "Output directory. When specified all outputs go into this single directory. "
-            "By default outputs are split across arretes_operations/, arretes_history/ "
-            "and consolidated_permit/ directories relative to <input_dir>/."
+            "By default outputs go into arretes_consolidation/ relative to <input_dir>/."
         ),
     )
     parser.add_argument(
