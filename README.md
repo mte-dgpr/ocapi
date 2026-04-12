@@ -9,9 +9,9 @@ OCAPI permet de :
 - **Résoudre** les conflits et construire l'historique des articles
 - **Générer** un permis consolidé en HTML regroupant toutes les prescriptions applicables
 
-Les exemples ICPE (arrêtés et permis consolidés en HTML) sont consultables dans le navigateur une fois GitHub Pages activé sur la branche `main` (source : répertoire `examples/`).
+Les exemples ICPE (arrêtés et permis consolidés en HTML) sont consultables dans le navigateur une fois GitHub Pages activé sur la branche `main` (source : répertoire `snapshots/`).
 
-- **Index des exemples** : https://mte-dgpr.github.io/ocapi/examples/
+- **Index des exemples** : https://mte-dgpr.github.io/ocapi/snapshots/
 - Chaque AIOT dispose de ses arrêtés source et du permis consolidé généré par le pipeline.
 
 ## 🏗️ Architecture du pipeline
@@ -138,19 +138,19 @@ ocapi --help
 ocapi run --help
 
 # Traiter tous les arrêtés d'un répertoire
-ocapi run examples/arretes_html/0005804239/
+ocapi run snapshots/arretes_html/0005804239/
 
 # Avec options
-ocapi run examples/arretes_html/0005804239/ \
+ocapi run snapshots/arretes_html/0005804239/ \
     --aiot 0005804239 \
     --output resultat.json
 
 # Filtrer sur des arrêtés spécifiques
-ocapi run examples/arretes_html/0005804239/ \
+ocapi run snapshots/arretes_html/0005804239/ \
     --include 2024-09-27 2023-12-04
 
 # Mode verbose
-ocapi --verbose run examples/arretes_html/0005804239/
+ocapi --verbose run snapshots/arretes_html/0005804239/
 ```
 
 **Options disponibles :**
@@ -169,20 +169,20 @@ Point d'entrée direct avec options avancées :
 python -m ocapi.main --help
 
 # Usage basique
-python -m ocapi.main examples/arretes_html/0005804239/
+python -m ocapi.main snapshots/arretes_html/0005804239/
 
 # Répertoire de sortie personnalisé
-python -m ocapi.main examples/arretes_html/0005804239/ \
+python -m ocapi.main snapshots/arretes_html/0005804239/ \
     --output custom_output/
 
 # Désactiver la détection (utiliser les opérations préchargées)
-python -m ocapi.main examples/arretes_html/0005804239/ --no-detection
+python -m ocapi.main snapshots/arretes_html/0005804239/ --no-detection
 
 # Désactiver le rendering (étapes 1-3 uniquement)
-python -m ocapi.main examples/arretes_html/0005804239/ --no-rendering
+python -m ocapi.main snapshots/arretes_html/0005804239/ --no-rendering
 
 # Combiner plusieurs options
-python -m ocapi.main examples/arretes_html/0005804239/ \
+python -m ocapi.main snapshots/arretes_html/0005804239/ \
     --include 2024-09-27 2023-12-04 \
     --no-detection \
     --output output/ \
@@ -234,8 +234,14 @@ ocapi/
 │       ├── utils.py
 │       └── README_LOGGING.md
 │
+├── examples/
+│   ├── arretes_html/             # Arrêtés HTML par AIOT
+│   ├── arretes_operations/       # Opérations détectées (fixtures)
+│   ├── ground-truth/             # Opérations annotées manuellement
+│   └── consolidated_permit/      # Permis consolidés
 ├── data/                         # Données de test (non versionnées)
-├── scripts/                      # Scripts utilitaires
+├── scripts/
+│   └── evaluate_detection.py     # Évaluation détection vs ground-truth
 ├── .env.example                  # Template de configuration
 ├── .pre-commit-config.yaml       # Configuration pre-commit
 ├── pyproject.toml                # Configuration du projet
@@ -323,18 +329,18 @@ ocapi_output/
 
 ```bash
 # Traiter tous les arrêtés et générer le permis
-ocapi run examples/arretes_html/0005804239/ \
-    --output examples/consolidated_permit/0005804239/permis.html
+ocapi run snapshots/arretes_html/0005804239/ \
+    --output output/0005804239/
 
 # Ou avec main.py
-python -m ocapi.main examples/arretes_html/0005804239/ \
-    --output examples/consolidated_permit/0005804239/
+python -m ocapi.main snapshots/arretes_html/0005804239/ \
+    --output output/0005804239/
 ```
 
 ### Exemple 2 : Detection uniquement (pas de rendering)
 
 ```bash
-python -m ocapi.main examples/arretes_html/0005804239/ \
+python -m ocapi.main snapshots/arretes_html/0005804239/ \
     --no-rendering \
     --output output/detection_only/
 ```
@@ -342,7 +348,7 @@ python -m ocapi.main examples/arretes_html/0005804239/ \
 ### Exemple 3 : Filtrage sur arrêtés récents
 
 ```bash
-ocapi run examples/arretes_html/0005804239/ \
+ocapi run snapshots/arretes_html/0005804239/ \
     --include 2024-09-27 2023-12-04 \
     --output recent_only.json
 ```
@@ -350,10 +356,10 @@ ocapi run examples/arretes_html/0005804239/ \
 ### Exemple 4 : Mode debug avec logs détaillés
 
 ```bash
-ocapi --verbose run examples/arretes_html/0005804239/
+ocapi --verbose run snapshots/arretes_html/0005804239/
 
 # Rediriger les logs vers un fichier
-ocapi --verbose run examples/arretes_html/0005804239/ 2>&1 | tee debug.log
+ocapi --verbose run snapshots/arretes_html/0005804239/ 2>&1 | tee debug.log
 ```
 
 ### Exemple 5 : Mode snapshot (sans LLM)
@@ -361,8 +367,8 @@ ocapi --verbose run examples/arretes_html/0005804239/ 2>&1 | tee debug.log
 Exécuter le pipeline avec des opérations pré-chargées, sans appeler le LLM :
 
 ```bash
-ocapi run examples/arretes_html/0005804239/ \
-    --operations-from examples/arretes_operations/0005804239/ \
+ocapi run snapshots/arretes_html/0005804239/ \
+    --operations-from snapshots/arretes_consolidation/0005804239/ \
     --output output/snapshot/
 ```
 
@@ -382,6 +388,30 @@ UPDATE_SNAPSHOTS=1 pytest -m snapshot -v
 ```
 
 Les cas de test sont configurés dans `ocapi/snapshots/config.py`.
+
+## 📏 Évaluation de la détection
+
+Le script `scripts/evaluate_detection.py` mesure la qualité de la détection des opérations par le LLM en comparant sa sortie aux opérations ground-truth annotées manuellement (dans `examples/ground-truth/`).
+
+Une opération est considérée comme correctement détectée si et seulement si le source (arrêté + article), le target (arrêté + article) et le type d'opération (ADD / REPLACE / REMOVE) correspondent exactement au ground-truth.
+
+Le script produit trois métriques par AIOT et au global : **précision**, **rappel** et **F1-score**.
+
+```bash
+# Évaluer sur tous les AIOT avec un modèle donné
+python scripts/evaluate_detection.py --model openai_gpt5mini
+
+# Évaluer avec Mistral medium
+python scripts/evaluate_detection.py --model mistral_medium
+
+# Restreindre à un AIOT
+python scripts/evaluate_detection.py --model openai_gpt5mini --aiot 0003013459
+
+# Mode verbose
+python scripts/evaluate_detection.py --model mistral_medium -v
+```
+
+Les clés de modèle disponibles sont celles de `config/llm_models.json`.
 
 ## 🛠️ Développement
 
@@ -490,19 +520,19 @@ Vérifiez que :
 
 Utilisez l'option `--include` :
 ```bash
-ocapi run examples/arretes_html/<AIOT>/ --include 2024-09-27 2023-12-04
+ocapi run snapshots/arretes_html/<AIOT>/ --include 2024-09-27 2023-12-04
 ```
 
 ### Comment désactiver le rendering ?
 
 Avec `main.py`, utilisez `--no-rendering` :
 ```bash
-python -m ocapi.main examples/arretes_html/<AIOT>/ --no-rendering
+python -m ocapi.main snapshots/arretes_html/<AIOT>/ --no-rendering
 ```
 
 ### Les logs affichent trop d'informations
 
 Utilisez l'option `--quiet` pour n'afficher que les warnings et erreurs :
 ```bash
-ocapi --quiet run examples/arretes_html/<AIOT>/
+ocapi --quiet run snapshots/arretes_html/<AIOT>/
 ```
