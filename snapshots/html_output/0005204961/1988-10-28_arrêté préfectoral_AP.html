@@ -1,0 +1,1715 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="1988-10-28_arrêté préfectoral_AP.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PREFECTURE
+
+DIRECTION
+
+DE LA
+
+RÉGLEMENTATION
+
+RÉPUBLIQUE FRANÇAISE
+
+DÉPARTEMENT DES PYRÉNÉES-ATLANTIQUES
+    </div>
+   </div>
+   <div>
+    5ème. BUREAU
+   </div>
+   <div>
+    64021 PAU CEDEX
+   </div>
+   <div>
+    Tél. 59.27.50.00 - (poste 3611)
+   </div>
+   <div>
+    Téléc. n° 570818
+   </div>
+   <div data-spec="identification">
+    <div>
+     Référence : EG/MY
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     INSTALLATIONS CLASSEES POUR LA PROTECTION DE L'ENVIRONNEMENT
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE N° 88/IC/236 autorisant la Société ATOCHEM à exploiter une unité de fabrication de chlorure alcane sulfonile (CAS) et une unité de fabrication d'acide alcane sulfonique (AAS), situées sur la plate-forme SOBEGI, à MOURENX et OS-MARSILLON
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     LE PREFET DES PYRENEES-ATLANTIQUES,
+    </div>
+    <div>
+     Chevalier de la Légion d'Honneur,
+    </div>
+   </div>
+   <div>
+    VU :
+   </div>
+   <div data-spec="visa">
+    - la loi N° 76-663 du 19 juillet 1976 relative aux installations classées pour la protection de l'environnement modifiée par les lois N° 76-1285 du 31 décembre 1976, N° 85-661 du 3 juillet 1985, N° 86-2 du 3 janvier 1986 ;
+   </div>
+   <div data-spec="visa">
+    - le
+    <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-type="decret">
+     décret N° 77-1133 du
+     <time data-spec="date" datetime="1977-09-21">
+      21 septembre 1977
+     </time>
+    </a>
+    modifié pris pour l'application de la loi N° 76-663 du 19 juillet 1976 et du titre 1er de la loi N° 64-1245 du 16 décembre 1964 relative au régime et à la répartition des eaux et à la lutte contre leur pollution ;
+   </div>
+   <div data-spec="visa">
+    VU l'instruction du 6 juin 1953 du Ministre du Commerce (Journal Officiel, du 20 juin 1953) relative au rejet des eaux résiduaires par les établissements classés comme dangereux, insalubres ou incommodes ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1985-08-20" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="1985-08-20">
+      20 août 1985
+     </time>
+    </a>
+    du Ministre de l'Environnement (J.O. du 10 novembre 1985) relatif aux bruits aériens émis dans l'environnement par les installations classées pour la protection de l'environnement ;
+   </div>
+   <div data-spec="visa">
+    VU la demande présentée par la Société ATOCHEM à MONT, en vue d'obtenir l'autorisation d'exploiter une unité de fabrication de chlorure alcane sulfonile (CAS) et une unité de fabrication d'acide alcane sulfonique (AAS), situées sur la plate-forme SOBEGI, à MOURENX et OS-MARSILLON ;
+   </div>
+   <div data-spec="visa">
+    VU le dossier annexé à la demande ;
+   </div>
+   <div data-spec="visa">
+    VU les avis exprimés au cours de l'instruction réglementaire ;
+   </div>
+   <div data-spec="visa">
+    VU les observations formulées lors de l'enquête publique prescrite par
+    <a data-date="1988-05-27" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="1988-05-27">
+      27 mai 1988
+     </time>
+    </a>
+    , le rapport et les conclusions motivées de la commission d'enquête ;
+   </div>
+   <div data-spec="visa">
+    VU les rapport et avis de l'Inspecteur des Installations Classées et du Directeur régional de l'Industrie et de la Recherche Aquitaine en date des 26 août et 19 septembre 1988 ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis donné le 23 septembre 1988 par le conseil départemental d'hygiène ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que toutes les formalités prescrites par les lois et règlements en vigueur ont été accomplies,
+   </div>
+   <div>
+    …/…
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     - 2 -
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1er
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La Société ATOCHEM est autorisée, sous réserve de la stricte observation des dispositions contenues dans
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     , à exploiter une unité de fabrication de chlorure alcane sulfonile (CAS) et une unité de fabrication d'acide alcane sulfonique (AAS), situées sur la plate-forme SOBEGI, à MOURENX et OS-MARSILLON.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Ces installations sont répertoriées comme suit dans la nomenclature des installations classées pour la protection de l'environnement :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Nature de l'activité
+       </th>
+       <th>
+        Volume de l'activité
+       </th>
+       <th>
+        Numéro de la nomenclature
+       </th>
+       <th>
+        A ou D
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Fabrication de liquide halogéné par l'action des halogènes sur des hydrocarbures gazeux (fabrication CAS)
+       </td>
+       <td>
+        2000 t/an à 3000 t/an
+       </td>
+       <td>
+        252-2°
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Atelier où l'on emploie des liquides halogénés et autres liquides odorants ou toxiques mais ininflammables (fabrication de l'AAS et lavage avec du tétrachlorure de carbone)
+       </td>
+       <td>
+        Capacité de l'installation supérieure à 1500 l
+       </td>
+       <td>
+        251-1°
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Utilisation et stockage d'anhydride sulfureux
+       </td>
+       <td>
+        Capacité utile de stockage : 86 t
+        <br/>
+        Capacité sur unité : 3 tonnes
+       </td>
+       <td>
+        54-1°
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Stockage acide chlorhydrique
+        <br/>
+        Solution aqueuse &gt; 20 %
+       </td>
+       <td>
+        12,5 m³
+       </td>
+       <td>
+        16
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Réservoirs de gaz comprimés renfermant des gaz combustibles (installation de purification d'Alcane)
+       </td>
+       <td>
+        Volume contenu dans l'installation à 15° et 760 mmHg : 150 m³
+       </td>
+       <td>
+        209-B-2°-b
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Installation de chauffage avec utilisation d'un fluide organique combustible comme transmetteur de chaleur
+       </td>
+       <td>
+        Volume fluide &lt; 500 l &gt; 100 l
+       </td>
+       <td>
+        120-I-A-1°
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Installation de mélange, de traitement ou d'emploi à chaud de liquide inflammable de la première catégorie en circuit fermé
+       </td>
+       <td>
+        Volume inférieur à 5 m³ supérieur à 0,5 m³
+       </td>
+       <td>
+        261-C
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Dépôt de liquide inflammable de première catégorie
+       </td>
+       <td>
+        50 m³
+       </td>
+       <td>
+        253-B
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     A : Autorisation - D : Déclaration
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Ces installations permettront la production annuelle de 3000 tonnes de CAS et de 1500 tonnes d'AAS.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      …/…
+     </div>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      - 3 -
+     </div>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La Société ATOCHEM devra se conformer aux prescriptions suivantes :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     I - DISPOSITIONS GÉNÉRALES
+    </div>
+    <section data-number="1.1" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.1 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les installations seront implantées, réalisées et exploitées conformément aux plans et données techniques contenus dans le dossier de la demande en date du 4 mars 1988, dans la mesure où ils ne sont pas contraires aux dispositions du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+    </section>
+    <section data-number="1.2" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.2 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Tout projet de modification des plans joints au dossier de la demande devra, avant sa réalisation, faire l'objet d'une déclaration au Préfet.
+     </div>
+    </section>
+    <section data-number="1.3" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.3 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Indépendamment des contrôles prévus dans
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      , l'Inspecteur des Installations Classées pourra demander que des contrôles spécifiques soient effectués par un organisme dont le choix sera soumis à son approbation s'il n'est pas agréé à cet effet. Les frais occasionnés par ces contrôles seront supportés par l'exploitant.
+     </div>
+    </section>
+    <section data-number="1.4" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.4 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant sera tenu de se conformer strictement aux dispositions édictées par le Livre II (Titre III) (parties législative et réglementaire) du
+      <a data-spec="document_reference" data-title="Code du travail" data-type="code">
+       Code du Travail
+      </a>
+      et aux textes pris pour son application dans l'intérêt de l'hygiène et de la sécurité des travailleurs.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      II - PREVENTION DE LA POLLUTION DES EAUX
+     </div>
+    </section>
+    <section data-number="2.1" data-spec="section" data-title="Principes généraux" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      2.1 - Principes généraux
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Sont interdits tous déversements, écoulements, rejets, dépôts directs ou indirects d'effluents susceptibles d'incommoder le voisinage, de porter atteinte à la santé ou à la sécurité publique ainsi qu'à la conservation de la faune et de la flore, de nuire à la conservation des constructions et réseaux d'assainissement et au bon fonctionnement des installations d'épuration, de dégager en égout directement ou indirectement des gaz ou vapeurs toxiques ou inflammables et de favoriser la manifestation d'odeurs, saveurs ou colorations anormales dans les eaux naturelles.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Lorsqu'il sera envisagé d'utiliser l'eau potable à des fins industrielles (réseau de distribution ou circuit fermé), il devra être installé un réservoir de coupure ou un bac de disconnection excluant toute possibilité de retour d'eau éventuellement polluée dans le réseau d'eau potable.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      L'eau destinée aux usages sanitaires devra obligatoirement provenir du réseau d'alimentation en eau potable.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les eaux prélevées en nappe phréatique ne pourront avoir que des usages industriels.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       …/…
+      </div>
+     </div>
+     <a data-page_index="3" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       - 4 -
+      </div>
+     </div>
+    </section>
+    <section data-number="2.2" data-spec="section" data-title="Réseau collecteur" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.2 - Réseau collecteur
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le réseau de collecte des eaux devra être de type séparatif.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      L'exploitant tiendra à jour un schéma des circuits d'eau faisant apparaître les points d'alimentation (eau potable, eaux souterraines,...), le réseau de distribution, les dispositifs d'épuration et les rejets d'eaux de toutes origines. Il sera tenu en permanence à la disposition de l'Inspecteur des Installations Classées.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Le réseau d'égouts des eaux polluées devra être conçu pour éviter toute infiltration dans le sol et son tracé devra permettre un enlèvement facile des dépôts et sédiments. Il devra être réalisé en matériaux capables de résister aux contraintes mécaniques et physiques auxquelles il sera soumis en service. Il devra comporter un dispositif efficace pour s'opposer à la propagation des flammes.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les bouches d'égouts situées dans les zones de type 1 et 2 (risques d'incendie ou explosion) seront équipées de syphon.
+     </div>
+    </section>
+    <section data-number="2.3" data-spec="section" data-title="Conditions d'évacuation des eaux" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.3 - Conditions d'évacuation des eaux
+     </h3>
+     <section data-number="2.3.1" data-spec="section" data-title="Eaux pluviales :" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.3.1 - Eaux pluviales :
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les eaux pluviales dont la qualité n'est pas susceptible d'être altérée seront collectées dans un réseau séparé et pourront être directement rejetées vers le milieu naturel des eaux superficielles. Les eaux pluviales dont la qualité est susceptible d'être altérée seront collectées puis traitées comme des eaux résiduaires.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       L'acide chlorhydrique à 33 % non valorisé (arrêt de l'unité consommatrice notamment) devra être neutralisé puis, dans la mesure où sa qualité le permet, rejeté dans le circuit des eaux pluviales. Si sa qualité n'est pas satisfaisante il sera traité comme les eaux résiduaires.
+      </div>
+     </section>
+     <section data-number="2.3.2" data-spec="section" data-title="Eaux de refroidissement :" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.3.2 - Eaux de refroidissement :
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les eaux de refroidissement seront utilisées en circuits fermés.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Les purges des circuits fermés seront traitées comme les eaux pluviales.
+      </div>
+     </section>
+     <section data-number="2.3.3" data-spec="section" data-title="Eaux résiduaires :" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.3.3 - Eaux résiduaires :
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les eaux résiduaires seront composées :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <ul>
+        <li>
+         - des effluents de neutralisation et condensats de pompes à vide ainsi que des eaux de lavage des ateliers, soit 33 m³/j contenant 85 à 90 % d'eau, 5 à 10 % de soude et environ 5 % de sels pollués par le CAS et l'AAS notamment ;
+        </li>
+        <li>
+         - des effluents considérés au point 2.3.1 comme eaux résiduaires.
+        </li>
+       </ul>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Ces effluents devront être collectés et stockés conformément aux dispositions du point V du présent article en vue de leur élimination dans une installation dûment autorisée à cet effet, ou de leur traitement. Il ne pourra être procédé à l'élimination de ces eaux dans le piège géologique constitué par le gisement de gaz sulfuré dit
+       <q>
+        de Lacq Profond
+       </q>
+       que dans la mesure où l'autorisation en aura été accordée à l'exploitant de ce gisement et à concurrence de 15 000 t/an et 60 m³/j au maximum. La Société ATOCHEM devra s'en assurer avant tout envoi d'eaux résiduaires dans le réseau approprié de la plate-forme SOBEGI.
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        …/…
+       </div>
+      </div>
+      <a data-page_index="4" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        - 5 -
+       </div>
+      </div>
+      <div data-number="4" data-spec="alinea">
+       Les autres eaux polluées de l'unité (en particulier les eaux pluviales recueillies dans les cuvettes de rétention, dans la mesure où leur qualité ne permet pas leur rejet dans le milieu naturel), devront être soit traitées avant leur rejet dans le réseau des eaux pluviales de la plate-forme, soit éliminées comme les eaux résiduaires.
+      </div>
+     </section>
+     <section data-number="2.3.4" data-spec="section" data-title="Effluents liquides organiques :" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.3.4 - Effluents liquides organiques :
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les liquides organiques récupérés lors de la purification du CAS et de l'AAS devront être collectés et stockés conformément aux dispositions du point 5 du présent article en vue de leur élimination dûment autorisée à cet effet, normalement par incinération.
+      </div>
+     </section>
+     <section data-number="2.3.5" data-spec="section" data-title="Eaux vannes :" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.3.5 - Eaux vannes :
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les eaux vannes des sanitaires, les eaux usées des lavabos et éventuellement des cantines seront collectées puis traitées conformément aux instructions en vigueur concernant l'assainissement individuel.
+      </div>
+     </section>
+    </section>
+    <section data-number="2.4" data-spec="section" data-title="Rejet global de l'unité vers le milieu des eaux superficielles :" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.4 - Rejet global de l'unité vers le milieu des eaux superficielles :
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les effluents destinés à être rejetés dans les eaux superficielles devront permettre au milieu récepteur, en l'occurrence le Gave de PAU, de satisfaire les objectifs de qualité assignés.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Ils devront, en outre, présenter en sortie d'unité les caractéristiques suivantes :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - température : inférieure à 30°C ;
+       </li>
+       <li>
+        - pH compris entre 5,5 et 8,5 ;
+       </li>
+       <li>
+        - absence de composés cycliques hydroxylés et de leurs dérivés halogénés ;
+       </li>
+       <li>
+        - MES ≤ 30 mg/l (NFT 90105) ;
+       </li>
+       <li>
+        - DBO5 ≤ 40 mg/l (NFT 90103) ;
+       </li>
+       <li>
+        - DCO ≤ 120 mg/l (NFT 90101) ;
+       </li>
+       <li>
+        - azote (procédé Kjeldahl) ≤ 10 mg/l ;
+       </li>
+       <li>
+        - absence de produits susceptibles de dégager en égouts, directement ou indirectement, après mélange avec d'autres effluents, des gaz ou vapeurs toxiques ou inflammables ;
+       </li>
+       <li>
+        - absence de débris solides ;
+       </li>
+       <li>
+        - absence de matières flottantes, déposables ou précipitées.
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Conformément au
+      <a data-date="1987-12-24" data-spec="document_reference" data-type="decret">
+       décret du
+       <time data-spec="date" datetime="1987-12-24">
+        24 décembre 1987
+       </time>
+      </a>
+      (J.O. du 30 décembre 1988), les détergents utilisés devront être biodégradables à 90 % au moins.
+     </div>
+    </section>
+    <section data-number="2.5" data-spec="section" data-title="Contrôle des prélèvements et des rejets" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.5 - Contrôle des prélèvements et des rejets
+     </h3>
+     <section data-number="2.5.1" data-spec="section" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.5.1 -
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Toute pompe ou installation de pompage servant au prélèvement d'eau de nappe ou de surface devra être munie d'un compteur volumétrique ou à défaut d'un compteur horaire totalisateur qui permette de connaître la quantité d'eau prélevée : ces compteurs seront relevés au moins une fois par an et les chiffres consignés sur un registre.
+      </div>
+     </section>
+     <section data-number="2.5.2" data-spec="section" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.5.2 -
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Des dispositifs aisément accessibles et spécialement aménagés à cet effet devront permettre, en des points judicieusement choisis des réseaux d'égouts et en sortie des unités de fabrication, dans la mesure du possible, d'installer chaque fois que de besoin, un appareillage permettant la mesure de débit et le prélèvement d'échantillons.
+      </div>
+      <a data-page_index="5" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        - 6 -
+       </div>
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Des dispositifs aisément accessibles et spécialement aménagés à cet effet devront également permettre, au point de rejet dans le milieu naturel, de procéder à tout moment, à des mesures de débit et à des prélèvements de liquides.
+      </div>
+     </section>
+     <section data-number="2.5.3" data-spec="section" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.5.3 -
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Au point de rejet du réseau des eaux pluviales de la plate-forme, il devra être procédé à des mesures en continu avec enregistrement du débit.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       En ce point, un échantillon moyen journalier représentatif de l'effluent rejeté dans le milieu naturel devra être constitué et faire l'objet, le plus tôt possible après son prélèvement, des déterminations suivantes :
+      </div>
+      <div data-number="3" data-spec="alinea">
+       <ul>
+        <li>
+         - analyses journalières : pH, résistivité, M.E.S., D.C.O. ;
+        </li>
+        <li>
+         - analyses hebdomadaires : DB05.
+        </li>
+       </ul>
+      </div>
+      <div data-number="4" data-spec="alinea">
+       Le débit des eaux résiduaires devra faire l'objet d'un relevé quotidien.
+      </div>
+      <div data-number="5" data-spec="alinea">
+       Sur ces eaux, l'exploitant devra procéder au moins une fois par mois au prélèvement d'un échantillon représentatif dont la composition sera analysée le plus rapidement possible après le prélèvement.
+      </div>
+      <div data-number="6" data-spec="alinea">
+       Les déterminations pourront être effectuées dans un laboratoire de la plate-forme SOBEGI ou dans un laboratoire extérieur, aux frais de l'exploitant. L'Inspecteur des Installations Classées pourra demander que des vérifications soient effectuées par un laboratoire agréé, les frais entraînés étant à la charge de l'exploitant.
+      </div>
+      <div data-number="7" data-spec="alinea">
+       Les résultats des déterminations effectuées seront adressés tous les mois, dès le mois suivant ces déterminations, à l'Inspecteur des Installations Classées avec l'indication des débits journaliers correspondants et des productions mensuelles.
+      </div>
+      <div data-number="8" data-spec="alinea">
+       Au moins une fois par an, l'exploitant fera procéder, par un laboratoire agréé, à l'analyse d'un échantillon moyen journalier représentatif des eaux résiduaires pour les paramètres suivants : pH, MES, DCO, DB05, salinité et PCI, et des eaux rejetées dans le réseau des eaux pluviales pour l'ensemble des paramètres visés à l'
+       <a data-spec="section_reference" data-start_num="2.4" data-type="article">
+        article 2.4.
+       </a>
+       Les résultats seront transmis dans les meilleurs délais à l'Inspecteur des Installations Classées et au Service chargé de la Police des Eaux pour ce qui concerne les eaux rejetées dans le réseau des eaux pluviales.
+      </div>
+     </section>
+    </section>
+    <section data-number="2.6" data-spec="section" data-title="Prévention des pollutions accidentelles" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.6 - Prévention des pollutions accidentelles
+     </h3>
+     <section data-number="2.6.1" data-spec="section" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.6.1 -
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Toutes dispositions seront prises, notamment par aménagement des sols des ateliers, en vue de collecter et de retenir toute fuite, épanchement ou débordement afin que ces fuites ne puissent gagner directement le milieu naturel ou les installations d'épuration des eaux usées.
+      </div>
+     </section>
+     <section data-number="2.6.2" data-spec="section" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.6.2 -
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les opérations périodiques ou exceptionnelles de nettoyage des divers circuits et capacités de l'unité (notamment au cours des arrêts périodiques d'entretien), devront être conduites de manière à ce que les dépôts, fonds de bacs, déchets divers, etc., ne puissent gagner directement le milieu récepteur ni être abandonnés sur le sol.
+      </div>
+     </section>
+     <section data-number="2.6.3" data-spec="section" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.6.3 -
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les matières provenant des fuites ou des opérations de nettoyage, pourront, selon leur nature :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <ul>
+        <li>
+         - soit être réintroduites dans les circuits de fabrication ;
+        </li>
+        <li>
+         - soit être traitées comme les eaux polluées visées au point 2.3.3.
+        </li>
+       </ul>
+      </div>
+     </section>
+     <section data-number="2.6.4" data-spec="section" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.6.4 -
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les réservoirs de produits polluants ou dangereux seront construits selon les règles de l'art.
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        …/…
+       </div>
+      </div>
+      <a data-page_index="6" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        - 7 -
+       </div>
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Ils seront équipés de manière à ce que le niveau puisse être vérifié à tout moment. Toutes dispositions seront prises pour éviter les débordements en cours de remplissage.
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Ils seront installés, en respectant les règles de compatibilité, dans des cuvettes de rétention étanches de capacité au moins égale à la plus grande des deux valeurs ci-après :
+      </div>
+      <div data-number="4" data-spec="alinea">
+       <ul>
+        <li>
+         - 100 % de la capacité du plus grand réservoir associé ;
+        </li>
+        <li>
+         - 50 % de la capacité globale des réservoirs associés.
+        </li>
+       </ul>
+      </div>
+      <div data-number="5" data-spec="alinea">
+       Chaque réservoir sera identifié de manière à permettre la connaissance du produit contenu.
+      </div>
+      <div data-number="6" data-spec="alinea">
+       Sur chaque canalisation de remplissage et à proximité de l'orifice devront être mentionnées la capacité du réservoir qu'elle alimente et la nature du produit contenu dans le réservoir.
+      </div>
+      <div data-number="7" data-spec="alinea">
+       III - PREVENTION DE LA POLLUTION ATMOSPHERIQUE
+      </div>
+     </section>
+    </section>
+    <section data-number="3.1" data-spec="section" data-title="Principes généraux" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      3.1 - Principes généraux
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les installations devront être construites, équipées et exploitées de façon à ce que leur fonctionnement ne puisse être à l'origine d'émissions à l'atmosphère de fumées épaisses, de buées, de suies, de poussières ou de gaz odorants toxiques ou corrosifs susceptibles de présenter des dangers ou des inconvénients soit pour la commodité du voisinage, soit pour la santé, la sécurité, la salubrité publiques, soit pour l'agriculture, soit pour la protection de l'environnement, soit pour la conservation des sites et des monuments.
+     </div>
+    </section>
+    <section data-number="3.2" data-spec="section" data-title="Traitement des effluents gazeux" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.2 - Traitement des effluents gazeux
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les effluents provenant de l'installation de purification d'alcane devront être dirigés, soit vers la chaudière de production de vapeur de la SOBECI en vue de l'incinération, soit vers l'incinérateur de déchets de la plate-forme.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les gaz produits par les réactions de fabrication du CAS et de l'AAS devront être traités en vue de la récupération de l'acide chlorhydrique contenu puis neutralisés. Les effluents gazeux provenant de cette neutralisation devront être incinérés dans une installation dûment autorisée à cet effet.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Les effluents gazeux provenant de la purification du CAS et de l'AAS ainsi que les évents des différents stockages de CAS, AAS, HCL à 33 % et déchets liquides organiques, devront également être neutralisés, les rejets gazeux de la neutralisation étant incinérés dans une installation dûment autorisée à cet effet.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      En cas d'arrêt de l'incinérateur, les effluents gazeux devront être torchés pendant le temps nécessaire à la mise en sécurité des installations et sans que cela excède 48 heures.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Les organes de sécurité pourront être connectés directement sur la torche.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       .../...
+      </div>
+     </div>
+     <a data-page_index="7" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       - 8 -
+      </div>
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Les effluents provenant de la respiration du stockage de SO2 et éventuellement des lignes de Cl2 et SO2 purs, devront être neutralisés à la soude avant rejet à l'atmosphère. Le fonctionnement de la colonne de neutralisation devra être tel qu'en tous points de l'unité les concentrations en Cl2 et SO2 dans l'atmosphère restent respectivement inférieures à 1 ppm et 5 ppm.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      L'exploitant devra s'assurer du bon fonctionnement et de l'efficacité des systèmes de captation et de traitement.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      IV - PREVENTION DU BRUIT
+     </div>
+    </section>
+    <section data-number="4.1" data-spec="section" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      4.1 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les installations devront être construites, équipées et exploitées de façon que leur fonctionnement ne puisse être à l'origine de bruits ou de vibrations mécaniques susceptibles de compromettre la santé ou la sécurité du voisinage ou constituer une gêne pour sa tranquillité.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les prescriptions de l'
+      <a data-date="1985-08-20" data-spec="document_reference" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="1985-08-20">
+        20 août 1985
+       </time>
+      </a>
+      relatif aux bruits aériens émis par les installations relevant de la loi sur les installations classées pour la protection de l'environnement sont applicables à l'usine.
+     </div>
+    </section>
+    <section data-number="4.2" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.2 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les véhicules de transport, les matériels de manutention et les engins de chantier, utilisés à l'intérieur de l'établissement, devront être conformes à la réglementation en vigueur (les engins de chantier à un type homologué au titre du
+      <a data-date="1969-04-18" data-spec="document_reference" data-type="decret">
+       décret du
+       <time data-spec="date" datetime="1969-04-18">
+        18 avril 1969
+       </time>
+      </a>
+      ).
+     </div>
+    </section>
+    <section data-number="4.3" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.3 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'usage de tous appareils de communication par voie acoustique (sirènes, avertisseurs, haut-parleurs,...) gênant pour le voisinage, sera interdit, sauf si leur emploi est exceptionnel et réservé à la prévention ou au signalement d'incidents ou d'accidents.
+     </div>
+    </section>
+    <section data-number="4.4" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.4 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le contrôle des niveaux acoustiques dans l'environnement se fera en se référant au tableau ci-dessous qui fixe les points de contrôle et les valeurs correspondantes des niveaux-limites admissibles (voir 1-3,
+      <a data-spec="section_reference" data-start_num="3" data-type="alinea">
+       3ème alinéa
+      </a>
+      de l'instruction technique annexée à l'
+      <a data-date="1985-08-20" data-spec="document_reference" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="1985-08-20">
+        20 août 1985
+       </time>
+      </a>
+      ) :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <table>
+       <tr>
+        <td rowspan="2">
+         Point de mesure
+        </td>
+        <td rowspan="2">
+         Type de zone
+        </td>
+        <td colspan="3">
+         Niveaux-limites admissibles de bruit en dB(A)
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Jour
+        </td>
+        <td>
+         Période intermédiaire
+        </td>
+        <td>
+         Nuit
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Tous points en limite de la plate-forme
+        </td>
+        <td>
+         Industrielle
+        </td>
+        <td>
+         65
+        </td>
+        <td>
+         60
+        </td>
+        <td>
+         55
+        </td>
+       </tr>
+      </table>
+     </div>
+    </section>
+    <section data-number="4.5" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.5 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'Inspecteur des Installations Classées pourra demander de procéder à une surveillance périodique de l'émission sonore en limite de propriété de l'installation classée. Les résultats des mesures seront tenus à la disposition de l'Inspecteur des Installations Classées
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       …/…
+      </div>
+     </div>
+     <a data-page_index="8" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       - 9 -
+      </div>
+     </div>
+     <div data-number="2" data-spec="alinea">
+      V - DECHETS
+     </div>
+    </section>
+    <section data-number="5.1" data-spec="section" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      5.1 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant devra éliminer ou faire éliminer les déchets produits par ses installations dans des conditions propres à assurer la protection de l'environnement.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Tous les déchets seront éliminés dans des installations régulièrement autorisées à cet effet au titre de la législation des installations classées pour la protection de l'environnement.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      L'exploitant devra s'en assurer et pouvoir en justifier à tout moment.
+     </div>
+    </section>
+    <section data-number="5.2" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      5.2 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'élimination (par le producteur ou un sous-traitant) des déchets visés par le
+      <a data-date="1977-08-19" data-spec="document_reference" data-type="decret">
+       décret du
+       <time data-spec="date" datetime="1977-08-19">
+        19 août 1977
+       </time>
+      </a>
+      et par l'
+      <a data-date="1985-01-04" data-spec="document_reference" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="1985-01-04">
+        4 janvier 1985
+       </time>
+      </a>
+      , devra faire l'objet d'une comptabilité précise tenue en permanence à la disposition de l'Inspecteur des Installations Classées. A cet effet, l'exploitant tiendra un registre mentionnant pour chaque type de déchets :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - origine, composition, quantité ;
+       </li>
+       <li>
+        - nom de l'entreprise chargée de l'enlèvement, date de l'enlèvement ;
+       </li>
+       <li>
+        - destination précise des déchets : lieu et mode d'élimination finale, date de retour du bordereau de suivi (le cas échéant).
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Les documents justificatifs de l'exécution de l'élimination des déchets visés par l'
+      <a data-date="1985-01-04" data-spec="document_reference" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="1985-01-04">
+        4 janvier 1985
+       </time>
+      </a>
+      seront annexés au registre prévu ci-dessus et tenus à la disposition de l'Inspecteur des Installations Classées.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Un état récapitulatif des opérations effectuées sur les déchets devra être adressé trimestriellement à l'Inspection des Installations Classées.
+     </div>
+    </section>
+    <section data-number="5.3" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      5.3 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Dans l'attente de leur élimination, les déchets devront être stockés dans des conditions assurant toute sécurité et ne présentant pas de risque de pollution ou de nuisance olfactive.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Des mesures de protection contre la pluie et de prévention contre les envois seront prises si nécessaire.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Les stockages de déchets liquides, en réservoirs ou en fûts, seront munis d'une capacité de rétention dont le volume sera au moins égal à la plus grande des deux valeurs suivantes :
+     </div>
+     <div data-number="4" data-spec="alinea">
+      <ul>
+       <li>
+        - 100 % de la capacité du plus grand réservoir associé ;
+       </li>
+       <li>
+        - 50 % de la capacité globale des réservoirs associés.
+       </li>
+      </ul>
+     </div>
+     <div data-number="5" data-spec="alinea">
+      La capacité devra être étanche aux produits qu'elle pourrait contenir et résister à la pression des fluides.
+     </div>
+    </section>
+    <section data-number="5.4" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      5.4 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les huiles usagées seront récupérées et évacuées conformément aux dispositions du décret 79-981 du 21 novembre 1979 modifié le 29 mars 1985 (JO du 31 mars 1985).
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Elles seront collectées et stockées dans des conditions de séparation suffisantes, évitant notamment les mélanges avec l'eau ou tout autre déchets non huileux.
+     </div>
+    </section>
+    <section data-number="5.5" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      5.5 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'acide chlorhydrique résiduaire à 33 % sera valorisé dans toute la mesure du possible. Dans le cas contraire, il sera traité comme indiqué au point 2.3.3.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Le CAS et l'AAS dont la qualité ne serait pas satisfaisante devront être réintégrés dans le circuit de fabrication.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       11/11
+      </div>
+     </div>
+     <a data-page_index="9" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       - 10 -
+      </div>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      VI - PREVENTION DES RISQUES
+     </div>
+    </section>
+    <section data-number="6.1" data-spec="section" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      6.1 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Toutes dispositions devront être prises pour limiter les risques d'incendie et d'explosion.
+     </div>
+    </section>
+    <section data-number="6.2" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      6.2 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'établissement devra être pourvu des moyens d'intervention et de secours appropriés aux risques.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Ces moyens, et les modes d'intervention seront déterminés en accord avec l'Inspecteur des Installations Classées et les services départementaux d'Incendie et de Secours.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Pour la protection immédiate des personnes, des douches et fontaines oculaires devront être installées à proximité des installations qui le nécessitent et être maintenues en bon état de fonctionnement, été comme hiver.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Des masques
+      <q>
+       de fuite
+      </q>
+      , en nombre suffisant, devront être judicieusement répartis sur le site et notamment à proximité des installations présentant des risques toxiques ou lacrymogènes.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Le personnel devant rester à son poste en cas d'incident sera doté d'un appareil respiratoire isolant.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Des combinaisons étanches devront être disponibles en salle de contrôle et, au besoin, en des endroits protégés des risques de pollution et d'incendie.
+     </div>
+    </section>
+    <section data-number="6.3" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      6.3 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les équipements de sécurité et de contrôle, et les moyens d'intervention et de secours devront être maintenus en bon état de service et être vérifiés périodiquement.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les résultats de ces vérifications seront portés sur un registre spécial tenu à la disposition de l'Inspecteur des Installations Classées.
+     </div>
+    </section>
+    <section data-number="6.4" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      6.4 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Un règlement général de sécurité fixant le comportement à observer dans l'établissement et traitant en particulier des conditions de circulation à l'intérieur de l'établissement, des précautions à observer en ce qui concerne les feux nus, du port du matériel de protection individuelle et de la conduite à tenir en cas d'incendie ou d'accident sera remis à tous les membres du personnel ainsi qu'aux personnes admises à travailler dans l'établissement.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Il devra être affiché ostensiblement à l'intérieur de l'établissement.
+     </div>
+    </section>
+    <section data-number="6.5" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      6.5 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Des consignes générales de sécurité visant à assurer la sécurité des personnes et la protection des installations, à prévenir les accidents et à en limiter les conséquences seront tenues à la disposition du personnel intéressé dans les locaux ou emplacements concernés.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Elles spécifieront les principes généraux de sécurité à suivre concernant :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - les modes opératoires d'exploitation ;
+       </li>
+       <li>
+        - le matériel de protection collective ou individuelle et son utilisation ;
+       </li>
+       <li>
+        - les mesures à prendre en cas d'accident ou d'incendie.
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Elles énuméreront les opérations ou manœuvres qui ne peuvent être exécutées qu'avec une autorisation spéciale.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Elles mentionneront le numéro d'appel téléphonique du Centre de Secours du District de la zone de LACQ et d'ORTHEZ.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       .../...
+      </div>
+     </div>
+     <a data-page_index="10" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       - 11 -
+      </div>
+     </div>
+    </section>
+    <section data-number="6.6" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      6.6 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le personnel appelé à intervenir devra être entraîné au moins une fois par an, à la mise en œuvre des matériels d'incendie et de secours ainsi qu'à l'exécution des diverses tâches prévues sur le plan d'intervention interne.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les dates et les thèmes de ces exercices ainsi que les observations auxquelles ils peuvent avoir donné lieu seront consignés sur le registre prévu à la condition 6.3 ci-dessus.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Des équipes de sécurité devront être constituées.
+     </div>
+    </section>
+    <section data-number="6.7" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      6.7 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Des consignes d'alerte et d'intervention des secours publics devront être établies en accord avec les services départementaux d'incendie et de secours et les centres de secours du District de la zone de LACQ et d'ORTHEZ.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les plans et renseignements nécessaires à l'élaboration et à la mise à jour des plans d'établissement répertorié leur seront fournis.
+     </div>
+    </section>
+    <section data-number="6.8" data-spec="section" data-title="Installations électriques" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      6.8 - Installations électriques
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les installations électriques devront être réalisées selon les règles de l'art. Elles seront entretenues en bon état. Elles seront périodiquement contrôlées (au moins une fois par an) par un technicien compétent. Les rapports de contrôle seront tenus à la disposition de l'Inspecteur des Installations Classées.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les dispositions de l'
+      <a data-date="1980-03-31" data-spec="document_reference" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="1980-03-31">
+        31 mars 1980
+       </time>
+      </a>
+      (J.O. du 30 avril 1980) portant réglementation des installations électriques des établissements réglementés au titre de la législation des installations classées et susceptibles de présenter des risques d'explosion seront applicables aux installations dans lesquelles une atmosphère explosive est susceptible d'apparaître.
+     </div>
+    </section>
+    <section data-number="6.9" data-spec="section" data-title="Appareils à pression" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      6.9 - Appareils à pression
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Tous les appareils à pression en service dans l'établissement devront satisfaire aux prescriptions du
+      <a data-date="1926-04-02" data-spec="document_reference" data-type="decret">
+       décret du
+       <time data-spec="date" datetime="1926-04-02">
+        2 avril 1926
+       </time>
+      </a>
+      modifié sur les appareils à vapeur et du
+      <a data-date="1943-01-18" data-spec="document_reference" data-type="decret">
+       décret du
+       <time data-spec="date" datetime="1943-01-18">
+        18 janvier 1943
+       </time>
+      </a>
+      modifié sur les appareils à pression de gaz.
+     </div>
+    </section>
+    <section data-number="6.10" data-spec="section" data-title="Matériels constitutifs des unités de production" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      6.10 - Matériels constitutifs des unités de production
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les matériaux seront choisis, en fonction des fluides contenus ou circulant dans les appareils, pour atténuer ou supprimer les effets de la corrosion, de l'érosion et des chocs mécaniques et thermiques.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les matériels et leurs supports devront être conçus et réalisés de telle sorte qu'ils ne risquent pas d'être soumis à des tensions anormales en cas de contrainte mécanique, de dilatation, de tassement du sol, de surcharge occasionnelle, etc.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      La sécurité des installations devra notamment être assurée par l'utilisation d'appareils de contrôle, d'alarme et de mise en sécurité, de joints d'éclatement ou de dispositifs analogues, dans les conditions prévues par l'étude des dangers jointe au dossier de la demande.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Tous les appareils et réservoirs, y compris les véhicules de livraison, devront être efficacement protégés contre les risques liés à l'électricité statique.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      …/…
+     </div>
+     <a data-page_index="11" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       - 12 -
+      </div>
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Les installations devront permettre d'accéder facilement autour des réservoirs ou appareils pour déceler les suintements, fissurations, corrosions éventuelles des parois latérales et des parties des fonds éventuellement apparentes.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Les réseaux de chauffage et de refroidissement devront être efficacement protégés contre toute introduction de produit étranger ; leur étanchéité devra être vérifiée régulièrement.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Les outils utilisés devront éviter la production d'étincelles.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      VII - INCIDENTS ET ACCIDENTS
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Tout incident ou accident ayant compromis la sécurité de l'établissement ou du voisinage ou la qualité des eaux devra être consigné sur le registre prévu au point 6.3.
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Conformément aux dispositions de l'
+      <a data-spec="section_reference" data-start_num="38" data-type="article">
+       article 38
+      </a>
+      du décret N° 77-1133 (susvisé) modifié, l'exploitant devra déclarer, dans les meilleurs délais, à l'inspection des installations classées, les accidents ou incidents survenus du fait du fonctionnement des installations et de nature à porter atteinte aux intérêts mentionnés à l'
+      <a data-spec="section_reference" data-start_num="1" data-type="article">
+       article 1er
+      </a>
+      de la loi du 19 juillet 1976.
+     </div>
+     <div data-number="12" data-spec="alinea">
+      VIII - BILAN ANNUEL
+     </div>
+     <div data-number="13" data-spec="alinea">
+      Tous les ans, l'exploitant adressera à l'Inspecteur des Installations Classées un rapport reprenant et commentant si nécessaire les indications portées sur le registre spécial en application des points 6.3, 6.6, 6.8 et VII ci-dessus.
+     </div>
+    </section>
+   </section>
+   <section data-number="3" data-spec="section" data-title="DISPOSITIONS PARTICULIERES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 - DISPOSITIONS PARTICULIERES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     I - AMENAGEMENT DES INSTALLATIONS
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les installations seront situées en plein air sauf en ce qui concerne le réacteur principal qui sera enfermé dans un bâtiment étanche capable de s'opposer à d'éventuelles projections et relié à un dispositif de neutralisation des effluents gazeux.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les structures à étages devront être pourvues de deux issues opposées permettant une évacuation aisée du personnel.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     La salle de contrôle devra être maintenue en légère surpression. La prise d'air frais se trouvera en un endroit protégé au maximum des risques de pollution.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     L'aménagement des voies de circulation routières ou ferrées devra être conçu de façon à éviter tout risque de collision et à assurer la sécurité des installations.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Les matériels susceptibles de se trouver en contact avec le chlore devront être exempts de graisse. Lorsqu'un graissage sera nécessaire, les graisses utilisées devront être compatibles avec le chlore.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Les différents circuits véhiculant des produits toxiques ou inflammables devront être sectionnés de façon à limiter les conséquences d'une fuite éventuelle.
+    </div>
+    <div data-number="8" data-spec="alinea">
+     …/…
+    </div>
+    <a data-page_index="12" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      - 13 -
+     </div>
+    </div>
+    <div data-number="9" data-spec="alinea">
+     II - PREVENTION DES RISQUES
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Les installations seront pourvues, aux endroits les plus appropriés, de détecteurs de chlore et dioxyde de soufre et d'explosimètres. Ces capteurs devront déclencher une alarme en salle de contrôle et la mise en sécurité automatique des installations en cas de dépassement de seuils prédéterminés au regard des risques encourus.
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Les paramètres de réaction seront contrôlés en permanence. En cas de dérive de l'un des paramètres une alarme se déclenchera puis, si la dérive persiste, l'unité se mettra automatiquement en sécurité (arrêt de la réaction et envoi des effluents vers la colonne d'absorption).
+    </div>
+    <div data-number="12" data-spec="alinea">
+     Les cuvettes de rétention susceptibles de recueillir du CAS seront pourvues d'une installation d'épandage de mousse permettant de recouvrir rapidement le produit lacrymogène éventuellement répandu.
+    </div>
+    <div data-number="13" data-spec="alinea">
+     Les opérateurs travaillant dans l'unité resteront en liaison permanente avec la salle de contrôle où une présence constante devra être assurée. La salle de contrôle devra en outre disposer d'un moyen rapide d'alerte des divers points de l'unité (type interphone).
+    </div>
+    <div data-number="14" data-spec="alinea">
+     Indépendamment des prescriptions d'ordre général précitées, une attention particulière devra être portée à l'état d'entretien du stockage d'anhydride sulfureux et de ses installations annexes (bras de chargement, cuvette de rétention...).
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Des arrêtés complémentaires pourront être pris sur proposition de l'Inspecteur des Installations Classées et après avis du conseil départemental d'hygiène. Ils pourront fixer toutes les prescriptions additionnelles que la protection des intérêts mentionnés à l'
+     <a data-spec="section_reference" data-start_num="1" data-type="article">
+      article 1er
+     </a>
+     de la loi du 19 juillet 1976 rend nécessaires.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les conditions fixées ci-dessus ne peuvent en aucun cas, ni à aucune époque faire obstacle à l'application des dispositions législatives et réglementaires relatives à l'hygiène et à la sécurité des travailleurs, ni être opposées aux mesures qui pourraient être régulièrement ordonnées dans ce but.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La présente autorisation cessera de produire effet lorsque l'installation classée n'aura pas été mise en service dans le délai de trois ans ou n'aura pas été exploitée durant deux années consécutives.
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 6
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Toute modification apportée aux installations, à leur mode d'utilisation ou à leur voisinage, et de nature à entraîner un changement notable des éléments du dossier de demande d'autorisation doit être portée avant sa réalisation à la connaissance du Préfet avec tous les éléments d'appréciation. Une nouvelle demande d'autorisation pourra être exigée.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      …/…
+     </div>
+    </div>
+    <a data-page_index="13" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      - 14 -
+     </div>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Tout transfert d'une installation soumise à autorisation sur un autre emplacement nécessitera une nouvelle demande d'autorisation.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les demandes visées aux deux alinéas précédents sont soumises aux mêmes formalités que la demande d'autorisation primitive.
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 7
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La présente autorisation est délivrée au seul titre de la loi sur les installations classées. Elle ne dispense pas le bénéficiaire de satisfaire, le cas échéant, aux prescriptions de la réglementation en vigueur en matière de voirie, de permis de construire, etc.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les droits des tiers sont et demeurent expressément réservés.
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 8
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     d'autorisation sera déposée dans les mairies de MOURENX et OS-MARSILLON et pourra y être consultée par les personnes intéressées.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , énumérant les prescriptions auxquelles l'installation est soumise et faisant connaître qu'une copie dudit arrêté est déposée dans les mairies où elle peut être consultée, sera affiché dans les mairies pendant une durée minimum d'un mois ; le procès-verbal de l'accomplissement de cette formalité sera dressé par les soins des Maires.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le même extrait sera affiché en permanence de façon visible dans l'installation par les soins du bénéficiaire de l'autorisation.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     En outre, un avis sera publié par les soins du Préfet et aux frais de l'exploitant, dans deux journaux diffusés dans tout le département.
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 9
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     doit être conservé et présenté par l'exploitant à toute réquisition.
+    </div>
+   </section>
+   <section data-number="10" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 10
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Délai et voie de recours (
+     <a data-spec="section_reference" data-start_num="14" data-type="article">
+      article 14
+     </a>
+     de la loi N° 76-663 du 19 juillet 1976 relative aux installations classées pour la protection de l'environnement) : la présente décision ne peut être déférée qu'au Tribunal Administratif. Le délai de recours est de deux mois pour le demandeur ou l'exploitant. Ce délai commence à courir du jour où la présente décision a été notifiée.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="14" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      - 15 -
+     </div>
+    </div>
+   </section>
+   <section data-number="11" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 11
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - M. le Secrétaire Général de la Préfecture des Pyrénées-Atlantiques ;
+      </li>
+      <li>
+       - MM. les maires de MOURENX et OS-MARSILLON ;
+      </li>
+      <li>
+       - Mme l'Inspecteur des Installations Classées, sont chargés, chacun en ce qui le concerne, de l'exécution du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       dont une ampliation sera adressée à :
+      </li>
+      <li>
+       - la Société ATOCHEM ;
+      </li>
+      <li>
+       - M. le Directeur départemental de l'Equipement ;
+      </li>
+      <li>
+       - M. le Directeur départemental de l'Agriculture et de la Forêt ;
+      </li>
+      <li>
+       - M. le Directeur départemental des Affaires Sanitaires et Sociales ;
+      </li>
+      <li>
+       - M. le Directeur départemental des Services d'Incendie et de Secours ;
+      </li>
+      <li>
+       - M. le Directeur départemental du Travail et de l'Emploi ;
+      </li>
+      <li>
+       - MM. les Maires de NOGUERES, PARDIES-MONEIN, MONEIN, PARBAYSE, ABOS, BESINGRAND, LABASTIDE-CEZERACQ, ARTIX, LABASTIDE-MONREJEAU, SERRES-SAINTE-MARIE, LACQ-AUDEJOS, ABIDOS, MONT-ARANCE-GOUZE-LENDRESSE, LAGOR, LAHOURCADE (communes dont une partie du territoire est comprise dans le rayon d'affichage de 5 km).
+      </li>
+     </ul>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     PAU, le 28 OCT. 1988
+    </div>
+    <div data-number="3" data-spec="alinea">
+     LE PREFET,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le Préfet, par délégation,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le Secrétaire Général, par intérim,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Signé : Jean-Claude ALLARD
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Pour Ampliation
+L'Artsché, Chef de Bureau,
+Marie-Thérèse SARRADE
+p. 7 / au 28
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

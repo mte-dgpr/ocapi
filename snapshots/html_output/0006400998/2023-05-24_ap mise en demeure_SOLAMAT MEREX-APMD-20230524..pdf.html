@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2023-05-24_ap mise en demeure_SOLAMAT MEREX-APMD-20230524..pdf.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DES BOUCHES-DU-RHÔNE
+Liberté
+Égalité
+Fraternité
+Direction de la Citoyenneté, de la Légalité et de l'Environnement
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Bureau des Installations et Travaux Réglementés pour la Protection des Milieux Marseille, le 24 MAI 2023
+    </div>
+    <div>
+     Affaire suivie par : Mme MOUGENOT ☎ : 04.84.35.42.64 ✉ : marion.mougenot@bouches-du-rhone.gouv.fr
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ N° 2023-67-MED portant mise en demeure à l'encontre de la société SOLAMAT MEREX de respecter les prescriptions réglementaires applicables à son installation sise sur la commune de Fos-sur-Mer
+    </h1>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , et notamment ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-6" data-type="article">
+     articles L171-6
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+     L171-8
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L172-1" data-type="article">
+     L172-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     L511-1
+    </a>
+    et
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L514-5" data-type="article">
+     L514-5
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2002-09-20" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2002-09-20">
+      20 septembre 2002
+     </time>
+    </a>
+    relatif aux installations d'incinération et de co-incinération de déchets dangereux ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2021-01-12" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2021-01-12">
+      12 janvier 2021
+     </time>
+    </a>
+    relatif aux meilleures techniques disponibles (MTD) applicables aux installations d'incinération et de co-incinération de déchets relevant du régime de l'autorisation au titre de la rubrique 3520 et à certaines installations de traitement de déchets relevant du régime de l'autorisation au titre des rubriques 3510, 3531 ou 3532 de la nomenclature des installations classées pour la protection de l'environnement ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2022-02-02" data-num="2016-490-A" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 2016-490-A du
+     <time data-spec="date" datetime="2022-02-02">
+      2 février 2022
+     </time>
+    </a>
+    autorisant la société SOLAMAT MEREX située sur la commune de Fos-sur-Mer à augmenter la capacité de ses activités et à mettre en place de nouvelles activités de traitement thermique de déchets dangereux et de traitement de déchets ;
+   </div>
+   <div data-spec="visa">
+    Vu le guide d'application de l'
+    <a data-date="2002-09-20" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2002-09-20">
+      20 septembre 2002
+     </time>
+    </a>
+    , modifié par l'
+    <a data-date="2021-01-12" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2021-01-12">
+      12 janvier 2021
+     </time>
+    </a>
+    établi par le FNADE/SNIDE/SVDU – révision 4 février 2022 ;
+   </div>
+   <div data-spec="visa">
+    Vu la visite réalisée le 18 juillet 2022 par l'inspection des installations classées sur le site exploité par la société SOLAMAT MEREX, route du Quai Minéralier à Fos-sur-Mer (13270) ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport du 14 mars 2023 de l'inspecteur de l'environnement établi à l'issue de la visite d'inspection susvisée ;
+   </div>
+   <div data-spec="visa">
+    Vu l'avis du Sous-Préfet d'Istres en date du 17 mars 2023 ;
+   </div>
+   <div data-spec="visa">
+    Vu la procédure contradictoire menée auprès de l'exploitant et ses observations du 30 mars 2023 ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que la société SOLAMAT MEREX qui exploite une installation comprenant les activités de traitement et d'élimination des déchets dangereux sur la commune de Fos-sur-Mer a fait l'objet d'une visite réalisée par l'inspection de l'environnement (DREAL) le 18 juillet 2022 ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que lors de cette visite d'inspection, l'inspection de l'environnement (spécialité installations classées) a mis en évidence la non-conformité suivante au niveau des rejets issus de l'unité d'incinération (U10) :
+    <ul>
+     <li>
+      - Dépassements réguliers de la valeur limite d'émission (VLE) semi-horaire pour le paramètre COT sur la période 2021-2022.
+     </li>
+    </ul>
+   </div>
+   <div data-spec="motifs">
+    Considérant que lors des dépassements de la VLE semi-horaire en COT, l'exploitant entreprend les actions suivantes, conformes aux dispositions de l'
+    <a data-spec="section_reference" data-start_num="3.2" data-type="article">
+     article 3.2
+    </a>
+    du guide susvisé, à savoir :
+    <ul>
+     <li>
+      - le compteur 60h est incrémenté de 30 min à chaque moyenne semi-horaire dépassée,
+     </li>
+     <li>
+      - l'alimentation en déchets de la ligne est automatiquement interrompue jusqu'au retour de la conformité de la VLE semi-horaire en COT ;
+     </li>
+    </ul>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Place Félix Baret - CS 80001 – 13282 Marseille Cedex 06 -
+Téléphone : 04.84.35.40.00
+www.bouches-du-rhone.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    Considérant que la moyenne annuelle 2022 des VLE semi-horaire en COT est de 1,7 mg/Nm3, soit plus de 10 fois inférieure à la VLE fixée à 20 mg/Nm3 ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que les dépassements de la VLE semi-horaire en COT observés en 2022 représentent une durée cumulée de 25,5 h, soit 0,3 % du temps de marche de l'unité d'incinération ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que 40 % de ces dépassements sont inférieurs à 22 mg/Nm3 et 17 % inférieurs à 25 mg/Nm3 pour une VLE fixée à 20 mg/Nm3 ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que les dépassements de la VLE semi-horaire en COT constatés en 2022 n'ont pas entraîné de dépassement des autres seuils réglementaires pour ce même paramètre, à savoir :
+    <ul>
+     <li>
+      - concentration moyenne journalière 2022 : 1,73 mg/Nm3 (VLE fixée à 9 mg/Nm3),
+     </li>
+     <li>
+      - flux moyen journalier 2022 : 1,41 kg/j (VLE fixée à 10,8 kg/j),
+     </li>
+     <li>
+      - flux annuel 2022 : 0,47 t/an (seuil fixé à 3 t/an)
+     </li>
+    </ul>
+   </div>
+   <div data-spec="motifs">
+    Considérant par conséquent que les dépassements de la VLE semi-horaire en COT et leur impact sont limités ;
+   </div>
+   <div data-spec="motifs">
+    Considérant qu'il convient néanmoins d'améliorer les conditions d'exploitation afin d'éviter les dépassements de la VLE semi-horaire en COT ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que ces constats constituent un manquement aux dispositions des
+    <a data-group_id="2" data-parent_reference="1" data-spec="section_reference" data-start_num="10" data-type="article">
+     articles 10
+    </a>
+    et
+    <a data-group_id="2" data-parent_reference="1" data-spec="section_reference" data-start_num="18" data-type="article">
+     18
+    </a>
+    de l'
+    <a data-date="2002-09-20" data-spec="document_reference" data-tag_id="1" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2002-09-20">
+      20 septembre 2002
+     </time>
+    </a>
+    susvisé et de l'
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="2.2.1" data-type="article">
+     article 2.2.1
+    </a>
+    de l'
+    <a data-date="2022-02-02" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2022-02-02">
+      2 février 2022
+     </time>
+    </a>
+    susvisé ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que face à ce manquement, il convient de faire application des dispositions de l'
+    <a data-parent_reference="3" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+     article L171-8
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    en mettant en demeure la société SOLAMAT MEREX de respecter les prescriptions de son arrêté préfectoral susvisé, afin d'assurer la protection des intérêts visés à l'
+    <a data-parent_reference="4" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     article L511-1
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition du Secrétaire Général de la préfecture des Bouches du Rhône ;
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société SOLAMAT MEREX, implantée route du Quai Minéralier à Fos-sur-Mer (13270) et dont le siège social est situé ZI Montée des pins - CS 50057 - à Rognac (13655), est mise en demeure de transmettre à l'Inspection et au Préfet :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - Dans un délai de 1 mois à compter de la notification du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       , un plan d'actions assorti d'un échéancier pour le respect des prescriptions des
+       <a data-group_id="3" data-parent_reference="5" data-spec="section_reference" data-start_num="10" data-type="article">
+        articles 10
+       </a>
+       et
+       <a data-group_id="3" data-parent_reference="5" data-spec="section_reference" data-start_num="18" data-type="article">
+        18
+       </a>
+       de l'
+       <a data-date="2002-09-20" data-spec="document_reference" data-tag_id="5" data-type="arrete-ministeriel">
+        arrêté ministériel du
+        <time data-spec="date" datetime="2002-09-20">
+         20 septembre 2002
+        </time>
+       </a>
+       et de l'
+       <a data-parent_reference="6" data-spec="section_reference" data-start_num="2.2.1" data-type="article">
+        article 2.2.1
+       </a>
+       de l'
+       <a data-date="2022-02-02" data-spec="document_reference" data-tag_id="6" data-type="arrete-prefectoral">
+        arrêté préfectoral du
+        <time data-spec="date" datetime="2022-02-02">
+         2 février 2022
+        </time>
+       </a>
+       susvisés.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Ce plan d'actions ciblera à la fois les actions relatives aux équipements (conditions de fonctionnement, maintenance...) et celles relatives à la maîtrise de la qualité des intrants susceptibles d'avoir un impact sur les émissions en COT en sortie de l'unité d'incinération.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - Dans un délai de 3 mois après la transmission du plan d'actions, un premier bilan de l'efficacité des mesures mises en œuvre sur les dépassements constatés.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dans le cas où l'une des obligations prévues à l'
+     <a data-parent_reference="7" data-spec="section_reference" data-start_num="1" data-type="article">
+      article 1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="7" data-type="self">
+      présent arrêté
+     </a>
+     ne serait pas satisfaite dans les délais prévus à ce même article, et indépendamment des poursuites pénales qui pourraient être engagées, il pourra être pris à l'encontre de l'exploitant les sanctions prévues à l'
+     <a data-parent_reference="8" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+      article L171-8
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="8" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="9" data-spec="section_reference" data-start_num="L171-11" data-type="article">
+      article L171-11
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="9" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , la présente décision est soumise à un contentieux de pleine juridiction, elle peut être déférée à la juridiction administrative compétente, le Tribunal Administratif de Marseille (
+     <address data-spec="address">
+      31 Rue Jean François Leca
+     </address>
+     , 13002 Marseille), qui peut également être saisi par l'application Télérecours citoyens accessibles à partir du site www.telerecours.fr
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     sera notifié à la société SOLAMAT MEREX et publié sur le site internet du département des Bouches-du-Rhône.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - Le Secrétaire Général de la Préfecture des Bouches-du-Rhône,
+      </li>
+      <li>
+       - Le Sous-Préfet d’Istres,
+      </li>
+      <li>
+       - Le Maire de Fos-sur-Mer,
+      </li>
+      <li>
+       - Le Directeur Régional de l’Environnement, de l’Aménagement et du Logement, et toutes autorités de Police et de Gendarmerie, sont chargés, chacun en ce qui le concerne, de l’exécution du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       .
+      </li>
+     </ul>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Marseille, le 24 MAI 2023
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Pour le Préfet
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le Secrétaire Général
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Yvan CORDIER
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

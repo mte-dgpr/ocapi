@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2018-04-24_arrêté préfectoral_AP n°18 00418.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+PRÉFET DU PUY-DE-DÔME
+PRÉFECTURE DU PUY-DE-DÔME
+ARRÊTÉ N°
+18 00418
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Direction Régionale de l'Environnement, de l'Aménagement et du Logement Auvergne-Rhône-Alpes
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ PRÉFECTORAL modifiant les conditions d'exploiter un pôle de traitement de déchets exercées par la société Vernéa sur le territoire de la commune de Clermont-Ferrand
+    </h1>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Préfet du Puy-de-Dôme
+    </div>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Chevalier de la Légion d'Honneur
+    </div>
+    <div>
+     Officier de l'Ordre National du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l'Environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2002-09-20" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2002-09-20">
+      20 septembre 2002
+     </time>
+     modifié
+    </a>
+    relatif aux installations d'incinération et de co-incinération de déchets non dangereux et aux installations incinérant des déchets d'activités de soins à risques infectieux ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2009-05-20" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2009-05-20">
+      20 mai 2009
+     </time>
+     modifié
+    </a>
+    autorisant la société VERNEA à exploiter un pôle de traitement de déchets à Clermont-Ferrand ;
+   </div>
+   <div data-spec="visa">
+    VU le Plan de Prévention et de Gestion des Déchets Non Dangereux (PPGDND) du département du Puy-de-Dôme approuvé par l'assemblée départementale le 16 décembre 2014 ;
+   </div>
+   <div data-spec="visa">
+    VU la demande de l'exploitant en date du 14 mars 2018, pour notamment augmenter temporairement les tonnages incinérés de 10 000 tonnes par an sur son site pendant une période de 18 mois ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l'Inspecteur de l'Environnement du 15 mars 2018 ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis en date du 6 avril 2018 du conseil départemental de l'environnement et des risques sanitaires et technologiques au cours duquel le demandeur a été entendu ;
+   </div>
+   <div data-spec="visa">
+    VU le projet d'arrêté porté à la connaissance du demandeur ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les modifications demandées par l'exploitant ne sont pas de nature à porter atteinte aux intérêts mentionnés à l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     article L. 511-1
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'il y a lieu de modifier certaines des dispositions de l'arrêté préfectoral susvisé pour intégrer les modifications demandées par l'exploitant ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que ces modifications ne constituent pas une modification substantielle au sens de l'
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="R181-46" data-type="article">
+     article R 181-46
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+     Code de l'Environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT par conséquent qu'il convient, conformément aux dispositions de l'
+    <a data-parent_reference="3" data-spec="section_reference" data-start_num="R181-45" data-type="article">
+     article R 181-45
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+     Code de l'Environnement
+    </a>
+    , de compléter les prescriptions techniques de l'
+    <a data-date="2009-05-20" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2009-05-20">
+      20 mai 2009
+     </time>
+     modifié
+    </a>
+    ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition de la Secrétaire Générale de la Préfecture du département du Puy-de-Dôme;
+    </div>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     18, boulevard Desaix – 63 033 CLERMONT-FERRAND cedex 01
+Tél. 04.73.98.63.63 – Télécopieur : 04.73.98.61.03
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     ARRÊTE
+    </div>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="AUGMENTATION TEMPORAIRE DES TONNAGES INCINÉRÉS" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     TITRE 1 - AUGMENTATION TEMPORAIRE DES TONNAGES INCINÉRÉS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-date="2009-05-20" data-spec="document_reference" data-tag_id="13" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2009-05-20">
+       20 mai 2009
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="modifié" data-operation_type="replace" data-references="13" data-spec="operation">
+      est
+      <b>
+       modifié
+      </b>
+      par les prescriptions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - à chaque fois que le chiffre 150 000 tonnes/an est mentionné (en particulier dans les
+       <a data-group_id="1" data-spec="section_reference" data-start_num="1.2.1" data-type="article">
+        articles 1.2.1
+       </a>
+       ,
+       <a data-group_id="1" data-spec="section_reference" data-start_num="1.2.3" data-type="article">
+        1.2.3
+       </a>
+       et
+       <a data-group_id="1" data-spec="section_reference" data-start_num="1.2.4.2" data-tag_id="14" data-type="article">
+        1.2.4.2
+       </a>
+       <span data-direction="rtl" data-keyword="remplacé" data-operation_type="replace" data-references="14" data-spec="operation">
+        ), il est
+        <b>
+         remplacé
+        </b>
+        par la phrase
+       </span>
+       « 150.000 tonnes/an ou 160 000 tonnes/an jusqu'au 06/10/2019 ».
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="ACTUALISATION DES PRESCRIPTIONS" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     TITRE 2 - ACTUALISATION DES PRESCRIPTIONS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-date="2009-05-20" data-spec="document_reference" data-tag_id="15" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2009-05-20">
+       20 mai 2009
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="modifié" data-operation_type="replace" data-references="15" data-spec="operation">
+      est
+      <b>
+       modifié
+      </b>
+      par les prescriptions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       -
+       <a data-spec="section_reference" data-start_num="1.2.4.2" data-type="article">
+        article 1.2.4.2
+       </a>
+       : dans la partie concernant l'unité de stabilisation, remplacement des phrases « 41.500 tonnes/an de la fraction fermentescible provenant des ordures ménagères résiduelles. 10.000 tonnes/an de boues de STEP de 20% de siccité environ » par la phrase « 51 500 t/an de déchets comprenant de la fraction fermentescible provenant des ordures ménagères résiduelles, dont 10 000 t/an maximum de boues de STEP avec 20% de siccité environ. »
+      </li>
+      <li>
+       -
+       <a data-spec="section_reference" data-start_num="5.1.7" data-type="article">
+        article 5.1.7
+       </a>
+       : dans la partie Stabilisation, modification de la quantité annuelle de « 29 900 t/an » en « 37 000 t/an ».
+      </li>
+      <li>
+       -
+       <a data-spec="section_reference" data-start_num="5.1.7" data-type="article">
+        article 5.1.7
+       </a>
+       : dans la partie Mode d'élimination des déchets stabilisés, remplacement de la première phrase par la phrase : « Élimination en ISDND ou en filière de valorisation. »
+      </li>
+      <li>
+       -
+       <a data-spec="section_reference" data-start_num="5.1.7" data-type="article">
+        article 5.1.7
+       </a>
+       : dans la partie Stabilisation, modification du mode et capacité de stockage de « 3 silos de 800 m³ chacun = 2 400 m³ » en « 5 silos d'environ 520 m³ chacun = 2 600 m³ »
+      </li>
+      <li>
+       -
+       <a data-spec="section_reference" data-start_num="5.1.7" data-type="article">
+        article 5.1.7
+       </a>
+       : dans la partie UVB Liqueurs provenant du traitement anaérobie des déchets municipaux, modification du mode et capacité de stockage de « bassin agité de 35 m³ » à « bassin agité de 50 m³ ».
+      </li>
+      <li>
+       -
+       <a data-spec="section_reference" data-start_num="5.1.7" data-tag_id="16" data-type="article">
+        article 5.1.7
+       </a>
+       <span data-direction="rtl" data-keyword="ajoutée" data-operation_type="add" data-references="16" data-spec="operation">
+        : dans la partie UVE dans les parties Déchets secs de l'épuration des fumées (PSR), Cendres volantes et Cendres sous chaudière pour le mode et capacité de stockage, la phrase suivante est
+        <b>
+         ajoutée
+        </b>
+       </span>
+       : « la quantité totale de REFIOM stockés (PSR + cendres) est limitée à 156 t au total ».
+      </li>
+      <li>
+       -
+       <a data-spec="section_reference" data-start_num="8.3.2.3" data-type="article">
+        article 8.3.2.3
+       </a>
+       : remplacement de la dernière phrase par la phrase « Le stockage du compost s'effectue sur une aire couverte fermée d'un volume d'environ 4000 m³ et 3,5 m de haut correspondant à une production de trois mois et demi à six mois et demi. »
+      </li>
+      <li>
+       -
+       <a data-spec="section_reference" data-start_num="8.4.4" data-type="article">
+        article 8.4.4
+       </a>
+       : remplacement de la phrase « La durée d'entreposage des balles n'excède pas 6 mois. » par la phrase « La durée d'entreposage des balles n'excède pas 9 mois. »
+      </li>
+      <li>
+       - chapitre 1.8 Arrêtés, circulaires, instructions applicables :
+      </li>
+      <li>
+       - suppressions des lignes :
+      </li>
+      <li>
+       -
+       <a data-date="1993-01-28" data-spec="document_reference" data-type="arrete">
+        Arrêté du
+        <time data-spec="date" datetime="1993-01-28">
+         28 janvier 1993
+        </time>
+       </a>
+       concernant la protection contre la foudre de certaines installations classées
+      </li>
+      <li>
+       - Circulaire DPPR/SEI/BPSIED n°94-IV-I du 09/05/1994 relative à l'élimination des mâchefers d'incinération des résidus urbains
+      </li>
+      <li>
+       -
+       <a data-date="2002-12-24" data-spec="document_reference" data-type="arrete">
+        Arrêté du
+        <time data-spec="date" datetime="2002-12-24">
+         24 décembre 2002
+        </time>
+       </a>
+       relatif à la déclaration annuelle des émissions polluantes des installations classées soumises à autorisation
+      </li>
+      <li>
+       -
+       <a data-date="2004-06-29" data-spec="document_reference" data-type="arrete">
+        Arrêté du
+        <time data-spec="date" datetime="2004-06-29">
+         29 juin 2004
+        </time>
+       </a>
+       relatif au bilan de fonctionnement prévu par l'
+       <a data-parent_reference="4" data-spec="section_reference" data-start_num="R512-45" data-type="article">
+        article R512-45
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+        Code de l'Environnement
+       </a>
+      </li>
+      <li>
+       -
+       <a data-date="2005-07-07" data-spec="document_reference" data-type="arrete">
+        Arrêté du
+        <time data-spec="date" datetime="2005-07-07">
+         07/07/2005
+        </time>
+       </a>
+       fixant le contenu des registres mentionnés à l'
+       <a data-parent_reference="5" data-spec="section_reference" data-start_num="2" data-type="article">
+        article 2
+       </a>
+       du
+       <a data-date="2005-05-30" data-num="2005-635" data-spec="document_reference" data-tag_id="5" data-type="decret">
+        décret n°2005-635 du
+        <time data-spec="date" datetime="2005-05-30">
+         30 mai 2005
+        </time>
+       </a>
+       relatif au contrôle des circuits de traitement de déchets et concernant les déchets dangereux et les déchets autres que dangereux ou radioactifs
+      </li>
+      <li>
+       - chapitre 1.8 Arrêtés, circulaires, instructions applicables :
+      </li>
+      <li>
+       - ajout des lignes :
+      </li>
+      <li>
+       -
+       <a data-date="2010" data-num="75" data-spec="document_reference" data-type="eu-directive">
+        Directive n° 2010/75/UE
+       </a>
+       du 24/11/10 relative aux émissions industrielles (prévention et réduction intégrées de la pollution)
+      </li>
+      <li>
+       -
+       <a data-date="2008-01-31" data-spec="document_reference" data-type="arrete">
+        Arrêté du
+        <time data-spec="date" datetime="2008-01-31">
+         31/01/08
+        </time>
+       </a>
+       relatif au registre et à la déclaration annuelle des émissions et des transferts des polluants et des déchets
+      </li>
+      <li>
+       -
+       <a data-spec="section_reference" data-start_num="8.5.2" data-tag_id="17" data-type="article">
+        article 8.5.2
+       </a>
+       <span data-direction="rtl" data-keyword="ajoutée" data-operation_type="add" data-references="17" data-spec="operation">
+        : à la fin du point 2 est
+        <b>
+         ajoutée
+        </b>
+       </span>
+       la phrase : « L'exploitant a la possibilité temporaire de stocker, au sein d'une même alvéole, des lots différents de mâchefers valorisables destinés à un même chantier, sous réserve que ces lots soient pesés distinctement et séparés par une géo-membrane. »
+      </li>
+     </ul>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="3" data-spec="section" data-title="ACTUALISATION DES RUBRIQUES DE LA NOMENCLATURE DES INSTALLATIONS CLASSÉES" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     TITRE 3 - ACTUALISATION DES RUBRIQUES DE LA NOMENCLATURE DES INSTALLATIONS CLASSÉES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le tableau de l'
+     <a data-parent_reference="6" data-spec="section_reference" data-start_num="1.2.3" data-tag_id="18" data-type="article">
+      article 1.2.3
+     </a>
+     de l'
+     <a data-date="2009-05-20" data-spec="document_reference" data-tag_id="6" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2009-05-20">
+       20 mai 2009
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacé" data-operand="19" data-operation_type="replace" data-references="18" data-spec="operation">
+      est
+      <b>
+       remplacé
+      </b>
+      par le tableau suivant :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="19">
+      <tr>
+       <th>
+        Rubrique
+       </th>
+       <th>
+        Libellé de la rubrique
+       </th>
+       <th>
+        Nature des installations
+       </th>
+       <th>
+        Volume autorisé
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td>
+        3520 A
+        <br/>
+        (Rubrique principale IED)
+       </td>
+       <td>
+        Élimination ou valorisation de déchets dans des installations d'incinération des déchets ou des installations de co-incinération des déchets : a) Pour les déchets non dangereux avec une capacité supérieure à 3 t/h
+       </td>
+       <td>
+        Unité de valorisation énergétique (UVE)
+       </td>
+       <td>
+        21,5 t/h
+        <br/>
+        150.000 t/an ou 160 000 tonnes/an jusqu'au 06/10/2019
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        3532
+       </td>
+       <td>
+        Valorisation ou mélange de valorisation et d'élimination de déchets non dangereux non inertes avec une capacité supérieure à 75 t/l et entraînant une ou plusieurs des activités suivantes, à l'exclusion des activités relevant de la
+        <a data-date="1991" data-num="271" data-spec="document_reference" data-type="eu-directive">
+         directive 91/271/CEE
+        </a>
+       </td>
+       <td>
+        1. Traitement biologique des déchets
+        <br/>
+        2. Prétraitement des déchets destinés à l'incinération ou à la co-incinération
+       </td>
+       <td>
+        169,52 t/l
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2771
+       </td>
+       <td>
+        Installation de traitement thermique de déchets non dangereux, à l'exclusion des installations visées à la rubrique 2971
+       </td>
+       <td>
+        Unité de valorisation énergétique (UVE):
+        <br/>
+        1 four de capacité maximale de 150.000 t/an ou 160 000 tonnes/an jusqu'au 06/10/2019 et 21,5 t/h pour une puissance thermique de 61,2 MW
+        <br/>
+        Activités connexes :
+        <br/>
+        • fosse à déchets (ordures ménagères brutes) de 5.700 m³
+        <br/>
+        • fosse à déchets (ordures ménagères triées) de 6.600 m³
+        <br/>
+        • plate-forme de traitement des mâchefers : 42 000 t/an
+        <br/>
+        • plate-forme de maturation et stockage des mâchefers : 15.000 m³ (19.000 t)
+        <br/>
+        • plate-forme tampon de mise en balles et d'entreposage des déchets en balles (3.700 t)
+        <br/>
+        • chaudière (moyenne de 75 t/h de vapeur)
+        <br/>
+        • turboalternateur (16,98 MW)
+        <br/>
+        • brûleurs de soutien (GPL) : 43 MW
+        <br/>
+        • brûleur de traitement des NOx (GPL) : 800 kW
+       </td>
+       <td>
+        21,5 t/h
+        <br/>
+        150.000 t/an ou 160 000 tonnes/an jusqu'au 06/10/2019
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2716 - 1
+       </td>
+       <td>
+        Installation de transit, regroupement ou tri de déchets non dangereux non inertes, le volume de l'installation étant supérieur à 1000 m³
+       </td>
+       <td>
+        Unité de valorisation énergétique (UVE) :
+        <br/>
+        3. Préparation des ordures ménagères par tri mécanique (205 500 t/an)
+        <br/>
+        • plate-forme tampon de mise en balles et d'entreposage des déchets en balles : 12 100 m³ soit 3700 tonnes (environ 4080 balles)
+        <br/>
+        • Utilisation des fosses en regroupement lors des arrêts de l'installation (5700 m³ + 6600 m³)
+        <br/>
+        • Stockage tampon des déchets d'encombrants et DIB de gros volumes (420 m³)
+       </td>
+       <td>
+        24 820 m³
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Rubrique
+       </th>
+       <th>
+        Libellé de la rubrique
+       </th>
+       <th>
+        Nature des installations
+       </th>
+       <th>
+        Volume autorisé
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2791 - 1
+       </td>
+       <td>
+        Installation de traitement de déchets non dangereux, à l'exclusion des installations visées aux rubriques 2720, 2760, 2771, 2780, 2781, 2782 et 2971.
+        <br/>
+        La quantité de déchets traités étant supérieure ou égale à 10 t/j
+       </td>
+       <td>
+        Unité de valorisation biologique :
+        <br/>
+        4. Broyage déchets organiques : 18 000 t/an soit 58 t/j
+        <br/>
+        5. Traitement des déchets verts ou fermentescibles (broyage, criblage, etc.) : 8 500 t/an soit 33 t/j
+        <br/>
+        Unité de valorisation énergétique :
+        <br/>
+        Broyage encombrants : 22 000 t/an soit 71 t/j
+       </td>
+       <td>
+        162 t/jour
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2780-1c
+       </td>
+       <td>
+        Installations de compostage de déchets non dangereux ou matière végétale brute, ayant le cas échéant subie une étape de méthanisation.
+        <br/>
+        Compostage de matière végétale ou déchets végétaux, d'effluents d'élevage, de matières stercoraires.
+        <br/>
+        La quantité de matières traitées étant supérieure ou égale à 3 t/j et inférieure à 30 t/j
+       </td>
+       <td>
+        Unité de valorisation biologique :
+        <br/>
+        Compostage déchets verts : 8 500 t/an
+        <br/>
+        Stockage du compost : 1.900 m³
+       </td>
+       <td>
+        24 t/jour
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2780-2a
+       </td>
+       <td>
+        Installations de compostage de déchets non dangereux ou matière végétale brute, ayant le cas échéant subi une étape de méthanisation.
+        <br/>
+        Compostage de fraction fermentescible de déchets triés à la source ou sur site, de boues de station d'épuration des eaux urbaines, de papeteries, d'industries agroalimentaires, seuls ou en mélange avec des déchets admis dans une installation relevant de la rubrique 2780-1
+        <br/>
+        La quantité de matière traitée étant supérieure à 20 t/jour
+       </td>
+       <td>
+        Compostage du digestat issu de la méthanisation : 9 200 t/an
+        <br/>
+        Stockage du compost : 1900 m³
+       </td>
+       <td>
+        25,2 t/jour
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2781-2
+       </td>
+       <td>
+        Installations de méthanisation de déchets non dangereux ou de matière végétale brute, à l'exclusion des installations de méthanisation d'eaux usées ou de boues d'épuration urbaines lorsqu'elles sont méthanisées sur leur site de production.
+        <br/>
+        Méthanisation d'autres déchets non dangereux
+       </td>
+       <td>
+        Unité de valorisation biologique :
+        <br/>
+        Unité de méthanisation de la fraction fermentescible des OM : 18 000 t/an
+       </td>
+       <td>
+        49,32 t/jour
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2782
+       </td>
+       <td>
+        Installations mettant en œuvre d'autres traitements biologiques de déchets non dangereux que ceux mentionnés aux rubriques 2780 et 2781 à l'exclusion des installations réglementées au titre d'une autre législation
+       </td>
+       <td>
+        Unité de stabilisation biologique
+       </td>
+       <td>
+        51 500 t/an
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2910-B2a
+       </td>
+       <td>
+        Combustion, à l'exclusion des installations visées par les rubriques 2770, 2771 et 2971.
+        <br/>
+        Lorsque les produits consommés seuls ou en mélange sont différents de ceux visés en A et C ou sont de la biomasse telle que définie au b (ii) ou au b (iii) ou au b (v) de la définition de biomasse, et si la puissance thermique nominale de l'installation est supérieure à 0,1 MW mais inférieure à 20 MW, en cas d'utilisation de biomasse telle que définie au b (ii) ou au b (iii) ou au b (v) de la définition de biomasse, ou de biogaz autre que celui visé en 2910-C, ou de produit autre que biomasse issu de déchets au sens de l'
+        <a data-parent_reference="7" data-spec="section_reference" data-start_num="L541-4-3" data-type="article">
+         article L. 541-4-3
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="7" data-title="Code de l'environnement" data-type="code">
+         code de l'environnement
+        </a>
+       </td>
+       <td>
+        Unité de valorisation énergétique :
+        <br/>
+        Brûleur biogaz : 1,5 MW
+        <br/>
+        Unité de valorisation biologique :
+        <br/>
+        Torchère au biogaz : 2 MW
+        <br/>
+        Chaudière mixte biogaz/fuel : 0,23 MW
+       </td>
+       <td>
+        3,73 MW
+       </td>
+       <td>
+        E
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Rubrique
+       </th>
+       <th>
+        Libellé de la rubrique
+       </th>
+       <th>
+        Nature des Installations
+       </th>
+       <th>
+        Volume autorisé
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2910 – A2
+       </td>
+       <td>
+        Combustion à l'exclusion des installations visées par les rubriques 2770, 2771 et 2971.
+        <br/>
+        <br/>
+        Lorsque l'installation consomme exclusivement, seuls ou en mélange, du gaz naturel, des gaz de pétrole liquéfiés, du fioul domestique, du charbon, des fiouls lourds, de la biomasse telle que définie au a ou au b (i) ou au b (iv) de la définition de biomasse, des produits connexes de scierie issus du b (v) de la définition de biomasse ou lorsque la biomasse est issue de déchets au sens de l'
+        <a data-parent_reference="8" data-spec="section_reference" data-start_num="L541-4-3" data-type="article">
+         article L. 541-4-3
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="8" data-title="Code de l'environnement" data-type="code">
+         code de l'environnement
+        </a>
+        , à l'exclusion des installations visées par d'autres rubriques de la nomenclature pour lesquelles la combustion participe à la fusion, la cuisson ou au traitement, en mélange avec les gaz de combustion, des matières entrantes, si la puissance thermique nominale de l'installation est supérieure à 2 MW, mais inférieure à 20 MW
+       </td>
+       <td>
+        Installation commune :
+        <br/>
+        Groupe électrogène au Fuel Oil Domestique (FOD) (2,5MW)
+        <br/>
+        <br/>
+        Unité de valorisation énergétique :
+        <br/>
+        Station de vaporisation artificielle du propane (0,47 MW)
+       </td>
+       <td>
+        2,97 MW
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2713 - 2
+       </td>
+       <td>
+        Installation de transit, regroupement ou tri de métaux ou de déchets de métaux non dangereux, d'alliage de métaux ou de déchets d'alliage de métaux non dangereux, à l'exclusion des activités et installations visées aux rubriques 2710, 2711 et 2712.
+        <br/>
+        <br/>
+        La surface étant supérieure à 100 m² et inférieure à 1 000 m²
+       </td>
+       <td>
+        Aire de stockage des métaux triés
+       </td>
+       <td>
+        200 m²
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4718-2
+       </td>
+       <td>
+        Gaz inflammables liquéfiés de catégorie 1 et 2 (y compris GPL et biogaz affiné, lorsqu'il a été traité conformément aux normes applicables en matière de biogaz purifié et affiné, en assurant une qualité équivalente à celle du gaz naturel, y compris pour ce qui est de la teneur en méthane, et qu'il a une teneur maximale de 1 % en oxygène).
+        <br/>
+        <br/>
+        La quantité totale susceptible d'être présente dans les installations y compris dans les cavités souterraines (strates naturelles, aquifères, cavités salines et mines désaffectées) étant supérieure ou égale à 6 t mais inférieure à 50 t
+       </td>
+       <td>
+        Unité de valorisation énergétique :
+        <br/>
+        Cuve aérienne de 70 m³ de GPL pour l'alimentation des brûleurs d'appoint du four d'incinération
+       </td>
+       <td>
+        35,14 t
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1435-2
+       </td>
+       <td>
+        Stations-service : installations, ouvertes ou non au public, où les carburants sont transférés de réservoirs de stockage fixes dans les réservoirs à carburant de véhicules à moteur, de bateaux ou d'aéronefs
+        <br/>
+        <br/>
+        Le volume annuel de carburant liquide distribué étant supérieur à 100 m³ d'essence ou 500 m³ au total, mais inférieur ou égal à 20 000 m³
+       </td>
+       <td>
+        Distribution de carburant aux engins de l'exploitation
+       </td>
+       <td>
+        200 m³/an
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4801
+       </td>
+       <td>
+        Houille, coke, lignite, charbon de bois, goudron, asphalte, brais et matières bitumineuses.
+        <br/>
+        <br/>
+        La quantité susceptible d'être présente dans l'installation étant inférieure à 50 t
+       </td>
+       <td>
+        Unité de valorisation énergétique :
+        <br/>
+        1 silo de 27 tonnes.
+        <br/>
+        Traitement des odeurs lors des arrêts techniques de l'UVE: présence temporaire de 3 caissons de charbon actif de 6,28 t chacun
+       </td>
+       <td>
+        46 tonnes
+       </td>
+       <td>
+        NC
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+    <div data-number="5" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Rubrique
+       </th>
+       <th>
+        Libellé de la rubrique
+       </th>
+       <th>
+        Nature des installations
+       </th>
+       <th>
+        Volume autorisé
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td>
+        4734
+       </td>
+       <td>
+        Produits pétroliers spécifiques et carburants de substitution : essences et naphtas ; kérosènes (carburants d'aviation compris) ; gazoles (gazole diesel, gazole de chauffage domestique et mélanges de gazoles compris) ; fioul lourd ; carburants de substitution pour véhicules, utilisés aux mêmes fins et aux mêmes usages et présentant des propriétés similaires en matière d'inflammabilité et de danger pour l'environnement.
+        <br/>
+        <br/>
+        La quantité totale susceptible d'être présente dans les installations y compris dans les cavités souterraines, étant :
+        <br/>
+        <br/>
+        * pour les cavités souterraines et les stockages enterrés : inférieure à 50 t d'essence ou 250 t au total
+        <br/>
+        * pour les autres stockages : inférieure à 50 t au total
+       </td>
+       <td>
+        Pour les cavités souterraines et les stockages enterrés :
+        <br/>
+        Cuve enterrée de GNR de 20 m³, soit 16,9 tonnes et cuve de fioul de 3 m³ soit 2,64 tonnes
+        <br/>
+        <br/>
+        Pour les autres stockages :
+        <br/>
+        0,22 m³ de fioul pour le groupe diesel secours incendie soit 0,194 tonne
+       </td>
+       <td>
+        19,54 tonnes pour les stockages souterrains ou enterrés et 0,194 tonnes pour les stockages non souterrains ou enterrés
+       </td>
+       <td>
+        NC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1630
+       </td>
+       <td>
+        Soude ou potasse caustique (emploi ou stockage de lessives de).
+        <br/>
+        <br/>
+        Le liquide renfermant plus de 20 % en poids d'hydroxyde de sodium ou de potassium.
+        <br/>
+        <br/>
+        La quantité totale susceptible d'être présente dans l'installation étant inférieure à 100 t
+       </td>
+       <td>
+        Unité de valorisation énergétique :
+        <br/>
+        Cuve de 3 m³ de lessive de soude à 50 % soit 4,56 tonnes
+        <br/>
+        <br/>
+        Unité de valorisation biologique :
+        <br/>
+        Cuve de 3 m³ de lessive de soude à 30,5 % soit 3,99 tonnes
+       </td>
+       <td>
+        8,55 tonnes
+       </td>
+       <td>
+        NC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2920
+       </td>
+       <td>
+        Installation de compression fonctionnant à des pressions effectives supérieures à 10
+        <sup>
+         6
+        </sup>
+        Pa et comprimant ou utilisant des fluides inflammables ou toxiques.
+        <br/>
+        <br/>
+        La puissance absorbée étant inférieure à 10 MW
+       </td>
+       <td>
+        Unité de valorisation biologique :
+        <br/>
+        sur-presseur biogaz
+       </td>
+       <td>
+        10 kW
+       </td>
+       <td>
+        NC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2925
+       </td>
+       <td>
+        Ateliers de charge d'accumulateurs.
+        <br/>
+        <br/>
+        La puissance maximale de courant continu utilisable pour cette opération étant inférieure à 50 kW
+       </td>
+       <td>
+        Onduleurs pour le secours d'équipements de contrôle commandes sensibles.
+        <br/>
+        Accumulateurs pour engins mobiles
+       </td>
+       <td>
+        45 kW
+       </td>
+       <td>
+        NC
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     A : Autorisation – D : déclaration – DC : déclaration avec contrôle périodique – NC : activité non classée - IED (pour information) : rubriques relevant de la directive IED 2010/75/UE
+    </div>
+    <div data-number="7" data-spec="alinea">
+     La rubrique principale IED telle que définie par l'
+     <a data-parent_reference="9" data-spec="section_reference" data-start_num="R515-61" data-type="article">
+      article R. 515-61
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="9" data-title="Code de l'environnement" data-type="code">
+      code de l'Environnement
+     </a>
+     est la rubrique 3520. Le BREF correspondant est celui de l'incinération de déchets.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="MODALITÉS D'EXÉCUTION, VOIES DE RECOURS" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     TITRE 4 - MODALITÉS D'EXÉCUTION, VOIES DE RECOURS
+    </h2>
+    <section data-number="4.1.1" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      Article 4.1.1. Délais et voies de recours
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      Les délais de caducité de l'autorisation environnementale sont ceux mentionnés à l'
+      <a data-parent_reference="10" data-spec="section_reference" data-start_num="R181-48" data-type="article">
+       article R. 181-48
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="10" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      .
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <a data-spec="document_reference" data-type="self">
+       Le présent arrêté
+      </a>
+      est soumis à un contentieux de pleine juridiction.
+     </div>
+     <a data-page_index="6" data-spec="page_separator">
+     </a>
+     <div data-number="3" data-spec="alinea">
+      Il peut être déféré auprès du Tribunal administratif de Clermont-Ferrand :
+     </div>
+     <div data-number="4" data-spec="alinea">
+      1°)- Par les tiers intéressés en raison des inconvénients ou des dangers pour les intérêts mentionnés à l'
+      <a data-parent_reference="11" data-spec="section_reference" data-start_num="L181-3" data-type="article">
+       article L. 181-3
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="11" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      , dans un délai de quatre mois à compter du premier jour de la publication ou de l'affichage de ces décisions;
+     </div>
+     <div data-number="5" data-spec="alinea">
+      2°)- Par les demandeurs ou exploitants, dans un délai de deux mois à compter du jour où lesdits actes leur ont été notifiés ;
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Les décisions mentionnées au
+      <a data-spec="section_reference" data-start_num="1" data-type="alinea">
+       premier alinéa
+      </a>
+      peuvent faire l'objet d'un recours gracieux ou hiérarchique dans le délai de deux mois. Ce recours administratif prolonge de deux mois les délais mentionnés aux 1° et 2°.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Les tiers qui n'ont acquis ou pris à bail des immeubles ou n'ont élevé des constructions dans le voisinage d'une installation classée que postérieurement à l'affichage ou à la publication de l'acte portant autorisation ou enregistrement de cette installation ou atténuant les prescriptions primitives ne sont pas recevables à déférer ledit arrêté à la juridiction administrative.
+     </div>
+    </section>
+    <section data-number="4.1.2" data-spec="section" data-title="Notification et publicité" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      Article 4.1.2. Notification et publicité
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      Conformément aux dispositions de l'
+      <a data-parent_reference="12" data-spec="section_reference" data-start_num="R181-44" data-type="article">
+       article R. 181-44
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="12" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      , une copie du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      d'autorisation environnementale est déposée à la Mairie de Clermont-Ferrand et peut y être consultée. Un extrait de cet arrêté est affiché à la mairie de Clermont-Ferrand pendant une durée minimale d'un mois. Le maire de la commune de Clermont-Ferrand fera connaître par procès verbal, adressé à la préfecture du Puy-de-Dôme l'accomplissement de cette formalité.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      L'arrêté est publié sur le site internet de la préfecture du Puy-de-Dôme pendant une durée minimale d'un mois.
+     </div>
+    </section>
+    <section data-number="4.1.3" data-spec="section" data-title="Exécution" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      Article 4.1.3. Exécution
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      La Secrétaire Générale de la Préfecture du Puy-de-Dôme, le Maire de Clermont-Ferrand ainsi que la Directrice Régionale de l'Environnement, de l'Aménagement et du Logement Auvergne-Rhône-Alpes, sont chargés, chacun en ce qui le concerne, de veiller à l'exécution du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      dont une copie sera également adressée :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - au bénéficiaire,
+       </li>
+       <li>
+        - à la Délégation Territoriale de l'Agence Régionale de Santé,
+       </li>
+       <li>
+        - au Chef de l'Unité inter-Départementale Cantal-Allier-Puy-de-Dôme de la DREAL Auvergne-Rhône-Alpes.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Fait à Clermont-Ferrand, le 24 AVR. 2010
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Pour le Préfet et par délégation,
+     </div>
+     <div data-number="5" data-spec="alinea">
+      La Secrétaire Générale,
+     </div>
+     <div data-number="6" data-spec="alinea">
+      <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Béatrice STEFFAN
+     </div>
+     <a data-page_index="7" data-spec="page_separator">
+     </a>
+     <div data-number="8" data-spec="alinea">
+      ^{}[]
+     </div>
+    </section>
+   </section>
+  </main>
+ </body>
+</html>

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2009-11-30_arrêté préfectoral_AP d'autorisation 09-5489.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PREFECTURE DE LA DROME Valence, le 30 novembre 2009
+    </div>
+    <div>
+     DIRECTION DE L'ENVIRONNEMENT, DES COLLECTIVITES ET DES TERRITOIRES
+    </div>
+    <div>
+     Bureau de l'Environnement
+    </div>
+    <div>
+     AFFAIRE SUIVIE PAR : Edith VIGNARD TEL : 04.75.79.28.70 FAX : 04 75 79 29.49 © : edith.vignard@drome.pref.gouv.fr
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ rectificatif n° 09 - 5489 PORTANT AUTORISATION AU TITRE DES INSTALLATIONS CLASSEES POUR LA PROTECTION DE L'ENVIRONNEMENT REGULARISATION DE L'EXPLOITATION D'UN ENTREPÔT DE STOCKAGE par la SOCIÉTÉ FRUIVAL à PORTES LES VALENCE
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet de la DROME
+    </div>
+    <div>
+     Officier de la Légion d'Honneur
+    </div>
+    <div>
+     Officier de l'Ordre National du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    et notamment son titre 1er du livre V ;
+   </div>
+   <div data-spec="visa">
+    VU la nomenclature des installations classées pour la protection de l'environnement et notamment les rubriques: 2220-1, 2253-1, 1510-1, 2920-2a, 2910-A2, 2925, 2661-1b, 1530, 1412-2b et 1414-3 ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2003-07-18" data-num="03-3270" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 03-3270 du
+     <time data-spec="date" datetime="2003-07-18">
+      18 juillet 2003
+     </time>
+    </a>
+    autorisant la société FRUIVAL à exploiter son établissement situé en zone industrielle à Portes les Valence ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2008-05-29" data-num="08-2269" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 08-2269 du
+     <time data-spec="date" datetime="2008-05-29">
+      29 mai 2008
+     </time>
+     modifiant
+    </a>
+    l'
+    <a data-date="2003-07-18" data-num="03-3270" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 03-3270 du
+     <time data-spec="date" datetime="2003-07-18">
+      18 juillet 2003
+     </time>
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU le récépissé de déclaration n° 32/05 du 22 juin 2005 relatif à l'activité de transformation de polymères ;
+   </div>
+   <div data-spec="visa">
+    VU la demande présentée le 03 avril 2007 par la société FRUIVAL en vue d'être autorisée à exploiter un entrepôt de stockage ;
+   </div>
+   <div data-spec="visa">
+    VU le dossier déposé à l'appui de sa demande ;
+   </div>
+   <div data-spec="visa">
+    VU la décision en date du 20 août 2007 du président du tribunal administratif de Grenoble portant désignation du commissaire-enquêteur ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2007-08-23" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral en date du
+     <time data-spec="date" datetime="2007-08-23">
+      23 août 2007
+     </time>
+    </a>
+    ordonnant l'organisation d'une enquête publique pour une durée d'un mois du 25 septembre 2007 au 25 octobre 2007 inclus sur le territoire des communes de Portes les Valence, Valence et Soyons ;
+   </div>
+   <div data-spec="visa">
+    VU l'accomplissement des formalités d'affichage réalisé dans ces communes de l'avis au public ;
+   </div>
+   <div data-spec="visa">
+    VU la publication en date 07 septembre 2007 de cet avis dans deux journaux locaux ;
+   </div>
+   <div data-spec="visa">
+    VU le registre d'enquête et l'avis du commissaire enquêteur ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     3, boulevard Vauban – 26030 VALENCE Cedex 9 – Téléphone : 0821 803 026 Télécopie : 04 75 42 87 55
+R. FERER TECHNOLOGIE DE PARIS UNI PORTÉ FINE
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    VU les avis émis par les conseils municipaux des communes de Portes les Valence, Valence et Soyons ;
+   </div>
+   <div data-spec="visa">
+    VU les avis exprimés par les différents services et organismes consultés ;
+   </div>
+   <div data-spec="visa">
+    VU l’avis en date du 29 novembre 2007 du Comité d'Hygiène, de Sécurité et des Conditions de Travail ;
+   </div>
+   <div data-spec="visa">
+    VU les compléments apportés les 03 mars 2008, 20 juillet, 26 septembre et 22 octobre 2008 ;
+   </div>
+   <div data-spec="visa">
+    VU les arrêtés n°s 08-0969 du 03 mars 2008, 08-3307 du 29 juillet 2008 et 09-0602 du 12 février 2009 prorogeant le délai d'instruction du dossier de la demande d'autorisation susvisée ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport et les propositions en date du 29 juin 2009 de l’inspection des installations classées à la Direction régionale de l'Industrie, de la Recherche et de l'Environnement ;
+   </div>
+   <div data-spec="visa">
+    VU l’avis en date du 24 septembre 2009 du CODERST au cours duquel le demandeur a été entendu ;
+   </div>
+   <div data-spec="visa">
+    VU le projet d’arrêté porté le 29 septembre 2009 à la connaissance du demandeur ;
+   </div>
+   <div data-spec="visa">
+    VU le courrier du 06 octobre 2009 par lequel le demandeur fait part de ses observations sur le projet d'arrêté ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis du 08 octobre 2009 de l'inspection des installations classées à la Direction Régionale de l'Environnement, de l'Aménagement et du Logement ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2009-10-14" data-num="09-4699" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 09-4699 du
+     <time data-spec="date" datetime="2009-10-14">
+      14 octobre 2009
+     </time>
+    </a>
+    autorisant la régularisation d'un entrepôt de stockage par la société FRUIVAL sise à Portes les Valence ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT qu'il y a lieu de rectifier une erreur matérielle ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition de Madame la Secrétaire Générale de la préfecture de la Drôme,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1er :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En cohérence avec les dispositions de l'
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="9.4.2" data-type="article">
+      article 9.4.2
+     </a>
+     de l'
+     <a data-date="2009-10-14" data-num="09-4699" data-spec="document_reference" data-tag_id="1" data-type="arrete">
+      arrêté n° 09-4699 du
+      <time data-spec="date" datetime="2009-10-14">
+       14 octobre 2009
+      </time>
+     </a>
+     susvisé, le premier bilan de fonctionnement est à fournir au cours de l'année 2015.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     En conséquence, le tableau récapitulatif des documents à transmettre, figurant au chapitre 2.7, est intitulé ainsi : ...
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - bilan de fonctionnement : périodicité / échéances : En 2015 puis tous les 10 ans
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le reste sans changement.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Exécution et copie conforme" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 : Exécution et copie conforme
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La Secrétaire Générale de la préfecture de la Drôme, le maire de Portes les Valence et l'inspecteur des installations classées à la Direction Régionale de l'Environnement, de l'Aménagement et du Logement sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     susceptible d'être déféré au tribunal administratif de Grenoble dans le délai de 2 mois.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Fait à Valence, le 30 NOV. 2009
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le Préfet,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le Préfet, par délégation,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     La Secrétaire Générale
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Marie-Paule BARDECHE
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Pour copie conforme
+    </div>
+    <div data-number="8" data-spec="alinea">
+     L'Attaché,
+    </div>
+    <div data-number="9" data-spec="alinea">
+     I. DUPERBAY-LAJUS
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

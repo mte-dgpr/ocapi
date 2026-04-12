@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2006-09-28_arrêté préfectoral_AP complémentaire (art 18 déc. 77).pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PREFECTURE DES ARDENNES
+    </div>
+    <div>
+     DIRECTION DES RELATIONS AVEC LES COLLECTIVITES LOCALES
+    </div>
+    <div>
+     BUREAU DE L'URBANISME, DE L'ENVIRONNEMENT ET DE LA CULTURE
+    </div>
+    <div>
+     INSTALLATIONS CLASSEES POUR LA PROTECTION DE L'ENVIRONNEMENT
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE PREFECTORAL COMPLEMENTAIRE SOCIETE UNILIN COMMUNE DE BAZEILLES
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     La Préfète des Ardennes,
+    </div>
+    <div>
+     Chevalier de la Légion d'Honneur
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    – Livre V – titre 1er, relatif aux installations classées pour la protection de l'environnement et notamment les
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     articles L 511-1
+    </a>
+    et
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L512-7" data-type="article">
+     L 512-7
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-type="decret">
+     décret n° 77-1133 du
+     <time data-spec="date" datetime="1977-09-21">
+      21 septembre 1977
+     </time>
+    </a>
+    modifié, et notamment l'
+    <a data-spec="section_reference" data-start_num="18" data-type="article">
+     article 18
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    Vu le décret modifié n° 92-604 du 1er juillet 1992 portant charte de la déconcentration,
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="2004-04-29" data-num="2004-374" data-spec="document_reference" data-type="decret">
+     décret n° 2004-374 du
+     <time data-spec="date" datetime="2004-04-29">
+      29 avril 2004
+     </time>
+    </a>
+    relatif aux pouvoirs des préfets à l'organisation et à l'action des services de l'Etat dans les régions et départements,
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="2006-08-01" data-spec="document_reference" data-type="decret">
+     décret du
+     <time data-spec="date" datetime="2006-08-01">
+      1er août 2006
+     </time>
+    </a>
+    portant nomination de Mme Catherine Delmas-Comolli en qualité de préfète des Ardennes,
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2006-08-28" data-num="2006-417" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 2006-417 du
+     <time data-spec="date" datetime="2006-08-28">
+      28 août 2006
+     </time>
+    </a>
+    donnant délégation de signature à Mme Marie-Hélène Desbazeille, secrétaire générale de la préfecture des Ardennes,
+   </div>
+   <div data-spec="visa">
+    Vu l'arrêté préfectoral d'autorisation de la société UNILIN du 26 juillet 2002,
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2005-04-08" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire du
+     <time data-spec="date" datetime="2005-04-08">
+      8 avril 2005
+     </time>
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2006-08-07" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire du
+     <time data-spec="date" datetime="2006-08-07">
+      7 août 2006
+     </time>
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    Vu le dossier concernant le nouveau rejet aqueux, suite aux modifications faites sur l'installation de traitements des eaux de lavage des plaquettes,
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Page 1 sur 6
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    Vu l'avis favorable sous certaines conditions de la direction départementale de l'agriculture et de la forêt,
+   </div>
+   <div data-spec="visa">
+    Vu le rapport réf. SA2-BD/JR-N° 06/211 du 13 avril 2006 de l'inspection des installations classées de la DRIRE,
+   </div>
+   <div data-spec="motifs">
+    Considérant que le site est soumis à la législation relative aux installations classées, par l'
+    <a data-date="2002-07-26" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral d'autorisation du
+     <time data-spec="date" datetime="2002-07-26">
+      26 juillet 2002
+     </time>
+    </a>
+    ,
+   </div>
+   <div data-spec="motifs">
+    Considérant qu'il a été constaté des pollutions (en Demande Chimique en Oxygène, Demande Biologique en Oxygène et en Azote Global) du Rôle à trois reprises le 17 mars 2003, le 4 novembre 2003 et le 22 janvier 2004 en aval du rejet des eaux pluviales d'UNILIN,
+   </div>
+   <div data-spec="motifs">
+    Considérant que l'osmoseur, traitant le mélange des eaux de ville et des eaux issues du lavage de plaquettes, était à l'origine de la pollution,
+   </div>
+   <div data-spec="motifs">
+    Considérant que l'exploitant a fait modifier ses installations de traitement afin d'éviter tout renouvellement de ces types de pollution,
+   </div>
+   <div data-spec="motifs">
+    Considérant qu'il convient, conformément à l'
+    <a data-spec="section_reference" data-start_num="18" data-type="article">
+     article 18
+    </a>
+    du décret modifié du 21 septembre 1977, de prendre les mesures visant à supprimer les pollutions industrielles.
+   </div>
+   <div data-spec="motifs">
+    Considérant que l'exploitant a fait connaître qu'il n'avait pas de remarques sur
+    <a data-spec="document_reference" data-type="self">
+     le présent arrêté
+    </a>
+    qui lui a été transmis en projet,
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition de la secrétaire générale de la préfecture des Ardennes
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="OBJET" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1. OBJET
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     a pour objet d'adapter les prescriptions de l'
+     <a data-date="2002-07-26" data-num="4540" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral n° 4540 du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     aux nouvelles installations.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="CHAMP D'APPLICATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2. CHAMP D'APPLICATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     s'appliquent aux installations exploitées par la société UNILIN dans l'enceinte de son établissement situé à BAZEILLES.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="3" data-type="article">
+      article 3
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="1" data-type="self">
+      présent arrêté
+     </a>
+     annule et remplace l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="6.5" data-type="article">
+      article 6.5
+     </a>
+     de l'
+     <a data-date="2002-07-26" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     .
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="4" data-type="article">
+      article 4
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-type="self">
+      présent arrêté
+     </a>
+     annule et remplace l'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="7.5" data-type="article">
+      article 7.5
+     </a>
+     de l'
+     <a data-date="2002-07-26" data-spec="document_reference" data-tag_id="4" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     .
+    </div>
+    <div data-number="4" data-spec="alinea">
+     L'
+     <a data-parent_reference="5" data-spec="section_reference" data-start_num="5" data-type="article">
+      article 5
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="5" data-type="self">
+      présent arrêté
+     </a>
+     vient compléter l'
+     <a data-parent_reference="6" data-spec="section_reference" data-start_num="8" data-type="article">
+      article 8
+     </a>
+     de l'
+     <a data-date="2002-07-26" data-spec="document_reference" data-tag_id="6" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     .
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 2 sur 6
+     </div>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="5" data-spec="alinea">
+     L'
+     <a data-parent_reference="7" data-spec="section_reference" data-start_num="6" data-type="article">
+      article 6
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="7" data-type="self">
+      présent arrêté
+     </a>
+     annule et remplace l'
+     <a data-parent_reference="8" data-spec="section_reference" data-start_num="9.3" data-type="article">
+      article 9.3
+     </a>
+     de l'
+     <a data-date="2002-07-26" data-spec="document_reference" data-tag_id="8" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="TRAITEMENT DES EAUX voir annexe : schéma du dispositif de traitement des eaux (ancien article 6.5 de l'arrêté préfectoral d'autorisation du 26 juillet 2002)" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3. TRAITEMENT DES EAUX voir annexe : schéma du dispositif de traitement des eaux (ancien article 6.5 de l'arrêté préfectoral d'autorisation du 26 juillet 2002)
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les eaux usées liées à la production des panneaux MDF suivent le parcours suivant :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - Les eaux de lavage des plaquettes de bois et l'excès d'humidité sont traitées tout d'abord par flocculation, filtre presse et membranes, subissent ensuite un second traitement par membrane (station de membranes secondaire A). L'eau traitée est utilisée pour la production de vapeur (passage par un adoucisseur) ou dans le procédé de fabrication. Le concentrât (chargé en matière organique) est incinéré dans la chaufferie (schéma en annexe).
+      </li>
+      <li>
+       - Les eaux de ville (utilisées pour la production de vapeur) sont traitées par membrane (station de membranes secondaire B). Une partie des eaux traitées est utilisée pour la génération de vapeur (via passage par un adoucisseur), le concentrât (riche en sels) est rejeté vers le Rûle (schéma en annexe).
+      </li>
+      <li>
+       - Les eaux adoucies (eaux issues de la station A et eaux issues de la station B après passage par un adoucisseur) sont utilisées pour la génération de vapeur. Les eaux chargées en sels et minéraux sont rejetées vers le Rûle via un bassin tampon (schéma en annexe).
+      </li>
+      <li>
+       - L'eau de refroidissement circule en circuit fermé.
+      </li>
+      <li>
+       - L'eau de lavage de l'unité d'encollage est mélangée à des fibres et incinérée à la chaufferie.
+      </li>
+      <li>
+       - L'eau de purge des compresseurs (équipés d'un pré-traitement intégré) est rejetée dans le réseau communal.
+      </li>
+      <li>
+       - Le secteur mélaminage ne rejette pas d'eau industrielle.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="LOCALISATION DES POINTS DE REJETS (ancien article 7.5 de l'arrêté préfectoral d'autorisation du 26 juillet 2002)" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4. LOCALISATION DES POINTS DE REJETS (ancien article 7.5 de l'arrêté préfectoral d'autorisation du 26 juillet 2002)
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les points de rejets seront au nombre de 3 :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - L'émissaire 1 correspondant aux eaux domestiques, eaux de purge des compresseurs et eaux de lavage ; son rejet s'effectue dans le réseau d'assainissement de la commune de Bazeilles aboutissant à la station d'épuration urbaine de Bazeilles dont le milieu récepteur est la GIVONNE.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le rejet dans cet émissaire doit faire l'objet d'une convention avec le gestionnaire de la station.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 3 sur 6
+     </div>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - L'émissaire 2 correspondant à l'ensemble des eaux pluviales (toiture et aire de stockage et de stationnement) ; son rejet, après passage par le bassin de confinement, s'effectue dans le ruisseau le RULE.
+      </li>
+     </ul>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le rejet dans cet émissaire se fait par l'intermédiaire d'un bassin de confinement des eaux pluviales.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     <ul>
+      <li>
+       - L'émissaire 3 correspondant aux rejets dans le RULE des eaux de régénération des adoucisseurs par l'intermédiaire d'un bassin tampon et des eaux de ville riches en sel rejetées par la station de membrane secondaire B.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="EAUX RESIDUAIRES ISSUES DU TRAITEMENT PAR ADOUCISSEUR (ancien article 8.4 de l'arrêté préfectoral d'autorisation du 26 juillet 2002)" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5. EAUX RESIDUAIRES ISSUES DU TRAITEMENT PAR ADOUCISSEUR (ancien article 8.4 de l'arrêté préfectoral d'autorisation du 26 juillet 2002)
+    </h2>
+    <section data-number="5.1" data-spec="section" data-title="Eaux de régénération des adoucisseurs" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      5.1- Eaux de régénération des adoucisseurs
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le rejet des eaux de régénération se fait par l'intermédiaire d'un bassin tampon permettant un rejet en continu et doit respecter les conditions suivantes :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <table>
+       <tr>
+        <td>
+         Quantité maximale rejetée
+        </td>
+        <td colspan="2">
+         18 m³/jour
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Débit
+        </td>
+        <td colspan="2">
+         &lt; 0,21 l/s
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Concentration en sodium (Na)
+        </td>
+        <td>
+         &lt; 5 g/l
+        </td>
+        <td>
+         Flux &lt; 90,7 kg/j
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Concentration en Calcium (Ca)
+        </td>
+        <td>
+         &lt; 1,5 g/l
+        </td>
+        <td>
+         Flux &lt; 27,2 kg/j
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Concentration en Magnésium (Mg)
+        </td>
+        <td>
+         &lt; 0,1 g/l
+        </td>
+        <td>
+         Flux &lt; 1,8 kg/j
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Concentration en Chlore (Cl)
+        </td>
+        <td>
+         &lt; 10,5 g/l
+        </td>
+        <td>
+         Flux &lt; 190,2 kg/j
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      La température des effluents rejetés est inférieure à 30° C et leur pH est compris entre 5,5 et 8,5.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Un compteur totalisateur sera placé sur l'émissaire avant rejet dans le milieu naturel. Il sera relevé sur un registre prévu à cet effet au moins une fois par semaine.
+     </div>
+    </section>
+    <section data-number="5.2" data-spec="section" data-title="Eaux de ville riches en sel issues de la station B" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      5.2- Eaux de ville riches en sel issues de la station B
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le concentrât d'eau de ville (riche en sels) est issu du traitement de la station de membranes secondaire B.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Ce rejet se fait directement dans le Rûle avec un débit maximal de 8 m³/h et doit respecter les conditions suivantes :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <table>
+       <tr>
+        <td>
+         Concentration en Sodium
+        </td>
+        <td>
+         &lt; 42 mg/l
+        </td>
+        <td>
+         336 g/h
+        </td>
+        <td>
+         8,1 kg/j
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Concentration en Potassium
+        </td>
+        <td>
+         12 mg/l
+        </td>
+        <td>
+         96 g/h
+        </td>
+        <td>
+         2,3 kg/j
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Concentration en Calcium
+        </td>
+        <td>
+         768 mg/l
+        </td>
+        <td>
+         6,14 kg/h
+        </td>
+        <td>
+         148 kg/j
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Concentration en Magnésium
+        </td>
+        <td>
+         21 mg/l
+        </td>
+        <td>
+         168 g/h
+        </td>
+        <td>
+         4,1 kg/j
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Concentration en Chloride
+        </td>
+        <td>
+         131 mg/l
+        </td>
+        <td>
+         1,05 kg/h
+        </td>
+        <td>
+         25,2 kg/j
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Concentration en Sulfate
+        </td>
+        <td>
+         135 mg/l
+        </td>
+        <td>
+         1,08 kg/h
+        </td>
+        <td>
+         25,92 kg/j
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Concentration en Bicarbonate
+        </td>
+        <td>
+         2040 mg/l
+        </td>
+        <td>
+         16,3 kg/h
+        </td>
+        <td>
+         391,2 kg/j
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Concentration en Nitrate
+        </td>
+        <td>
+         99 mg/l
+        </td>
+        <td>
+         792 g/h
+        </td>
+        <td>
+         19 kg/j
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Concentration en Fluoride
+        </td>
+        <td>
+         0,6 mg/l
+        </td>
+        <td>
+         5 g/h
+        </td>
+        <td>
+         0,12 kg/j
+        </td>
+       </tr>
+      </table>
+     </div>
+     <a data-page_index="4" data-spec="page_separator">
+     </a>
+     <div data-number="4" data-spec="alinea">
+      La température des effluents rejetés est inférieure à 30° C et leur pH est compris entre 5,5 et 8,5.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Un compteur totalisateur sera placé sur l'émissaire avant rejet dans le milieu naturel. Il sera relevé sur un registre prévu à cet effet au moins une fois par semaine.
+     </div>
+    </section>
+   </section>
+   <section data-number="6" data-spec="section" data-title="SURVEILLANCE DES REJETS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 6 : SURVEILLANCE DES REJETS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une mesure des paramètres fixés aux
+     <a data-group_id="2" data-parent_reference="9" data-spec="section_reference" data-start_num="8.1" data-type="article">
+      articles 8.1
+     </a>
+     et
+     <a data-group_id="2" data-parent_reference="9" data-spec="section_reference" data-start_num="8.4" data-type="article">
+      8.4
+     </a>
+     (de l'
+     <a data-date="2002-07-26" data-spec="document_reference" data-tag_id="9" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     ) et de l'
+     <a data-parent_reference="10" data-spec="section_reference" data-start_num="5" data-type="article">
+      article 5
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="10" data-type="self">
+      présent arrêté
+     </a>
+     préfectoral complémentaire, sera effectuée tous les 6 mois par un laboratoire extérieur agréé par le Ministère chargé de l'Environnement sur des échantillons 24 heures asservis aux débits rejetés qui devront être mesurés.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les flux polluants journaliers pour chacun des paramètres seront calculés.
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="DELAI ET VOIE DE RECOURS (article L 514-6 du Code de l'Environnement)" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 7 : DELAI ET VOIE DE RECOURS (article L 514-6 du Code de l'Environnement)
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La présente décision peut être déférée au tribunal administratif. Le délai de recours est de deux mois pour l'exploitant. Ce délai commence à courir du jour où la présente décision a été notifiée.
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-title="SANCTIONS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 8 : SANCTIONS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Faute pour l'intéressé de se conformer au
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , il pourra être fait application, indépendamment des sanctions pénales encourues, des sanctions administratives prévues à l'
+     <a data-parent_reference="11" data-spec="section_reference" data-start_num="L514-1" data-type="article">
+      article L 514-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="11" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     susvisé.
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-title="PUBLICITE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 9 : PUBLICITE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sera déposée à la mairie de BAZEILLES.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Un extrait dudit arrêté, énumérant les prescriptions auxquelles l'établissement est soumis, sera affiché pendant un mois à la mairie de BAZEILLES et de façon visible et permanente dans l'établissement.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Un avis sera inséré par les soins du préfet des Ardennes et aux frais de l'exploitant dans deux journaux locaux diffusés dans tout le département.
+    </div>
+   </section>
+   <section data-number="10" data-spec="section" data-title="FRAIS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 10 : FRAIS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Tous les frais occasionnés par les études et travaux menés en application du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sont à la charge de l'exploitant.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 5 sur 6
+     </div>
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      Page 6 sur 6
+     </div>
+    </div>
+   </section>
+   <section data-number="11" data-spec="section" data-title="EXECUTION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 11 : EXECUTION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La secrétaire générale de la préfecture des Ardennes et l'inspecteur des installations classées sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     qui sera notifié à la société UNILIN et dont copie sera transmise, pour information, au Maire de BAZEILLES ainsi qu'au sous-préfet de SEDAN.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Charleville-Mézières le, 28 septembre 2006
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Pour la préfète,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     La secrétaire générale,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     SIGNE
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Marie-Hélène Desbazeille
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

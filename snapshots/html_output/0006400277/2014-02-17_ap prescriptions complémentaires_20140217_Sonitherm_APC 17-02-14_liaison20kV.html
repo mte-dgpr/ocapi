@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2014-02-17_ap prescriptions complémentaires_20140217_Sonitherm_APC 17-02-14_liaison20kV.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+AP Comp 17/2/2014
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFET DES ALPES-MARITIMES
+    </div>
+    <div>
+     Direction départementale de la protection des populations des Alpes-Maritimes
+    </div>
+    <div>
+     service environnement
+    </div>
+    <div>
+     Installations classées pour la protection de l’environnement Société SONITHERM Usine d’incinération d’ordures ménagères et autres déchets assimilés 33, boulevard de l’Ariane - Nice
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté préfectoral complémentaire portant sur l’alimentation électrique de l’usine
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet des Alpes-Maritimes
+    </div>
+    <div>
+     Officier de la Légion d’honneur
+    </div>
+    <div>
+     Officier de l’Ordre national du Mérite
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     N° 14562
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le livre V, titre I du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    , notamment l’
+    <a data-spec="section_reference" data-start_num="R512-31" data-type="article">
+     article R.512-31
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2002-09-29" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2002-09-29">
+      29 septembre 2002
+     </time>
+    </a>
+    relatif aux installations d’incinération et de co-incinération de déchets non dangereux et aux installations incinérant des déchets d’activités de soins à risques infectieux, modifié par les arrêtés ministériels
+    <a data-date="2010-08-03" data-spec="document_reference" data-type="arrete-ministeriel">
+     du
+     <time data-spec="date" datetime="2010-08-03">
+      3 août 2010
+     </time>
+    </a>
+    et
+    <a data-date="2012-12-18" data-spec="document_reference" data-type="arrete-ministeriel">
+     du
+     <time data-spec="date" datetime="2012-12-18">
+      18 décembre 2012
+     </time>
+    </a>
+    :
+   </div>
+   <div data-spec="visa">
+    VU les arrêtés préfectoraux qui réglementent l’exploitation par la société SONITHERM, d’une usine d’incinération de déchets ménagers et assimilés située 33, boulevard de l’Ariane à Nice, notamment l’
+    <a data-date="2011-07-04" data-num="13804" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire n° 13804 du
+     <time data-spec="date" datetime="2011-07-04">
+      4 juillet 2011
+     </time>
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport et les propositions de l’inspection de l’environnement en date du 19 novembre 2013 ;
+   </div>
+   <div data-spec="visa">
+    VU l’avis émis par le Conseil Départemental de l’Environnement et des Risques Sanitaires et Technologiques en sa séance du 10 janvier 2014 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT les ruptures répétées de l’alimentation électrique de l’usine d’incinération précitée survenues à cinq reprises depuis 2009 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que la dernière rupture d’alimentation électrique survenue le 3 août 2012 a occasionné l’arrêt forcé et total du fonctionnement de l’usine d’incinération pendant plusieurs jours, générant des nuisances pour les populations riveraines et conduisant aux transports de déchets par camions en dehors du département des Alpes-Maritimes ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu’en vue de protéger les intérêts mentionnés à l’
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     article L.511-1
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    , il convient de faire application de l’
+    <a data-spec="section_reference" data-start_num="R512-31" data-type="article">
+     article R.512-31
+    </a>
+    susvisé en prescrivant à la société SONITHERM la remise et la réalisation d’un plan d’actions visant à sécuriser l’alimentation électrique de l’usine d’incinération qu’elle exploite ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition du secrétaire général de la préfecture des Alpes-Maritimes,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La Société Niçoise de Réalisations Thermiques (SONITHERM) dont le siège social est situé 33, boulevard de l’Ariane – 06300 Nice, ci-après dénommée
+     <q>
+      l’exploitant
+     </q>
+     , est tenue de se conformer, pour la poursuite de l’exploitation de l’usine d’incinération d’ordures ménagères et autres déchets assimilés située à la même adresse, aux dispositions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <a data-page_index="1" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant transmet au préfet au plus tard dans un délai de trois mois à compter de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , un plan d'actions visant à élever durablement la robustesse de la liaison électrique fonctionnelle entre l'usine d'incinération qu'elle exploite et le réseau public de transport d'énergie électrique.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Ce plan d'actions est assorti d'un calendrier de réalisation.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     La mise en œuvre du plan d'actions est effective au plus tard dans un délai de 12 mois à compter de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Délais et voie de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 : Délais et voie de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La présente décision peut être déférée devant le Tribunal administratif de Nice :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - par le demandeur ou l'exploitant, dans un délai de deux mois qui commence à courir du jour où la présente décision lui a été notifiée ;
+      </li>
+      <li>
+       - par les tiers, personnes physiques ou morales, les communes intéressées ou leurs groupements, en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts visés à l'
+       <a data-parent_reference="2" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+        article L. 511-1
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+        code de l'environnement
+       </a>
+       , dans un délai d'un an à compter de la publication ou de l'affichage de la présente décision.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les tiers qui n'ont acquis ou pris à bail des immeubles ou n'ont élevé des constructions dans le voisinage d'une installation classée que postérieurement à l'affichage ou à la publication de l'arrêté autorisant l'ouverture de cette installation ou atténuant les prescriptions primitives ne sont pas recevables à déférer ledit arrêté à la juridiction administrative.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - Une copie du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       est déposée à la mairie de Nice où il pourra être consulté ;
+      </li>
+      <li>
+       - un extrait de cet arrêté est affiché à la mairie de Nice pendant une durée minimum d'un mois, procès-verbal de l'accomplissement de cette formalité étant dressé par les soins du maire ;
+      </li>
+      <li>
+       - le même extrait sera en outre, affiché par le pétitionnaire dans son établissement ;
+      </li>
+      <li>
+       - un avis est inséré par les soins du préfet des Alpes-Maritimes et aux frais de l'exploitant, dans deux journaux locaux ou régionaux diffusés dans le département.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le Secrétaire Général de la Préfecture des Alpes-Maritimes est chargé de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont copie est adressée :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - à la Société Niçoise de Réalisations Thermiques (SONITHERM),
+      </li>
+      <li>
+       - au député maire de Nice,
+      </li>
+      <li>
+       - au délégué territorial des Alpes-Maritimes de l'Agence régionale de santé (ARS),
+      </li>
+      <li>
+       - au directeur départemental des services d'incendie et de secours,
+      </li>
+      <li>
+       - au chef de l'Unité Territoriale des Alpes-Maritimes de la DREAL PACA, inspecteur des installations classées.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Fait à Nice, le 17 FEV. 2014
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le Préfet,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le Secrétaire Général
+    </div>
+    <div data-number="6" data-spec="alinea">
+     DITION-G 3393
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Gérard GAVORY
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

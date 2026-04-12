@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2024-09-10_document de procédure_20240725_JL_562_ARIANEO_rapport PAC.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET DES ALPES-MARITIMES
+Liberté
+Égalité
+Fraternité
+
+Direction Régionale de l'Environnement, de l'Aménagement et du Logement de Provence-Alpes-Côte d'Azur
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Unité départementale des Alpes-Maritimes et du Var Antenne de Nice Tour Hermès, Nice Leader
+    </div>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="64-66" data-spec="section" data-title="route de Grenoble," data-type="unknown">
+    <h3 data-level="1" data-spec="section_title">
+     64-66 route de Grenoble,
+    </h3>
+    <div data-number="1" data-spec="alinea">
+     06286 NICE
+    </div>
+    <div data-number="2" data-spec="alinea">
+     NICE, le 27/08/2024
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Affaire suivie par : LEFEVRE Jérôme
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Téléphone : 04 88 22 65 84
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Courriel : jerome.lefevre@developpement-durable.gouv.fr
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Références : 2024_562
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Code AIOT : 0006400277
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Rapport de l'inspection des installations classées
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Avis sur le porter à connaissance de modifications
+    </div>
+    <div data-number="10" data-spec="alinea">
+     ARIANEO
+    </div>
+    <div data-number="11" data-spec="alinea">
+     <address data-spec="address">
+      33 boulevard de L'Ariane
+     </address>
+    </div>
+    <div data-number="12" data-spec="alinea">
+     06300 Nice
+    </div>
+    <div data-number="13" data-spec="alinea">
+     Objet : Installation d'un groupe froid destiné au refroidissement des effluents aqueux - Instruction du dossier de porter à connaissance de modifications déposé par la société ARIANEO
+    </div>
+    <div data-number="14" data-spec="alinea">
+     Références :
+    </div>
+    <div data-number="15" data-spec="alinea">
+     <ul>
+      <li>
+       - Arrêté préfectoral d'autorisation environnementale n°17193 du 11 mai 2023 relatif à l'exploitation par la société ARIANEO d'une installation d'incinération de déchets ménagers et assimilés et d'un centre de tri de déchets situés
+       <address data-spec="address">
+        33 boulevard de l'Ariane
+       </address>
+       à Nice (06300),
+      </li>
+      <li>
+       - dossier de porter à connaissance – mai 2024,
+      </li>
+      <li>
+       -
+       <a data-parent_reference="1" data-spec="section_reference" data-start_num="R181-46" data-type="article">
+        article R.181-46
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+        code de l'environnement
+       </a>
+       .
+      </li>
+     </ul>
+    </div>
+    <div data-number="16" data-spec="alinea">
+     Par courriel du 30 mai 2024, la société ARIANEO a déposé le porter à connaissance cité en référence. Le présent rapport analyse le caractère substantiel de la demande au regard de l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="R181-46" data-type="article">
+      article R.181-46
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     , et propose les suites à donner.
+    </div>
+    <div data-number="17" data-spec="alinea">
+     I. CARACTÉRISATION DE LA DEMANDE AU VU DU DOSSIER
+    </div>
+   </section>
+   <section data-number="1" data-spec="section" data-title="Description de l'activité – Situation administrative actuelle" data-type="unknown">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     1. Description de l'activité – Situation administrative actuelle
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'usine d'incinération des déchets ménagers de la Métropole Nice Côte d'Azur sise
+     <address data-spec="address">
+      33 boule
+     </address>
+     vard de
+     <a data-page_index="1" data-spec="page_separator">
+     </a>
+     l'Ariane sur la commune de Nice (06) a été construite en 1978. Elle était exploitée de 1978 au 22/07/2021 par la société SONITHERM (actionnariat DALKIA et VEOLIA) via une délégation de service public.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le 29/07/2021, par délibération du Conseil Métropolitain, la Métropole Nice Côte d'Azur a attribué la délégation de service public à la société ARIANEO (actionnariat Véolia et Banque des Territoires). Depuis le 12/09/2021, cette société exploite donc l'Unité d'incinération des déchets ménagers de l'Ariane à Nice (06), soumise à autorisation IED au titre des installations classées pour la protection de l'environnement.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     ARIANEO porte un projet de développement et de modernisation des installations comprenant l'extension du périmètre du site, l'extension de la fosse d'ordures ménagères, la création d'un nouvel atelier de traitement des DASRI, la mise aux normes de l'installation au regard de la directive IED, l'augmentation de la puissance de l'installation, la construction et l'exploitation d'un nouveau centre de tri, des améliorations/adaptations diverses au niveau des process (amélioration de la performance énergétique...). Ce projet est toujours en cours de réalisation.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Un dossier de demande d'autorisation environnementale relative à ce projet a ainsi été déposé le 08/02/22 et a donné lieu à un arrêté préfectoral d'autorisation environnementale signé le 11 mai 2023.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Lors de la visite d'inspection du 2 décembre 2021, les rapports d'analyse des effluents aqueux au point de rejet n°2 (eaux usées industrielles) avaient fait l'objet d'un contrôle. L'inspection relevait que ceux-ci ne faisaient pas apparaître de non-conformité sur les paramètres pH et température en moyenne journalière. Cependant, des dépassements des seuils autorisés étaient régulièrement constatés sur les mesures en continu de la température. L'inspection demandait donc à l'exploitant de se mettre en conformité ou de demander à se faire prescrire un seuil de température plus élevé. Cette demande ne pouvait toutefois être acceptée qu'à la condition que l'autorisation de raccordement ou la convention de déversement le prévoit ou sous réserve de l'accord préalable du gestionnaire de réseau". Suite à cette visite, un arrêté de mise en demeure portant notamment sur cette non-conformité a été signé par le Préfet le 20 juillet 2022 puis un second arrêté a été signé le 5 août 2022 (annulant et remplaçant le 1er arrêté).
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Lors de la visite d'inspection du 31 mai 2023, un dépassement en continu de la valeur limite de température des rejets aqueux a été de nouveau constaté. De plus, l'exploitant a indiqué qu'il n'avait pas obtenu un accord écrit du gestionnaire de la STEP l'autorisant à augmenter cette valeur de température et qu'il se dirigeait donc vers une solution technique pour refroidir son effluent au moyen d'un groupe froid. L'exploitant a indiqué que ce groupe froid pourrait être mis en service à la fin de l'année 2023. Dans l'attente d'une solution définitive, l'exploitant a installé un groupe froid de location dès le 21 juillet 2023 afin d'abaisser la température de ses effluents avant rejet.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Par conséquent, un arrêté d'astreinte a été signé le 29 septembre 2023 afin de contraindre l'exploitant à un retour à la conformité.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Objet du dossier de porter à connaissance" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2. Objet du dossier de porter à connaissance
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Un dossier de porter à connaissance de modifications a été transmis par courriel du 30 mai 2024. Ce dossier fait état d'un projet d'installation d'un groupe froid à condensation de 610 kW sur le toit du quai de déchargement. Ce groupe a pour fonction de refroidir les effluents au niveau d'un échangeur en amont de la station d'épuration, et de refroidir les centrales hydrauliques (cytrobox servant à la production d'huile sous pression), ces dernières étant sans lien avec la non-conformité évoquée au paragraphe précédent. L'échangeur existe déjà sur site et semble fonctionner par refroidissement à eau perdue d'après les synoptiques du dossier. Les modifications permettent de supprimer cette disposition.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     II. ANALYSE DU CARACTÈRE SUBSTANTIEL DES MODIFICATIONS APPORTÉES AU PROJET INITIAL
+    </div>
+   </section>
+   <section data-number="1" data-spec="section" data-title="Rappel des références législatives et réglementaires" data-type="unknown">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     1. Rappel des références législatives et réglementaires
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="L181-14" data-type="article">
+      article L.181-14
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     : « Toute modification substantielle
+     <a data-page_index="2" data-spec="page_separator">
+     </a>
+     des activités, installations, ouvrages ou travaux qui relèvent de l'autorisation environnementale est soumise à la délivrance d'une nouvelle autorisation, qu'elle intervienne avant la réalisation du projet ou lors de sa mise en œuvre ou de son exploitation.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     En dehors des modifications substantielles, toute modification notable intervenant dans les mêmes circonstances est portée à la connaissance de l'autorité administrative compétente pour délivrer l'autorisation environnementale dans les conditions définies par le décret prévu à l'
+     <a data-spec="section_reference" data-start_num="L181-32" data-type="article">
+      article L. 181-32
+     </a>
+     ».
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Par ailleurs, l'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="R181-46" data-type="article">
+      article R.181-46
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     précise la notion de substantialité :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <blockquote>
+      <p>
+       I. – Est regardée comme substantielle, au sens de l'
+       <a data-spec="section_reference" data-start_num="L181-14" data-type="article">
+        article L. 181-14
+       </a>
+       , la modification apportée à des activités, installations, ouvrages et travaux soumis à autorisation environnementale qui :
+      </p>
+      <ul>
+       <li>
+        1° En constitue une extension devant faire l'objet d'une nouvelle évaluation environnementale en application du II de l'
+        <a data-spec="section_reference" data-start_num="R122-2" data-type="article">
+         article R. 122-2
+        </a>
+        (ie Les modifications ou extensions de projets déjà autorisés, qui font entrer ces derniers, dans leur totalité, dans les seuils éventuels fixés dans le tableau annexé ou qui atteignent en elles-mêmes ces seuils font l'objet d'une évaluation environnementale ou d'un examen au cas par cas) ;
+       </li>
+       <li>
+        2° Ou atteint des seuils quantitatifs et des critères fixés par arrêté du ministre chargé de l'environnement ;
+       </li>
+       <li>
+        3° Ou est de nature à entraîner des dangers et inconvénients significatifs pour les intérêts mentionnés à l'
+        <a data-spec="section_reference" data-start_num="L181-3" data-type="article">
+         article L. 181-3
+        </a>
+        .
+       </li>
+      </ul>
+      <p>
+       La délivrance d'une nouvelle autorisation environnementale est soumise aux mêmes formalités que l'autorisation initiale.
+      </p>
+      <p>
+       II. – Toute autre modification notable apportée aux activités, installations, ouvrages et travaux autorisés, à leurs modalités d'exploitation ou de mise en œuvre ainsi qu'aux autres équipements, installations et activités mentionnés au dernier alinéa de l'
+       <a data-spec="section_reference" data-start_num="L181-1" data-type="article">
+        article L. 181-1
+       </a>
+       inclus dans l'autorisation doit être portée à la connaissance du préfet, avant sa réalisation, par le bénéficiaire de l'autorisation avec tous les éléments d'appréciation
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Analyse de l'inspection" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2. Analyse de l'inspection
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Concernant le point 1° du I de l'
+     <a data-spec="section_reference" data-start_num="R181-46" data-type="article">
+      article R.181-46
+     </a>
+     , il y a lieu de vérifier si le projet relève d'une évaluation environnementale soit parce qu'il doit obligatoirement faire l'objet d'une évaluation environnementale systématique (selon les seuils et projets figurant dans le tableau annexé à l'
+     <a data-parent_reference="5" data-spec="section_reference" data-start_num="R122-2" data-type="article">
+      article R.122-2
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="5" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     ), soit parce qu'à l'issue d'un examen au cas par cas (selon le même tableau précité), la décision de le soumettre à évaluation environnementale est prise au regard des incidences notables du projet sur l'environnement et la santé humaine appréciées sur chacun des critères pertinents énumérés à l'
+     <a data-parent_reference="6" data-spec="section_reference" data-type="annexe">
+      annexe
+     </a>
+     de l'
+     <a data-spec="section_reference" data-start_num="R122-3-1" data-tag_id="6" data-type="article">
+      article R.122-3-1
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le projet présenté dans le dossier n'introduit pas de nouvelle activité dépassant l'un des seuils mentionnés à l'
+     <a data-spec="section_reference" data-start_num="R122-2" data-type="article">
+      article R.122-2
+     </a>
+     (évaluation environnementale systématique ou examen au cas par cas). Il est précisé que le projet est uniquement susceptible de relever de la rubrique 1185-2.a) et que l'exploitant a indiqué que le volume de fluides frigorifiques mis en œuvre est de 129 kg soit un volume inférieur au seuil de classement au régime de la déclaration (300 kg).
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Ainsi, la modification n'est pas substantielle au titre du point 1° du I de l'
+     <a data-spec="section_reference" data-start_num="R181-46" data-type="article">
+      article R.181-46
+     </a>
+     .
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Concernant le point 2° du I de l'
+     <a data-spec="section_reference" data-start_num="R181-46" data-type="article">
+      article R.181-46
+     </a>
+     , aucun arrêté n'a été publié à ce jour.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Concernant le critère 3° du I de l'
+     <a data-spec="section_reference" data-start_num="R181-46" data-type="article">
+      article R.181-46
+     </a>
+     , il y a lieu de procéder à une évaluation (cas avec marge d'appréciation au sens de la note DGPR du 20 décembre 2021 relative aux modifications des installations classées pour la protection de l'environnement), afin de vérifier si les dangers et inconvénients ne changent pas de manière significative à l'échelle du périmètre couvert par l'autorisation environnementale.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Le projet ne relève pas des cas nécessitant une attention particulière selon la note précitée.
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-number="7" data-spec="alinea">
+     Par ailleurs, les impacts du projet sont évalués dans le tableau suivant :
+    </div>
+    <div data-number="8" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Intérêts mentionnés au L.181-3 (L.511-1) pertinents au regard du projet
+       </th>
+       <th>
+        Impacts
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Paysage
+       </td>
+       <td>
+        Faible au regard de la localisation, et du contexte
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Qualité de l'air
+       </td>
+       <td>
+        Nul, absence de rejets atmosphériques
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Bruit
+       </td>
+       <td>
+        Faible. L'exploitant devra respecter les niveaux sonores applicables à son installation en limite de propriété et en zone à émergence réglementée. De plus, fonctionnement à plein régime limité.
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Eaux superficielles et souterraines
+       </td>
+       <td>
+        Nul. Aucuns rejets aqueux. La modification permet de supprimer un rejet d'eau perdue passant par l'échangeur.
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Déchets
+       </td>
+       <td>
+        Nul. Pas de production de déchets.
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Sécurité
+       </td>
+       <td>
+        Pas de nouveaux dangers générant d'effets sortants. Un extincteur sera positionné à proximité du groupe froid.
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Par conséquent, l'inspection considère que le projet n'est pas de nature à entraîner des dangers et inconvénients significatifs pour les intérêts mentionnés à l'
+     <a data-spec="section_reference" data-start_num="L181-3" data-type="article">
+      article L. 181-3
+     </a>
+     .
+    </div>
+    <div data-number="10" data-spec="alinea">
+     De plus, les modifications ne relèvent pas des cas nécessitant une consultation du public et le projet ne présente pas d'impacts particuliers ou de spécificités appelant une consultation du public.
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Enfin, les prescriptions existantes de l'arrêté d'autorisation de l'installation sont suffisantes pour encadrer le fonctionnement du nouveau groupe froid.
+    </div>
+    <div data-number="12" data-spec="alinea">
+     Conclusion
+    </div>
+    <div data-number="13" data-spec="alinea">
+     Au vu de ce qui précède, l'inspection considère que les modifications présentées dans le dossier de porter à connaissance ne sont pas substantielles et qu'elles ne nécessitent pas une consultation du public.
+    </div>
+    <div data-number="14" data-spec="alinea">
+     De plus, il n'y a pas lieu de procéder à des prescriptions complémentaires par arrêté préfectoral complémentaire afin d'encadrer les modifications apportées à l'installation.
+    </div>
+    <div data-number="15" data-spec="alinea">
+     III. SUITES À DONNER À L'ARRÊTÉ D'ASTREINTE DU 29 SEPTEMBRE 2023
+    </div>
+    <div data-number="16" data-spec="alinea">
+     Lors de la visite du 27 juin 2024, l'inspection a constaté que la température des rejets aqueux en sortie de traitement était conforme à la valeur limite fixée par arrêté.
+    </div>
+    <div data-number="17" data-spec="alinea">
+     L'inspection considère que l'exploitant a donné une suite conforme aux prescriptions de l'
+     <a data-date="2022-08-05" data-spec="document_reference" data-type="arrete">
+      arrêté de mise en demeure du
+      <time data-spec="date" datetime="2022-08-05">
+       5 août 2022
+      </time>
+     </a>
+     relatives à la valeur limite des rejets aqueux à la date du 24 janvier 2024. De plus, lors du contrôle du 31 mai 2023, l'inspection avait constaté que les autres prescriptions de cet arrêté étaient respectées.
+    </div>
+    <div data-number="18" data-spec="alinea">
+     Par ailleurs, l'arrêté d'astreinte du 29 septembre 2024 prévoyait un sursis à exécution de 9 mois, aucun montant d'astreinte n'est à recouvrer.
+    </div>
+    <div data-number="19" data-spec="alinea">
+     Par conséquent, les deux arrêtés précités cessent de produire effet.
+    </div>
+    <div data-number="20" data-spec="alinea">
+     IV. PROPOSITION DE L'INSPECTION
+    </div>
+    <div data-number="21" data-spec="alinea">
+     L'inspection considère que les modifications présentées dans le dossier de porter à connaissance ne sont pas substantielles et ne nécessitent pas une consultation du public.
+    </div>
+    <div data-number="22" data-spec="alinea">
+     De plus, il n'y a pas lieu de procéder à des prescriptions complémentaires par arrêté préfectoral
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-number="23" data-spec="alinea">
+     complémentaire afin d'encadrer les modifications apportées à l'installation.
+    </div>
+    <div data-number="24" data-spec="alinea">
+     L'inspection propose ainsi à Monsieur le Préfet de prendre acte des modifications apportées à l'installation qui n'appellent pas de suites administratives.
+    </div>
+    <div data-number="25" data-spec="alinea">
+     Par ailleurs, l'inspection propose de considérer que l'exploitant a donné une suite favorable à l'
+     <a data-date="2022-08-05" data-spec="document_reference" data-type="arrete">
+      arrêté de mise en demeure du
+      <time data-spec="date" datetime="2022-08-05">
+       5 août 2022
+      </time>
+     </a>
+     et à l'arrêté d'astreinte du 29 septembre 2024 qui cessent dès lors de produire effet.
+    </div>
+    <div data-number="26" data-spec="alinea">
+     Enfin, l'inspection demande à l'exploitant de transmettre sous un mois la liste des équipements frigorifiques du site susceptibles de relever d'un classement au titre de la rubrique 1185-2.a) de la nomenclature des installations classées pour la protection de l'environnement. Dans le cas où le recensement aboutit à une quantité cumulée de fluides présente dans l'installation supérieure à 300 kg, l'exploitant devra procéder à la télédéclaration de cette activité sous deux mois à compter de la notification du présent rapport.
+    </div>
+    <div data-number="27" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="7" data-spec="section_reference" data-start_num="L514-5" data-type="article">
+      article L.514-5
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="7" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     , une copie du présent rapport est transmise à l'exploitant qui est appelé à faire part de ses éventuelles observations.
+    </div>
+    <div data-number="28" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Rédacteur
+       </th>
+       <th>
+        Vérificateur
+       </th>
+       <th>
+        Approbateur
+       </th>
+      </tr>
+      <tr>
+       <td>
+        signé
+       </td>
+       <td>
+        Mathieu
+        <br/>
+        PEGON
+        <br/>
+        mathieu.peg
+        <br/>
+        on
+       </td>
+       <td>
+        Olivier
+        <br/>
+        ASTIER
+        <br/>
+        olivier2.asti
+        <br/>
+        er
+        <br/>
+        Signature
+        <br/>
+        numérique de
+        <br/>
+        Mathieu PEGON
+        <br/>
+        mathieu.pegon
+        <br/>
+        Signature
+        <br/>
+        numérique de
+        <br/>
+        Olivier ASTIER
+        <br/>
+        olivier2.astier
+        <br/>
+        Date : 2024.08.27
+        <br/>
+        18:29:50 +02'00'
+       </td>
+      </tr>
+      <tr>
+       <td>
+        L'inspecteur de l'environnement
+        <br/>
+        LEFEVRE Jérôme
+       </td>
+       <td>
+        L'inspecteur de l'environnement
+        <br/>
+        PEGON Mathieu
+       </td>
+       <td>
+        Le chef de l'UD 06-83
+        <br/>
+        ASTIER Olivier
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      5
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

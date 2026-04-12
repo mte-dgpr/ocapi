@@ -760,7 +760,7 @@ def test_remove_all_bypasses_propagation(mock_remove: mock.Mock) -> None:
     assert last.get("status_code") is None  # RESOLVED
 
 
-def test_apply_add_full_section_new_article_wraps_operand() -> None:
+def test_apply_add_full_section_new_article_returns_inner_content() -> None:
     op = Operation(
         id="add-new",
         source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
@@ -771,9 +771,23 @@ def test_apply_add_full_section_new_article_wraps_operand() -> None:
     )
     status, out = apply_add(op, BeautifulSoup("", "html.parser"))
     assert status == StatusCode.RESOLVED
-    assert 'data-number="4.1"' in out
     assert "Corps neuf" in out
-    assert 'data-spec="section"' in out
+    assert "<section" not in out
+
+
+def test_apply_add_new_article_unwraps_section_operand() -> None:
+    op = Operation(
+        id="add-wrapped",
+        source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="1980-01-01", article_id="NEW_ARTICLE:5.1"),
+        operation_type=OperationType.ADD,
+        operand='<section data-spec="section" data-number="5.1"><p>Wrapped</p></section>',
+        sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
+    )
+    status, out = apply_add(op, BeautifulSoup("", "html.parser"))
+    assert status == StatusCode.RESOLVED
+    assert "Wrapped" in out
+    assert "<section" not in out
 
 
 def test_apply_add_simple_inserts_after_table() -> None:

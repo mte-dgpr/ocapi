@@ -1,0 +1,3225 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="1999-07-27_arrêté préfectoral_Arrêté préfectoral concernant SITA ALSACE Hochfelden (CSDU) daté du 27-07-1999.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     REPUBLIQUE FRANÇAISE
+Liberté Égalité Fraternité
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFECTURE DU BAS-RHIN
+    </div>
+    <div>
+     DIRECTION DES ACTIONS DE L'ETAT
+    </div>
+    <div>
+     Bureau de l'environnement et de l'urbanisme
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE PREFECTORAL DU 27 JUIL. 1999 autorisant la société SITAL à poursuivre l'exploitation d'un centre d'enfouissement technique à HOCHFELDEN
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet de la Région Alsace
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Préfet du Bas-Rhin
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU la loi n° 75-633 du 15 juillet 1975 relative à l'élimination des déchets et à la récupération des matériaux ;
+   </div>
+   <div data-spec="visa">
+    VU la loi n° 76-663 du 19 juillet 1976 modifiée relative aux Installations Classées pour la Protection de l'Environnement ;
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-type="decret">
+     décret n° 77-1133 du
+     <time data-spec="date" datetime="1977-09-21">
+      21 septembre 1977
+     </time>
+    </a>
+    pris pour l'application de la loi n° 76-663 du 19 juillet 1976 modifiée précitée, et notamment ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="18" data-type="article">
+     articles 18
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="23" data-type="article">
+     23
+    </a>
+    -2 à 23-7;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1997-09-09" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="1997-09-09">
+      9 septembre 1997
+     </time>
+    </a>
+    relatif aux décharges existantes et aux nouvelles installations de stockage de déchets ménagers et assimilés, et notamment son
+    <a data-spec="section_reference" data-start_num="55" data-type="article">
+     article 55
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU les circulaires du 28 mai 1996 et 23 avril 1999 relatives aux garanties financières pour l'exploitation de stockage de déchets ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1996-05-17" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="1996-05-17">
+      17 mai 1996
+     </time>
+    </a>
+    portant approbation du plan départemental pour l'élimination des déchets ménagers et assimilés ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1969-07-07" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="1969-07-07">
+      7 juillet 1969
+     </time>
+    </a>
+    , autorisant la société ALSACE SERVER à exploiter une décharge d'ordures ménagères à HOCHFELDEN, sur le site des anciennes carrières de SCHAFFHOUSE/SUR/ZORN ;
+   </div>
+   <div data-spec="visa">
+    VU la déclaration de changement d'exploitant enregistrée le 30 septembre 1970 au bénéfice de la société ORDURES-SERVICES ;
+   </div>
+   <div data-spec="visa">
+    VU les arrêtés préfectoraux des 1er avril 1982 et 19 juin 1984 imposant des prescriptions additionnelles à la décharge précitée ;
+   </div>
+   <div data-spec="visa">
+    VU le changement d'exploitant de la décharge d'HOCHFELDEN intervenu avec effet au 1er janvier 1988, au bénéfice de la société SITAL S.A., au siège social situé 22, rue de Cherbourg à 67000 Strasbourg ;
+   </div>
+   <div data-spec="visa">
+    VU les arrêtés des 12 juin 1985 et 11 janvier 1988 imposant des modifications par rapport aux arrêtés précités ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1995-07-10" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="1995-07-10">
+      10 juillet 1995
+     </time>
+    </a>
+    portant autorisation de travaux de réaménagement et de poursuite d'exploitation du centre d'enfouissement technique de résidus urbains exploité par la société SITAL à HOCHFELDEN ;
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     2
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1997-07-25" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="1997-07-25">
+      25 juillet 1997
+     </time>
+    </a>
+    relatif à l'aménagement et à l'exploitation du CET en vue de l'élimination des déchets d'amiante-ciment ;
+   </div>
+   <div data-spec="visa">
+    VU l'étude de mise en conformité établie par la société GEOMETRA CONSEIL pour le compte de SITAL en application de l'
+    <a data-date="1997-09-09" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="1997-09-09">
+      9 septembre 1997
+     </time>
+    </a>
+    précité ;
+   </div>
+   <div data-spec="visa">
+    VU l'évaluation du montant des garanties financières établie le 11 juin 1999 par la société SITAL ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l'Inspection des Installations Classées daté du 15 juin 1999 ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis du Conseil Départemental d'Hygiène au cours de sa séance du 6 juillet 1999 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que les installations constituent des activités soumises à autorisation et à déclaration visées à la nomenclature des installations classées ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT qu'il y a lieu de prescrire, suite à l'étude de mise en conformité précitée, les conditions de la poursuite de l'exploitation adaptées à la réglementation applicable et de fixer le montant des garanties financières qui doivent être constituées à compter du 14 juin 1999 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que la société SITAL ne souhaite pas recevoir des déchets d'amiante-ciment ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     APRES communication à la société SITAL du projet d'arrêté complémentaire,
+    </div>
+    <div>
+     SUR proposition de Monsieur le Secrétaire Général de la Préfecture du Bas-Rhin ;
+    </div>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     .../...
+    </div>
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     3
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE I - GENERALITES
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="CHAMP D'APPLICATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1 - CHAMP D'APPLICATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Sous réserve du respect des dispositions édictées aux
+     <a data-spec="section_reference" data-start_num="2" data-type="article">
+      articles 2
+     </a>
+     et suivants, la société SITAL dont le siège social est rue de Cherbourg - 67026 STRASBOURG, est autorisée à poursuivre l'exploitation d'un centre de stockage de déchets ménagers et assimilés sur le ban de la commune de Hochfelden.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'établissement comprend les installations classées répertoriées dans le tableau suivant :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        DESIGNATION DE L'ACTIVITÉ
+       </th>
+       <th>
+        Rubrique
+       </th>
+       <th>
+        Régime
+       </th>
+       <th>
+        Quantité
+       </th>
+       <th>
+        Unité
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Décharge ou déposante d'ordures ménagères et autres résidus urbains
+       </td>
+       <td>
+        322-B-2
+       </td>
+       <td>
+        A
+       </td>
+       <td rowspan="2">
+        80 000
+       </td>
+       <td rowspan="2">
+        t/an
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Décharge de déchets industriels banals provenant d'installations classées
+       </td>
+       <td>
+        167 b
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+     </table>
+     <br/>
+     Régime : A = autorisation ; D = déclaration.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <span data-direction="rtl" data-has_operand="true" data-keyword="abrogées et remplacées" data-operation_type="replace" data-spec="operation">
+      Les prescriptions édictées par les actes administratifs délivrés antérieurement sont
+      <b>
+       abrogées et remplacées
+      </b>
+      par celles du
+     </span>
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="CONDITIONS ET LIMITES DE L'AUTORISATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 - CONDITIONS ET LIMITES DE L'AUTORISATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Par référence au plan cadastral annexé au
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , les parcelles concernées par l'emprise de l'installation, correspondant à celles autorisées par l'
+     <a data-date="1969-07-07" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="1969-07-07">
+       7 juillet 1969
+      </time>
+     </a>
+     sont les suivantes, répertoriées au cadastre de la commune de Hochfelden :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        SECTION N°
+       </th>
+       <th>
+        LIEU-DIT
+       </th>
+       <th>
+        PARCELLE N°
+       </th>
+       <th>
+        SUPERFICIE DE LA PARCELLE
+       </th>
+      </tr>
+      <tr>
+       <td>
+        53
+       </td>
+       <td>
+        Schaffhauser Reben
+       </td>
+       <td>
+        134
+       </td>
+       <td>
+        3 ha 48 a 10 ca
+       </td>
+      </tr>
+      <tr>
+       <td>
+        53
+       </td>
+       <td>
+        Schaffhauser Reben
+       </td>
+       <td>
+        135
+       </td>
+       <td>
+        1 ha 07 a 86 ca
+       </td>
+      </tr>
+      <tr>
+       <td>
+        53
+       </td>
+       <td>
+        Kehle
+       </td>
+       <td>
+        136
+       </td>
+       <td>
+        51 a 20 ca
+       </td>
+      </tr>
+      <tr>
+       <td>
+        53
+       </td>
+       <td>
+        Kehle
+       </td>
+       <td>
+        145
+       </td>
+       <td>
+        45 a 86 ca
+       </td>
+      </tr>
+      <tr>
+       <td>
+        53
+       </td>
+       <td>
+        Schiessmauer
+       </td>
+       <td>
+        204
+       </td>
+       <td>
+        63 a 94 ca
+       </td>
+      </tr>
+      <tr>
+       <td>
+        53
+       </td>
+       <td>
+        Schiessmauer
+       </td>
+       <td>
+        205
+       </td>
+       <td>
+        96 a 06 ca
+       </td>
+      </tr>
+      <tr>
+       <td>
+        53
+       </td>
+       <td>
+        Auf die Schiessmauer
+       </td>
+       <td>
+        208
+       </td>
+       <td>
+        10 a 50 ca
+       </td>
+      </tr>
+      <tr>
+       <td>
+        53
+       </td>
+       <td>
+        Auf die Kehle
+       </td>
+       <td>
+        223
+       </td>
+       <td>
+        23 a 00 ca
+       </td>
+      </tr>
+      <tr>
+       <td>
+        53
+       </td>
+       <td>
+        Rohrmatten
+       </td>
+       <td>
+        224
+       </td>
+       <td>
+        2 ha 80 a 94 ca
+       </td>
+      </tr>
+      <tr>
+       <td>
+        53
+       </td>
+       <td>
+        Rohrmatten
+       </td>
+       <td>
+        269
+       </td>
+       <td>
+        27 a 16 ca
+       </td>
+      </tr>
+      <tr>
+       <td>
+        53
+       </td>
+       <td>
+        Schaffhauser Reben
+       </td>
+       <td>
+        409
+       </td>
+       <td>
+        issue du n° 134
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      4
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le zonage du site correspond à l'affectation suivante des parcelles précitées :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - zone d'accès et de contrôle, déchetterie : parcelle n° 145
+      </li>
+      <li>
+       - zone d'enfouissement des déchets : parcelles n° 134, 135, 204, 205, 223 et 224
+      </li>
+      <li>
+       - installations annexes (aires de circulation internes et bassin de stockage tampon des eaux de ruissellement) : parcelles n° 136, 208 et 269
+      </li>
+      <li>
+       - zone de mise en sécurité des résidus de pesticides : parcelle n° 409 issue de la parcelle n° 134.
+      </li>
+     </ul>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Tout projet de modification de la dénomination des parcelles cadastrales et de leur concession devra être déclaré à l'inspecteur des installations classées de la DRIRE.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Le tonnage de déchets stockés ne doit pas dépasser 80 000 tonnes par an et 260 tonnes par jour (déchets compactés).
+    </div>
+    <div data-number="7" data-spec="alinea">
+     La zone de stockage à exploiter est divisée en casiers, eux-mêmes subdivisées en alvéoles :
+    </div>
+    <div data-number="8" data-spec="alinea">
+     <ul>
+      <li>
+       - casier (ou tranche) I correspondant aux limites Nord des parcelles n°224 et 134 et parcelle n°223, réaménagée,
+      </li>
+      <li>
+       - casier (ou tranche) II correspondant à la parcelle n° 135, réaménagée,
+      </li>
+      <li>
+       - casier (ou tranche) III correspondant aux parcelles n°204 et 205 en cours d'exploitation.
+      </li>
+     </ul>
+    </div>
+    <div data-number="9" data-spec="alinea">
+     A aucun moment, la hauteur de la partie exploitée après réaménagement ne devra dépasser le niveau 174 m sur le casier III.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="CONFORMITE AUX PLANS ET DONNEES TECHNIQUES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 - CONFORMITE AUX PLANS ET DONNEES TECHNIQUES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les installations et leurs annexes seront situées, installées et exploitées conformément aux plans et données techniques contenus dans les différents dossiers de demande d'autorisation en tout ce qu'elles ne sont pas contraires aux dispositions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     et des règlements en vigueur.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="MISE EN SERVICE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 - MISE EN SERVICE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'arrêté d'autorisation cessera de produire effet lorsque les installations n'auront pas été mises en service dans le délai de trois ans, ou n'auront pas été exploitées durant deux années consécutives, sauf cas de force majeure (
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="24" data-type="article">
+      article 24
+     </a>
+     du
+     <a data-date="1977-09-21" data-spec="document_reference" data-tag_id="1" data-type="decret">
+      décret du
+      <time data-spec="date" datetime="1977-09-21">
+       21 septembre 1977
+      </time>
+     </a>
+     ).
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="ACCIDENT-INCIDENT" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5 - ACCIDENT-INCIDENT
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Tout accident ou incident susceptible de porter atteinte aux intérêts visés à l'
+     <a data-spec="section_reference" data-start_num="1" data-type="article">
+      article 1er
+     </a>
+     de la loi du 19 juillet 1976 devra être déclaré dans les meilleurs délais à l'inspecteur des installations classées (
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="38" data-type="article">
+      article 38
+     </a>
+     du
+     <a data-date="1977-09-21" data-spec="document_reference" data-tag_id="2" data-type="decret">
+      décret du
+      <time data-spec="date" datetime="1977-09-21">
+       21 septembre 1977
+      </time>
+     </a>
+     ).
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'exploitant fournira à l'inspecteur des installations classées, sous quinze jours, un rapport sur les origines et causes du phénomène, ses conséquences, les mesures prises pour y remédier et celles mises en œuvre ou prévues avec les échéanciers correspondants pour éviter qu'il ne se reproduise.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      5
+     </div>
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="MODIFICATION - EXTENSION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 6 - MODIFICATION - EXTENSION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Toute modification apportée par le demandeur à l'installation, à son mode d'utilisation ou à son voisinage, et de nature à entraîner un changement notable des éléments du dossier de demande d'autorisation, en particulier du dossier établi par les sociétés SAFEGE Ingénieurs Conseils et GEOMETRA Conseil en mars 1995 intitulé
+     <q>
+      C.E.T. d'HOCHFELDEN – Réaménagement et poursuite de l'exploitation du site
+     </q>
+     et du dossier de mise en conformité, devra être portée avant sa réalisation à la connaissance du Préfet avec tous les éléments d'appréciation (
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="20" data-type="article">
+      article 20
+     </a>
+     du
+     <a data-date="1977-09-21" data-spec="document_reference" data-tag_id="3" data-type="decret">
+      décret du
+      <time data-spec="date" datetime="1977-09-21">
+       21 septembre 1977
+      </time>
+     </a>
+     ).
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="CHANGEMENT D'EXPLOITANT" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 7 - CHANGEMENT D'EXPLOITANT
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Tout changement d'exploitant est soumis à autorisation préalable.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      ...
+     </div>
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      6
+     </div>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     I - ADMISSION DES DECHETS
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-title="DEFINITION DES DECHETS ADMISSIBLES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 8 - DEFINITION DES DECHETS ADMISSIBLES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La nature et l'origine des déchets admis dans l'installation de stockage doivent être conformes au plan d'élimination des déchets ménagers et assimilés du département du BAS-RHIN. Ceux-ci pourront être modifiés par arrêté complémentaire afin de prendre en compte les modifications survenues dans le cadre de la révision du plan départemental et notifiées par l'autorité chargée de l'application du plan.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Seuls les déchets en provenance du département du Bas-Rhin seront acceptés.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     A compter du 1er juillet 2002, seuls les déchets ultimes pourront être acceptés sur le site.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les déchets admissibles sont répartis, en fonction de leur comportement prévisible en cas de stockage et des modalités alternatives d'élimination en deux catégories, comme définies à l'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="1" data-type="annexe">
+      annexe I
+     </a>
+     de l'
+     <a data-date="1997-09-09" data-spec="document_reference" data-tag_id="4" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="1997-09-09">
+       9 septembre 1997
+      </time>
+     </a>
+     :
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <ul>
+      <li>
+       - la catégorie D, composée de déchets dont le comportement en cas de stockage est fortement évolutif et conduit à la formation de lixiviats et de biogaz par dégradation biologique. Ces déchets ne sont pas ultimes.
+      </li>
+      <li>
+       - La catégorie E, composée de déchets dont le comportement en cas de stockage est peu évolutif, dont la capacité de dégradation biologique est faible, et qui présentent un caractère polluant modéré.
+      </li>
+     </ul>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     La catégorie D comprend notamment les déchets suivants, autres que ceux visés à l'
+     <a data-spec="section_reference" data-start_num="9" data-type="article">
+      article 9
+     </a>
+     :
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <ul>
+      <li>
+       - les ordures ménagères ;
+      </li>
+      <li>
+       - les objets encombrants d'origine domestique avec composants fermentescibles ;
+      </li>
+      <li>
+       - les déchets de voirie ;
+      </li>
+      <li>
+       - les déchets industriels et commerciaux assimilables aux déchets ménagers ;
+      </li>
+      <li>
+       - les déchets verts ;
+      </li>
+      <li>
+       - les boues provenant de la préparation d'eau potable ou d'eau à usage industriel, lorsqu'ils ne présentent pas un caractère spécial, dont la siccité est ≥ à 30 % ;
+      </li>
+      <li>
+       - les boues de stations d'épuration urbaines dont la siccité est ≥ à 30 % ;
+      </li>
+      <li>
+       - les matières de vidange ;
+      </li>
+      <li>
+       - les boues et matières de curage et de dragage des cours d'eau et des bassins fortement évolutives, lorsqu'elles ne présentent pas un caractère spécial ;
+      </li>
+      <li>
+       - les boues fermentescibles et fortement évolutives de dégrillage ;
+      </li>
+      <li>
+       - les déchets fermentescibles et fortement évolutifs de l'industrie et de l'agriculture – lorsqu'ils ne constituent pas des déchets industriels spéciaux – et notamment :
+      </li>
+      <li>
+       - les boues provenant du lavage et du nettoyage dont la siccité est ≥ à 30 % ;
+      </li>
+      <li>
+       - les boues provenant du traitement in situ des effluents et dont la siccité est ≥ 30 % ;
+      </li>
+      <li>
+       - les déchets de l'industrie du cuir à l'exception de ceux contenant du chrome ;
+      </li>
+      <li>
+       - les déchets de l'industrie du textile ;
+      </li>
+      <li>
+       - les déchets provenant de la production primaire de l'agriculture, de l'horticulture, de la chasse, de la pêche, de l'aquaculture ;
+      </li>
+      <li>
+       - les déchets provenant de la préparation et de la transformation de la viande, des poissons et autres aliments d'origine animale ;
+      </li>
+      <li>
+       - les déchets provenant de la préparation et de la transformation des fruits, des légumes, des céréales, des huiles alimentaires, du cacao et du café, de la production de conserves et du tabac ;
+      </li>
+      <li>
+       - les déchets de la transformation du sucre ;
+      </li>
+      <li>
+       - les déchets provenant de l'industrie des produits laitiers ;
+      </li>
+      <li>
+       - les déchets de boulangerie, pâtisserie, confiserie ;
+      </li>
+      <li>
+       - les déchets provenant de la production de boissons alcooliques et non alcooliques ;
+      </li>
+      <li>
+       - les déchets provenant de la transformation du bois et de la fabrication de panneaux et de meubles ;
+       <div data-spec="page_footer">
+        <div>
+         .../...
+        </div>
+       </div>
+       <a data-page_index="6" data-spec="page_separator">
+       </a>
+      </li>
+      <li>
+       - les déchets provenant de la production et de la transformation de papier, de carton et de pâte à papier ;
+      </li>
+      <li>
+       - les déchets de bois, papier, carton.
+      </li>
+     </ul>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     La sous-catégorie E1 comprend les déchets suivants :
+    </div>
+    <div data-number="9" data-spec="alinea">
+     <ul>
+      <li>
+       - les déchets de plastiques, de métaux et ferrailles, ou de verre ;
+      </li>
+      <li>
+       - les refus de tri non fermentescibles et peu évolutifs ;
+      </li>
+      <li>
+       - les déchets industriels et commerciaux assimilables aux ordures ménagères, non fermentescibles et peu évolutifs ;
+      </li>
+      <li>
+       - les objets encombrants d'origine domestique sans composants fermentescibles et évolutive ;
+      </li>
+      <li>
+       - les résidus de broyage de biens d'équipement dont la teneur en PCB &amp;lt; 50 mg/kg.
+      </li>
+     </ul>
+    </div>
+    <div data-number="10" data-spec="alinea">
+     La sous-catégorie E2 comprend notamment les déchets suivants :
+    </div>
+    <div data-number="11" data-spec="alinea">
+     <ul>
+      <li>
+       - les mâchefers issus de l'incinération des déchets, sauf dispositions réglementaires spécifiques contraires ;
+      </li>
+      <li>
+       - les cendres et suies issues de la combustion du charbon ;
+      </li>
+      <li>
+       - les sables de fonderie dont la teneur en phénols totaux de leur fraction lixiviable est &amp;lt; 50 mg/kg de sable rapporté à la matière sèche.
+      </li>
+     </ul>
+    </div>
+    <div data-number="12" data-spec="alinea">
+     La sous-catégorie E3 comprend notamment les déchets suivants :
+    </div>
+    <div data-number="13" data-spec="alinea">
+     <ul>
+      <li>
+       - les boues, poussières, sels et déchets non fermentescibles et peu évolutifs, issues de l'industrie qui ne sont pas des déchets spéciaux ;
+      </li>
+      <li>
+       - les déchets minéraux à faible potentiel polluant qui ne sont pas des déchets industriels spéciaux ;
+      </li>
+      <li>
+       - les déchets minéraux provenant de la préparation d'eau potable ou d'eau à usage industriel, lorsqu'ils ne présentent pas un caractère spécial, dont la siccité est à ≥ 30 % (à l'exception des boues d'hydroxydes métalliques).
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-title="DECHETS INTERDITS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 9 - DECHETS INTERDITS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les déchets suivants ne peuvent pas être admis dans l'installation de stockage :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - déchets dangereux et déchets industriels spéciaux définis par le
+       <a data-date="1997-05-15" data-spec="document_reference" data-type="decret">
+        décret du
+        <time data-spec="date" datetime="1997-05-15">
+         15 mai 1997
+        </time>
+       </a>
+       relatif à la classification des déchets dangereux ou appartenant aux catégories A, B et C définies par les arrêtés ministériels du 18 décembre 1992 modifiés ;
+      </li>
+      <li>
+       - déchets d'activités de soins et assimilés à risque infectieux ;
+      </li>
+      <li>
+       - déchets radioactifs, c'est-à-dire toute substance qui contient un ou plusieurs radio nucléides dont l'activité ou la concentration ne peut être négligée du point de vue de la radioprotection ;
+      </li>
+      <li>
+       - déchets contenant plus de 50 mg/kg de PCB ;
+      </li>
+      <li>
+       - déchets d'emballages visés par le
+       <a data-date="1994-07-13" data-num="94-609" data-spec="document_reference" data-type="decret">
+        décret n°94-609 du
+        <time data-spec="date" datetime="1994-07-13">
+         13 juillet 1994
+        </time>
+       </a>
+       ;
+      </li>
+      <li>
+       - déchets inflammables et explosifs ;
+      </li>
+      <li>
+       - déchets dangereux des ménages collectés séparément ;
+      </li>
+      <li>
+       - les pneumatiques usagés, sauf ceux destinés à des utilisations de type géotechnique sur le site ;
+      </li>
+      <li>
+       - les déchets pulvérulents non agricoles, non préalablement conditionnés ;
+      </li>
+      <li>
+       - déchets liquides ou dont la siccité est inférieure à 30 % ;
+      </li>
+      <li>
+       - les déchets particulièrement odorants, tels que :
+      </li>
+      <li>
+       - boues des stations d'épuration urbaine non stabilisées
+      </li>
+      <li>
+       - déchets d'abattoir ou cadavres d'animaux
+      </li>
+      <li>
+       - déchets de fond de fosse en provenance d'usines d'incinération
+      </li>
+      <li>
+       - les déchets contenant de l'amiante liée.
+      </li>
+     </ul>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="7" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      8
+     </div>
+    </div>
+   </section>
+   <section data-number="10" data-spec="section" data-title="INFORMATION PREALABLE A L'ADMISSION DES DECHETS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 10 - INFORMATION PREALABLE A L'ADMISSION DES DECHETS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Avant d'admettre un déchet dans son installation, l'exploitant doit demander au producteur de déchets, à la collectivité de collecte ou au détenteur une information préalable sur la nature de ce déchet. Lorsque la quantité annuelle de dépôt dépasse 50 tonnes, l'information préalable précise pour chaque type de déchet destiné à être déposé, la provenance, les opérations de traitement préalable éventuelles, les modalités de la collecte et de la livraison et toute information pertinente pour caractériser le déchet en question.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Lorsque la quantité annuelle est inférieure à 50 tonnes, l'information préalable peut prendre la forme d'un bon d'admission délivré par l'exploitant au producteur de déchets. Ce bon apporte toutes les informations pertinentes sur les déchets admis. Cette information préalable a une validité d'un an et doit être conservée au moins 2 ans par l'exploitant. L'ensemble des informations préalables adressées pour les déchets admis sur le site est tenu à la disposition de l'inspection des installations classées.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'exploitant peut, au vu de cette information préalable, solliciter des informations complémentaires sur le déchet dont l'admission est sollicitée et refuser, s'il le souhaite, d'accueillir le déchet en question.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     L'exploitant tient en permanence à jour et à la disposition de l'inspection des installations classées le recueil des informations préalables qui lui sont adressées et précise le cas échéant dans ce recueil les raisons pour lesquelles il a refusé l'admission d'un déchet.
+    </div>
+   </section>
+   <section data-number="11" data-spec="section" data-title="CERTIFICAT D'ACCEPTATION PREALABLE POUR CERTAINS DECHETS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 11 - CERTIFICAT D'ACCEPTATION PREALABLE POUR CERTAINS DECHETS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Pour tous les déchets pour lesquels il est fixé au moins un critère d'admission, cette information préalable prend la forme d'un certificat d'acceptation préalable. Ce certificat est délivré par l'exploitant au vu des informations communiquées par le producteur ou le détenteur et d'analyses pertinentes réalisées par ces derniers, lui-même ou tout laboratoire compétent. Ces déchets ne peuvent être admis dans l'installation qu'après délivrance par l'exploitant au producteur d'un certificat d'acceptation préalable.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le certificat est soumis aux mêmes règles de délivrance ou de refus, de validité, de conservation et d'information de l'inspection des installations classées que l'information préalable à l'admission des déchets.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le certificat d'acceptation préalable consigne les informations contenues dans l'information préalable à l'admission ainsi que les résultats des analyses effectuées sur un échantillon représentatif du déchet. Outre les analyses relatives aux paramètres faisant l'objet de critères d'admission, les tests suivants peuvent être réalisés :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - la composition chimique principale du déchet brut,
+      </li>
+      <li>
+       - un test de potentiel polluant tel que défini à l'
+       <a data-spec="section_reference" data-start_num="1" data-type="annexe">
+        annexe 1
+       </a>
+       des arrêtés du 18 décembre 1992 relatifs aux installations de stockage de certains déchets industriels spéciaux ultimes et stabilisés,
+      </li>
+      <li>
+       - les résultats d'un test rapide de lixiviation.
+      </li>
+     </ul>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     L'étendue des analyses à réaliser pour chaque déchet pour lequel au moins un critère d'admission est fixé, est définie en accord avec l'inspection des installations classées. Les méthodes d'analyses utilisées doivent être conformes aux bonnes pratiques en la matière et aux normes en vigueur.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="8" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      9
+     </div>
+    </div>
+   </section>
+   <section data-number="12" data-spec="section" data-title="CONTROLES D'ADMISSION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 12 - CONTROLES D'ADMISSION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Toute livraison de déchet fait l'objet d'une vérification de l'existence d'une information préalable, d'un contrôle visuel et d'un contrôle de non radioactivité du chargement. Un dispositif de contrôle de non radioactivité doit être mis en place dans un délai de 2 mois à compter de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le cas échéant ces contrôles peuvent être pratiqués sur la zone d'exploitation préalablement à la mise en place des déchets.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Pour tous les déchets pour lesquels est fixé au moins un critère d'admission, l'admission d'un chargement est conditionnée par l'existence d'un certificat d'acceptation préalable en cours de validité et par la réalisation d'un examen visuel, avant tout déchargement et l'arrivée sur la zone d'exploitation, et d'une vérification éventuelle de l'aspect pelletable des déchets qui doivent l'être.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     En cas de non-conformité avec le certificat d'acceptation préalable et les règles d'admission dans l'installation, le chargement doit être refusé.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Dans le cas des résidus de broyage de biens d'équipement et des sables de fonderie, l'exploitant réalise des prélèvements inopinés qui sont conservés durant trois mois. Au moins une analyse est pratiquée chaque trimestre sur l'un des échantillons. En cas de non conformité ce type de déchet est refusé, jusqu'à mise en place d'un contrôle systématique de chaque chargement.
+    </div>
+   </section>
+   <section data-number="13" data-spec="section" data-title="REGISTRES D'ADMISSION ET DE REFUS D'ADMISSION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 13 - REGISTRES D'ADMISSION ET DE REFUS D'ADMISSION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant tient en permanence à jour et à la disposition de l'inspection des installations classées un registre d'admission où il consigne pour chaque véhicule apportant des déchets :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - le tonnage et la nature des déchets,
+      </li>
+      <li>
+       - le lieu de provenance et l'identité du producteur ou de la collectivité de collecte,
+      </li>
+      <li>
+       - la date et l'heure de la réception,
+      </li>
+      <li>
+       - l'identité du transporteur,
+      </li>
+      <li>
+       - le numéro d'immatriculation,
+      </li>
+      <li>
+       - le résultat des contrôles d'admission.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'exploitant tient en permanence à jour et à la disposition de l'inspection des installations classées un registre de refus d'admission où il note toutes les informations disponibles sur la quantité, la nature et la provenance des déchets qu'il n'a pas admis en précisant les raisons du refus.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     L'exploitant reporte également sur le registre d'admission ou sur un registre complémentaire qui lui est précisément rattaché, les résultats de toutes les analyses effectuées sur les déchets admis sur son site.
+    </div>
+    <a data-page_index="9" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      10
+     </div>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     III - AMENAGEMENT DU SITE
+    </div>
+   </section>
+   <section data-number="14" data-spec="section" data-title="CONSTITUTION DES CASIERS ET DES ALVEOLES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 14 - CONSTITUTION DES CASIERS ET DES ALVEOLES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La zone à exploiter est divisée en casiers. La capacité et la géométrie des casiers doivent contribuer à limiter les risques de nuisances ou de pollution des eaux souterraines ou de surface. En particulier, après réalisation du fond de forme, un masque d'argile compacté de 50 cm sera mis en place sur la totalité de la zone à exploiter. La hauteur des déchets dans un casier doit être calculée de façon à ne pas dépasser la limite des digues et à ne pas altérer l'efficacité du système drainant.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Chaque casier comporte une ou plusieurs alvéoles. La superficie des alvéoles est limitée au minimum technique sans dépasser 3 500 m². La mise en exploitation de l'alvéole n + 1 ne peut être commencée qu'après le recouvrement, ne serait-il que temporaire, de l'alvéole n, exploitée précédemment.
+    </div>
+   </section>
+   <section data-number="15" data-spec="section" data-title="BARRIERE DE SECURITE ACTIVE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 15 - BARRIERE DE SECURITE ACTIVE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Sur le fond et les flancs de chaque nouveau casier une barrière de sécurité active assure son indépendance hydraulique, le drainage et la collecte des lixiviats et évite ainsi la sollicitation de la barrière de sécurité passive.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Cette barrière de sécurité active est constituée du bas vers le haut, par une géomembrane, surmontée d'une couche de drainage.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       1) Mise en place de la géomembrane
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     La géomembrane doit être étanche, compatible avec les déchets stockés et résistante à toute agression mécanique. Sa mise en place doit en particulier conduire à limiter autant que possible toute sollicitation mécanique en traction et en compression dans le plan de sa pose, notamment après stockage des déchets.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     La réception de la mise en place de la géomembrane, comprenant notamment la vérification des soudures, fait l'objet d'un rapport de contrôle par le service Qualité de l'entreprise de pose.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     <ul>
+      <li>
+       2) Mise en place d'une couche de drainage.
+      </li>
+     </ul>
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Dans chaque casier, la couche de drainage est constituée de bas en haut :
+    </div>
+    <div data-number="8" data-spec="alinea">
+     <ul>
+      <li>
+       - d'un réseau de drains permettant l'évacuation des lixiviats vers un collecteur principal ;
+      </li>
+      <li>
+       - d'une couche drainante composée de matériaux de nature siliceuse d'une perméabilité supérieure à 1.10⁻⁴ m/s, préalablement lavés, d'une épaisseur minimale de 50 cm par rapport à la perpendiculaire de la géomembrane.
+      </li>
+     </ul>
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Le système drainant de fond est conçu de façon à ce que la charge hydraulique s'exerçant sur la géomembrane ne puisse dépasser 30 cm et afin de permettre son débouchage éventuel.
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Une protection particulière contre le poinçonnement est intégrée entre la géomembrane et les éléments du système drainant. La stabilité à long terme de l'ensemble mis en place doit être assurée.
+    </div>
+    <a data-page_index="10" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      11
+     </div>
+    </div>
+   </section>
+   <section data-number="16" data-spec="section" data-title="MAITRISE DES EAUX DE RUISSELLEMENT" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 16 - MAITRISE DES EAUX DE RUISSELLEMENT
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant aménage des fossés de collecte des eaux de ruissellement extérieures aux zones d'exploitation. Ces fossés doivent être réalisés dans leur intégralité, avant le début de l'exploitation de ces zones.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les eaux de ruissellement internes n'entrant pas en contact avec les déchets et les eaux de circulation latérale seront collectées, drainées ou pompées et évacuées par un réseau de fossés périphériques, avec les eaux de ruissellement extérieures aux zones d'exploitation, en direction de 2 bassins de décantation d'une capacité totale de 3500 m3. Ces bassins seront étanchéifiés et munis d'une surverse pour l'évacuation finale vers le milieu naturel superficiel, le cours d'eau ROHRBACH, après contrôle de la qualité des eaux rejetées.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Dans un délai de 3 mois à compter de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , l'exploitant remettra une étude permettant de s'assurer du caractère suffisant de la capacité du bassin. Le bassin doit en effet être dimensionné pour capter au moins les ruissellements consécutifs à un événement pluvieux de fréquence décennale, permettant une décantation et un contrôle de leur qualité.
+    </div>
+   </section>
+   <section data-number="17" data-spec="section" data-title="COLLECTE ET STOCKAGE DES LIXIVIATS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 17 - COLLECTE ET STOCKAGE DES LIXIVIATS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant réalise les équipements de collecte et de stockage avant traitement des lixiviats. Les lixiviats s'écoulent vers des puisards de reprise d'où ils sont pompés automatiquement pour être stockés dans deux citernes de 25 m3 situées sur cuvette de rétention. Ces eaux seront traitées en station d'épuration.
+    </div>
+   </section>
+   <section data-number="18" data-spec="section" data-title="CLOTURE, VOIES D'ACCES ET DE CIRCULATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 18 - CLOTURE, VOIES D'ACCES ET DE CIRCULATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Afin d'en interdire l'accès, le site est clôturé par un grillage en matériaux résistants d'une hauteur minimale de 2 mètres. L'exploitant aménage un accès depuis la R 670.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les aires d'accueil et d'attente ainsi que les voies de circulation principales disposent d'un revêtement durable. Une aire d'attente intérieure doit être aménagée pour permettre le stationnement des véhicules durant les contrôles des chargements.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les conditions d'accès des véhicules de lutte contre l'incendie et des engins de terrassement sont prises en compte dans l'aménagement de l'installation.
+    </div>
+   </section>
+   <section data-number="19" data-spec="section" data-title="INTEGRATION PAYSAGERE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 19 - INTEGRATION PAYSAGERE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant veille à l'intégration paysagère de l'installation. Le réaménagement des zones exploitées doit se faire progressivement, conformément aux dispositions concernant la fin de l'exploitation (partie VIII). Le principe de réaménagement est d'assurer la continuité du paysage au niveau des formes et de la végétation.
+    </div>
+   </section>
+   <section data-number="20" data-spec="section" data-title="MOYENS DE SUIVI DES QUANTITES DE DECHETS RECEPTIONNES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 20 - MOYENS DE SUIVI DES QUANTITES DE DECHETS RECEPTIONNES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Un pont-bascule muni d'une imprimante est installé à l'entrée de l'installation afin de connaître le tonnage des déchets admis. Sa capacité est 50 tonnes. Ce pont-bascule doit être conforme à la réglementation en vigueur en matière de métrologie légale.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="11" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      12
+     </div>
+    </div>
+   </section>
+   <section data-number="21" data-spec="section" data-title="MOYENS DE TELECOMMUNICATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 21 - MOYENS DE TELECOMMUNICATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'installation est équipée de moyens de télécommunication efficaces avec l'extérieur, notamment afin de faciliter l'appel éventuel aux services de secours et de lutte contre l'incendie.
+    </div>
+   </section>
+   <section data-number="22" data-spec="section" data-title="STOCKAGE EVENTUEL DE CARBURANTS ET D'AUTRES PRODUITS - ENTRETIEN DES ENGINS -" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 22 - STOCKAGE EVENTUEL DE CARBURANTS ET D'AUTRES PRODUITS - ENTRETIEN DES ENGINS -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le stockage des carburants nécessaires aux engins d'exploitation doit être effectué selon la réglementation en vigueur.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Toute citerne, cuve, récipient, stockage de produits ou bain, doit être muni d'une capacité de rétention étanche dont le volume est au moins égal à la plus grande des deux valeurs suivantes :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - 100 % de la capacité du plus grand réservoir
+      </li>
+      <li>
+       - 50 % de la capacité totale des réservoirs associés.
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     L'alimentation en carburant des engins et leur entretien devra se faire de manière à éviter tout risque de déversement accidentel et de pollution.
+    </div>
+   </section>
+   <section data-number="23" data-spec="section" data-title="INFORMATION DU PUBLIC A L'ENTREE DU SITE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 23 - INFORMATION DU PUBLIC A L'ENTREE DU SITE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     A proximité immédiate de l'entrée principale est placé un panneau de signalisation et d'information sur lesquels sont inscrits, dans l'ordre suivant :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - la désignation de l'installation de stockage ;
+      </li>
+      <li>
+       - la date de l'arrêté préfectoral d'autorisation ;
+      </li>
+      <li>
+       - la raison sociale et l'adresse de l'exploitant ;
+      </li>
+      <li>
+       - les jours et heures d'ouverture ;
+      </li>
+      <li>
+       - les mots : "Accès interdit" et "Informations disponibles à la Mairie de HOCHFELDEN et auprès de SITAL" (adresse et numéro de téléphone du siège) ;
+      </li>
+      <li>
+       - le numéro de téléphone de la gendarmerie ainsi que de la Préfecture.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les panneaux doivent être en matériaux résistants, les inscriptions doivent être indélébiles et nettement visibles.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="12" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      13
+     </div>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     IV - EXPLOITATION DE L'INSTALLATION
+    </div>
+   </section>
+   <section data-number="24" data-spec="section" data-title="EXPLOITATION DES CASIERS ET MISE EN PLACE DES DECHETS DANS L'INSTALLATION DE STOCKAGE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 24 - EXPLOITATION DES CASIERS ET MISE EN PLACE DES DECHETS DANS L'INSTALLATION DE STOCKAGE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une seule alvéole doit être exploitée à la fois. La mise en exploitation du casier ou de l'alvéole n+1 est conditionnée par le réaménagement du casier ou de l'alvéole n-1.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les déchets sont déposés en couches successives et compactés sur site sauf s'il s'agit de déchets en balle.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les déchets amenés par les véhicules de collecte sont déchargés sur une aire spécialement aménagée équipée de butoirs de sécurité située au plus près de l'alvéole en exploitation et d'où ils sont repris par chargeur pour être régalés dans l'alvéole.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les déchets sont recouverts toutes les fins de semaine ou veille de fêtes de terre ou autres matériaux inertes. La quantité minimale de terre de recouvrement toujours disponible en dehors de celle prévue pour les cas d'incendie doit être au moins égale à celle utilisée pour quinze jours d'exploitation et au moins égale à 100 m³.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     La mise en place des déchets est réalisée conformément au plan d'exploitation et en vue de la remise en état ultérieure du site. Elle doit permettre d'obtenir un profil topographique adapté des dépôts permettant de prévenir les risques d'éboulement, de ravinement et d'érosion et de diriger les eaux de ruissellement superficielles vers l'extérieur de la zone à exploiter et les dispositifs de collecte qui doivent les recueillir.
+    </div>
+   </section>
+   <section data-number="25" data-spec="section" data-title="PLAN D'EXPLOITATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 25 - PLAN D'EXPLOITATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant doit tenir à jour un plan de l'installation de stockage qui est tenu à disposition de l'inspecteur des installations classées. Il fait apparaître :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - l'emprise générale du site et de ses aménagements,
+      </li>
+      <li>
+       - la zone à exploiter ;
+      </li>
+      <li>
+       - les niveaux topographiques des terrains ;
+      </li>
+      <li>
+       - les voies de circulation et les rampes d'accès aux zones d'exploitation ;
+      </li>
+      <li>
+       - les zones d'exploitation ;
+      </li>
+      <li>
+       - l'emplacement des casiers et des alvéoles de la décharge ;
+      </li>
+      <li>
+       - le schéma de collecte des eaux, les bassins et réservoirs de stockage ;
+      </li>
+      <li>
+       - le schéma de collecte du biogaz et des installations de traitement correspondantes ;
+      </li>
+      <li>
+       - les zones réaménagées ;
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="26" data-spec="section" data-title="ENTRETIEN" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 26 - ENTRETIEN
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant assure en permanence la propreté des voies de circulation, en particulier à la sortie de l'installation de stockage, et veille à ce que les véhicules sortant de l'installation ne puissent pas conduire au dépôt de terres ou à fortiori de déchets sur les voies publiques d'accès au site.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'ensemble du site doit être maintenu propre et les bâtiments et installations entretenus en permanence.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="13" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      14
+     </div>
+    </div>
+   </section>
+   <section data-number="27" data-spec="section" data-title="BRUITS ET VIBRATIONS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 27 - BRUITS ET VIBRATIONS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les prescriptions de l'
+     <a data-date="1985-08-20" data-spec="document_reference" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="1985-08-20">
+       20 août 1985
+      </time>
+     </a>
+     relatif aux bruits aériens émis dans l'environnement par les installations classées pour la protection de l'environnement ainsi que les règles techniques annexées à la
+     <a data-date="1986-07-23" data-spec="document_reference" data-type="circulaire">
+      circulaire du
+      <time data-spec="date" datetime="1986-07-23">
+       23 juillet 1986
+      </time>
+     </a>
+     relative aux vibrations mécaniques émises dans l'environnement par les installations classées, sont applicables.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - Les véhicules de transport, les matériels de manutention et les engins de chantier, utilisés à l'intérieur de l'établissement, devront être conformes à la réglementation en vigueur. En particulier les engins de chantier seront d'un type homologué, au titre du
+       <a data-date="1969-04-18" data-spec="document_reference" data-type="decret">
+        décret du
+        <time data-spec="date" datetime="1969-04-18">
+         18 avril 1969
+        </time>
+       </a>
+       .
+      </li>
+      <li>
+       - L'usage de tous appareils de communication par voie acoustique (sirènes, avertisseurs, haut-parleurs...) gênants pour le voisinage est interdit, sauf si leur emploi est exceptionnel et réservé à la prévention ou à signalement d'incidents graves ou d'accidents, ou si leur emploi est réglementé par ailleurs.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Niveaux acoustiques
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les niveaux limites de bruit et l'émergence ne doivent pas dépasser en limite du site les valeurs suivantes pour les différentes périodes de la journée.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        Niveau de bruit admissible pour la période allant de 7 h à 22 h sauf dimanche et jours fériés
+       </td>
+       <td>
+        Niveau de bruit admissible pour la période allant de 22 h à 7 h ainsi que dimanches et jours fériés
+       </td>
+      </tr>
+      <tr>
+       <td>
+        60 dB(A)
+       </td>
+       <td>
+        55 dB (A)
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Les mesures sont effectuées selon la méthode définie en
+     <a data-parent_reference="5" data-spec="section_reference" data-type="annexe">
+      annexe
+     </a>
+     de l'
+     <a data-date="1985-08-20" data-spec="document_reference" data-tag_id="5" data-type="arrete">
+      arrêté du
+      <time data-spec="date" datetime="1985-08-20">
+       20 août 1985
+      </time>
+     </a>
+     précité.
+    </div>
+   </section>
+   <section data-number="28" data-spec="section" data-title="PREVENTION DES ENVOLS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 28 - PREVENTION DES ENVOLS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le mode de mise en place ou de manutention des déchets doit permettre de limiter les envols de déchets. Dès que cela sera nécessaire, l'exploitant mettra en place autour de la zone d'exploitation un système permettant de limiter les envols et de capter les éléments légers néanmoins envolés.
+    </div>
+   </section>
+   <section data-number="29" data-spec="section" data-title="PREVENTION CONTRE LES ESPÈCES NUISIBLES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 29 - PREVENTION CONTRE LES ESPÈCES NUISIBLES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant prend les mesures nécessaires pour la lutte contre la prolifération des rats, des insectes et des oiseaux, dans le respect des textes relatifs à la protection des espèces. Les opérations de dératisation sont confiées à des sociétés spécialisées. Les justificatifs d'intervention seront tenus à la disposition de l'inspecteur des installations classées pendant une durée minimale de 2 ans.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Tout brûlage de déchets à l'air libre est strictement interdit.
+    </div>
+   </section>
+   <section data-number="30" data-spec="section" data-title="CHIFFONNAGE ET RECUPERATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 30 - CHIFFONNAGE ET RECUPERATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les activités de tri des déchets, de chiffonnage et de récupération sont interdites sur la zone de stockage.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="14" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      15
+     </div>
+    </div>
+   </section>
+   <section data-number="31" data-spec="section" data-title="GESTION DES DECHETS DE L'EXPLOITATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 31 - GESTION DES DECHETS DE L'EXPLOITATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les déchets générés par l'exploitation de l'installation, sont stockés sur le site, en attendant leur élimination dans des installations dûment autorisées, de manière à prévenir toute pollution.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les huiles usagées notamment sont stockées sur rétention et si possible à l'abri des eaux de pluie. Ces huiles sont éliminées conformément à l'
+     <a data-date="1999-01-28" data-spec="document_reference" data-type="arrete">
+      arrêté du
+      <time data-spec="date" datetime="1999-01-28">
+       28 janvier 1999
+      </time>
+     </a>
+     et au
+     <a data-date="1979-11-21" data-spec="document_reference" data-type="decret">
+      décret du
+      <time data-spec="date" datetime="1979-11-21">
+       21 novembre 1979
+      </time>
+     </a>
+     modifié portant réglementation sur le ramassage et la récupération des huiles usagées.
+    </div>
+   </section>
+   <section data-number="32" data-spec="section" data-title="PREVENTION DES RISQUES D'INCENDIE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 32 - PREVENTION DES RISQUES D'INCENDIE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Aucun déchet non refroidi, explosif ou susceptible de s'enflammer spontanément ne peut être admis.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les abords du site doivent être débroussaillés de manière à éviter la diffusion éventuelle d'un incendie s'étant développé sur le site ou à l'inverse les conséquences d'un incendie extérieur sur le stockage.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     La pente de la surface libre constituée par les déchets stockés dans les alvéoles devra être en permanence la plus faible possible et inférieure à 25%.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Des moyens efficaces sont prévus pour lutter contre l'incendie et un plan de prévention et d'intervention est établi en accord avec les services de secours.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     L'exploitant dispose notamment d'extincteurs adaptés sur les engins d'exploitation et dans le local situé à l'entrée du site.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     L'exploitant prendra toutes dispositions de manière à détecter rapidement un départ de feu. Les consignes particulières d'incendie établies conformément aux dispositions de l'
+     <a data-spec="section_reference" data-start_num="35" data-type="article">
+      article 35
+     </a>
+     seront affichées, ainsi que les numéros de téléphone et l'adresse du poste de sapeurs-pompiers le plus proche, près de l'entrée principale et dans le local de gardiennage s'il existe. En l'absence de gardiennage ces indications seront complétées par la mention du poste téléphonique le plus proche.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Des moyens seront disponibles en permanence afin de pouvoir lutter efficacement contre un incendie éventuel :
+    </div>
+    <div data-number="8" data-spec="alinea">
+     <ul>
+      <li>
+       - Moyens d'éclairage à proximité de l'entrée du site, des réserves d'eau incendie et de la zone en exploitation ;
+      </li>
+      <li>
+       - Réserve d'eau constituée par les bassins de stockage des eaux pluviales, de capacité de 3500 m³ ;
+      </li>
+      <li>
+       - Réserve de terre à proximité de la zone en exploitation d'une quantité au moins égale à 100 m³ ;
+      </li>
+      <li>
+       - Deux engins de régalage de la terre.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="33" data-spec="section" data-title="PREVENTION DES ODEURS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 33 - PREVENTION DES ODEURS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitation est menée de manière à limiter autant que faire se peut, les dégagements d'odeurs, en particulier par la couverture la plus rapide possible des déchets fermentescibles déposés, selon les modalités fixées à l'
+     <a data-spec="section_reference" data-start_num="24" data-type="article">
+      article 24
+     </a>
+     . Les déchets malodorants seront refusés.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     D'autres moyens, comme la désodorisation à l'aide d'agents masquants, pourront être employés le cas échéant.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="15" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      16
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - L'exploitant disposera sur le site d'une station d'observation de paramètres atmosphériques, permettant de mettre ceux-ci en relation avec les observations faites en matière d'odeurs.
+      </li>
+      <li>
+       - L'inspection des installations classées pourra demander l'exécution, par un laboratoire dont le choix sera soumis à son approbation, aux frais de l'exploitant, de prélèvements et analyses de gaz rejetés (biogaz, avant et après combustion), de l'atmosphère près du casier en exploitation, de l'atmosphère dans l'environnement et notamment les zones habitées, de façon à déterminer la concentration des molécules odorantes.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="34" data-spec="section" data-title="SECURITE DES PERSONNES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 34 - SECURITE DES PERSONNES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les installations électriques seront conformes aux réglementations en vigueur. Elles seront entretenues en bon état et périodiquement contrôlées. Le dossier prévu à l'
+     <a data-spec="section_reference" data-start_num="55" data-type="article">
+      article 55
+     </a>
+     du décret 88-1056 du 14 novembre 1988 concernant la protection des travailleurs dans les établissements qui mettent en œuvre des courants électriques sera tenu à la disposition de l'inspecteur des installations classées.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'
+     <a data-date="1980-03-31" data-spec="document_reference" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="1980-03-31">
+       31 mars 1980
+      </time>
+     </a>
+     portant réglementation des installations électriques des établissements réglementés au titre de la législation sur les installations classées et susceptibles de présenter des risques d'explosion est également applicable.
+    </div>
+   </section>
+   <section data-number="35" data-spec="section" data-title="CONSIGNES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 35 - CONSIGNES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant établira les consignes d'exploitation. Ces consignes fixeront le comportement à observer dans l'enceinte du site, par le personnel et les personnes présentes (visiteurs, personnel d'entreprises extérieures ...). L'exploitant s'assurera fréquemment de la bonne connaissance de ces consignes par son personnel, il s'assurera également que celles-ci ont bien été communiquées en tant que de besoin aux personnes extérieures venant à être présentes sur le site.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Ces consignes doivent notamment indiquer :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - l'interdiction d'apporter du feu sous une forme quelconque, dans les zones à risques définies à l'
+       <a data-spec="section_reference" data-start_num="36" data-type="article">
+        article 36
+       </a>
+       ;
+      </li>
+      <li>
+       - les mesures à prendre en cas de défaillance sur un dispositif destiné à prévenir toute pollution ;
+      </li>
+      <li>
+       - les mesures à prendre en cas de fuite sur un récipient contenant des substances dangereuses ;
+      </li>
+      <li>
+       - les moyens d'extinction à utiliser en cas d'incendie ;
+      </li>
+      <li>
+       - la procédure d'alerte avec les numéros de téléphone du responsable d'intervention de l'établissement, des services d'incendie et de secours ;
+      </li>
+      <li>
+       - les procédures en cas de réception de déchets non admissibles.
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le personnel sera formé à l'utilisation des équipements qui lui sont confiés et des matériels de lutte contre l'incendie. Des exercices périodiques mettant en œuvre ces consignes devront avoir lieu une fois par an, les observations auxquelles ils pourront avoir donné lieu seront consignées sur un registre spécial tenu à la disposition de l'inspection des installations classées.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="16" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      17
+     </div>
+    </div>
+   </section>
+   <section data-number="36" data-spec="section" data-title="DEFINITION DES ZONES DE DANGERS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 36 - DEFINITION DES ZONES DE DANGERS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant déterminera les zones de risque incendie et les zones de risque explosion de son établissement. Ces zones seront reportées sur un plan qui sera tenu à jour régulièrement et mis à la disposition de l'inspecteur des installations classées.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - Dans ces zones, les flammes à l'air libre et les appareils susceptibles de produire des étincelles seront interdits, hormis délivrance d'un "permis de feu", signé par l'exploitant ou son représentant.
+      </li>
+     </ul>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="17" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      18
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     V - PROTECTION DES EAUX SOUTERRAINES ET SUPERFICIELLES
+    </div>
+   </section>
+   <section data-number="37" data-spec="section" data-title="GESTION DES EAUX DE RUISSELLEMENT" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 37 - GESTION DES EAUX DE RUISSELLEMENT
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les eaux pluviales et de ruissellement extérieures, celles n'ayant pas été en contact avec les déchets et les eaux de circulation latérale collectées conformément aux dispositions de l'
+     <a data-spec="section_reference" data-start_num="16" data-type="article">
+      article 16
+     </a>
+     présenteront avant rejet dans le milieu naturel les caractéristiques minimales suivantes, contrôlées au niveau de la surverse vers le milieu naturel :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     PH compris entre 5,5 et 8,5
+    </div>
+    <div data-number="3" data-spec="alinea">
+     MEST &amp;lt; 30 mg/l
+    </div>
+    <div data-number="4" data-spec="alinea">
+     DBO5 &amp;lt; 20 mg/l
+    </div>
+    <div data-number="5" data-spec="alinea">
+     DCO &amp;lt; 40 mg/l
+    </div>
+    <div data-number="6" data-spec="alinea">
+     NH4+ &amp;lt; 5 mg/l
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Métaux lourds totaux &amp;lt; 15 mg/l dont :
+    </div>
+    <div data-number="8" data-spec="alinea">
+     <ul>
+      <li>
+       - plomb &amp;lt; 0,5 mg/l
+      </li>
+      <li>
+       - chrome hexavalent &amp;lt; 0.1 mg/l
+      </li>
+      <li>
+       - cadmium &amp;lt; 0.2 mg/l
+      </li>
+      <li>
+       - mercure &amp;lt; 0,05 mg/l
+      </li>
+     </ul>
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Hydrocarbures totaux &amp;lt; 5 mg/l
+    </div>
+    <div data-number="10" data-spec="alinea">
+     En outre, ces eaux ne devront pas contenir de substances capables d'entraîner la destruction de la faune piscicole après mélange avec les eaux réceptrices.
+    </div>
+    <div data-number="11" data-spec="alinea">
+     L'autocontrôle de la qualité de ces eaux sera réalisé à fréquence semestrielle par un organisme agréé par le ministre chargé de l'environnement. Un contrôle mensuel sera également réalisé mais portera uniquement sur le pH, la résistivité et les hydrocarbures totaux.
+    </div>
+   </section>
+   <section data-number="38" data-spec="section" data-title="TRAITEMENT DES LIXIVIATS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 38 - TRAITEMENT DES LIXIVIATS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le traitement des lixiviats a lieu dans une station d'épuration collective.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Une convention sera passée entre l'exploitant de l'installation et le gestionnaire de la station d'épuration, après réalisation d'une étude de traitabilité. Cette convention doit préciser les informations communiquées à l'exploitant de l'installation de stockage par le gestionnaire de l'infrastructure d'assainissement sur ses rejets.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les lixiviats doivent respecter avant traitement dans la station d'épuration, les valeurs limites suivantes :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        Métaux lourds
+       </td>
+       <td>
+        &lt; 15 mg/l
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Cr
+        <sup>
+         6
+        </sup>
+       </td>
+       <td>
+        &lt; 0,1 mg/l
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Cd
+       </td>
+       <td>
+        &lt; 0,2 mg/l
+       </td>
+      </tr>
+      <tr>
+       <td>
+        dont : Pb
+       </td>
+       <td>
+        &lt; 1 mg/l
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Hg
+       </td>
+       <td>
+        &lt; 0,05 mg/l
+       </td>
+      </tr>
+      <tr>
+       <td>
+        As
+       </td>
+       <td>
+        &lt; 0,1 mg/l
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Fluor et composés (en F)
+       </td>
+       <td>
+        &lt; 15 mg/l
+       </td>
+      </tr>
+      <tr>
+       <td>
+        CN libres
+       </td>
+       <td>
+        &lt; 0,1 mg/l
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Hydrocarbures totaux
+       </td>
+       <td>
+        &lt; 10 mg/l
+       </td>
+      </tr>
+      <tr>
+       <td>
+        AOX
+       </td>
+       <td>
+        &lt; 5 mg/l
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     N.B. : Les métaux lourds sont la somme de la concentration en masse par litre des éléments suivants : Pb, Cu, Cr, Ni, Zn, Mn, Sn, Cd, Hg, Fe, Al.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="18" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      19
+     </div>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Une surveillance obligatoire doit être réalisée à l'arrivée à la station d'épuration, notamment afin de vérifier la traitabilité dans la station. Au moins une fois par mois des échantillons de lixiviats sont prélevés dans les réservoirs de stockage et analysés. Leur compatibilité avec une épuration biologique est vérifiée. Ces opérations sont réalisées par un organisme agréé par le Ministère chargé de l'Environnement.
+    </div>
+   </section>
+   <section data-number="39" data-spec="section" data-title="CONTROLE DES EAUX SOUTERRAINES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 39 – CONTROLE DES EAUX SOUTERRAINES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le réseau de contrôle des eaux souterraines est constitué de 8 puits de contrôle dont un est situé sur la zone de mise en sécurité des pesticides complété par le point de contrôle de l'eau de la résurgence située à 200 m en aval, comme repérés sur le plan annexé au
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'exploitant veillera tout particulièrement au maintien de l'étanchéité de la rehausse du piézomètre situé sur la partie supérieure de la zone dans laquelle ont été enfouis des pesticides.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Une fois par trimestre, des analyses seront effectuées sur les paramètres suivants : pH, résistivité, DCO, fer, ammonium, à l'exception du piézomètre P3 où seule la présence d'eau sera vérifiée.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Au minimum deux fois par an, des analyses par un laboratoire agréé portant au moins sur les paramètres suivants seront effectuées sur l'ensemble des points de prélèvements :
+    </div>
+    <div data-number="5" data-spec="alinea">
+     pH, résistivité, DCO ou COT, DBO5, NH4+, chrome, plomb, nickel, cadmium, cuivre, zinc, mercure, hydrocarbures totaux, aluminium, manganèse, fer, chlorures, sulfates, nitrates, isomères du HCH, AOX, phosphates, phénols.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Les rejets des eaux de la résurgence dans le milieu naturel ne pourront être acceptés qu'à condition du respect des normes suivantes :
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <ul>
+      <li>
+       - DCO ≤ 20 kg/jour (300 mg/l)
+      </li>
+      <li>
+       - DBO5 ≤ 2,5 kg/jour (40 mg/l)
+      </li>
+      <li>
+       - MEST ≤ 2,0 kg/jour (30 mg/l)
+      </li>
+      <li>
+       - pH : compris entre 5,5 et 8,5
+      </li>
+     </ul>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Le débit de la résurgence sera évalué semestriellement, dont au moins une fois à la sortie du printemps.
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Les résultats de toutes ces analyses sont aussitôt communiqués à l'inspecteur des installations classées. Ils sont également accompagnés d'un commentaire et, à chaque fois que cela semble pertinent, par une présentation graphique de l'évolution des résultats obtenus depuis les premières mesures.
+    </div>
+    <div data-number="10" data-spec="alinea">
+     En cas de valeur anormale ou d'évolution significative d'un paramètre mesuré constatée par l'exploitant et l'inspecteur des installations classées, les analyses périodiques prévues ci-dessus sont renouvelées pour ce qui concerne le paramètre en cause, et éventuellement complétées par d'autres. Si la valeur normale ou l'évolution défavorable est confirmée, les mesures précisées à l'
+     <a data-spec="section_reference" data-start_num="40" data-type="article">
+      article 40
+     </a>
+     sont mises en œuvre.
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Dans un délai de 3 mois à compter de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , en vue de rationaliser le suivi des eaux souterraines, l'exploitant remettra une étude critique du contrôle des eaux souterraines réalisée par un organisme compétent, définissant de manière claire :
+    </div>
+    <div data-number="12" data-spec="alinea">
+     <ul>
+      <li>
+       - les sens d'écoulements et la configuration des différentes nappes (à l'aide de coupes hydrogéologiques...) et leur relation avec la résurgence,
+      </li>
+      <li>
+       - l'optimisation du contrôle (points, fréquence, paramètres), basée en particulier sur l'exploitation des résultats de contrôle des 3 dernières années.
+      </li>
+     </ul>
+    </div>
+    <div data-number="13" data-spec="alinea">
+     Au vue des conclusions de cette étude, les modalités de contrôle des eaux souterraines pourront être adaptées.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="19" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      20
+     </div>
+    </div>
+   </section>
+   <section data-number="40" data-spec="section" data-title="PLAN DE SURVEILLANCE RENFORCEE DES EAUX SOUTERRAINES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 40 - PLAN DE SURVEILLANCE RENFORCEE DES EAUX SOUTERRAINES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dans le cas où une valeur anormale d'un paramètre ou un changement significatif de la qualité des eaux souterraines est observé, l'exploitant, en accord avec l'inspecteur des installations classées, met en place un plan d'action et de surveillance renforcée qui comprend au minimum :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - une augmentation de la fréquence des analyses réalisées,
+      </li>
+      <li>
+       - le relevé quotidien du bilan hydrique défini à l'
+       <a data-spec="section_reference" data-start_num="42" data-type="article">
+        article 42
+       </a>
+       , complété par des mesures de débit concernant la résurgence,
+      </li>
+      <li>
+       - la limitation d'accès dans l'installation de stockage des déchets pouvant être à l'origine de la modification de la qualité des eaux souterraines et toute mesure d'exploitation pouvant réduire l'origine de l'évolution constatée.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'exploitant adresse, à une fréquence déterminée par l'inspecteur des installations classées, un rapport circonstancié sur les observations obtenues en application du plan de surveillance renforcé.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Lorsque la cause de l'anomalie est supprimée, le plan de surveillance renforcé peut être arrêté.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     A défaut, il pourra être prescrit une actualisation de l'étude hydrogéologique du site et la définition de mesures de confinement du site ou de traitement des eaux souterraines.
+    </div>
+   </section>
+   <section data-number="41" data-spec="section" data-title="CONTROLE DES EAUX DU ROHRBACH" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 41 - CONTROLE DES EAUX DU ROHRBACH
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les eaux du Rohrbach seront analysées une fois par semestre sur des prélèvements effectués en amont au niveau du moulin à Schaffouse sur Zorn et en aval du centre de stockage (après le point de rejet de la résurgence). Les analyses portent sur les paramètres suivants :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     MEST, DBO5, DCO, résistivité, Test Daphnies, hydrocarbures totaux, AOX, phénols, ion ammonium, phosphates, chlorures, sulfates, nitrates, chrome, cadmium, mercure, plomb, nickel, mercure, cuivre, zinc, fer, manganèse, aluminium, isomères du HCH.
+    </div>
+   </section>
+   <section data-number="42" data-spec="section" data-title="SUIVI DU BILAN HYDRIQUE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 42 - SUIVI DU BILAN HYDRIQUE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant tient à jour un registre sur lequel il reporte les éléments nécessaires au calcul du bilan hydrique de l'installation (pluviométrie, ensoleillement, relevé de la hauteur d'eau dans les puits, quantités de lixiviats produits). Ce bilan est calculé annuellement. Son suivi doit contribuer à la gestion des flux polluants potentiellement issus de l'installation et de réviser si nécessaire les aménagements du site.
+    </div>
+   </section>
+   <section data-number="43" data-spec="section" data-title="TRANSMISSION DES RESULTATS ET METHODES D'ANALYSE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 43 - TRANSMISSION DES RESULTATS ET METHODES D'ANALYSE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les résultats des analyses demandées aux
+     <a data-group_id="2" data-spec="section_reference" data-start_num="37" data-type="article">
+      articles 37
+     </a>
+     ,
+     <a data-group_id="2" data-spec="section_reference" data-start_num="38" data-type="article">
+      38
+     </a>
+     ,
+     <a data-group_id="2" data-spec="section_reference" data-start_num="39" data-type="article">
+      39
+     </a>
+     et
+     <a data-group_id="2" data-spec="section_reference" data-start_num="41" data-type="article">
+      41
+     </a>
+     ci-dessus sont communiqués à l'inspecteur des installations classées selon la fréquence indiquée.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les méthodes d'analyse utilisées doivent être conformes aux bonnes pratiques en la matière et aux normes en vigueur.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="20" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      21
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     VI - DRAINAGE ET DESTRUCTION DU BIOGAZ
+    </div>
+   </section>
+   <section data-number="44" data-spec="section" data-title="DRAINAGE ET COLLECTE DU BIOGAZ" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 44 - DRAINAGE ET COLLECTE DU BIOGAZ
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les alvéoles en cours d'exploitation sont équipées, au plus tard dans les 2 mois après leur comblement, d'un réseau de captage des émanations gazeuses, conçu et dimensionné pour capter de façon permanente et optimale le biogaz et le transporter vers une installation de destruction par combustion.
+    </div>
+   </section>
+   <section data-number="45" data-spec="section" data-title="DESTRUCTION DU BIOGAZ" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 45 - DESTRUCTION DU BIOGAZ
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'installation de destruction du biogaz est conçue et exploitée afin de limiter les risques, nuisances et émissions dus à leur fonctionnement.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le volume de biogaz produit est suivi.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'exploitant procède périodiquement à des analyses de la composition du biogaz capté dans son installation, en particulier en ce qui concerne la teneur en CH₄, CO₂, N₂, O₂, H₂S et H₂O (annuellement) CH₄, CO₂, O₂ (mensuellement).
+    </div>
+    <div data-number="4" data-spec="alinea">
+     La température de combustion doit être au moins de 900°C. Elle est mesurée en continu. Les émissions de SO₂, NO₂, CO, poussières, HCI et HF, issues de chaque dispositif de combustion font l'objet d'une campagne annuelle d'analyse par un organisme extérieur compétent.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Les valeurs limites à ne pas dépasser sont les suivantes :
+    </div>
+    <div data-number="6" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        - poussières
+       </td>
+       <td>
+        &lt;
+       </td>
+       <td>
+        10 mg/Nm
+        <sub>
+         3
+        </sub>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        - CO
+       </td>
+       <td>
+        &lt;
+       </td>
+       <td>
+        150 mg/Nm
+        <sub>
+         3
+        </sub>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        - NOX
+       </td>
+       <td>
+        &lt;
+       </td>
+       <td>
+        400 mg/Nm
+        <sub>
+         3
+        </sub>
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="46" data-spec="section" data-title="SUIVI DU BIOGAZ" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 46 - SUIVI DU BIOGAZ
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant tient à jour un registre sur lequel il reporte les volumes de biogaz produit et les quantités brûlées.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Il reporte également les résultats des analyses prévues à l'article précédent et en adresse, tous les trimestres, une synthèse à l'inspection des installations classées.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Ces informations sont reprises et synthétisées dans le rapport d'activité annuel prévu à l'
+     <a data-spec="section_reference" data-start_num="57" data-type="article">
+      article 57
+     </a>
+     .
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="21" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      22
+     </div>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     VII - GARANTIES FINANCIERES
+    </div>
+   </section>
+   <section data-number="47" data-spec="section" data-title="MONTANT ET CONSTITUTION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 47 - MONTANT ET CONSTITUTION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     A la date de publication du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , l'exploitant devra disposer de garanties financières dans les conditions prévues à l'
+     <a data-spec="section_reference" data-start_num="4.2" data-type="article">
+      article 4.2
+     </a>
+     de la loi du 19 juillet 1976 et aux
+     <a data-parent_reference="6" data-spec="section_reference" data-start_num="23" data-type="article">
+      articles 23
+     </a>
+     -1 à 23-7 du
+     <a data-date="1977-09-21" data-spec="document_reference" data-tag_id="6" data-type="decret">
+      décret du
+      <time data-spec="date" datetime="1977-09-21">
+       21 septembre 1977
+      </time>
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'état prévisionnel du montant des garanties financières à chaque étape de l'exploitation prévue du site, et ce jusqu'à la fin de la période de suivi post-exploitation est défini dans le tableau suivant par période de 3 ans :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <th colspan="3">
+        Période de 3 ans
+       </th>
+       <th>
+        Montant des garanties financières (F HT)
+       </th>
+      </tr>
+      <tr>
+       <td>
+        1999
+       </td>
+       <td>
+        à
+       </td>
+       <td>
+        2001
+       </td>
+       <td>
+        7 979 959
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2002
+       </td>
+       <td>
+        à
+       </td>
+       <td>
+        2004
+       </td>
+       <td>
+        7 979 959
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2005
+       </td>
+       <td>
+        à
+       </td>
+       <td>
+        2007
+       </td>
+       <td>
+        7 307 901
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2008
+       </td>
+       <td>
+        à
+       </td>
+       <td>
+        2010
+       </td>
+       <td>
+        6 346 491
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2011
+       </td>
+       <td>
+        à
+       </td>
+       <td>
+        2013
+       </td>
+       <td>
+        5 649 575
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2014
+       </td>
+       <td>
+        à
+       </td>
+       <td>
+        2016
+       </td>
+       <td>
+        4 713 775
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2017
+       </td>
+       <td>
+        à
+       </td>
+       <td>
+        2019
+       </td>
+       <td>
+        3 998 127
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2020
+       </td>
+       <td>
+        à
+       </td>
+       <td>
+        2022
+       </td>
+       <td>
+        3 501 250
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2023
+       </td>
+       <td>
+        à
+       </td>
+       <td>
+        2025
+       </td>
+       <td>
+        2 913 750
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2026
+       </td>
+       <td>
+        à
+       </td>
+       <td>
+        2028
+       </td>
+       <td>
+        2 526 250
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2029
+       </td>
+       <td>
+        à
+       </td>
+       <td>
+        2031
+       </td>
+       <td>
+        2 500 000
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2032
+       </td>
+       <td>
+        à
+       </td>
+       <td>
+       </td>
+       <td>
+        2 500 000
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Ce montant tient compte des opérations suivantes :
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <ul>
+      <li>
+       - surveillance du site pendant l'exploitation et pendant une période de 30 ans après l'arrêt de l'exploitation,
+      </li>
+      <li>
+       - intervention en cas d'accident ou de pollution,
+      </li>
+      <li>
+       - remise en état du site.
+      </li>
+     </ul>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     L'exploitant transmettra au Préfet, dans un délai de un mois à compter de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , un document émanant d'un organisme bancaire ou d'assurance, attestant la constitution de ces garanties. Ce document doit être établi conformément à l'arrêté conjoint des ministres chargés de l'environnement et de l'économie daté du 1er février 1996.
+    </div>
+   </section>
+   <section data-number="48" data-spec="section" data-title="RENOUVELLEMENT ET ACTUALISATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 48 - RENOUVELLEMENT ET ACTUALISATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Au moins 6 mois avant la fin de la période pour laquelle les garanties ont été constituées, l'exploitant fait parvenir au Préfet l'attestation de renouvellement de ces garanties pour la période suivante.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'absence de garantie financière entraîne la suspension de l'activité, après mise en œuvre des modalités prévues à l'
+     <a data-spec="section_reference" data-start_num="23" data-type="article">
+      article 23
+     </a>
+     de la loi du 19 juillet 1976.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le montant sera actualisé tous les trois ans en se basant sur l'indice du coût de la vie.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     L'actualisation des garanties financières relève de l'initiative de l'exploitant.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Toute modification du rythme d'exploitation, conduisant à une augmentation des coûts de remise en état et de surveillance nécessite une augmentation du montant des garanties financières.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     L'exploitant tient à jour un état de situation des garanties qui lui sont accordées ainsi que l'état prévisionnel des garanties que rendra nécessaires son exploitation. Ces états sont tenus à la disposition de l'inspection des installations classées.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="22" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      23
+     </div>
+    </div>
+   </section>
+   <section data-number="49" data-spec="section" data-title="CONDITIONS D'APPEL DES GARANTIES FINANCIERES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 49- CONDITIONS D'APPEL DES GARANTIES FINANCIERES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Il est fait appel aux garanties financières soit en cas de non-respect des prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     en matière de remise en état et de surveillance, après intervention des mesures prévues à l'
+     <a data-spec="section_reference" data-start_num="23" data-type="article">
+      article 23
+     </a>
+     de la loi du 19.7.76, soit après disparition juridique de l'exploitant.
+    </div>
+    <a data-page_index="23" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      23
+     </div>
+    </div>
+   </section>
+   <section data-number="49" data-spec="section" data-title="CONDITIONS D'APPEL DES GARANTIES FINANCIERES" data-type="article">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     ARTICLE 49- CONDITIONS D'APPEL DES GARANTIES FINANCIERES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Il est fait appel aux garanties financières soit en cas de non-respect des prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     en matière de remise en état et de surveillance, après intervention des mesures prévues à l'
+     <a data-spec="section_reference" data-start_num="23" data-type="article">
+      article 23
+     </a>
+     de la loi du 19.7.76, soit après disparition juridique de l'exploitant.
+    </div>
+    <a data-page_index="24" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      24
+     </div>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     VIII - FIN D'EXPLOITATION
+    </div>
+   </section>
+   <section data-number="50" data-spec="section" data-title="COUVERTURE DES CASIERS ET AMENAGEMENT" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 50 - COUVERTURE DES CASIERS ET AMENAGEMENT
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dès la fin de comblement d'un casier, c'est à dire lorsque sa capacité maximale est atteinte, une couche de drainage du biogaz est mise en place.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     La couverture est réalisée selon un profil topographique permettant de prévenir autant que faire se peut les risques d'éboulement, de ravinement et d'érosion de manière à diriger les eaux de ruissellement superficielles vers l'extérieur de la zone à exploiter et les dispositifs de collecte appropriés.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     La couverture présente une pente d'au moins 7 % permettant de diriger toutes les eaux de ruissellement vers des dispositifs de collecte. Cette pente ne doit cependant pas créer de risques d'érosion de la couverture en place. La pente maximale de réaménagement ne devra pas dépasser 10 %.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Cette couverture se compose du bas vers le haut :
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <ul>
+      <li>
+       - d'une couche drainante participant à la collecte et au captage du biogaz,
+      </li>
+      <li>
+       - d'un écran imperméable réalisé par des matériaux naturels argileux remaniés et compactés sur une épaisseur d'au moins un mètre, ou tout dispositif équivalent assurant la même efficacité,
+      </li>
+      <li>
+       - d'une couche drainante permettant de limiter les infiltrations d'eaux météoriques dans le stockage,
+      </li>
+      <li>
+       - d'une couche de terre compactée constituant la réserve d'eau du sol,
+      </li>
+      <li>
+       - d'un niveau suffisant de terre végétative permettant la plantation d'une végétation favorisant l'évapotranspiration.
+      </li>
+     </ul>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     La terre végétative sera engazonnée et recevra des plantations. L'engazonnement sera réalisé avec des espèces prairiales. Le principe de réaménagement est d'assurer la continuité du paysage au niveau des formes et de la végétation. La partie Nord du site représentée par les parcelles 204 et 205, sera munie d'un écran végétal.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     S'il s'avère, 15 ans après la fin de l'exploitation commerciale, que l'installation de stockage produit toujours des lixiviats en grande quantité, l'inspecteur des installations classées pourra demander à l'exploitant de l'installation de stockage la réalisation d'une étude technico-économique sur les possibilités de réduire cette production de lixiviats, notamment par la mise en place d'une couverture étanche.
+    </div>
+   </section>
+   <section data-number="51" data-spec="section" data-title="FIN D'EXPLOITATION COMMERCIALE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 51 - FIN D'EXPLOITATION COMMERCIALE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Après son comblement le site est progressivement couvert. Tous les aménagements non nécessaires au maintien de la couverture du site et à son suivi ou au maintien en opération des dispositifs de captage et de traitement du biogaz ou des lixiviats sont supprimés et le lieu de leur implantation remis en état.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     La clôture du site est maintenue sur l'intégralité de son emprise pendant au moins 5 ans. Les dispositifs de captage et de traitement du biogaz ou des lixiviats et tous les moyens nécessaires au suivi du site sont protégés des intrusions pendant leur maintien sur le site.
+    </div>
+   </section>
+   <section data-number="52" data-spec="section" data-title="MISE EN PLACE DE SERVITUDES D'UTILITE PUBLIQUE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 52 - MISE EN PLACE DE SERVITUDES D'UTILITE PUBLIQUE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-spec="section_reference" data-start_num="7.5" data-type="article">
+      article 7.5.
+     </a>
+     de la loi du 19 juillet 1976 précitée et aux
+     <a data-end_num="24.8" data-spec="section_reference" data-start_num="24.1" data-type="article">
+      articles 24.1 à 24.8
+     </a>
+     de son décret d'application du 21 septembre 1977 et dès la saturation du stockage par l'atteinte de la capacité maximale de dépôt autorisé, sur tout ou partie de l'installation, l'exploitant demandera au Préfet l'institution de servitudes et fournira les documents nécessaires à cet effet.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="25" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      25
+     </div>
+    </div>
+   </section>
+   <section data-number="53" data-spec="section" data-title="PLAN DU SITE APRES COUVERTURE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 53 - PLAN DU SITE APRES COUVERTURE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Toute zone couverte fait l'objet d'un plan de couverture à l'échelle 1/2500, accompagné de plans de détail au 1/500, qui présentent :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - l'ensemble des aménagements du site (clôture, végétation, fossés de collecte, tranchée drainante, limite de couverture, bassin de stockage, unité de traitement, système de captage du biogaz, torchères,...),
+      </li>
+      <li>
+       - la position exacte des dispositifs de contrôle y compris ceux dont la tête est dissimulée par la couverture (piézomètres, buses diverses...),
+      </li>
+      <li>
+       - la projection horizontale des réseaux de drainage, ceci sur des plans différents si plusieurs réseaux superposés existent,
+      </li>
+      <li>
+       - les courbes topographiques d'équidistance 5 mètres,
+      </li>
+      <li>
+       - les aménagements réalisés, dans leur nature et leur étendue.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Ces plans complètent le plan d'exploitation auquel ils sont progressivement incorporés pour donner lieu en définitive à un plan du site après couverture.
+    </div>
+   </section>
+   <section data-number="54" data-spec="section" data-title="PROGRAMME DE SUIVI" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 54 - PROGRAMME DE SUIVI
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Pour toute partie couverte un premier programme de suivi est réalisé pendant une durée minimale de 5 ans et comprend :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - le contrôle, au moins tous les mois, du système de captage du biogaz et la réalisation des mesures prévues aux
+       <a data-group_id="3" data-spec="section_reference" data-start_num="45" data-type="article">
+        articles 45
+       </a>
+       et
+       <a data-group_id="3" data-spec="section_reference" data-start_num="56" data-type="article">
+        56
+       </a>
+       ,
+      </li>
+      <li>
+       - le contrôle, au moins tous les 6 mois, de la qualité des eaux souterraines conformément aux prescriptions de l'
+       <a data-spec="section_reference" data-start_num="39" data-type="article">
+        article 39
+       </a>
+       ,
+      </li>
+      <li>
+       - le contrôle, au moins tous les 6 mois, de la qualité des rejets conformément aux prescriptions des
+       <a data-group_id="4" data-spec="section_reference" data-start_num="37" data-type="article">
+        articles 37
+       </a>
+       et
+       <a data-group_id="4" data-spec="section_reference" data-start_num="41" data-type="article">
+        41
+       </a>
+       ,
+      </li>
+      <li>
+       - l'entretien du site (fossé, couverture végétale, clôture, écran végétal),
+      </li>
+      <li>
+       - les observations géotechniques du site avec des contrôles des repères topographiques et maintien du profil topographique nécessaire à la bonne gestion des eaux de ruissellement superficielles.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le contenu de ce premier programme de suivi fera l'objet d'un arrêté complémentaire.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     À l'issue de ce premier programme de suivi, l'exploitant adresse un mémoire sur l'état du site accompagné d'une synthèse des mesures effectuées depuis la couverture. L'inspection des installations classées peut alors proposer une modification du programme de suivi qui fera l'objet d'un arrêté préfectoral complémentaire.
+    </div>
+   </section>
+   <section data-number="55" data-spec="section" data-title="CESSATION DEFINITIVE DE L'EXPLOITATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 55 - CESSATION DEFINITIVE DE L'EXPLOITATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="7" data-spec="section_reference" data-start_num="34" data-type="article">
+      article 34
+     </a>
+     -1 du
+     <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-tag_id="7" data-type="decret">
+      décret n° 77-1133 du
+      <time data-spec="date" datetime="1977-09-21">
+       21 septembre 1977
+      </time>
+     </a>
+     modifié, l'exploitant adresse au moins 6 mois avant la fin de la date à laquelle il estime l'exploitation terminée, un dossier comprenant :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - le plan d'exploitation à jour du site,
+      </li>
+      <li>
+       - un mémoire sur les mesures prises pour assurer la protection des intérêts visés à l'
+       <a data-spec="section_reference" data-start_num="1" data-type="article">
+        article 1er
+       </a>
+       de la loi n° 76-663 du 19 juillet 1976 relative aux installations classées pour la protection de l'environnement,
+      </li>
+      <li>
+       - une description de l'insertion du site, y compris les parties éventuellement non exploitées dans le paysage et son environnement,
+      </li>
+      <li>
+       - une étude de stabilité du dépôt,
+      </li>
+      <li>
+       - le relevé topographique détaillé du site,
+      </li>
+      <li>
+       - une étude hydrogéologique et l'analyse détaillée des résultats des analyses d'eaux souterraines pratiquées depuis au moins 5 ans,
+       <div data-spec="page_footer">
+        <div>
+         .../...
+        </div>
+       </div>
+       <a data-page_index="26" data-spec="page_separator">
+       </a>
+       <div data-spec="page_header">
+        <div>
+         26
+        </div>
+       </div>
+      </li>
+      <li>
+       - une étude sur l'usage qui peut être fait de la zone exploitée et couverte, notamment en terme d'urbanisme et d'utilisation du sol et du sous-sol,
+      </li>
+      <li>
+       - en cas de besoin, la surveillance qui doit encore être exercée sur le site,
+      </li>
+      <li>
+       - un mémoire sur la réalisation des travaux couverts par des garanties financières ainsi que tout élément technique pertinent pour justifier la levée de ces garanties ou leur réduction.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     S'il y a lieu, ces mesures porteront sur l'ensemble des terrains ayant fait l'objet d'une cessation d'activité en ce qui concerne l'exploitation de la carrière.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     L'obligation des garanties financières est levée en application de l'
+     <a data-parent_reference="8" data-spec="section_reference" data-start_num="23" data-type="article">
+      article 23
+     </a>
+     -6 du
+     <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-tag_id="8" data-type="decret">
+      décret n° 77-1133 du
+      <time data-spec="date" datetime="1977-09-21">
+       21 septembre 1977
+      </time>
+     </a>
+     , après constatation de la remise en état du site en conformité avec les prescriptions réglementaires.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="27" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      27
+     </div>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     IX - INFORMATION ET CONTROLES
+    </div>
+   </section>
+   <section data-number="56" data-spec="section" data-title="CONTROLES ET CONSTATATIONS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 56 - CONTROLES ET CONSTATATIONS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Sans préjudice des dispositions légales et réglementaires qui confèrent aux inspecteurs des installations classées et aux Officiers de Police Judiciaire, le soin de constater les infractions à la législation des installations classées, ainsi que des dispositions de l'
+     <a data-spec="section_reference" data-start_num="26" data-type="article">
+      article 26
+     </a>
+     de la loi du 15 juillet 1975 relative à l'élimination des déchets et à la récupération des matériaux, tous les documents ainsi que les registres d'admission et de refus de déchets prévus aux
+     <a data-spec="section_reference" data-start_num="39" data-type="article">
+      articles 39
+     </a>
+     -40-41 et 42 sont tenus à disposition des agents mandatés par l'Autorité responsable de la définition et de l'application du plan départemental de collecte et de traitement des déchets ménagers et assimilés. Ces agents peuvent visiter le site, en heures ouvrables et accompagnés d'un représentant de l'exploitant.
+    </div>
+   </section>
+   <section data-number="57" data-spec="section" data-title="INFORMATION ANNUELLE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 57 - INFORMATION ANNUELLE
+    </h2>
+    <section data-number="57.1" data-spec="section" data-title="Rapport annuel d'activité" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      57.1 - Rapport annuel d'activité
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant adresse une fois par an à l'inspection des installations classées un rapport d'activité comportant une synthèse des informations prévues aux
+      <a data-group_id="5" data-spec="section_reference" data-start_num="13" data-type="article">
+       articles 13
+      </a>
+      ,
+      <a data-group_id="5" data-spec="section_reference" data-start_num="37" data-type="article">
+       37
+      </a>
+      ,
+      <a data-group_id="5" data-spec="section_reference" data-start_num="38" data-type="article">
+       38
+      </a>
+      ,
+      <a data-group_id="5" data-spec="section_reference" data-start_num="39" data-type="article">
+       39
+      </a>
+      ,
+      <a data-group_id="5" data-spec="section_reference" data-start_num="41" data-type="article">
+       41
+      </a>
+      ,
+      <a data-group_id="5" data-spec="section_reference" data-start_num="45" data-type="article">
+       45
+      </a>
+      et
+      <a data-group_id="5" data-spec="section_reference" data-start_num="46" data-type="article">
+       46
+      </a>
+      le plan d'exploitation à jour, ainsi que plus généralement tout élément d'information pertinent sur la tenue de l'installation de stockage dans l'année écoulée et les demandes éventuelles exprimées auprès de l'exploitant par le public.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Il précisera notamment :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - la nature et les flux de résidus admis avec les tonnages et leur origine,
+       </li>
+       <li>
+        - le point sur la durée de vie de la tranche en cours,
+       </li>
+       <li>
+        - les aménagements faits et prévus,
+       </li>
+       <li>
+        - l'avancement du réaménagement des casiers remblayés,
+       </li>
+       <li>
+        - les études en cours en cas d'aménagement et travaux particuliers à effectuer,
+       </li>
+       <li>
+        - l'état de la situation des garanties financières,
+       </li>
+       <li>
+        - le rappel des incidents survenus sur le site.
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      L'inspection des installations classées présente ce rapport au conseil départemental d'hygiène en le complétant par un rapport récapitulant les contrôles effectués et les mesures administratives éventuelles proposées par l'inspection des installations classées pendant l'année écoulée.
+     </div>
+    </section>
+    <section data-number="57.2" data-spec="section" data-title="Information du public" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      57.2 - Information du public
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Conformément au
+      <a data-date="1993-12-29" data-num="93-1410" data-spec="document_reference" data-type="decret">
+       décret n° 93-1410 du
+       <time data-spec="date" datetime="1993-12-29">
+        29 décembre 1993
+       </time>
+      </a>
+      fixant les modalités d'exercice au droit à l'information en matière de déchets prévu à l'
+      <a data-spec="section_reference" data-start_num="3" data-type="article">
+       article 3
+      </a>
+      -1 de la loi du 15 juillet 1975, l'exploitant adresse annuellement au maire de la commune de Hochfelden, un dossier comprenant les documents précisés à l'
+      <a data-spec="section_reference" data-start_num="2" data-type="article">
+       article 2
+      </a>
+      du décret précité, en particulier les comptes rendus d'exploitation.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Il assure l'actualisation de ce dossier.
+     </div>
+    </section>
+   </section>
+   <section data-number="58" data-spec="section" data-title="CONTROLES EXCEPTIONNELS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 58 - CONTROLES EXCEPTIONNELS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'inspection des installations classées peut demander à tout moment la réalisation, par un organisme extérieur dont le choix sera soumis à son approbation, des prélèvements et analyses d'effluents liquides ou gazeux, de déchets ou de sol ainsi que l'exécution de mesures de niveaux sonores ou le dosage dans l'atmosphère de molécules odorantes. Les frais occasionnés sont à la charge de l'exploitant. Le cas échéant une convention avec un organisme extérieur compétent peut définir les modalités de réalisation de contrôles inopinés à la demande de l'inspection des installations classées.
+    </div>
+    <a data-page_index="28" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      28
+     </div>
+    </div>
+   </section>
+   <section data-number="59" data-spec="section" data-title="ARCHIVAGE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 59 - ARCHIVAGE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Tous les résultats de contrôles sont archivés par l'exploitant pendant une durée d'au moins 5 ans.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     X - DIVERS
+    </div>
+   </section>
+   <section data-number="60" data-spec="section" data-title="PUBLICITE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 60 - PUBLICITE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="9" data-spec="section_reference" data-start_num="21" data-type="article">
+      article 21
+     </a>
+     du
+     <a data-date="1977-09-21" data-spec="document_reference" data-tag_id="9" data-type="decret">
+      décret du
+      <time data-spec="date" datetime="1977-09-21">
+       21 septembre 1977
+      </time>
+     </a>
+     modifié, un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     énumérant les conditions auxquelles l'autorisation est accordée et faisant connaître qu'une copie en est déposée aux archives de la mairie de Hochfelden et mise à la disposition de tout intéressé, sera affichée dans ladite mairie. Un extrait semblable sera inséré aux frais du permissionnaire, dans deux journaux locaux ou régionaux.
+    </div>
+   </section>
+   <section data-number="61" data-spec="section" data-title="FRAIS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 61 - FRAIS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les frais inhérents à l'application des prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     seront à la charge de la société.
+    </div>
+   </section>
+   <section data-number="62" data-spec="section" data-title="DROIT DES TIERS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 62 - DROIT DES TIERS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les droits des tiers sont et demeurent expressément réservés.
+    </div>
+   </section>
+   <section data-number="63" data-spec="section" data-title="SANCTIONS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 63 - SANCTIONS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En cas de non respect des prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , il pourra être fait application des titres VI (sanctions pénales) et VII (sanctions administratives) de la loi n° 76-663 du 19 juillet 1976.
+    </div>
+   </section>
+   <section data-number="64" data-spec="section" data-title="EXECUTION - AMPLIATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 64 - EXECUTION - AMPLIATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le Secrétaire général de la Préfecture du Bas-Rhin,
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le Sous-Préfet, secrétaire général adjoint chargé de l'arrondissement chef-lieu,
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le Maire de Hochfelden,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les inspecteurs des installations classées de la DRIRE,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le Commandant du Groupement de gendarmerie du Bas-Rhin,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont ampliation sera notifiée à la société SITAL.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCADeAXMDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iiigAooooAKKKKACjNc947mubfwFr01m8iXMdjK0bx53KQp5GK8F+H/AIU+IHijQ31fTvFtxY25mMai4uJSWKjkj2+YigD6ayDS1458PdU8X6B4/bwV4nvk1BXtGuoZjIXZRnA+YjJGFPHbNehSePPCcN+bGXxDpyXSvsMbTqCG9KAOhoqpdapp9lYi9ur23gtDgieSUKhz0+Y8c1JLe2kNn9rluYY7baG85nATB6HPTHIoAnopgmjL7BIpfAbbnnB6H6cGmW15bXkAntbiKeE5xJG4ZTjg8j0oAmopu9e5Axyc9qUOp6HNAC0UmRjOaNwzjPNAC0Um5cZyMevagkEdaAFzRXMSeM7NPHsXhEW1w969sblptoEaLj3OT+GaXwj40sPGK6i9jDPELG6a3bzgBvx/EPY0AdNRSZFVpNSsor6Gxku4Vu51LRQs4DuB1IHU0AWs0Vh2PizRtR8S32gWt35mo2Sb54wrYUZAPOMZBYZAPetvcOaAFopMijI+tAC0UmRS0AFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAc74+na2+H+vzKMslhKR/3ya8i+GmkfEa88D6bPoXiLT7DSwZVht5rcOx/eNuJO0nlie46CvafE+kPr/hfVNIjlEL3ls8KyMMhSwwCaz/AXhibwf4NsNEnuI55bfeWkjXAJZ2bjPb5v0oA8+1nQNY8J6N4h8Z+INaS91+e0NlavboI44A7KF2ZAxgk/r1JzW9a/BHwMthHFPpkk8+za9wbqTc7Y5bhgM5z0Fdb4r8MWfi3w7daPe/Kky/JIBzE4+6w57HnFcgdJ+K9n5Gn2mt6HcWoi2G8ntmWRcDAJUEgn9P1oA8+u9Ngk+BmvaU94fJ0LWZUtppYc7wH+6Mcgku3ze/p09N+JGi/a/hJfaZamFDFbw+V58ixKNjJgZOACQCB0GTU8ngy80n4Zf8I3oT2s10kWCb2PdHOS251Yc4VssPbP41zWt+E/ih4k0GSxvtW0O3CMsiR20JDO6lWX5iDt5HUeg6g0AYfi/wAJWnibXvh7oM+peTLLpRWVohklEjUjbnA+Yh+2RjOK9X8IeEbHwVoY0nTXmeDzDKXmcMSxAB7cDjpWRe+F9VvvifoGvyRW62dhYSRyMH3ESsCMAEDHXqOwIOK7cgkcUAeI/ESPQ9U+ILWPifxRdf2fFDH9n0ewjkaUykdwqsMnIIPB5AxU/wAMLW6t9O8X6fpl1qDaPDGFsor+Pyp0laMsxwfujJGPXrxznYs7Dxf4W8ZeI7jT/DNtqtnqtwLqO5+3rAUwp+Q5BYnPAwMc/lZ0M+I4/HOuXN34furY39hHJFKl4JoYnRcCPBwu8nnIz+poA5Pwd4N8R+LPBdnrWqeL9WS5WKQWUNtOF24J272Byx3DoTwMCjQPDPjnxt4SsNcufiDcwFFZ4ILe3zgoSBvKFSzZByCCa9N8Lvqo8B2cmsJdTambZnnRsLKX5OBtAwew/Cq/w1h1G38BabFq0U8V+gk8xLjIkHztjOeemKAOWj8QeKdU+HvhTUtO1q0s9XurgQyi8VNl3yRjGM54BwMHbnvVXUY/HHw4SHxDqPidtd0xpkXUraSAqIVY43ocscAt2A7ZHptS3cekeGvD/l6VdQ6i10biLSbdlt5Zn3EyYQlhj5yxXI4PUdKr+K9VvfGzXHgiz8PanGk7p9rvrpfKiijV0clTzvJxtwD+dAE8thM3x+t7/aGhbQztIzkYkI57fxd6i0LX/Eg8E61d2mhxTaqurT28EEcCwKRuCiRgCdwGeSCScdT1q5ZL/wAXz1IoGMcWgxRsxHAPm5x+VUPCtzHc/DaOcyXp0976Z7kahaSTSzwl2baioxPIIGQMcMcc0AV7zXfHXhi9iuNR1rw7qViJYluLaL93MoeTYdg64ViBk54HTrVDxjB4pHxs0iTSRpt1OlhLJZrdKVEa5IfcRySM8H3qa4u/APhvw6uuaH4U+32cd0IZ5zbuv2Y5VSzGRd+BjHAPIxkE89JrOpaNa/E7w9dXN7ZxyTWM0cEkkjhnDsu0DjYQTnHINAFTSNZjtfib40MumWkFtYWcEs97HEI5WOzcQxP3gfmwf9kdcis6DxH8U9YgfWtL0fSItKKefbW8sm+W5jPIwVYgMVPfHIqaxs4ta174maZaXdx9ouFjja7ZGPlExMvljHJ2kHp2I61Y8LfEzwvp3gbTk1PV7e3vrO1WGe1YnzVeMbSu08k8frQBSuPi5dt8MIfF1lpEbSx3a2t5BNKQEIxkqcc5JGPTPtWdq/xX8beH2t9Q1vwZFZ6PNKqlvOMjqpAJ5BwDg9wOcjqDWDqU6SfCzTmXQrbT4PEfiBX8rc0jLGWJDDd0PykcADHQc16J8aL6XT/hbqQhhEguDHAWYD5FLDnofTGeMZBzkUAd3Y3cN/ZW97buXguI1ljfGNysMg4+hFWayfDUTReF9IjkjEbpZQqyAkhTsGQMk1rUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFcPe/F/wLp9/PZXOuqs8EhjkVbeVgGBwRkKQefSu3PSvnDwXb+GLrxl4zm8T3NhblNRLwGdkU/LJIXAVuxyueOeaAPaPDvxE8K+K71rPRtWS4uVXf5RieNiPUBlGfwrp8jGe1eAeJLHwi3jjwofATWv9rG+InSwf92IlwWLbTwcbumARnPavfOxz7596AMrQfFeh+JhP/Y2pQ3hgOJRHnKckcggH+E/WtjcPWvE/hHqNj4Z8DeKtYuLdVhtL2RjLHgGZVHyqM89SQMk9fz0o/jBrQhj1K68BajbaIxDtfNKSEiYjDkbPT0NAHrRIHWmTXENtE0s80cUajczyMFAHqSaitbu3v7WK6tJkmglQPHIhBDA9DmvKPEmjp4w+K02keJm1GPQ7S3V7GFInFvcMYyXZ5F4Ug5HJ/hxnsQD1m2vLa8jElrcRTof4onDD16j6ipsivLdY8Bt4Y8Qaf4l8DaUXuEcx3mmxXKwRTQlSON3AOcH3xn1Ndj4n8ZaL4OsEutauhCZc+VEoLPKRjIUDr1HJwKAOhyM4zS1zPhnxvpHil5IrNbu3njyTBeW7ROQDjIzweQRwcjvUGufEvwj4d1NtO1TV1iu0UM0aQySbR7lFIB46daAOtoPArFt/Fmg3OgHXYtVtjpa43XJfCryBhs9Dkjg80ab4t0HWdUudM03VLe6vLaMSSxxNu2rnGc9Dz6HjI9RQBsbxnGaTHOK4e5tPDvjPxnZah/bVveLoDFfsSBWVZ5MYZmPXoAAO465GKf4r8dx6B4j0PSYZLCQ3l2IrwzThWtoyAcn0yMkZP4UAdrjPIxmgg4/xqrfanY6XYSahfXUdvZxgF5pGwqgkAEn6kfnQl/FqGkNe6TPb3ayRM0Eivujc845HbPBoAzNU8NJqvijQNZa6aP+yDOywquRKZECdc8YGfrW9g//AK6yPC82tzeHrSTxFBBBqrBvPjgYMg5OOQSMkYPHGc1sAg9CD9KAG7aNowOAAO3pTg6kkBgSOvNBNAEMtvFPC8M0SSRSAho3UMrA9cg8VFcabY3k1vNcWkEz2zboHdATG3qp7VzupeNok1jUND0SyfVtds7dZzaJIsaHLKCDIeFYBs4P9ayJPiVf6Lq1nZ+LfC9xpEd66xW1zFcrcxs5ONrFQNp/P8uaAO7hsbS2nmnhtoIpZyGlkRArSEd2IGSfqaryaDo8tybiTSbB52bcZWtkLE+ucdavg5OM81zfhvU9c1XWtYlvYIYNIhnNvZAxOksm0ndId38J6DHXFAGrqGg6Zq72kmo2MNy9pL50BkGdjjv7/j6D0pmu6BpviTSpNN1e1+02jkFkLFTkHIIKkEc1qZBoyCOtADUUIABwBwKfXB+K/HF9pnjDSPC+g2EV7qV3mWcTEqsUQzzkdzhvy9xXdKTgbhg9+9ADqKTcPWsTXfGPh3w3sXV9XtbR35WN3y5GcZ2jnHPX60AbeRRuBOM15lffGfSXnurTw9peo67d2yliLSMGMqBy27njJHY1Tg8efErVd0mmfDsQw7Ayfa7nb1xg5bZnvwBxkenIB6zkYz2oyDXkP9t/Gme6bZ4a0m3jblQ86MF+U9xKScnHapW1b4y2Vxh/D+jahHgAGGZUHTk/M4PX27UAetUZFeUad8RfHUFvJc658PboWyOFZ7R8OM9MRtktzjkdKfZ/HrwpLcJb3sOo2E5k8txPCMRngHdgkjBz27UAeqZorO0nW9L1y2+06XqFveQ5ILwSBgCDjt0rQyKAFoozRQAUUUUAFFFFABRRRQAjdCfTmvnj4N6Do3i/WvFl9q+k214jXCPF58QITe0hYAdv4fyr6GkRZY2jdQysMMpGQR6ViaB4Q0Lwv9p/sXTYrT7SwabYSdx59ScDk8DigDnbSP4eeCPF1vp1rBbWOuagoWNI4pGZgxwOcELkg9xXdTSpDBJNIcRopZjjIAHJrLm8MaPc+JIPEMtkjatBGYorgscqvPGM4/iPJHetSeFbiCSGQfI6FWwTyCMHpzQB8/8AhjT7e6/Zw8QO9uzYuJZ2IYAyGMoc8YwMD68E4PFdN4iuRe+FNSkPxNtIdNugZfIWzikkWB1x5IG7dnJ9M9vavRtC8MaP4b0qTS9JshDZO7O0TO0gJYc53EnBFYtv8KvBtvri6xHokIukYOq72MasOhCZ2+nGMcZABoA1fBumLo/gvR9PE/nrDaoBKYym7Iz908jr0rOi1u38Ta94l8G31lNbi2hQMwl/18Uq4yCv3fpnPP1rrMHHTn1NZF34X0y6vby/WJ7e/u7U2kt3byFJPLOOhHcYyD1oA5W88OWfgptH1axl1ia301Psz2luXnkuQ5wpky2CqbieFyM4GAMVY1611MeOIbzRPsB1NrDYo1Gf5UjEmWCIvzbjyC3OAoq3ofw20TQ9Zj1dZtRvr6JSsM1/dtKYgQQdv1zWh4p8Hab4rtlW68yC8iz9nvrdtk8Geu1h6+nSgDm5x4huPF2hy60PDNpOl1MLNN0jzvFgeZ5ZOBu2gc4/AZqb4daaqT+JdSubUrfT6zchppYgjtGpXbgcgDjt161t6D4L07QbmW5WS7vrp2LC4v5vPkjznIQkfKDnnHWqWveB59W1+PVrLxDqmlyOixXSW8gxLGOQFz9w55yM554oAzNd0vSbXwr4vfw7ZWupXc8wkurF8Sx/aBsPKEjB6NjPXoD0rXvvDFhZeErm103T4LO4e3WMvYsto3UHHmYyq5HPU49TVfVPh3bXfgI+FtPuvsAPlE3SQrvdkIO5gu0EnHX15ro9X0W213QrrSL5S1tcxGKTbgHB7jrg98+tAHnEnh0applzbf8ACsbe0uLW1WO1klvIVYydwJEycgEEMepBBxV3XPDunazdeDV1/SGvb+Zt11LHbKoYrDz5pLAgA4OOfunjtVofDrVbnThomreLLnUPD+TutHtlWaRQQVVp8k4BAPyhT2zjpd8WeF9XvJvD134eeyjuNGkZ1+2lmLoU2bN3JwRnJPPAOc0AVvE/iCw0zxLZaTb6Vq2qX32Rl+wWOPJEDkLlwxC8FQB0xmotFMVlrGq6FBYpZ6Dbaa7nTVbMrEyPmRACflcb8c/3fWtS/wDDfiIeJbnVtG12zsku4Ujmgm08S/MgIDb96k9e/QdjVaXw74o89RLqlpe+bpk9rc3a2y28zSkkxMCuSAM4wGA4Jxk0Ac7pei6m/wAEtI05jqy6i0itCLOTyZo8ykqGL/dUKec+lamo+Ebjw54UfT/D2ry2Ul1c/ab++uJnkncD5pDGB/GcYwByM5z1qbWfBus3/g/w5oqXMLyWV1byXskkzkyLH94qxBJJPOCPat/xPoFzrFtZT2F2bXUNOuBdWrEZRmClSjjjhlJXg8ZzQB5h4hNvo/iN9W8DJrcuuzzRT3dqkEgtpomBLbtygKee5yCT6GvbF+4NwAOORnpXJ2x8cX2s20d9Bp+mabGiyTyW0n2h52GcxjeBtU+u0n3rrdp9aAOR8B+dc2+rapeaettcXl/LtdrYQyyRKcJvGTyDuH4Z75PPeK/EUOr6BMviX4d61LpUbo7limU54YBXDjrzj6GtCSXXvB/ifUZLbw89/oN832jdYOWmFwSA25HbuP7uBwPesDxl/wALB8caJcQ6No0+iRW0oYLNcrHdXLDAIUghVT5s5Lc7RQBv+PNYvI9T0DQrLW00OK/Mjz3sjop8pAMohZSN53A5yMY96X+2Lrwx4l8P6XJr8OqadqQ+zD7S6/aI5NhZJNy/fVyNvI9ME5NHj3Q3ur3SNSl8Lt4jgtY5I5rQzr+6B2neqN99vlIxnn9aPCmm2FzrfnP8PE0QWcCfZ7uZYixJ52gLkjAOc5PcHBFAGdps/inxXq+sw2PiM2el6ffyRwTi3jMvmqRiJ1HDRDJ9GPQ1a0XxXq+jab4tg8RXA1O68P8A77zorcwmaNo94HI257cZ7detaPw7s76CDX7jUop47i51i4dWnzueIbVQjJ+7gYHsB6VzFxY3N1D8T1VE09JpB808LKksaxfOd3Aw2DyOhOTngUARXN18RdO0OfxneXVlA0YSaXSo4YyRajOVZiN24A7h83cjA6Uz4hfFbU9Ok0GHwjFDcy39sbl4WhMsiqQCg2r0OMmvPfFPjDSNWSHS/A+i3Aur+zjtrqdvMeUqEUeSoyeAEAJ74PqTWx/ZujeGPHfgfSNHjxqthOp1q7UnAd1UlC544XfwOAD65oAXxVqHxfTw7bSavdpY2d9MVdoSkTw5HyrIy/dXGcc57HnAqh4L0Z/C/iuDTdT8PaV4iuNTBexlW5VlSSMFiNxzhcHJO3PQjNdx8WbvTtQ8T+HNJ1vU5rTwzdQyTzTQuAkjLyvO0+nHP8VYFjf+Covi74Z/sTVHvLeNZYppb6SR1WTB2bGcfeyRgjA9+aALHwus9Yf4y+JJvJtdNggLLe2cKeYmCfkRGAAAyN2eOAePT0ZtQvYfjHHp8t9J9gudHMkNt1QyrJ8zAdjjHNeWeA9eTSfiz401WaylOnRtcfabmPLLbqrswJA67ihA6V2FtrL+PtUi8YeCwjX2mI9i1tqa7I3V+d25TnIwDigDZ8PXF4Pi/wCMLOW6d7YW9pLFFJJnYdh+4uRgdc8Z6c15bearJJe+IU03xNrb+KX1p7bTtOhldlKLID8wxt2j5vT7uOma9b8F+HdYtdd1vxH4ijtI9U1No4xHaOzJHEigAcjqf6VzK/CjVLbwzaxWuo2Z17TtUfULO8aMnzASOJM5OTgE4yOB7mgDa8Z+Kdd0WXwvp8V5pOm3mp7xd3N2rPFG6opKrgjgliBn0FXdM0EeKdLnXxZBoGrp5uLaeyTK7ABnnqDuz0NYPi7S9Qj+JFnr154Tk13SINPEA8gJIySsx3Hy2bnjvjjNdt4SOlN4dt5NH006bavlzbGHymjY8sCPXNAHHXvwZ8P2Vyuo+Hr290G+iI8p4bklC2cKG37jgkgYzz6Vk23xA8d+DnW38a+GZb63+dv7RsipxGgyWYLlemDzt49a3/GyjxH418PeEA+61Vm1LUY1HOxP9WM9suDxxUuk6rPa/EbW/COq3kl5a3Nst5p6TqGOxt3mJvAyVBOBnoOKAOr0PxLpHiG2hn0u/t5xJEJvLWRS6Kf7yg5BzxzWsCD0+leE6r8N9JufFN43w61ptL17TSHuLMiQRgtyuHI4zzlfmBGOg67/AIX+Mlo2q3ujeMRBpOp29x9nRlDmKU52nnHy8jOTgYI96APWKKarq33WBGM5FOyKACiiigAooooAKRunSlpGGRj1oA4218dC6+KF14NTTWH2W3Ez3hmHJKqcbMf7Q5zXWXlzHZ2U91KCY4Y2kbAycKMn+VeM+GHhu/2lvEUwYlorcquc9Qsakck/4emOleyahDPdadcQWt01rPJGVjnVA5jYjhtrcHHoaAMfwd4ss/Gfh+LWLKGaGJ3ePZMuGBU46jg54PH07GugyK4Q6bP8Nfhm9toVs2pXlqpIL4Te7sNzt6KM5xk4CjsCa4u78SeMdAtYNcvfHGh6hCPLefSEji3sXI3RIUyTgHhs4454oA9vyPWszWfEWleH4reTVLoW6XE628R2M26Rui4UHH48VzvizXPEh1Sz0XwlFYPqEiefdPeSj/R4sgAlM5OTkZGelYHja01ZvDfhu319ba5uk1W1El7a7gm7eRkpjPTB4GM54AoA9HGs6cdaOj/a4v7REInNvn5thJAP5g1dyK5aG/eT4kXFg2lQiKHTRIt+YGEhYvjy95GCMc4BPesCPxj4r8Q313deDtN0m90S1nMHnT3DI9yyqCwXjA64BPH4UAeh3N3b2drLc3MyRQRKXkkdsKqjqSfam2V9a6lZRXllOk9tMu6OWM5Vh6g1xWn+L113QdesdY0fy9Z062b7dpCyby6smV2suchhxxkg49s51l4uTwz8N/D+p6b4Sm/sudQslvbXCsbYMcJ94ZcsxAzx7npkA9NyPWjI9a84h+IWv2d9anxJ4MudK0u6dIlu1u1m8pnJC71UZGTgdsZqh4g1vxDZfEWO/XwlrFzbWkDxxC3vQ0dxuxiTyug2/MCeo3LnGRQB6tkZoyKarZTcFOcdD1rzwfF2xuHuZdO0DWtQ021kKT39vAGiXGckc/MAMHjsaAPRs0mRWQ3iXR08NL4he+jTSmjEouDkLtPT3zk4xXAeLPijpF74O1KGxvL7Tbu5tGawubi2aNLnnH7tunPvggHPagD1YMD0INLketconi7RdB8NaJca1rKx/arRHjnuchpyEBJOM8nOcepxVex+KPg6/gu5U1lIRaAGQXEbRNg8AqrAFs47ZxkUAdlmjPbvWNonijR/EAK6dexTTLEk0kQPzoHG4ZH0I/MetZngye4eHWby88RW+q27ahL5TRYC2yjH7on1HFAHWEcUn8X09qwj428L/wBqNpZ17TxfK5jMBnUNuHVee9N1ePWG8S6J9g1S1t7IGU3tpMis9wuBtKZ54PXBHWgDfPPH6UmMckdP1qk+taXDqH2CXUbRLvaX8hplDgAZJxnPAOfpVfxL4htvDXh651i4R5YYNm5YyASGdVzzxxuB5oAuajf2+l6bcahduEt7eNpZH9FAya8gjv8AU/jRrUlmsNzp/gy2Mby+bCu+8cEELuzlcjP3SccE9RU2v3V78UvGt74Nsrma08PacpOoz25UmaTOVUk9BkdgeQ2c4BrS0rxVLZy6verdfZ/CPhqL+zooDGvmXssaAH5jzkbQAB1zQBBpHi7TNC0fU9Q0x7Gx8K6Wpt7e08pvtc1zgZVtxyCGwAcHIJz0rCvdA1SBtO1nWzcx6FrtuZ/Ea2zbUjkK/KWByVUDaCRyDnp0rp/F/h2ZdSs/HejaLZ3k0Nvm7064tR5kiN8xfrzKo7HPeumtPEejeJZNX0u6tXWKwjiN4t/CEQbxuAIb+7gZ7Z6UAY/h86D488Mz6VD4ekXwvCDBZ3MzD99tJUsgyWGCPvHk855zWVqHhT4aeBjb32t3BmuLRV+zR3dy0sgxnaFjXr07j+H2rMvfihrN34f1a90DTIrKy0lpQt7JEJLe4jVhHGsbZXBPXoRxj2rY+FOgC60KXVvEWjXP9rTygtNqpEzuoAZWTcMouWPH6mgDlvEHjSPTPDviA6F8PmsdNu1WG5vroi33mTIB2cFvvHGDxk5q78NPBHjnRPDlxDbahpNnaalD5scigyTIzoNrggYOB0Gcd/Y918Qo7K+02006cCacXUV2LVYxK7pG2WPllgWXt17+gNXvBOtrrmkyyLLAxt7h4NkNq8AiC/dXa/OQu325xQBgReAfFc1y0uqfEXVJU2EKtnbpbYbGAeCQR3xjk1VHgLx3Zl/sXxJunVyG23dmsmMcgAlj1PXAHB79K9OPSsXXdfXQpLN57G4ks5pCk91FjZajjDSZPC5PXoMc0Aedpd/FPR/FNhptxqekao9+s0ojktzFHGseMgOqg87gcc9B71oj4ozeG9XOkeO7CPTJpDvt7q0YywSIWC59VPUnPatK/wDMn+JHh3W9Ou7CfTpoJrCU7gxYkM+Yz0Y5j5wcgA5q3a+ItC8XeJL3RodN/tAaXlZrySANFFJnBRSeS309DQBX/sO31calrvg7xGlpfapJEZ75EW7VljXAQKxwvB/zxipbaTbfDjTb7xHres3urXrokE1/cqziJSQAAoyVXdgtz6e1ZN/8GIdM1RNZ8GajLpd1C6OLN5XMEu0glWbO4A455I9qj1HxTHrGnt4S+JOgz6NLqDiGK5jYNbbuqssmTgggdcj14zQBpWX/ABQXhPW/GuvXkOoazfosszxSbY5COIYo+DgYYDOD69Krz+FI/i54RXU9a02DSL6cB7C4t3MkkcXUCTIXPOePfPFWdI+GN5FJpK654puNZ0/SZRNZWZt1jRWAIG4gktjjaM8AEdDiu+vdQs9NtXuL24iggjRnd5DhVUEA/wAxQB4d4R8eax8OtQsvBfiXRZEt1/c200ALM5aT74ycFME9OmBwK98Ug4IPBr5+8f8AidfiTFbWGiaUY4El3Wes3pMIkYEb1j468A9cnacDit/4ZeNdU0zWpPAvi3I1K3BeK6lnU5TYGCHoWOCTuyScnsM0AeyUUgIPSloAKKKKACkPQ0tIwDKQRkGgD5e0n4g2vhL4teJdcv7KS5W4nntxHbt8yEOMNzwQduOteq+GPjXoXifxJDotvp+oQSzMVieSMFWIBPOCSOAa9DawtZPNL2kLeawaTKA7yMbSfXGBjPTFSLawxzPKkMaSPwzqoDN9TQB5l8c7nyPDelLdJcNo0moxjUvI+8Yhk7fxP8hXETeOvAuh6Rqt14K8M3iX0tusM07wkRxLuUANksFzyegyQM19B3NrBe27QXVvFPE3WOVAynHTINQ3mlWN9p0mn3FnBLZyja8Dxgow64x9eaAPJdX8X6d4e+I+m+Mpp5JvD+q6SLUXNvGWAcPuwffvgc8dKi8bfEHwr4xl8P6TpGo3FzM+rQOQiGFRtYfeMijPXgDvivXTo2nHT49Pawtms4gFSB4lZFA6AA8VTvdH0yz02SW30G0ne2VpYII4EBLgfw8YBOBzQBj6TqWnzfFLxDYw20ov4bO2M05uGKyDkhRHjAxuHPP3j05zyXws8c+HtH8KLoGrapbWWo6dcTQyJN+6D/vGIIyBnv15yOetO+GNn4q1Px1r3ivxBph02O+gWEQOrLkrsCkA9cKpGfU13eoeA/C2q30t7f6DYXFzLzJK8I3McYyff3oA82n8R/2lqvjbxjb24k8P2+k/2dDJK5WO8kDn7uMHGWK5B7+/DNenP9ifCrSBbOkV5dQTGITbhtQJhec7h+8ByemPfj1a58L6NceHH0B9Oh/sp02G1jGxQM7uMYx83P1qrL4H8PT3Ok3EmmJ52kBVsWV2XyguMdD82MDrnnPqaAOW+Mt21vo/h+Bc4uNbtlY5HGCW/oO4ouZLIftA2aSSqtx/YjBFZcbyXPAOeTgH8vfjrvEXhLTPFD6c2pRyN9guBcxBH25Ydj7dPyrJ134Z6J4g8U23iK5kvY7+Aof3M21WCdBjHv6igDoPEGow6P4d1HUrmMSw2tu8rxno4Azj8en415JqXiDxXofwjtddsn0DR7cbJIbS0h370duFGSVGQ24gDt1ySK9nvbSG+sZ7S5jWWCeNo5EY4DKRgj8q+VfjD4O0HwVqunWWivdF5oWlmWaUOFG7C44yDw3X2oA6oajbXnwU8Hm+K+VJrSpc+XgLgSuW3rnHOQenfPfj0r4ojRtO+G97Lc2OnyRwJi0gmh3R+YTgBQMEHBPQjHXtXGfCLwfaeJPhBfWGrCV7S+vHeNQw/dlQAHX0OQevpWpdfAmDUrdIdS8Wa3dpGT5ayuGVeTjAbPY4/OgC6dXSHxB8O9JEUUbXVm0slmLdRFEBDuDLkZVgygDHQZ555XxTYWV98afByPBF5kVvcXDkxjL7RhAT7HJHXH41qH4cY8Z+HtfTV5TFo1mLRLWSLd5gCMm7duG0ndk8HoK0L3wjJdfEbTPFIuUEdpaSW7QlfmJbowJz6n0PuelAGfqF8tr8YNIsY7S1ButPnkknW3UykggAF8EhflH4gfSvOdJ1FdP+C+sC3jtpUvtee2WHYWQB2QbcKRngZ4yORx6eo3Xg27n+JcHitL+NIYtPa0+zGLJLEsc5z05zj2rjV+DurL8PLfw4us2ouF1T7dLJ5TbGXGMepIwD2z096AN3xl4S8K6Z4Avd2kaVb21uROPNR40D5UZYxfPz0wO+BioNTmsrz4neArq2T7TPLY3EhlQMoWIxqUfDZwMlhjr8wyex3fiN4e1TxN4Fu9F0lrdbicxhvOJVSquGIHXHQflWXF4O1qL4laLqySW66TpulLZtyQ0jYYEBeQP4T2/pQByc8Gh+EPEuuW3ivw/PJZ381xIuvtbtKqxSqv7vIUkYLFc+4qPxj/ZWg+BNIsLe9/t2+vC2n6TcT8KkRZQxJXqQNq5/LuK1Lbw18VvDE9xaaLrOn6nphcvC2psTImSeM4z+uPTFcNeeGNZvPC8vjWbxDa6rd6RcxC1isiVjjKyfvIwAoA5ZCNuMj60Aaut2tt4Y1vTvC3hWxkN5aadPc6stveNFvLQrgiRieRt3BSCCGHHpV1jwT4VHgXStZ8OXM9lqM7LdR213dM1xdKu4kKqH72CcEL0A6ZOXa3p3iHx74shvtI06TStdi05Y9XsrmQwF0JYDaeCysBg8jGQDjrTP+EH1+x8S6Vq+n/DWOCHTApltl1USLNJ94NljuGC3Tnp3AoAu/DvXrfT/ABXo89zdaxGusxXCpa3t6zxWqIflYs6jfu2sARgD3zgReFPCa+PfEfiRIfEF7L4YF8puI5MmS8Kg7cydCo579lOBwRT1XxN4u8ZeOLPStU0W5g0uxvFju7GxTzlB3YxI/wB0nBAPYAnius8K3E/hTx94w0eDw/fwwXcrXFpPBb/uIwkbMB0A5z784HHcA4nUbCOb4KxyWGv3K6fHrUkH2c7lhRWcbQxPLBQN2f8AaPGa928FaLq+heHks9a1p9XvGkMnnsD8q4GEGeSBjOfevD2029i/Z6NsdJvhcHWfMmj8lkfHB3YIyOMDIBFereM/iCfBWqeHtPOmG4j1JgjSGTa0fKrwuOT8woA47xHZ61qxv7nRLO8Darq7WF5dzbTLFDG6qqpkDYm5W5J6n3rpPhVd6p9v1zTNZkllv7XyXkZ9QFwqbg2I1QAeXt6Hrk98AVz9zY6df6aLTWPttpqdh4ims7e6tXCNaLPJ5iueSuwq3f8ApXTeEJLe++J3iO9s7+0lt4baKzKxoFknkT78jYxna2RuAwd2M/KMgHoc6u0EixOEkKkKxGQp9cZFeQ+JtS8e6OIbfWfEvh+0hup1iiWK2cyXKnAZQDnHDYJ4+o617Ax+U4P4155448Aprlrc6leeKNRtGtpPtkLsytBahB2QAZwA3OcnPNAHPr4MuZUXU7aX+xdAtQ97LpemzMszzAZOSRhcoFGARxzjmnfDm/uNH8GxRaRoFo2qXfm332B7h4ZZIN5CMXdSHbtkkcbemeOmA021Go6vbRxnQ3sXv31CK5fLTFSh2Anao2A9OnFYXgTSvFvg3wxpcj215qUUqyG505riMNaKTmMpkZLYPzLuwOeCcUAeh+HptbudIim1+ztbPUGJLw20hkVB2BPrjrgkVX8V+EdK8Y6Q2n6rACo5jmXHmRH1U9un5VuKckcEfWnMMjFAHg8HjrXvhLqsPhjxRCuoaTHGqWV7F8snlBsZPXOFJG3r8ox61Z+Ilrc3HjWx1PxK1zJ4EkjUM9hLIYwOo84KRwWIOQOmOTivX9W0m31jT5bW5gt5NyMIzPCsqoxGN21uD1ry34ba3qmj6vc/DfxaEeeGEfYm5YSxEElSxPIAIAGPUdqAIvBOkHxbqMV3ZX97ZeGdB1JZNItTEwEyY673O4jkgDsGI74Gj8XPDrW1tF480Z0ttY0ch5GAI+0RkhcMQQeAfxBI9Ky7zQfE3guz1bW5dY2JcXywl442uILSxJ5byD6cDjoMjvmtT4cweIdQ1a7uLnWRe+FIYBFYRpZLbRXAI/hTH3VyRyTk4z0oA7DwF4lj8W+D9P1dXzK6FLgMACsg4cYHQZ5HtiunzXj1haTfDP4p/ZYIXTwz4hdI4I48ssNyei89Od3/AAEj0r18dfrQA6iiigAooooAKKKKACiiigAoNFFACY5zS0UUAFFFFABRRRQAh6V8k/FBrzxR4v8AEWuwBTpulzR2Rd5AOQSgCg4JyyueB619IfEDxJH4X8EapqXmhJ1hMdv6mVuFx+Jz+BrwXxJo83hn4B6SjnMusagt1cbgeFKMYwP+AqD+NAHs3wesRY/C/RVG/wDextMQ7ZwWdjx6D/PvXd1zPw+jWP4faAqEECxj+6oHJXJ7D+VdNQAUmRQxwpNeS/GX4mTeFLaPRtGnaPWLkB3lCZ8mLsRkYLMQQPTHbigD1rcCcd6WuG+FXi6fxj4Ohvb54Wv4XMM/lkfNjoxA6E+n/wBau5oAKKKQ8CgDI8VTXUXhjURp4Vr54HS3RmI3OVPAwCc4yRj0rlofAMl78NdI0N9Qmsr62Md39oX94RcDLEsrY3DcTwcVQ+J+r6cuueHtJvPI8qGb+0rmVvvwJEwwV7fNlxz2Br0i3uYLmBJ7eaOWFxuEkbAqR65HFAHnujxap4e8Z3eq+LIpLm4u7WGzt77TrVmgCgklWRcsp3EfMQB06c10vjnXrnw54QvtRsbaW5u0UJCkalyHc7VOB2BIroyDjrXmniN5/Efxe0PQRZx3OmaXE19fF13IGdSI8+jAqCO5ye2aAOg+HfhuXw14VigubmW5vbuRr26llTYxkk5IK5OMdD75PfFdXtwOKAMH2p1ADSuQQRkHqD3rlvFHgPTvFetaRqN/LMP7MdnSJMBZCSD8x64BUdDXV0HpQB5v8QdM0PS47/WdWvZrex1RIbS7i+zmaFnV1ZJGUcjAUrnrgjHIrn/DV9a2nxBu7/SLqfXGuNKM0UNkIwiwK4EUOCQUZRjuM46Emu3+KNre3Xw91FNMikk1APC1ssX3vMEqYx71xjXV+PFdlb+HPDlvDripNJLfXkaxqYzw3mNGMM5YMew4x1BwAbq/EXXLps2vgTWEiV2SaW5ITyWAGDtHLDkZ6cZ64qvoGpeONd8MazLf6hosE7PJZ2cgt3CpIjFXZt3DDhscEZHPFWtBt9UsdIttSS+sdSu11CefWHjJwnytujjAxhlO1fm9SasDQFutD1fTxp15Z2muSFSyrGZIlkBZ2f5sAZZsDnGehoAxvEmn6Vey6po9rZ2ba5DNaS2wt7S4UKeCrSFRtIAV+RkccjtWjL8SL7S5dTh1jwvdpJYRLI0llJ50bEnAXcypk59N31zVjw0dI0zX7zw7oNpb2skR+1zG0dWTYy4jMu7kljk4ThQF5GeY9OsYPD/i3V7m6iuryaO2SWS/uZN5WIg5SCJATtUqMjgncOvcA6Pwz4nt/EdvMRaXVhdwMFns7xAkseehx6HkA98H0rezXm3ijw3pYuj4gsdVOheJ3AmikuL44lUf8s3Rn27T0wMAHv1q34X+IMl7N9j1+wWxmD+Ul7bv5tncPkDCyDgNlhwe54JoA708g4rz34q+HEu9C/4SKysrd9V0hku1d1+aSOM7imRz6ng16EGBAIOQe4qO5t4bu1lt7iJZYZVKSRuMhlPBBHpigDz7ULy1+Ivwsi1N9QfR9PmHn3v8eYkJ3xnaQcHB5zn1HNTWvjbw/pfw3uNb0C2urnStOP2a2Qh18wjAUBnBYJlgNzdOfpWR4HsrS2n8W/Dm9uVEMU0jWtvxvFrMN3y5yCBu6decnrVaT4Y6lp2n2Xh0azaR+FILpbyWedAtxv35EYPAxnHzH1PsKALPjWXUdb8IIJLe1t/GWk7NVS2t28xkjWTbuVjjhgucd8YxXoHhvV7fXdBtNUtbhp4LpfMV2XaRkn5SMDp0/CrEml2Mst1K1tHvuoRbyvjBdBnCk9cDe35mvPPgyVsrPXdBUkrpOpSwR7ojv8vcSuXyQc8nAAx15zQB6lRRRQAUUUUAFFFFABRRRQAUUUUAFJuGcZ5NKa80+NHh7WNX8LQX+hT3i3unS+YYbV2VpEbg9OSR1+m6gD0oEHoaWvH/AIRfFZfEUcPh7W5GGsopEUxHFyAM4Po4HX1+tewZoAKQ9KXIpGI2nmgDxv4riXxR438LeCoAWhlk+1XYWQ/6sH+IAgYCqxB688Y75/7Rk6Wvh7w/pkcCiNp3dDnhBGgXbjHQh/8Ax2pfhfLN40+KfiLxnM8gt4F+zWyOeVBPyj6BF59278msr9oR3uPFPhrTyQYijMN2SMs4U5GfYdKAPbvC9mdP8LaPZldrQ2UKMMEchBng8+ta9RRgIo7ADPWpMg96AIb28t7CxnvLqVYreCNpJJG6KoGSa+avh1YN8Sfi5feINSgL2kDtdSIxJUEnESH1Ax04+5+Fet/GbVm0r4Y6lsyJLvZajAHRj83X1UEfjWZ8CdAj0v4eRahsUXOpSNMzAZIRSVRevbBP/AqAKPwYkNh4m8a6ABHHDa6h5sMSuDtVmcYGDjACqOO5r2KvF/hTNLf/ABZ8eXqMFt/O8tkwOW8xgD19Fb8/pXtFABSN05paQ9KAOCEVnqnxbv7a80cO0GkKouJpA8cqNIpAEbLwQ27kE/yxxXinwgvh+4uvDPhi0vYJ/E86m3uI7gxwWyp8zofbCs2Bzggc4APQ6B4jtNP1vx9r+pm4jhsruK2kYSmREjUbRsU4YHLEke/GTXoVhq+nanJMlldwzSW77JkVstG3oR1FAGFpeleI9KuNF099UF3ptrBJ9rupo0EkxACxx4A4AyTu5Jxg89eZ+Gtxea7498Y+IpJ0W0e5FlHbK5PMXy72BHHyqvPueBXqJxjrXmPwOZZfDOsXC4ZZdYnYS9N4wvbt6/jQB6hSAg96a8kaMqs6qzfdBOCcelcp4s8UXel3EOlaLDb3GtTxPcJFdEpEIk4ZmccA+nbjnFAHS3t/aadaSXV5cRwQRqWd3OAABk/oCaw0+IXhF737IPENh53k+fgygAJgH73TOCDjOfavHrvwjdeKdftpNf8AFt+zXMqXctqunyG3hJwESNy20k7wo2g9TkZ4rqrf4R+GdT0ZLXfdSQ2d68jz+YW84AtuQIp2ocnHC9B6k4APR57xNa0S5/sS9sZ55Icwu5EkYZlyhYDtyD7ivMBfahqXxB8JaoqXEyO8i3RhvC8MbeUV2iHgoFJzlhn1rW0fS7jw74SvdN0zwNNBdzNJbyCzvIxvXaSknmsyseGx0yCDWlHFf3UGj6lLqWoaatjcFJYZ4VLXoRCg8xxnCk7juPHzHGflagCrqNs9ubnw3oWpz2eo/bvtwMLh2IkbeVdQAUQksCQMcAkkkiobw3umaddW1v4g0uzuLq5t7ZhFtfy7lmHmLhwVC+SOAVJJHsBV+38c6TPbaxq14kELaLxObWdZ2aNh8oyoHBPbkZHqDjGbWI/FWpaVe6fNZ2VrbbtRmubTUI3RiQVkEkLIHdguOdo+8eQQKANa7n02316fRtHMGianHZx2FvqjwAqHOHEEaHCuwX5j0xleDnApy+HbWLXrBNf8Ra5q19ZQCdBBbFERFz8xMS8hiCBklicYPFdJrljc6nvuGbZBYDz4B9mSZnlVdyyRnPykZK4I569KwPDWnPLotvMmoatpkmoWiyi0mcFbcQ8FsMPkDF0yo7cDA6AFGwv/AIYWdpa3N3hpCRFFc6zbSvNJk8HdKvK85yOBnsazviD4d0zxFNZ6Hp1ppdv9uwdOuLNmLGQH53eOMBQgA27juwW6jBFbnh3TL691l7661PUpEuopFguLK5ElqoxhxtIPltu+6OuRyeoql4b0G4OnrdWAsdPMG+4llVjMt1PJwXEpIKAqBkDI+boCAaANL4U3+qw2V74X1hDLd6EywNeCbzEkDZYICQCCq7R3+teiNwprzv4PaZNaeG7u+vdSN/qN9du11J5hcKyfKEDZIbAHUEjsOleiHODjrQB5d4jlOh/HLwxeRqsEWq20lndSnhZSoJRT7g7cfUe1dF8RbvQ4vDAsPEP2kWWozx2/+jY8zdncD9Mrziue+Kqm38ReB9TkmK2kOqiJ0D7CWccHd6YUgjvnFdd4w07WtS0BrbQtXh0qdnBkuHj3Yj53Aehx3/UdaAMeXx9DBqEekaLol/qghSNJpoCvlW244UOxPHyjd64x61g+GoTpPx58UWxmhiTULeK7j8wHfMCOQnOCAS2f93gYyR0eg+FLHR5IJtM1tpNOe0b7bC8gkF4xwPPaQnIPDc5xjgYxXL6rcafpnx88NzedHFBdaUYImjAKsSW2An+6egIxyB2FAHr340UmfeigBaKKKACiiigAooooAKKKKACkIyKWigDxn4i/CCGeeTxJ4aia3vYUMklpbyeVvIH3o8D5X747n365Xgj472UQtdI162nhijURLfySiQjGAN4CL2yS3/6696PTivGPjF8KH15W8RaFCv8AaMaf6TbKAPtAH8QJIG4D25470Aew29xDdQJPBLHNFINyyRtuVh6giuQ+KfiaPwx4C1C5Yky3Km1hCsAS7gjPIPQbj0PSvnnwZ4t8b+ENHbVNNjmudBglMU0UwLwox25BAOUJyOfetXxr8RLX4mP4b0u4V9JjjuP9Oklf90C20bh3wBu6+tAHsfwa0BNF+HVi4UrNff6VIW6/NjA6DjAH59a4j4mi31L44+GdNuUumRFhP7nDYBkY/d25x8vPJwOeK9q0e702602D+ybmCezjRY42gkDKoAGBx0OMcV4tq7Jd/tU6bF08iNAeAeRAzjqD6j/EHmgD1Xx9rI0HwHrOo5kVorcqpjOG3Mdi4Pblhz2rzv8AZ6t9+ka1qg+2YubhEJnl8wOyrksDgcksc/h6Emf9ofU3tfBVjp8chU3l2N6g/eRATz7ZK11nwl0saR8MtFhx88sJuHwc8uS38iKAOL/aK1CKDQdFsJo5WS4uZJDsYKcImMdD3dT+FdjpN5YeDfhDZ35Oy1tdMSYYIySy5Az3JZsZx1NeZftIXRl1bw9YkhI1jlk3kZwWZQffjaKg8Xarf/FfxNaeEvCwjOg2TR+ZcQqdg4wXOQPlXkADrjIzxQB0v7Pulg6bq3iBreZJL2YRb5GUh9uSxXABAy2D15HWvaKzNA0Oz8N6La6Tp8Xl2tsm1Bnk5JJJ9yST+NadABSHpS0h6UAeX6Og8S2fjvRIdPhtblLx4ftEQaF5i2WBd9o5Bx26exrr9X8G6Lr0sVxe2rpexpsW6t5nhlC88b0IJHPQ1h+EjYWPiTxxHp8q3Uq3gnmgQMJQ5jyVOeCCQQpB9c9qqL418SeIY9WtNF0eLTtQgaNLWHUpgs7/ADDe7REZCBc85+maAPQlhQW6w5LRhNmHJbcMY5J6/jXn3wTaQ/D6MFLhYftc/keaUIVA+Aq7egBBzkDnJHBFdzpbX76bC2qR28d8VzMlu7NGG9ASAa4f4ct9h1zxVpN/Kqak+pS3f2U24QrCxwjhgMOCMHjpQBZ+JulaQ2m2+v38NzPd6a4FnDb3f2dpJZGVFG7qCCQcjp156Vz3hjwZdWt3q+oto6Q61bGOK3juNT+1ReVgEoFGCgxyA2B0wAOKXxc737Q+KjBZ3WlsyWVrbapA8U1tKZthkjwMkn73OCQAe1blloHiDw8r3V74l09oFuPNnvG08C4EBcsYg+4jbn1Bxk+goAv2d2llHrXiWbTtZtVUZnt7hg+5I0J3xR7jt64wMfd9jTdeup9YuNNs18O6jd6ZdSRTC7t7v7OFyN37xchtuOCGHOTxnGdRdUh1o21xoer2cscEyLdAPvVkccL6BvukZ57cZqW/1e1t4Tqfmoba3tHvPMUjMke0EAHHQ8HqOi9eaAOd1TSNJ8WeLJNFuLWWFNItB5c8HmwPE7gY8p1O3aEOMevbAq1cRaXpnh3U5m0uW5nkVojBqcvzXzJ8q/M5I+Y/d6ZyTjnNXfA0Wov4Xt77WXLanfg3M5MaoU3cqny9QqkDnP4dBq32m2t2h+12cN4TnHnopCjlhnI6A9DgkZ+poAx7vWdP09n0+90eSKB1VBiFXikhAGWyOCFyQVwSOOxzWHr3giE3rah4Pnj0DV4ioupbdQqywPguGTByQBkHA5HHtTh06PTPAGleGhb6pq1nqTyC5vtL/dNAzSB+pxgF22844BzxVq18d2Yt9UFxo13A2nSiG7mlj2LO4OzaPLzvIBU45HI9sgGrpRs/EFtqltp19rUcLXKvLd3AdScjO2AuAVAwDkLjnjPUQN4ms4bZrgTapcahY6fLerY3TLB5kYbbuYqBGTxgDPA5xk5q34V1z+0Jp7canHNII/Nt7GWBoZ44eApl3DOc5GcY6da5hdFtdR1S90O3ddM1aTTEhtXgge4itreOX5h+8C8tu2nPDADntQBueBLLw/Y6bpx0O8lMV5FLerFPLiSQyMvJXg4G0jgY9s81lal4S0u50+68L61LfrbbXvV1ae8J3SPIflIzjgKnyng9hkE11dhHfyeIpWkNvb6bZQiKCKPZukzjcWGMoAy8AHBGOmKpeFbyTX9Mj1p7lPsj3N0372FQ7IsmIzuG3aAsYOCCcYBzjJAJ/AEaWvhWGxH2fFhLLa74WUhtjEZbAX5j1OQCTz3rqSRivJbPxHPpvhNL/wAL2DyTeJNZlMMl6QqW7u4RWYZLFTtJGPckjgH1C3uYmc2huYpbuFF85VYbhkdSvYGgDhPitZx6ofCemhVae41uIoS+0qqqzMwHfj+Y9a7LXbXTL/SpLTV5EjtZiEbdcNFkk8AMCD19Dz0rK1ddLvfG2iWl3FcveWkct3bsgcxIx+XLbeAcBsFuOoGSeF8ZanpOm2VqdY0a41SGSdQscVkbgRkfxkAHAH60Ac7aRaJZ+LbvwtDc3Vppdnp8ZlQXrKheTKKjuW37tgG1QwAHTkCq/iKS1tfjZ4PhMc8jxWMqL1fr8o69SOSTnOBWgsfw7nt5oZtIt7a0uHjnc3Vg9vHNIzMqY3qoYg5GO2RWasfn/tEwxWm02+naHskRCAItzHAx/wACXgetAHqOCfWil2n1xRQA6iiigAooooAKKKKACiiigAooooAKQ5xx1paD0oA8f8babffDnWT448P5OmzSKNY04DiTc3MgJyASSBwBj8TXmng7wlB8WfHOt3UzSafYIDMotoVXYGbEaeg4BPfO017b8YdZi0b4aapuCtLeILSJT3L8H8l3H8K86+CWr3Phi9s9E1TS47a315Tc2N+SAZsD7hIzk+gJGM+4oAivPgX4s8O3hvfCevhyDlRva3kAzkDIJB6DqRn0FcZa3vj3T/ipdXMcJv8AxRBuSZFjWQMAgXovGNuOmP5ivrokY/SvCPANz/aX7Q3ie7aHYyJMoG3ptZUzk4I6UAeZeOPE3i/xTNpun+I9OZLm23fZ4xatG8m7bk4PXO0dB6130/i74w3FnDDpfhmbTrVI0WIQ2G4qoUYHz5H6U34m2v2/9oLw/aSfKsn2RQ3XI8xjn+n4V9DYyuO2OgoA+O/G8fjS98RWGmeLbhn1KRF8mJ3TbEHcgDCcDJH5Y+lfUXg3wTpHgnTDZ6XCd7ndPPIcvK3ufTngdPxzXi/juOO6/aQ0iCUB0M1orALjHIPNfRgoAWiiigApG6UtIelAHKWMWo2nxF1QSRE6XeWkU0cotx/rV+QqZByAAAQp6lmII6Vp614Y0jxFHGupWUczxEGKbJV4yOQVZSGH4GsHxhb3Om+IND8T2ll9qe1MlteM0wjWO3cZLnPTaV4x1yevbtFYEbgePWgACYGB0GMd8V5x4jvbvRvHf2PRpFt9W1qBJElv5ybaQx/L5QUD5WxgjHUufavSSR0zya4r4i6HNqdjpup2tmLu50y680w7gpaJlKSDJI5wQev8NAGVq/iaXxdpt5a6BpdtqJX/AI8rxpY8R3CkqrGOUDgMpYY3ZCnvxXZaffyXGnrNc29yJbcSJIzRiISsnyswQsflY5Iz2HXpnzuHw0XgiXTZbjV1lvEuI0nuyY44MEK6uW3YVT95CTyR1GRr6/5Oh2E+r/2qsGnxoqLD5j3MVxGgI2OecZLNuIBPqTxtAN/SxrGpaxbaqZpLXSTatG9hdQbJmm3Y3sB0GFGOTwe2a5xItQ0/XNN8F2Osy3BW4bUrmUxlJIrTcSI2YfK258rkYwB06Z7G51C40+ae8vpLO30OG2VjK5YSB885B4CAY9+vpXO+EpbVL/Xbs6x/aN7d3/lLck74sYDRxoF6KobB55INAHUavq1voelzX90k0kcQB2W0LSOx7AKOv9OtNeG317RBFqNm8cNyqu9vK21hyGAbB68DI/A1haXqi+JIUks9Surtre4kmDwRPaIdrFRDIGBJwRg569QOw2ta0S21y3igvIUbynWeN9xzHIv3SMY45NAFW41+GznltbaC4uGtV8yRIz5jtGe6gnc3zHHHA9R0qroMIk1W7iuEuJjHtvUkuoEUwyTB8xjHRlTAPHccnmtCxgsbH/Tlksfspj2JeBkBC7vlQMB9zJwPmPQetc74j1Ww1BbCyvNRvrK3v5preNrUyJJM25VUAKCTHzjd8ueMHByQDSFjPJd6bqnhq906eCMmG9lnXzJLpB8pxOMnII6dMgdMYrJ3/wDCPCOe/E2h2FqZUF1Newytcxpnb5gYF2LEswUEkexOBueELe106zvtKtb+5vRY3bRs08ahkJVW25AG7733jyTnrU93b6bYaV9v8STWVwLYkte3MCKEBb5R3xjIGe5oAq6LOdP0i22/a9YubiRRLcqi5kZuSzfNtAVffGAAua07afFrdanJDPGJF8zypCd2xVyBtONp5OR69yMVz0nh+2sNZXWNPvpLW0klS4/dhWt1U8y8dV8wYyw44z166F3GmnXb61q90YSsT2+Uu2jh2M5KEr/fxtBbtknoKAHaTZaVqGjm9sLOW3tNQjinVUIQlRhguAcKDzkA87jXM/C111261zxfOI4b+/uPs8lpGo/0VYiQFY4zvOcn14qfVvGOzSfE89jrUYuI4ZRp8LQbDE0UfzsWYfMN+eTxwMZqhbpb/DT4b+VaxA3M8KiWWEs8hvJNqD5eyg5Odw+7gcmgDc8H6pB4h8T+JtRFoqSWdyNNS5UuPNSPJIIbgEMzZwBW1rI8SrfRS6KdMe2EZEsN3vVmfPBVlBxx6ip/D2mSaRoNjYzXD3M0MQWSdxhpW7sck8n3JrlvGNj4kvYHaQ3Z0lmeK40/R/L8+SLHDmVyCOn3EGTnGaAOmsJ7zUbdYdX0qGKUgs4jlE8Q2sNvzEDJyCenG36VxHgNk1j4seONdFuFETQ6fHIHB+4MP09SiH9PWt7Tda0HQPDF7DY2VxZQaNaC5ltJrd42jUqWHJBBJwc4J561F8K9PvrTwVb3OqMH1C+d7mWTeHZgxO0M3OSFwOvHTtQB29FFFABRRRQAUUUUAFFFFABRRRQAUUUUAFI33TS0jdKAPn79oDU5dW8SaF4UtFcy5ErDPys8h2IMeow3/fVdp8RPAYu/hvaQaaGGo6BCklk6MFJ2BQ3PuF3duQK4TwjEPGv7Q+qas7eZb6dJJLGTjB2fuo+nBGcN+Ga+hmHynigDmvAfi238aeFbXVIWRbgjZcwq2THIOCPYHqPYivI/hGc/GvxYCTkm66uc/wCvHbv+NbWixJ8OfjXPocW6PRNfjEtvFjKxyc8D0wdw+jDPSsv4bNLD8ffFMENuwhk+0eZjGIx5inJwO5+lADvibGLD48+EdSlfEMpg5yABtlIPJ+or3oHK5/yK5Hx74BtPHemwQzzvaXVrJ5lvcooYqccgg9V6ce1dJplrNZaZa21zcm6mhiWN52XaZCBgtjtnGfxoA+c/E08TftO27zEpGt/aL0zyEQD8zj86+ll7E/lXzb8RrJbL9oTSpbdNz3MlpOVRATu3ben/AAEGvpJTn0oAdRRRQAUUUUAYvirQv+Ej8M32leYsbToNjsCQGVgy5AIJGVFLoOswa5oMV9aXFvdnaUdrdyUMi8MATzjPTPY1sHpXI3d03hvxnZrl5LHX5jHtLIiW1wkZbIGMt5gX819xQBgyarqOo69c3Vvo9zY+J9PtmjFnc3oNusEj8THbkP0JIXnK45wDXd6bbX0eneRq11BfTsWDukHloVPQbSx4xwcnmqtz4Z03UJ9Rlv4VvBfRiF1lAIWLA+QcdMjd7E5rXiiSCKOKNdqRqFUZ6AcAflQBwc+ly6PaWGgW0ul3t8HlNhFeWzIsVuwI2grnJUHBb3GRk5Imk+LdKsrENa6bqjW6sI4LM/ZEh+Ubcbs7vmUAfXkcV0XiCx03WgLB7iFdTSJ5LbbPsljJUruG07tvPPY/hXOeBLa4kXUG1B59M11pwl3BHIGWRYkCI6iRT8pXByO/p0ABftLu6fSbWx1zTdZup9ywTXEcKx/P8rlsRNwgIAyAQcHqDzKbe58OwQWVrdapdiZfKgmFv56W3IJaTBGQRjHcYOOOKrT/AA+MvXxTr+W4kLXKksoYMFB2ggDGOMVoXviSPSLyBDHG+j/YnnN8shIj2FVC5wVOdwxlhyDQBWHjrT7fT7u5lh1G4ltn2slvpdwrMC5CgB1AJxjODjP4VZn1XWP+EckuLnRpnlmk2RwafKGmWNjgORIqgEAjI5xz6Vp3Fr5xtLi5uJ28mUyqtvuUMSDt3BckgDI54JqFdLFk1rctqWqSraQsrRl/MEw9XULlm54xzQBxnia0uNLa3tb/AMN/27orxG3hSxgfzISXGBJGW2MBxhuufxrb1qzs7z7LHqNpbHSo4zLI88JUoCGLLjHBKgAg475JIAqaXW9Ve0u73Tp9EudPhiVllluHjZMD955gCkDkNjpjBzTx4hvrqCe2sV0mXVTai6t4VvWZZImxtkPyAhST+lAElhcWt3ZzapYNOq3675YxD5cgCJsLIGVXJ4UZbI6Y4NZ9v4r1Szg1W98Q6TNZaXaSZtriKNpGmTkYZMb1Occ7QPfFakmqXxuJVi0ZL4WsYLtb3KFhcYGYwH24OGzuJHB9zWJY+HLPV7y9t9Q0TW7WDHLXGqu8UzFSDtCyk9GPp+YoAi8G+KfDvjqwvNLgiu7m2KbpYb+3Y8EjIZySG56d/rXSeJbe9uNBlttPtradpQI5Yp9wHlEfNjbyWA6Ad6WYWnhzTLS2s9LuZrfKWqxWcZkZEwRluegxySe9LJd6S88yzTywf2a4MhkaSGMFuVJJwrjOMdRmgDEg8Nr4h8OCx1mwk061W4WVII75pjIi9A5dMqD12e3bmmWFmfFfiVtXul0q+0GzdX0iaCR2dZlyrFsYU4O7g9Dj0zWtbz2HiFrtNPumlhlXZc+YJSuM7dqK2FGcNkjnp6g1qWul2umaUun6dDHZW8aFYliQAR57gdOpzzQBbaRI1BdgoJABY9SeBTyQRXl/hjXNW1u+1fVNSksdXtNIupIrC3sIB5zyZ2eb8zcDG5Qc85Y9AK9Ht7lpbJLm4ha0JXc8crLlB7kEjp70Aee/Fm4l1S20vwVY4N7rlwBJhgNkEeGckkH0HT0I9q9EtLWOztILWFFjhgRY40UYCqBgD8q898DxX3iXxrqfje7hEenyQ/YtLRn3Exq53PjJCglf4SAck4716VQAUUUUAFHSiqeq6nb6PpN1qV0SILaJpXxjOFGTjJFAFzINFcP4F+J2kePbi5t7C1vLea3XzGWdVxtJxkEE85rt8igBaKTIo3D1oAWikyKXNABRSZFMnnitoHnnlSKJBud3YKqj1JPSgCSkPI4pscsc0ayROrowDKynIIPIIPpT6AMrSfDmj6JPcT6XpdrZSXJBmMMYXfgkjOPcn861aMjOO9FAHnvxc8Hz+J/Cy3OnIW1XTH+02oHJfGNy/XjI9wK8j+C+qXes/GF9QvXD3E9rKZCFAyQFH4n3PPqSa+niMjFeZ+EfhLD4V8f3/iKG9X7LJ5gtrRUxsD4JyfQdAKAPTKDyKKOlAHM614E0LxB4hsdc1K1aa7slAiAkKrkHcCQOpBrpQDnmjcKUnAoAKKTcPWjIoAWik3D1FLkUAFY3iTw/H4i0s2puJrS4RvMtruA4kgkHAZfz6dwSK2AQehzQenHWgDO0qaZrYwTmaWW2xE9w8ewTsFAZ1HYFt3Ht6EZkub5re+tLYW08n2guPNjTKRYGfnPYHoPeq+tQ6h9la60kW76hCjCGK5JETliOGI5HA/Op/s8Wow20t5aYlicSokuC0bgYyCDjoT0Pf60AcbZeCdLvNQvLuK4n/te21n7S+oSwESnadwiBb7yBG2ZGAcdDV/WbLQ/EtzNY3ofTtYxJbWly21LgqPmLwE5yCAeRzwa6S5kg0vT5ZBGSgJIjU5LuzcKM9yxx+PpWPoelyLax6t4hghGskvOzPJ5i2gII2RsfuqF64yMk8mgCho2s6xo93qlh4ktVh0zTole21bcWE8WcZc44YcFjx3OMc1vro2kXAimS1hkiIdlVf9W/mHLEqPlbOScnPU+prHXxFcJbW6+ILGOGLVL/AOx2f2WUzAxupMbSMBgbsYyDj5h71DceF9Y0nU7/AFTwvqFust6qCWzv0ZocoMKyFCCpxgHIbOPagDo77SLXUpbZ7lZibaTzIxHcPGN3uFIDD2ORVNvC2nNrdpq3+k/araBrZSbhyHjPZgT82OcZ+vUDFDXPFdz4cfTxqGiXt1BPH/pF1p8RlSGTuNv3sZ6GrkXjPQPskFxc6nb2gmmNuEuJVVllAyUbnAIBGfTPNAFe0+H3huwj1WK201YoNVhWG7iSRgsigEevBO45I571f1Lw9BfeH5tIt3fT0eBYEmtTteNF+6FPoBxjuCfWq1p498J30ssdt4gsJGiXc4EoGBgnv14Un8Kfq3jbw1okdq+o6xbQC6QSQcljIp5DADPHvQBanstSWXT1sr5UhilU3YlRSZYwhGBgDBLbST7HHpWZZ+FpbBZIoL1PsnnyzQQtaqxg3qchW653Mzbs98YxVq58T25toP7Ntrm/ubuEy2sKwuiyKDg7pGXan/AiD6A9KpaI/izV7a7fW7a20QSkLDBbyiadF53Ev93JG3BAOPTNAF2fUdO8KaHZx6pfRpsVYQ4jOZpAuTtRQSWbBOBzWHpOoav40umlu9ISw8MxtjyNQiPn3RGGVtvRFDAdeeKLLS/CngjV4YIzd3GsagFHzyS3U0oXI8wjJChQT8wAwMjvituVdK8WWEbxStd2tveDfHGxXMkbfdcHB+VsMR/s96ALGm+ILDVNTurC2F151rzIZbWSNT8xHyllAbkdVyPetOeNJ4HhkUMkilWU/wAQPUVkeKHgi8NX8lzfNYWqwt51whAdFIOdhPRugH1pfCi6gvhPSv7UmeW++zIZnkADFiM8470AW7LSNN06QvY6fa2rsNrG3hEe4Z74HNYeranDr93J4d0q8jecMU1ExlWNtHg5DDcCC3QEdCM9qTxJ4ivbbWNP0HRbcXGpXoZ5TuXFrCCAZGBP+1wO5XvVvwl4SsvCNhLb2rSTz3MrT3V1MQZJ5D1ZvT6D+ZOQDW07T7bSrC3sbOIRW1vGIo0HOFAwBVuiigAooooAQ9K8s+PGuTaZ4FSwtJXW41S4FvtjwS8eCWGOuDwOPX3r1Nvumvnzxfbal8RfjeNDsro21rpMWxpjh1j4y7ADIDHcFGefl7EUAN8LeG7j4b+OfB0v2W6P9tWn2e+Dn5Y5mGdo6DI4OD6Gu48e+N/E3hzxtoulaNpcOoxX0DsLfnfI4z0b+EDgn2z0rj/HngzXfCnhtPEV546u9Sl027S4tre5g+V5C4A6ueRliTzxxxW7rGvWmufFb4c3tlMwguLaadGKfwujDGOucrj9aAI7Lx58Q9H8T6ZaeL9AtLfT9Su1t45I2H7st0wyswJHXkc4PTrUviD4seI9O8Z6n4Y0zwmb+8gdTAySs3yFVbcygdwc9RjIHWtH4tXyWeqeCtz2wJ1lG8uePeCMYJx7bvzIPGKl8O6tJJ8bvFunHy5IUtYJEcKu5CEjDLuxnq3QnsKAJvAfxA1PxHrF1omu6DJpWrWsAnZWyFZSQBgNyDyO5rE1X44CHWr+10Xw1daxY2Dbbi7hcgLg4Y4CHjg4JIzj0qzdl0+Oepy6fEhvIfDxbG0sZJCfl449FrnPhsfH0/w9sz4dk8PxWySS4E6HzWO48PjgHPfrhhQB6n4H8Y2Xjfw+mqWaNCwYxzQMctE47HHXggj2I96r/FC2hvPhl4gim37FtGl+Xg5Qhx+qiuH8MW3jG2XxPLo1x4Yn1u4uoWnjt5m8qBwCHyg4DHH4nPpUviRPH8/w38WxeKodLKraI9u9q2BgNmTPfOAMe4oA2vgfp72Xwv0+STzQ9y8s21yeBvIGASQAQAeMZz+fU+KvGGi+DtNF5rF15SucRRqpZ5GHZQP/ANVYXwgd3+F+jF7T7MoRggJzvXccPz69fxrlvivLDdeL9Cs7Lw/PrGt2yG4hgyhgaMnDCRTzxgcnGPWgDtfCvxJ8M+MbtrTSb12uUi80wyxMjbcgHrwSCR0zWxpHifRtdvb+z02+S4uNPk8q5RVYbG54yRg9DyMjivH9D07xVffEjw3fS+Ebfw3Z2hlRjaqq749mdrgHJ7DPqTjoa3Pg1aIuseObkSZMmryRGPb0CsxBz3zu/SgD0j/hI9FFzfW51S0E1im+6QygGFcZy3pxSR+JNEm1KHTotWs5LyZDJHAkyszqBnIAPPHNeXxaav8AbXxYe3TzJ5IVAKuDndCWK43DoT3x6dsVleGvBWi+GfhbF45hLy63Dp81zHOsjqoZ0KqNo7qDgHjkk+mAD2G48V+H7TUk0641qxivXYqIXnUNkdsZ4NaxYdAeT0r5N0mLwA+k2/8Ab9p4l/tW7Ad7uJRtdzk/Jk5YZI9ScZzzXuXwZ1O91X4b2Ut87vJFI8EbOBlo0OFz64HHY8fiQCHx34s13QvHXhXStNltVtNUm8uZZEyx+ZQeewwePeu51a6ey0e9u4kSSSCB5UR2IDFQSMkdB0ryT4rrqp+J3g19Gt4bu/iDSQ20pXaSGBJOTnpzntjI6Va1/wAU/FDT9A1Ca/8ACOli1W1dpJo7pWEYwdxKliW47Ac0ALefFLXdP+E2neLZtN083d1OItnnHYyfMAwA5ByD8uTjGfaiD4nePEjRrn4aXkinAzFIygk7QCMo3Gc/mPTJ5uU2ifs6+H5LxLxlW8V1MGz73muQCrYUr2xg9s13tx438ZQ2zT2/w5vJoUI5e/iDkEDBCAE555HbBGeDgAq618U9T0HwTFrup+FJ7G7lvhbCymn5C7d2/O0E55AGOtd7oWsQ69oVlq1uhWK7iWVVJBIB7EjgmuI+L1pDqOj6BaXELuk+rQI0MYBc7gwwM8cE85HI44rL+H19P4M8bX/w5vQhtAXu9MnJwzIxzsP97jP4qeoIwAben/FSzvYvFjnSrlf+EcdhKFkUmVQzDIzjH3CcenvWA/7QOmRwCd/DWsrCQCJCihTkA9c47j8xWd4fsLyLwL8T724g3/abq8VDggS7QwJUA5Ayeue3U4rT8L/E/wACWPgHTbC+vMeRZpDPAbKR137eVz5e0k4agDrdH+I+ja14LvfE1usqw2UTyTWzMhmXaCeQDxnHGaqWeu6Z4m0O08d215f6ba2Sy+ZEWVFnVcjYwOVI3YwR3461wvhBkl8F/EXxHbWK2+j3/nG0gUADCo38K4I+8O/0HrlapC6/BjwJ4btp3UazejzApA3Izsx6nPBdfbI5oA7RP2gfBjRIXj1JWIBK/Z1O0/Xd611er+JNKuPDEWrl7G78NXMTm8lkk6xbDwqYO9iflKnB7YrPvPhH4WutL06xgso7b7E6ssyRozyAHJDkg5ye/wD+quDvPC+o/DX4a+K9O1TU7O60q8jIslCMZPOYhR8pwBwATycEAjvkA7jwBren+JfDV34guhEsEF7KIw67Et4o/wDV4U/KrBCpJGOo9Bita/EnT9b8f2mgRTX1lNFcMUj8r5btPJLfOGAMfXIHJ45ArjvAXjDwBpfw40nStd1VRcRSvcSwxxTj595YB9i4fAIGDwcd8VQ0G8i8RftKSanos1vcWiFnLuduUEQRtuRnOT2HP0zQB7lr9/qdjZINK01b+8mkEao9wsKLwSWYtyQPRQT7UyS3jvdHjutf0W2e5gRna3VRdbT3CEqCScDt6Vn694n07R9agtNds5YLTYJ7XUCheMzDOU+UZV8ZPPXOBk8VmeKtXOufCPUr2TTrmy+1Q+X9nusJIqtIEDHJwOCGznj9KAOj006VrOnuF0wwpLAkckNxaeWfKYZCHPBGD0BOOnWoLy6g0Kxis9G0F9QFmpVbWyMS/ZwADg7mABIbIHU+lV9JgvrTxFFBd+Ivt8S6cFW1aBA5YucyF1AHRQuO+Cal0Gzk03U/EN1dwT20VzfeaslxcrIki7FUMgHKjjGD6CgCzoOvSa/ZTSnS77TbiMhWhv4dp3EA8YPI5GcUkAu9Q8LzR6hdhrrbIJJNJcggqzcIc53DGMHvkVFbPb6t4p+32U1rOliktlO2+TzI5NwJUL9zqBk4z0rKfRvEeg69q9/oKWd/DqzrKYru4aFbSQLtLYUMHB4J+6eOp60AQ/2rb6l4f03xxax6hDDYrIDG+53mtt2GJUZ3EhVYZOM8ngVseE4IoLR3t42mg1EnUjfKoRJTL0GwuWDBAueAvpjpR4M8L/8ACL+GY9JuLk3js7yTOyDazOSWAH93J7//AFqh8R+NvDXgiG2t72YRySDFvZ2sW52AIHCqMAc9yOhxkjFAGlp/hrTNMmuZYIJM3OfNjluJJUwTnCo7FVHsoA4HFUZvFP22cW/hq3i1eRZWhuZYrhVjtmCbgXbknPQYB5yDWFqth4j+Ienx2qmTw5okpDuwbN1cJz8u3gRgjB5yc9iOva6NotjoGl2+m6bAIbS3XbGgJOOuTz35NAGf4Z8LQeHxc3LMtxql65lvbwqQ0zkkjjJ2qM4C5OK6CiigAooooAKKKKAEPSqFjommaZc3NzZWFvbz3Tb55YowrSNnOWI68kmtCigChq+jWGu6XPpup2y3FnOAJImJAODkdORyByCKxdL+HfhbRdRs7/T9HjhubKMxwSCRzsBzngk5PJ5OTzXU0UAc34j8D6N4p1HTL7VI5nl02QyQLHJtUkkEhh35UU7TPB2maT4n1LxDbid9Q1ABZmkl3ALwdqjsOB+VdFRQBzsPg7T4PGl14pjaZb65gWCVdwKEAAZwRnOFXv2rltU+CXhq/wBYl1O2kvtOllLMyWc2xcsMHHHGec4456V6XRQBgeFvC2leC9ETTtNjEUKndJK+N8rH+Jj3Pb06AVJ4u0E+KfCl/oq3bWv2yMIJ1Xdt+YHpkZHGOvetojIoAoA8X1P4OeLLnQxpMfj2SexEaxC0ktjFEFXG0YVz0x6VoyfDTxdDp2j3Vh4xkj8QWcTQTXEoLxSxF9yqM84XGOQc98dK9YooA8cj+HXxD0zVrDV7fxhHqN4j7J0ukO0RE8gEk7hjORx2x6i4/wAOfGOia/q934Q8TW1nZ6nL9olhuoQ7LKTkkHaR1z6denANer0UAeRaD8MvEfh+z8aR/wBrxX9xrFqEt7hwUkeTa2S3J2jLkd84zxXY6P4RaP4Z2/hTU5Mk2H2WeSA9MgglSfTPGR2rrKKAPHbHSvjBomlnQrSXSLqCJPLtr+VxviUYAABHOAONynrznFek+GtKu9F8O2ljf3sl/dxoTPcuTl3JLHHtzgfQVs0GgDzHxToOsXnxp8J6tBZNJplrFIsk6nAjO187iOR1GOxPHeu28Tw3MvhXV47S1F1cPaSrHBnHmEqflz71rZ5HoaU9KAPBtc0bWbv4MeE9PtfCt5LNDcB7izIYSIFLZJHUB/ccZrp4fi/csy28ngXxKLgcOiwZAIHOCcehr1H0xxnpS7ef50AeW+KdTbXbfwJra6PfxD+20ZraSIiWMYYZKjtkZ+lb/wAQdOvTpMWuaNY2Vzq+kv8AaYfPjZiVAIZV2kc4JIByM+h5HZHGeaCKAPFtN8c6r4h+DPinUpdMtbWW3V4EWBMqxYAyEqxPOXJ/oeld94Ms7PUPhrotrc2sE9rJYRB4nTcjcdCGzmupVRtGBgEdKdj0+lAHgOm37aV8EPHWlxjcdOvprMRs5YIkjqmAcD+8xB7nqKuaxFJD8HPBPiSwspZJtFeC5CRnOE/iz14JA+le0jT7Ly50FpBtuTumXyhiQnuw7n61KLeFYBAIkEIXZ5ePl246Y9MUAcU3xc8FLo39oHXLbd5QfyASZcn+HbjOc8dO1cedd8R3vwZ8W614jSQQXoc6fDIAGjikIUdBkgF+CeePSvRT4C8JfbBdjw7pv2jcHD/Z169q2rzT7TUrGSyvLWK4tZBtaGVQykA+n4UAcF4Q8F6Nc+BdH1CLRtKGqy6cmJ5rRXBYpgFh3GcE85rhvDun614O+KOpm38NWOoTWlkhuF0xmgCo5HKI3DNx0A7dd2a96trSCxs4rS0hSGCFQkcaDCqBwABTBYWkeoSX628YvJIhE84X52QEkAn6k/nQBy7fEXRra/v7TUbfUrBrIK0j3Fk5j2kD5tyAjAOeSccHBq4PFHhDX9OvIjq2mXtnEo+0o8qsmM5G4H3HT2roZLeKaF4Zo0kidSroygqwPUEelY0Xg7w0l495HoOnLcEbS4t1GRgrjp6ZH0NAEuiy+H7eOOz0afTgrKTHFayIdygnJAXqMk/Q5pdSvfD93Y41G506W0IEoE7IyEAjBwTyA2PxqC18H+HbTUTf22kWsNwR1RNo+YFSNo+XBBORjnrzViy8M6Jptm1nZaVaQW7SiVokiAVnHQkd+30oAyNc+I3hLw0yx6hrEKswYKkCtKcg4I+QEA/X+lQT/ECG5l+yaLpWpX15KF8h2tJIoDuClWaQjhfm56njpXUwadZWqssFpBGGkadtiAZds5bpyxycmrSjjI6dqAOTsLXxhqGrajLqd1b6bprwmG1tbQrLKGOMytIV4I54wRz7ZK+Ffhv4c8IhZLCyEt7jDXtwd8pz156D8AK60UtACDPeloooAKKKKACiiigAooooA//Z"/>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Délai et voies de recours
+    </div>
+    <div data-number="9" data-spec="alinea">
+     (
+     <a data-spec="section_reference" data-start_num="14" data-type="article">
+      Article 14
+     </a>
+     de la loi n° 76-663 du 19 juillet 1976 modifiée, relative aux installations classées pour la protection de l'environnement).
+    </div>
+    <div data-number="10" data-spec="alinea">
+     La présente décision ne peut être déférée qu'au tribunal administratif.
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Le délai de recours est de deux mois pour le demandeur et pour l'exploitant.
+    </div>
+    <div data-number="12" data-spec="alinea">
+     Le délai commence à courir du jour où la présente décision a été notifiée.
+    </div>
+    <div data-number="13" data-spec="alinea">
+     LE PREFET,
+    </div>
+    <div data-number="14" data-spec="alinea">
+     Pour le règle,
+    </div>
+    <div data-number="15" data-spec="alinea">
+     Le Sous-Préfet chargé des fonctions
+    </div>
+    <div data-number="16" data-spec="alinea">
+     de Secrétaire Général
+    </div>
+    <div data-number="17" data-spec="alinea">
+     Daniel CHENARD
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

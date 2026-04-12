@@ -314,17 +314,16 @@ def _append_operand_to_section_body(soup: BeautifulSoup, operand: str) -> str:
     return str(soup)
 
 
-def _wrap_new_article_section_html(article_id: str, operand: str) -> str:
-    """Build a full ``<section>`` for a brand-new article (``NEW_ARTICLE:x.x``).
-
-    When the operand is already a ``<section>`` element, return it as-is to
-    avoid double-wrapping.
-    """
+def _unwrap_operand_section(operand: str) -> str:
+    """Return the inner content if operand is wrapped in a ``<section>``."""
     stripped = operand.strip()
-    if stripped.startswith("<section"):
-        return stripped
-    num = article_display_number(article_id)
-    return f'<section data-spec="section" data-number="{num}">{operand}</section>'
+    if not stripped.startswith("<section"):
+        return operand
+    soup = BeautifulSoup(stripped, "html.parser")
+    sec = soup.find("section")
+    if sec is None:
+        return operand
+    return str(sec.decode_contents())
 
 
 def _is_new_article_full_section_add(op: Operation) -> bool:
@@ -384,9 +383,7 @@ def apply_add(
         raise OperationError("ADD operations require operand.")
 
     if _is_new_article_full_section_add(operation):
-        return StatusCode.RESOLVED, _wrap_new_article_section_html(
-            operation.target_id.article_id, operation.operand
-        )
+        return StatusCode.RESOLVED, _unwrap_operand_section(operation.operand)
 
     if operation.sub_target is None:
         raise OperationError("ADD operations require sub_target.")

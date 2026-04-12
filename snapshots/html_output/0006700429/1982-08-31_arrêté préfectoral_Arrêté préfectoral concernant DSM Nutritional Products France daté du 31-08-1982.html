@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="1982-08-31_arrêté préfectoral_Arrêté préfectoral concernant DSM Nutritional Products France daté du 31-08-1982.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     AG/AB
+RÉPUBLIQUE FRANÇAISE
+PRÉFECTURE DU HAUT-RHIN
+5348
+→ NT
+1ère Direction - 3ème Bureau
+ARRETE
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     N° 71 338 DU 31 août 1982 portant prescriptions spéciales à la Société ROCHE à VILLAGE-NEUF.
+    </div>
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <td>
+       STREET
+      </td>
+      <td>
+       -7 SEP. 1982
+      </td>
+     </tr>
+     <tr>
+      <td>
+       STREET
+      </td>
+      <td>
+       — — —
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     LE PRÉFET,
+    </div>
+    <div>
+     COMMISSAIRE DE LA RÉPUBLIQUE
+    </div>
+   </div>
+   <div>
+    DU DÉPARTEMENT DU HAUT-RHIN
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Chevalier de la Légion d'Honneur
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU la loi du 19 juillet 1976 relative aux installations classées pour la protection de l'environnement et notamment son
+    <a data-spec="section_reference" data-start_num="11" data-type="article">
+     article 11
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-type="decret">
+     décret n° 77-1133 du
+     <time data-spec="date" datetime="1977-09-21">
+      21 septembre 1977
+     </time>
+    </a>
+    pris pour l'application de la loi susvisée et notamment son
+    <a data-spec="section_reference" data-start_num="30" data-type="article">
+     article 30
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU la déclaration du 1er avril 1982 de la Société Chimique ROCHE de VILLAGE-NEUF relative à la fabrication d'un produit à usage pharmaceutique
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que cette installation constitue un établissement soumis à déclaration visé aux n° 89/2 et 251/2 de la nomenclature des installations classées ;
+   </div>
+   <div data-spec="visa">
+    VU les rapports du 7 juin 1982 et du 2 juillet 1982 de l'Inspecteur des Installations classées ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis du 8 juillet 1982 du Conseil départemental d'Hygiène ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'il y a lieu, compte tenu des caractéristiques des produits mis en oeuvre, de prévoir des prescriptions spéciales ;
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     - 2 -
+A R R E T E
+    </div>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les prescriptions suivantes sont imposées à l'atelier de conditionnement de substance pharmaceutique appelée TIGASON 25 %; elles annulent et remplacent les prescriptions des arrêtés-types n° 89 et 251.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Généralités" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 : Généralités
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'installation sera située et installée conformément aux plans et descriptifs joints à la déclaration du 1er avril, complétée le 5 mai 1982. L'exploitant en transmettra, avant mise en service de l'installation, des exemplaires mis à jour en tenant compte des prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Tout projet de modification de l'installation, de son mode d'exploitation, ou de la nature des produits conditionnés devra, avant sa réalisation, être porté à la connaissance du Préfet.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'exploitant est tenu de déclarer sans délai à l'inspection des installations classées, les accidents ou incidents survenus du fait du fonctionnement des installations et de nature à porter atteinte aux intérêts mentionnés à l'article I de la loi du 19 juillet 1976.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Sont à signaler notamment :
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <ul>
+      <li>
+       - tout déversement accidentel de solvant ou de substance active,
+      </li>
+      <li>
+       - tout incendie ou explosion, même de faible ampleur,
+      </li>
+      <li>
+       - tout rejet anormal à l'atmosphère ou dans les eaux, tout résultat d'une analyse de contrôle de nature à faire soupçonner un mauvais fonctionnement des dispositifs d'épuration.
+      </li>
+     </ul>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Si le fonctionnement des installations fait apparaître des inconvénients ou dangers que les prescriptions ci-dessous ne suffisent pas à prévenir, l'exploitant doit en faire la déclaration sans délai à l'inspection des installations classées.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      - 3 -
+     </div>
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Dans les cas visés aux alinéas précédents, l'exploitant prendra les mesures d'exécution immédiate nécessaires pour faire cesser les dangers et inconvénients et limiter les conséquences pour les intérêts protégés par l'
+     <a data-spec="section_reference" data-start_num="1" data-type="article">
+      article 1er
+     </a>
+     de la loi du 19 juillet 1976.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Prévention de la pollution de l'air" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 : Prévention de la pollution de l'air
+    </h2>
+    <section data-number="3.1" data-spec="section" data-title="Dispositions constructives" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 3.1. Dispositions constructives
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      <ul>
+       <li>
+        - L'ensemble des opérations sera effectué en appareils fermés,
+       </li>
+       <li>
+        - Tous les évents et orifices par lesquels les appareils sont mis à l'atmosphère seront munis de condenseurs, saumure, ou à détente directe, ou de dispositifs assurant une efficacité équivalente,
+       </li>
+       <li>
+        - La ventilation du raccordement du silo mobile de stockage du produit fini au filtre ramènera l'air pollué dans l'appareil,
+       </li>
+       <li>
+        - L'air de séchage sera rejeté à travers un double système de filtres, dont le premier devra présenter une efficacité au moins égale à 99,99 %, et le deuxième (dit filtre de sécurité) une efficacité d'au moins 98,5 %. Le rejet s'effectuera en toiture du bâtiment.
+       </li>
+       <li>
+        - Une alarme "pression différentielle amont/aval du premier filtre basse" sera mise en place,
+       </li>
+       <li>
+        - Le local sera maintenu en dépression par rapport à l'atmosphère extérieure et aux locaux contigus. L'air de ventilation sera rejeté à travers un filtre d'efficacité 95 %.
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="3.2" data-spec="section" data-title="Contrôles" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 3.2. Contrôles
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Des contrôles de la teneur en TIGASON seront effectués par l'exploitant, selon un programme qui portera sur :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - le compartiment entre le premier filtre et le filtre de sécurité,
+       </li>
+       <li>
+        - l'air de séchage rejeté,
+       </li>
+       <li>
+        - l'air du local.
+       </li>
+      </ul>
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       .../...
+      </div>
+     </div>
+     <a data-page_index="3" data-spec="page_separator">
+     </a>
+     <div data-number="3" data-spec="alinea">
+      Les méthodes de prélèvement devront permettre de capter les poussières fines.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les méthodes analytiques employées devront permettre de détecter la présence de poussières dans les rejets à des teneurs de 0,05 mg/m³.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      La recherche et le dosage de molécules de TIGASON seront effectuées sur les filtres après pesée, avec des méthodes permettant de détecter une quantité de 0,2 µg/g/filtre.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Les mesures seront effectuées au moins
+     </div>
+     <div data-number="7" data-spec="alinea">
+      <ul>
+       <li>
+        - à chaque première charge après un arrêt prolongé,
+       </li>
+       <li>
+        - après chaque intervention sur les dispositifs de filtration,
+       </li>
+       <li>
+        - toutes les 20 charges.
+       </li>
+      </ul>
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Les résultats seront consignés dans un registre tenu à la disposition de l'inspection des installations classées.
+     </div>
+    </section>
+    <section data-number="3.3" data-spec="section" data-title="Essai et vérification" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 3.3. Essai et vérification
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Des essais avant mise en service seront effectués, pour vérifier, sur poudre inerte présentant la même granulométrie, les performances des filtres et pour étalonner les alarmes.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Des essais ou examens périodiques seront effectués, notamment avant chaque remise en service de l'installation après une période d'arrêt prolongée.
+     </div>
+    </section>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Prévention de la pollution des eaux" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4 : Prévention de la pollution des eaux
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Afin d'éviter tout déversement de substances actives contenant du TIGASON dans les eaux sortant du décanteur, ces eaux seront collectées, stockées et extraites en fin de campagne avec du chlorure de méthylène neuf, jusqu'à absence de TIGASON.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les eaux ainsi extraites seront déversées dans le réseau d'eaux usées chimiques, rejetées elles-mêmes dans la station de traitement d'eaux.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le chlorure de méthylène sera traité de la même manière que celui mentionné à l'
+     <a data-spec="section_reference" data-start_num="5" data-type="article">
+      article 5
+     </a>
+     .
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les méthodes employées pour vérifier l'absence de TIGASON seront communiquées à l'inspection des installations classées, qui pourra demander que des analyses de contrôle soient effectuées.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     L'étanchéité des circuits de refroidissement des appareils sera vérifiée avant chaque remise en service après un arrêt prolongé.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Prévention de la pollution des aux déchets" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5 : Prévention de la pollution des aux déchets
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le chlorure de méthylène utilisé comme solvant sera entièrement recyclé. En fin de campagne, il sera dirigé vers une entreprise disposant de moyen d'incinérer les solvants chlorés.
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-number="2" data-spec="alinea">
+     Les propriétés du TIGASON dissous dans le chlorure de méthylène seront indiquées en clair sur l'emballage du produit, et précisées à l'éliminateur et aux transporteurs.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - Les déchets solides susceptibles d'être souillés (tenues jetables, chiffre de nettoyage) pourront être incinérées dans l'incinérateur de l'usine.
+      </li>
+      <li>
+       - Dans ce cas, une recherche de présence de TIGASON pourra être faite sur les fumées, dans les suies et dans les cendres, à la demande de l'inspection des installations classées.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="Protection contre les disséminations accidentelles" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 6 : Protection contre les disséminations accidentelles
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'ensemble des matières premières et produits finis contenant du TIGASON seront stockés dans l'atelier de production, en emballage étanche.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Leur quantité sera strictement limitée à ce qui est nécessaire pour la campagne en cours. Aucun produit contenant du TIGASON ne devra être stocké dans l'usine entre les campagnes de fabrication.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Une consigne prévoira, si possible, l'évacuation de ces produits en cas d'incendie dans le voisinage de l'atelier.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les dispositifs jouant un rôle dans la prévention du risque d'incendie et d'explosion, notamment :
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <ul>
+      <li>
+       - les mesures des températures de régulation (TIC) et de sécurité (T.S.A.H.) de l'air de pulvérisation,
+      </li>
+      <li>
+       - les dispositifs assurant l'asservissement du chauffage de pulvérisation et de l'admission du produit à la température de l'air seront essayés et étalonnés périodiquement. Les rapports d'essais seront tenus à la disposition de l'inspecteur des installations classées.
+      </li>
+     </ul>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     L'installation sera, pendant ses périodes de fonctionnement, sous la surveillance constante et directe de préposés qualifiés.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     L'industriel fournira à l'inspection des installations classées un certificat, visé par l'organisme qui a étudié le risque d'explosion, certifiant que l'installation répond aux recommandations qu'il a formulées.
+    </div>
+    <div data-number="8" data-spec="alinea">
+     L'inspection des installations classées pourra demander que soit vérifié périodiquement le maintien des caractéristiques du produit en matière d'incendie et d'explosion.
+    </div>
+    <div data-number="9" data-spec="alinea">
+     L'appareil sera maintenu en constant état de propreté interne.
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="Contrôle matière" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 7 : Contrôle matière
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Un bilan matière sera établi pour chaque charge, avec indication de la précision de mesure. Ce bilan sera consigné dans un registre tenu à la disposition de l'inspection des installations classées.
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      - 6 -
+     </div>
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 8 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les conditions fixées par les articles précédents ne peuvent en aucun cas ni à aucune époque, faire obstacle à l'application des dispositions du Titre III du Livre II du
+     <a data-spec="document_reference" data-title="Code du travail" data-type="code">
+      Code du Travail
+     </a>
+     (hygiène et sécurité) ainsi qu'à celles des règlements d'administration publique pris en application de l'
+     <a data-spec="section_reference" data-start_num="L231-2" data-type="article">
+      article L.231-2
+     </a>
+     de ce même Code.
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 9 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dans le cas où l'établissement changerait d'exploitant, le nouvel exploitant ou son représentant devrait en faire la déclaration au Préfet dans le mois suivant la prise de possession.
+    </div>
+   </section>
+   <section data-number="10" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 10 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'administration se réserve la faculté de prescrire ultérieurement toutes les mesures que le fonctionnement ou la transformation dudit établissement rendrait nécessaires dans l'intérêt de la salubrité et de la sécurité publiques et ce, sans que l'exploitant puisse prétendre de ce chef à aucune indemnité ou à aucun dédommagement.
+    </div>
+   </section>
+   <section data-number="11" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 11 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les droits des tiers sont et demeurent expressément réservés.
+    </div>
+   </section>
+   <section data-number="12" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 12 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le Secrétaire Général du Haut-Rhin, le Sous-Préfet, commissaire adjoint de la République de l'arrondissement de MULHOUSE, le Maire de VILLAGE-NEUF et les inspecteurs des installations classées, sont chargés, chacun en ce qui le concerne, de veiller à l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     énumérant notamment les prescriptions auxquelles l'installation est soumise sera affiché à la mairie pendant une durée minimum d'un mois et affiché en permanence de façon visible dans l'installation par les soins du bénéficiaire de l'autorisation.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Fait à COLMAR, le 31 août 1982
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour ampliation
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le Chef de Bureau Délégué
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Pour le Préfet,
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Commissaire de la République
+    </div>
+    <div data-number="8" data-spec="alinea">
+     et par délégation,
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Le Sous-Préfet, Directeur de Cabinet
+    </div>
+    <div data-number="10" data-spec="alinea">
+     signé : Marc OLLIVIER
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Daniel STEVAUX
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

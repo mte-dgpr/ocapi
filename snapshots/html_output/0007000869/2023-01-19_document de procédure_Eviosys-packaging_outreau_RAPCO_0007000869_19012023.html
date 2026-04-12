@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2023-01-19_document de procédure_Eviosys-packaging_outreau_RAPCO_0007000869_19012023.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET DU PAS-DE-CALAIS
+Liberté Égalité Fraternité
+Direction Régionale de l'Environnement, de l'Aménagement et du Logement des Hauts-de-France
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Unité départementale du Littoral Rue du Pont de Pierre CS60036 59820 GRAVELINES Lille, le 19/01/2023 Rapport de l'inspection des installations classées Partie nominative EVIOSYS PACKAGING France SAS Boulevard Industriel BP 209 OUTREAU 62200 BOULOGNE SUR MER
+    </div>
+    <div>
+     Affaire suivie par : FORTIN Catherine Téléphone : 03 28 23 81 69 Courriel : catherine.fortin@developpement-durable.gouv.fr
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     Références : Equipe_G2\EVIOSYS_ ExCROWN EMBALLAGES FOOD FRANCE_Boulogne sur mer_070.00869\3_AFFAIRES\2021_Dossier de réexamen\EVIOSYS_OUTREAU_RAP_0007000869 - V3
+    </div>
+   </div>
+   <div>
+    OBJET : Mise à jour de certaines prescriptions, dans le cadre du réexamen au titre de la directive IED, au regard des meilleures techniques disponibles pour les installations soumises à la rubrique 3670
+   </div>
+   <div data-spec="identification">
+    <div>
+     N°AIOT GUN Env : 0007000869 REFERENCES :
+    </div>
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="1,18,57" data-spec="segmentation:text_span" data-start="1,18,0">
+      - Articles R.515-58 et R.515-70 du Code de l'Environnement
+     </arretify-segmentation>
+     <arretify-segmentation data-end="1,19,34" data-spec="segmentation:text_span" data-start="1,19,0">
+      - Dossier de réexamen du 13/12/2021
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     44, rue de Tournai - CS 40 259 - 59 019 LILLE Cedex
+Tél. : 03 20 13 48 48 - Fax : 03 20 13 48 78
+Horaires d'ouverture et modalités d'accueil sur : http://www.hauts-de-france.developpement-durable.gouv.fr
+Suivez-nous sur : facebook.com/prefetnord - twitter.com/prefet59 - linkedin.com/company/prefethdf/
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Rédacteur
+    </div>
+   </div>
+   <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+   <div>
+    L'inspectrice de l'environnement Catherine FORTIN
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <th>
+       Vérificateur
+      </th>
+      <th>
+       Approbateur
+      </th>
+     </tr>
+     <tr>
+      <td>
+       L'inspecteur de l'environnement, Spécialité installations classées
+      </td>
+      <td>
+       Marc MANCINI
+       <br/>
+       marc.mancini
+       <br/>
+       Signature numérique de Marc MANCINI
+       <br/>
+       marc.mancini
+       <br/>
+       Date : 2023.01.19
+       <br/>
+       11:36:34 +01'00'
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Anne-sophie CHEVALIER
+      </td>
+      <td>
+       Par délégation
+      </td>
+     </tr>
+    </table>
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET DU PAS-DE-CALAIS
+Liberté Égalité Fraternité
+Direction Régionale de l'Environnement, de l'Aménagement et du Logement des Hauts-de-France
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Unité départementale du Littoral Rue du Pont de Pierre CS60036 59820 GRAVELINES Lille, le 19/01/2023 Rapport de l'Inspection des installations classées OBJET : Mise à jour de certaines prescriptions, dans le cadre du réexamen au titre de la directive IED, au regard des meilleures techniques disponibles pour les installations soumises à la rubrique 3670
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     N°AIOT : 0007000869 REFERENCES :
+    </div>
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="3,9,57" data-spec="segmentation:text_span" data-start="3,9,0">
+      - Articles R.515-58 et R.515-70 du Code de l'Environnement
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,10,34" data-spec="segmentation:text_span" data-start="3,10,0">
+      - Dossier de réexamen du 13/12/2021
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div data-spec="table_of_contents">
+    <div>
+     Sommaire du rapport :
+    </div>
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <td>
+       1)
+      </td>
+      <td>
+       Activités et situation administrative de l'établissement
+      </td>
+      <td>
+      </td>
+     </tr>
+     <tr>
+      <td>
+       2)
+      </td>
+      <td>
+       Cadre réglementaire du réexamen « IED » et de la révision des prescriptions applicables
+      </td>
+      <td>
+      </td>
+     </tr>
+     <tr>
+      <td>
+       3)
+      </td>
+      <td>
+       Instruction du dossier de réexamen
+      </td>
+      <td>
+      </td>
+     </tr>
+     <tr>
+      <td>
+       4)
+      </td>
+      <td>
+       Consultations
+      </td>
+      <td>
+      </td>
+     </tr>
+     <tr>
+      <td>
+       5)
+      </td>
+      <td>
+       Conclusions et propositions de l'Inspection des installations classées
+      </td>
+      <td>
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     44, rue de Tournai - CS 40 259 - 59 019 LILLE Cedex
+Tél. : 03 20 13 48 48 - Fax : 03 20 13 48 78
+Horaires d'ouverture et modalités d'accueil sur : http://www.hauts-de-france.developpement-durable.gouv.fr
+Suivez-nous sur : facebook.com/prefetnord - twitter.com/prefet59 - linkedin.com/company/prefethdf/
+    </div>
+   </div>
+   <a data-page_index="3" data-spec="page_separator">
+   </a>
+   <div>
+    L'exploitant a transmis en date du 13 décembre 2021, un dossier de réexamen suite à la publication des conclusions sur les meilleures techniques disponibles (MTD) pour le BREF STS en date du 09 décembre 2020.
+   </div>
+   <div>
+    Ces MTD ont été retraduites dans l'arrêté ministériel du 03 février 2022 relatif aux meilleures techniques disponibles (MTD) applicables à certaines installations classées du secteur du traitement de surface à l'aide de solvants organiques relevant du régime de l'autorisation au titre des rubriques 3670 ou 3710 (pour lesquelles la charge polluante principale provient d'une ou plusieurs installations relevant de la rubrique 3670) de la nomenclature des installations classées pour la protection de l'environnement.
+   </div>
+   <div>
+    Ces dispositions entreront en vigueur au plus tard le 9 décembre 2024 pour les installations existantes (celles autorisées avant le 9 décembre 2020).
+   </div>
+   <div>
+    Le présent rapport a pour objet de statuer sur le positionnement de l'installation vis-à-vis de ces meilleures techniques, au regard du rapport de réexamen fourni.
+   </div>
+   <div>
+    1 Activités et situation administrative de l'établissement :
+   </div>
+   <div>
+    La société EVIOSYS exploite sur la commune de OUTREAU une installation de fabrication d'emballage métalliques légers. Cet établissement est réglementé par l'arrêté préfectoral n°2019-247 du 24 octobre 2019.
+   </div>
+   <div>
+    Compte tenu de l'évolution de la nomenclature des ICPE et des évolutions du site, les installations classées relèvent des rubriques listées dans le tableau ci-dessous :
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <th>
+       Désignation de l'activité
+      </th>
+      <th>
+       Rubrique ICPE actuelle
+      </th>
+      <th>
+       Régime actuel (*)
+      </th>
+      <th>
+       OBSERVATIONS
+      </th>
+     </tr>
+     <tr>
+      <td>
+       Traitement de surface de matières, d'objets ou de produits à l'aide de solvants organiques, notamment pour les opérations d'apprêt, d'impression, de couchage, de dégraissage, d'imperméabilisation, de collage, de peinture, de nettoyage ou d'imprégnation, avec une capacité de consommation de solvant organique supérieure à 200 tonnes par an
+      </td>
+      <td>
+       3670.2
+      </td>
+      <td>
+       A
+      </td>
+      <td>
+       Rubrique (IED)
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Entrepôts couverts (stockage de matières, produits ou substances combustibles en quantité supérieure à 500 t), le volume des entrepôts étant supérieur à 50 000 m³ et inférieur à 300 000 m³.
+      </td>
+      <td>
+       1510
+      </td>
+      <td>
+       E
+      </td>
+      <td>
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Bois ou matériaux combustibles analogues y compris les produits finis conditionnés et les produits ou déchets répondant à la définition de la biomasse et visés par la rubrique 2910-A, ne relevant pas de la rubrique 1531 (stockage de), à l'exception des établissements recevant du public. Le volume susceptible d'être stocké étant supérieur à 20 000 m³ mais inférieur ou égal à 50 000 m³
+      </td>
+      <td>
+       1532
+      </td>
+      <td>
+       E
+      </td>
+      <td>
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div>
+    A : autorisation ; E : enregistrement ; DC : déclaration avec contrôle périodique ; D : déclaration ; NC : non classée
+   </div>
+   <div>
+    L'établissement est classé IED au titre de la Directive 2010/75/UE du 24 novembre 2010 sur les émissions industrielles au titre de la rubrique suivante : 3670-2.
+   </div>
+   <div>
+    Le périmètre IED de l'établissement, au sens de l'article R. 515-58 du code de l'environnement, est constitué des installations suivantes :
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="4,11,48" data-spec="segmentation:text_span" data-start="4,11,0">
+      - Ensemble des ateliers de traitement de surface,
+     </arretify-segmentation>
+     <a data-page_index="4" data-spec="page_separator">
+     </a>
+     <arretify-segmentation data-end="5,0,72" data-spec="segmentation:text_span" data-start="5,0,0">
+      - préparation des encres et vernis nécessaires au process de fabrication,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="5,1,42" data-spec="segmentation:text_span" data-start="5,1,0">
+      - stockage des matières premières liquides,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="5,2,28" data-spec="segmentation:text_span" data-start="5,2,0">
+      - stockage de produits finis,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="5,3,41" data-spec="segmentation:text_span" data-start="5,3,0">
+      - stockage de cartons et films plastiques,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="5,4,63" data-spec="segmentation:text_span" data-start="5,4,0">
+      - produits chimiques intervenant dans le process de fabrication,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="5,5,21" data-spec="segmentation:text_span" data-start="5,5,0">
+      - stockage de déchets,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="5,6,48" data-spec="segmentation:text_span" data-start="5,6,0">
+      - recharge des engins de manutention électriques,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="5,7,45" data-spec="segmentation:text_span" data-start="5,7,0">
+      - bureaux, sanitaires, vestiaires, cantine...,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="5,8,48" data-spec="segmentation:text_span" data-start="5,8,0">
+      - atelier et stockage de produits de maintenance,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="5,9,11" data-spec="segmentation:text_span" data-start="5,9,0">
+      - chaudière.
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div>
+    Certaines activités visées par l'arrêté préfectoral n'ont pas été retenues dans le périmètre IED :
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="5,11,73" data-spec="segmentation:text_span" data-start="5,11,0">
+      - stockage des matières premières solides car hors périmètre du BREF EFS ;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="5,12,53" data-spec="segmentation:text_span" data-start="5,12,0">
+      - stockage de gaz azote et propane car hors périmètre.
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div>
+    Les dispositions des articles R. 515-58 et suivants du code de l'environnement, issus de la transposition de Directive n° 2010/75/UE du 24/11/10 relative aux émissions industrielles, dite « Directive IED », sont applicables.
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="2" data-spec="section" data-title="Cadre réglementaire du réexamen « IED » et de la révision des prescriptions applicables" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2 Cadre réglementaire du réexamen « IED » et de la révision des prescriptions applicables
+    </h2>
+    <section data-number="2.1" data-spec="section" data-title="Dossier de réexamen" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.1 Dossier de réexamen
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      En application de l'
+      <a data-parent_reference="1" data-spec="section_reference" data-start_num="R515-71" data-type="article">
+       article R. 515-71
+      </a>
+      -I du
+      <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      , en vue de la mise à jour des prescriptions applicables à l'établissement au regard des meilleures techniques disponibles, l'exploitant adresse au préfet un dossier de réexamen dans l'année qui suit la date de publication des décisions concernant les conclusions sur les meilleures techniques disponibles (MTD ou BREF) relatives aux activités couvertes par sa rubrique IED principale.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Au sens de l'
+      <a data-spec="section_reference" data-start_num="R515-61" data-type="article">
+       article R. 515-61
+      </a>
+      , la rubrique principale est la rubrique 3670 et les conclusions sur les meilleures techniques disponibles relatives à la rubrique principale sont celles pour le BREF STS.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Ces conclusions sur les MTD sont parues au sein de la décision d'exécution (UE) 2020/2009 de la commission du 22 juin 2020, publiée au Journal officiel de l'Union européenne le 09 décembre 2020. Par conséquent un dossier de réexamen au regard des meilleures techniques disponibles était attendu de la part de l'exploitant auprès du préfet le 09 décembre 2021 au plus tard.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      L'exploitant a transmis ce dossier au préfet par courrier du 13 décembre 2021.
+     </div>
+    </section>
+    <section data-number="2.2" data-spec="section" data-title="Révision des prescriptions et délais d'application" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.2 Révision des prescriptions et délais d'application
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'
+      <a data-parent_reference="2" data-spec="section_reference" data-start_num="R515-70" data-type="article">
+       article R.515-70
+      </a>
+      -I du
+      <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      dispose quant à lui, que les prescriptions dont sont assortis les arrêtés d'autorisation des installations classées sous une rubrique IED d'un établissement sont réexaminées au regard des meilleures techniques disponibles (MTD) et respectées par l'exploitant, dans un délai de quatre ans à compter de la publication au Journal officiel de l'Union européenne des décisions concernant les nouvelles conclusions sur les MTD relatives à la rubrique principale de l'établissement.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      S'agissant des installations classées concernées par la rubrique IED principale 3670, cette exigence s'applique donc pour le 10 décembre 2024.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Concernant la révision des arrêtés d'autorisation déjà applicables, l'
+      <a data-date="2022-02-03" data-spec="document_reference" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="2022-02-03">
+        3 février 2022
+       </time>
+      </a>
+      relatif aux meilleures techniques disponibles (MTD) applicables à certaines installations classées du secteur du traitement de surface à l'aide de solvants organiques relevant du régime de l'autorisation au titre des rubriques 3670 ou 3710 est venu fixer les prescriptions applicables au titre
+     </div>
+     <a data-page_index="5" data-spec="page_separator">
+     </a>
+     <div data-number="4" data-spec="alinea">
+      de la décision d'exécution (UE) 2018/1147 susvisée aux installations classées soumises à autorisation pour au moins une des rubriques suivantes de la nomenclature susvisée :
+     </div>
+     <div data-number="5" data-spec="alinea">
+      <ul>
+       <li>
+        - 3670,
+       </li>
+       <li>
+        - 3710 (pour lesquelles la charge polluante principale provient d'une ou plusieurs installations relevant de la rubrique 3670)
+       </li>
+      </ul>
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Aussi, sauf demande de dérogation vis-à-vis d'un niveau d'émission associé à une meilleure technique disponible (NEA-MTD) ou demande d'application d'une meilleure technique alternative, il n'y a pas lieu de proposer à Monsieur le préfet un projet d'arrêté préfectoral de prescriptions complémentaires. En effet, l'arrêté ministériel susvisé sera applicable à l'établissement et actera de l'application des MTD pour le traitement de surface à l'aide de solvants organiques au plus tard le 9 décembre 2024.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      3 Instruction du dossier de réexamen :
+     </div>
+    </section>
+    <section data-number="3.1" data-spec="section" data-title="Documents de référence sur les meilleures techniques disponibles applicables" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      3.1 Documents de référence sur les meilleures techniques disponibles applicables
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Au vu des rubriques IED applicables à l'établissement, il est visé par les conclusions sur les Meilleures Techniques Disponibles et les documents BREFs (Best Reference Documents) sectoriels suivants :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - BREF STS (Surface Treatment using organic solvents) pour l'activité de traitement de surface à l'aide de solvants organiques
+       </li>
+       <li>
+        - BREFs transverses EFS pour le cas des liquides pour les missions dues au stockage des matières dangereuses ou en vrac.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Du fait des activités de l'exploitant, les MTD à prendre en compte sont les MTD génériques concernant le traitement de surface au moyen de solvants organiques, et les MTD spécifiques pour
+      <q>
+       le revêtement et l'impression d'emballages métalliques
+      </q>
+      .
+     </div>
+    </section>
+    <section data-number="3.2" data-spec="section" data-title="Comparaison du fonctionnement de l'installation par rapport aux meilleures techniques disponibles (MTD)" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.2 Comparaison du fonctionnement de l'installation par rapport aux meilleures techniques disponibles (MTD)
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le dossier de l'exploitant présente une comparaison du fonctionnement de son installation par rapport aux MTD décrites dans les conclusions sur les MTD pour le BREF STS et EFS.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Plus précisément, les MTD qui ont été prises en compte par l'exploitant sont :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - les MTD 1 à 23, dites « génériques », reprises dans le chapitre 1.1 des conclusions MTD, qui comprend notamment :
+       </li>
+       <li>
+        - 1.1.1. Système de management environnemental
+       </li>
+       <li>
+        - 1.1.2. Performance environnementale globale
+       </li>
+       <li>
+        - 1.1.3. Choix des matières premières
+       </li>
+       <li>
+        - 1.1.4. Stockage et manutention des matières premières
+       </li>
+       <li>
+        - 1.1.5. Distribution des matières premières
+       </li>
+       <li>
+        - 1.1.6. Application de revêtements
+       </li>
+       <li>
+        - 1.1.7. Séchage/durcissement
+       </li>
+       <li>
+        - 1.1.8. Nettoyage
+       </li>
+       <li>
+        - 1.1.9. Surveillance
+       </li>
+       <li>
+        - 1.1.10. Émissions lors d'OTNOC
+       </li>
+       <li>
+        - 1.1.11. Émissions dans les gaz résiduaires
+       </li>
+      </ul>
+     </div>
+     <a data-page_index="6" data-spec="page_separator">
+     </a>
+     <section data-number="1.1.12" data-spec="section" data-title="Efficacité énergétique" data-type="unknown">
+      <h4 data-error_codes="non_contiguous_titles" data-level="2" data-spec="section_title">
+       1.1.12. Efficacité énergétique
+      </h4>
+     </section>
+     <section data-number="1.1.13" data-spec="section" data-title="Consommation d'eau et production d'eaux usées" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       1.1.13. Consommation d'eau et production d'eaux usées
+      </h4>
+     </section>
+     <section data-number="1.1.14" data-spec="section" data-title="Rejets dans l'eau" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       1.1.14. Rejets dans l'eau
+      </h4>
+     </section>
+     <section data-number="1.1.15" data-spec="section" data-title="Gestion des déchets" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       1.1.15. Gestion des déchets
+      </h4>
+     </section>
+     <section data-number="1.1.16" data-spec="section" data-title="Odeurs" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       1.1.16. Odeurs
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       <ul>
+        <li>
+         - les MTD spécifiques, relatives aux installations de revêtement et impression d'emballage métalliques, définies dans la section 1.10 conclusions MTD et au point 3.9 de l'
+         <a data-date="2022-02-03" data-spec="document_reference" data-type="arrete">
+          arrêté du
+          <time data-spec="date" datetime="2022-02-03">
+           3 février 2022
+          </time>
+         </a>
+         relatif aux meilleures techniques disponibles (MTD).
+        </li>
+       </ul>
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Le dossier de réexamen transmis par l'exploitant ne comporte pas de demande de dérogation au sens de l'
+       <a data-parent_reference="3" data-spec="section_reference" data-start_num="R515-68" data-type="article">
+        article R. 515-68
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+        Code de l'Environnement
+       </a>
+       .
+      </div>
+     </section>
+    </section>
+    <section data-number="3.3" data-spec="section" data-title="Examen des MTD applicables à l'exploitant :" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      3.3 Examen des MTD applicables à l'exploitant :
+     </h3>
+     <section data-number="3.3.1" data-spec="section" data-title="MTD génériques BREF STS" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       3.3.1 MTD génériques BREF STS
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les MTD génériques suivantes sont applicables à l'installation :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          N° de la MTD
+         </th>
+         <th>
+          Objet de la MTD
+         </th>
+         <th>
+          Réf. AMPG
+         </th>
+         <th>
+          MTD applicables
+         </th>
+        </tr>
+        <tr>
+         <td>
+          1
+         </td>
+         <td>
+          Système de Management Environnemental
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.1" data-type="unknown">
+           § 2.1
+          </a>
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          2
+         </td>
+         <td>
+          Performance environnementale globale
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.2" data-type="unknown">
+           § 2.2
+          </a>
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          3
+         </td>
+         <td>
+          Choix des matières premières - Techniques pour éviter ou réduire l'incidence sur l'environnement de la consommation de matières premières
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.3" data-type="unknown">
+           § 2.3
+          </a>
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          4
+         </td>
+         <td>
+          Choix des matières premières - Techniques pour réduire la consommation de solvants, les émissions de COV et l'incidence globale sur l'environnement de la consommation de matières premières
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.3" data-type="unknown">
+           § 2.3
+          </a>
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          5
+         </td>
+         <td>
+          Stockage et manutention des matières premières - Techniques pour éviter ou réduire les émissions diffuses de COV lors du stockage et de la manipulation de matières contenant des solvants et/ou de matières dangereuses
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.4" data-type="unknown">
+           § 2.4
+          </a>
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          6
+         </td>
+         <td>
+          Distribution des matières premières - Techniques pour réduire la consommation de matières premières et les émissions de COV
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.5" data-type="unknown">
+           § 2.5
+          </a>
+         </td>
+         <td>
+          b) et c) applicables
+         </td>
+        </tr>
+        <tr>
+         <td>
+          7
+         </td>
+         <td>
+          Application de revêtements - Techniques pour réduire la consommation de matières premières et l'incidence globale sur l'environnement des procédés d'application de revêtements
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.6" data-type="unknown">
+           § 2.6
+          </a>
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          8
+         </td>
+         <td>
+          Séchage/durcissement - Techniques pour réduire la consommation énergétique et l'incidence globale sur l'environnement des procédés de séchage/durcissement
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.7" data-type="unknown">
+           § 2.7
+          </a>
+         </td>
+         <td>
+          e) et f) applicables
+         </td>
+        </tr>
+        <tr>
+         <td>
+          9
+         </td>
+         <td>
+          Nettoyage - Techniques pour réduire les émissions de COV résultant des procédés de nettoyage
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.8" data-type="unknown">
+           § 2.8
+          </a>
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          10
+         </td>
+         <td>
+          Surveillance - Bilan massique des solvants
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.9.1" data-type="unknown">
+           § 2.9.1
+          </a>
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+       </table>
+      </div>
+      <a data-page_index="7" data-spec="page_separator">
+      </a>
+      <div data-number="3" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          11
+         </th>
+         <th>
+          Surveillance - Émissions dans les gaz résiduaires
+         </th>
+         <th>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.9.2" data-type="unknown">
+           § 2.9.2
+          </a>
+         </th>
+         <th>
+          X
+         </th>
+        </tr>
+        <tr>
+         <td>
+          12
+         </td>
+         <td>
+          Surveillance - Rejets dans l'eau
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.9.3" data-type="unknown">
+           § 2.9.3
+          </a>
+         </td>
+         <td>
+          Non conforme d'après l'exploitant
+         </td>
+        </tr>
+        <tr>
+         <td>
+          13
+         </td>
+         <td>
+          Émissions lors d'OTNOC – Techniques pour réduire la fréquence d'OTNOC et réduire les émissions lors d'OTNOC
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.9.4" data-type="unknown">
+           § 2.9.4
+          </a>
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          14
+         </td>
+         <td>
+          Émissions dans les gaz résiduaires de COV –Techniques pour réduire les émissions de COV dans les zones de production et de stockage
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.9.5.1.1" data-type="unknown">
+           § 2.9.5.1.1
+          </a>
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          15
+         </td>
+         <td>
+          Émissions dans les gaz résiduaires de COV – Techniques pour réduire les émissions de COV dans les gaz résiduaires et utiliser plus efficacement les ressources
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.9.5.1.2" data-type="unknown">
+           § 2.9.5.1.2
+          </a>
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          16
+         </td>
+         <td>
+          Émissions dans les gaz résiduaires de COV – Techniques pour réduire la consommation énergétique du système de réduction des COV
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.9.5.1.3" data-type="unknown">
+           § 2.9.5.1.3
+          </a>
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          17
+         </td>
+         <td>
+          Émissions dans les gaz résiduaires de Nox et de CO – Techniques pour réduire les émissions de NOx dans les gaz résiduaires tout en limitant les émissions de CO dues au traitement thermique des solvants contenus dans les effluents gazeux
+          <br/>
+          NEA-MTD pour les émissions de NOx et Niveau d'émission indicatif pour le CO
+         </td>
+         <td>
+          /
+          <br/>
+          Les NEA-MTD sont reprises dans les secteurs spécifiques
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          18
+         </td>
+         <td>
+          Émissions dans les gaz résiduaires de poussières – Techniques pour réduire les émissions de poussières dans les gaz résiduaires des procédés de préparation de la surface, de découpe, d'application de revêtement et de finition dans les secteurs et pour les procédés énumérés
+          <br/>
+          NEA-MTD pour les poussières
+         </td>
+         <td>
+          /
+          <br/>
+          Les NEA-MTD sont reprises dans les secteurs spécifiques
+         </td>
+         <td>
+          Non concerné
+         </td>
+        </tr>
+        <tr>
+         <td>
+          19
+         </td>
+         <td>
+          Efficacité énergétique – Techniques pour utiliser efficacement l'énergie
+          <br/>
+          NPEA-MTD pour la consommation spécifique d'énergie
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.9.6" data-type="unknown">
+           § 2.9.6
+          </a>
+          <br/>
+          Les NPEA-MTD sont reprises dans les secteurs spécifiques
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          20
+         </td>
+         <td>
+          Consommation d'eau et production d'eaux usées – Techniques pour réduire la consommation d'eau et la production d'eaux usées par les procédés aqueux (par exemple, dégraissage, nettoyage, traitement de surface, épuration par voie humide)
+          <br/>
+          NPEA-MTD pour la consommation spécifique d'eau
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.9.7" data-type="unknown">
+           § 2.9.7
+          </a>
+          <br/>
+          Les NPEA-MTD sont reprises dans les secteurs spécifiques
+         </td>
+         <td>
+          Non concerné
+         </td>
+        </tr>
+        <tr>
+         <td>
+          21
+         </td>
+         <td>
+          Rejets dans l'eau – Techniques pour réduire les rejets dans l'eau et/ou de faciliter la réutilisation et le recyclage de l'eau résultant des procédés aqueux (dégraissage, nettoyage, traitement de surface, épuration par voie humide, etc.)
+          <br/>
+          NEA-MTD pour les rejets directs dans une masse d'eau réceptrice
+          <br/>
+          NEA-MTD pour les rejets indirects dans une masse d'eau réceptrice
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.9.8" data-type="unknown">
+           § 2.9.8
+          </a>
+          <br/>
+          Les NEA-MTD sont reprises dans les secteurs spécifiques
+         </td>
+         <td>
+          Non concerné
+         </td>
+        </tr>
+        <tr>
+         <td>
+          22
+         </td>
+         <td>
+          Gestion des déchets - Techniques pour réduire la quantité de déchets à éliminer
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.9.9" data-type="unknown">
+           § 2.9.9
+          </a>
+         </td>
+         <td>
+          X
+         </td>
+        </tr>
+        <tr>
+         <td>
+          23
+         </td>
+         <td>
+          Odeurs – Plan de gestion des odeurs
+         </td>
+         <td>
+          Annexe
+          <a data-spec="section_reference" data-start_num="2.9.10" data-type="unknown">
+           § 2.9.10
+          </a>
+         </td>
+         <td>
+          Non concerné
+         </td>
+        </tr>
+       </table>
+      </div>
+      <a data-page_index="8" data-spec="page_separator">
+      </a>
+      <div data-number="4" data-spec="alinea">
+       Plus particulièrement, on peut relever que le dossier fourni, positionne clairement les installations par rapport aux MTD, et argumente de manière suffisamment précise le fait que l'établissement n'est pas concerné par certaines de ces MTDs.
+      </div>
+      <div data-number="5" data-spec="alinea">
+       Pour la MTD 10 : bilan massique des solvants :
+      </div>
+      <div data-number="6" data-spec="alinea">
+       Précision sur les émissions de COV :
+      </div>
+      <div data-number="7" data-spec="alinea">
+       Si les émissions totales de COV du bilan massique ne sont pas atteintes (tableau 22), le BREF prévoit la possibilité d'utiliser les NEA-MTD qui figurent dans les tableaux 23 et 24.
+      </div>
+      <div data-number="8" data-spec="alinea">
+       <ul>
+        <li>
+         - les valeurs des NEA-MTD pour les émissions de COVt sont les suivantes :
+        </li>
+       </ul>
+      </div>
+      <div data-number="9" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          paramètre
+         </th>
+         <th>
+          unité
+         </th>
+         <th>
+          NEA-MTD (moyenne annuelle)
+         </th>
+         <th>
+         </th>
+        </tr>
+        <tr>
+         <td>
+          Total des émissions de COV calculé d'après le bilan massique des solvants
+         </td>
+         <td>
+          g de COV par m³ de surface revêtue/imprimée
+         </td>
+         <td>
+          &lt; 1 – 3,5
+         </td>
+         <td>
+          Tableau 22
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Émissions diffuses de COV calculées d'après le bilan massique des solvants
+         </td>
+         <td>
+          Pourcentage (%) des solvants utilisés à l'entrée
+         </td>
+         <td>
+          &lt; 1 - 12
+         </td>
+         <td>
+          Tableau 23
+         </td>
+        </tr>
+        <tr>
+         <td>
+          COVT
+         </td>
+         <td>
+          Mg C/Nm³
+         </td>
+         <td>
+          1 - 20
+         </td>
+         <td>
+          Tableau 24
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="10" data-spec="alinea">
+       Pour le total des émissions de COV calculé d'après le bilan massique des solvants, la NEA-MTD &amp;lt; 3,5 n'est pas atteinte mais :
+      </div>
+      <div data-number="11" data-spec="alinea">
+       <ul>
+        <li>
+         - pour les émissions diffuses de COV calculées d'après le bilan massique des solvants, le bilan massique des deux dernières années montre un pourcentage d'émissions diffus d'environ 4 % donc bien inférieur au 12 % donc conforme au NEA-MTD.
+        </li>
+        <li>
+         - Pour les émissions de COVt la dernière mesure réalisée en juin 2021 montre une valeur de 13,7 mg/Nm³. L'arrêté préfectoral impose une VLE de 15 mg/Nm³ ce qui est conforme au NEA-MTD.
+        </li>
+       </ul>
+      </div>
+      <div data-number="12" data-spec="alinea">
+       Il est à noter que dans l'arrêté du site, une erreur a été relevée. La valeur limite pour le paramètre
+       <q>
+        phénol+crésol+formaldéhyde+xylébol
+       </q>
+       est de 20 mg/Nm³ or elle doit être de 2 mg/Nm³ conformément à l'
+       <a data-date="1998-02-02" data-spec="document_reference" data-type="arrete-ministeriel">
+        arrêté ministériel du
+        <time data-spec="date" datetime="1998-02-02">
+         2 février 1998
+        </time>
+       </a>
+       relatif aux prélèvements et à la consommation d'eau ainsi qu'aux émissions de toute nature des installations classées pour la protection de l'environnement soumises à autorisation.
+      </div>
+      <div data-number="13" data-spec="alinea">
+       Pour la MTD 12 : rejets dans l'eau.
+      </div>
+      <div data-number="14" data-spec="alinea">
+       L'exploitant se déclare non conforme car il n'assure pas le suivi de ses rejets dans l'eau ; or, il n'y a pas de rejets d'eau usée sur le site. Il s'agit donc d'une non-conformité sans enjeux.
+      </div>
+      <div data-number="15" data-spec="alinea">
+       Pour la MTD 19 : efficacité énergétique
+      </div>
+      <div data-number="16" data-spec="alinea">
+       <ul>
+        <li>
+         - le plan d'efficacité énergétique est revu tous les ans lors de la revue de direction et est intégré au système de management environnemental décrit dans la MTD1.
+        </li>
+        <li>
+         - Il réalise un bilan énergétique dans le cadre de sa revue de direction. Ce bilan permet la définition d'objectifs mesurables et atteignables d'une année sur l'autre. Le dernier audit a été réalisé le 19 février 2021 et permet de déployer un plan d'action et d'amélioration de l'énergie sur 4 ans. Parmi les 7 actions prioritaires identifiées, 3 ont déjà été réalisées :
+        </li>
+        <li>
+         - relamping par des LED de 54 kW et 150 kW ;
+        </li>
+        <li>
+         - récupération de chaleur sur le RTO ;
+        </li>
+        <li>
+         - récupération de l'air chaud de l'étuve pour l'injecter au niveau des brûleurs.
+        </li>
+       </ul>
+      </div>
+      <div data-number="17" data-spec="alinea">
+       Tous les mois un comparatif avec l'année précédente sur la consommation d'énergie ramenée à l'heure de production est faite.
+      </div>
+      <a data-page_index="9" data-spec="page_separator">
+      </a>
+     </section>
+     <section data-number="3.3.2" data-spec="section" data-title="BREF EFS" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       3.3.2 BREF EFS
+      </h4>
+     </section>
+    </section>
+    <section data-number="3.4" data-spec="section" data-title="Observations de l'inspection" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.4 Observations de l'inspection
+     </h3>
+    </section>
+    <section data-number="3.5" data-spec="section" data-title="Complétude du dossier" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.5 Complétude du dossier
+     </h3>
+     <section data-number="3.5.1" data-spec="section" data-title="Périmètre IED" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       3.5.1 Périmètre IED
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Le site est concerné uniquement par le point 1
+       <q>
+        .2 Substances dangereuses conditionnées
+       </q>
+       . Le site est conforme aux MTD pour les liquides et gaz liquéfiés sur les items qui sont :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <ul>
+        <li>
+         - sécurité et gestion des risques
+        </li>
+        <li>
+         - Formation et responsabilité
+        </li>
+        <li>
+         - zone de stockage
+        </li>
+        <li>
+         - séparation et isolement
+        </li>
+        <li>
+         - confinement des fuites et des produits extincteurs contaminés
+        </li>
+        <li>
+         - équipement de lutte contre l'incendie
+        </li>
+        <li>
+         - prévention de l'inflammation.
+        </li>
+       </ul>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Les installations sont déjà en conformité vis-à-vis de toutes les meilleures techniques disponibles qui lui sont applicables.
+      </div>
+      <div data-number="4" data-spec="alinea">
+       Il ressort que l'exploitant a réalisé son dossier de réexamen dans les formes prévues par le guide pour la simplification du réexamen édité par la direction générale de la prévention des risques. En effet, s'y trouvent les éléments suivants :
+      </div>
+      <div data-number="5" data-spec="alinea">
+       <ul>
+        <li>
+         - Le périmètre IED et les conclusions MTD à considérer dans le réexamen,
+        </li>
+        <li>
+         - L'avis de l'exploitant sur la nécessité de revoir les conditions d'autorisation,
+        </li>
+        <li>
+         - Un examen comparatif à l'ensemble des MTD applicables aux installations de l'établissement a été réalisé par l'exploitant,
+        </li>
+        <li>
+         - Le rapport de base.
+        </li>
+       </ul>
+      </div>
+      <div data-number="6" data-spec="alinea">
+       L'emprise du périmètre IED est constitué uniquement des installations visées par une rubrique 3XXX et des installations ou équipements :
+      </div>
+      <div data-number="7" data-spec="alinea">
+       <ul>
+        <li>
+         - s'y rapportant directement ;
+        </li>
+        <li>
+         - exploités sur le même site ;
+        </li>
+        <li>
+         - liés techniquement à ces installations ;
+        </li>
+        <li>
+         - et susceptibles d'avoir des incidences sur les émissions et la pollution.
+        </li>
+       </ul>
+      </div>
+      <div data-number="8" data-spec="alinea">
+       Le périmètre IED est détaillé dans le tableau n°11 du dossier de réexamen.
+      </div>
+      <div data-number="9" data-spec="alinea">
+       Il concerne donc le process de fabrication, les encres et vernis, le stockage de matières premières (hors matières solides), le stockage de produits finis, le stockage des emballages, le stockage des produits chimiques, l'atelier déchets, le local de charge, les bureaux et locaux sociaux, l'atelier de maintenance et stockage de produits de maintenance et la chaudière.
+      </div>
+      <div data-number="10" data-spec="alinea">
+       Le BREF transversal EFS a été analysé en complément du BREF principal conformément aux guides d'interprétation. Le dossier de réexamen présente le positionnement vis-à-vis des conclusions sur les MTD de la rubrique principale du site ainsi que le BREF transversal.
+      </div>
+      <div data-number="11" data-spec="alinea">
+       En conclusion de ce dossier, le réexamen des conditions d'autorisation du site n'est pas concerné
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        3.5.2 Avis de l'exploitant sur la nécessité de revoir les conditions d'autorisation
+       </div>
+      </div>
+      <a data-page_index="10" data-spec="page_separator">
+      </a>
+      <div data-number="12" data-spec="alinea">
+       par l'un des cas suivants :
+      </div>
+      <div data-number="13" data-spec="alinea">
+       <ul>
+        <li>
+         - la pollution causée est telle qu'il convient de réviser les valeurs limites d'émissions fixées dans l'arrêté d'autorisation ou d'inclure de nouvelles valeurs limites d'émission ;
+        </li>
+        <li>
+         - la sécurité de l'exploitation requiert le recours à d'autres techniques ;
+        </li>
+        <li>
+         - lorsqu'il est nécessaire de respecter une norme de qualité environnementale, nouvelle ou révisée.
+        </li>
+       </ul>
+      </div>
+      <div data-number="14" data-spec="alinea">
+       L'actualisation des prescriptions de l'arrêté préfectoral de la société EVIOSYS n'est donc pas nécessaire.
+      </div>
+     </section>
+     <section data-number="3.5.3" data-spec="section" data-title="Rapport de base" data-type="unknown">
+      <h4 data-error_codes="non_contiguous_titles" data-level="2" data-spec="section_title">
+       3.5.3 Rapport de base
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       L'étude réalisée constitue un état initial de la qualité des sols et des eaux souterraines au droit de l'installation IED. L'émission de recommandations n'est pas l'objectif du rapport de base, il est préconisé néanmoins le confinement ou l'élimination des sables souillés stockés au Nord du site, l'élimination du dernier transformateur aux PCB, le raccord des eaux vers la STEP et la mise en place de débourbeur/déshuileur pour collecter les eaux pluviales.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       L'exploitant a fourni à l'inspection les justificatifs d'élimination du dernier transformateur aux PCB. Pour les sables souillés, les zones n'existent plus et sont le lieu de l'implantation d'installation de VEOLIA et une autre zone n'est pas dans le périmètre de l'installation. Pour le raccordement des eaux, le site fait l'objet actuellement d'études et d'identification des réseaux (site ancien) pour une séparation des différents réseaux.
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Il n'est pas nécessaire d'imposer un suivi environnemental sur le site que ce soit sur les eaux souterraines ou les sols.
+      </div>
+     </section>
+    </section>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Consultations" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     4 Consultations
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="L515-29-1" data-type="article">
+      article L. 515-29-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+      Code de l'Environnement
+     </a>
+     prévoit deux cas de figure rendant nécessaire la consultation du public et des communes concernées :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - l'exploitant demande une dérogation (vis-à-vis du respect des NEA-MTD) ;
+      </li>
+      <li>
+       - le réexamen a été déclenché à l'initiative de l'autorité administrative, en raison d'un impact environnemental avéré et important.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'établissement n'est pas concerné par ces situations. Dès lors, il n'a pas été réalisé de consultation externe. En application de l'
+     <a data-parent_reference="5" data-spec="section_reference" data-start_num="R181-45" data-type="article">
+      article R.181-45
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="5" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , considérant que le dossier de réexamen ne comporte pas de demande de dérogation, prévu par l'
+     <a data-spec="section_reference" data-start_num="R515-68" data-type="article">
+      article R.515-68
+     </a>
+     -III relatif à la demande de dérogation vis-à-vis d'un niveau d'émission associé à une meilleure technique disponible (NEA-MTD) ; mais également que aucune modification n'est proposée (en matière de prescriptions qui va dans le sens d'un durcissement/pas de demande d'application d'une meilleure technique disponible alternative/on ne se situe pas dans un cas du R. 515-70 III), il est proposé à monsieur le Préfet du Pas-de-Calais de ne pas solliciter l'avis du Conseil Départemental de l'Environnement et des Risques Sanitaires et Technologiques.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Conclusions et propositions de l'Inspection des installations classées" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     5 Conclusions et propositions de l'Inspection des installations classées
+    </h2>
+    <a data-page_index="11" data-spec="page_separator">
+    </a>
+    <div data-number="1" data-spec="alinea">
+     Au regard de l'examen du dossier de réexamen rendu par l'exploitant ainsi que de ses compléments, et étant donné la réglementation nationale déjà applicable, nous proposons toutefois à Monsieur le Préfet du Pas-de-Calais de prendre un arrêté préfectoral complémentaire afin de mettre à jour les valeurs limites des composés organiques volatils dans les rejets atmosphériques du site.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     De plus, il peut être rappelé à l'exploitant que l'Arrêté Ministériel de Prescriptions Générales du 03 février 2022 relatif aux meilleures techniques disponibles (MTD) applicables à certaines installations classées du secteur du traitement de surface à l'aide de solvants organiques relevant du régime de l'autorisation au titre des rubriques 3670 ou 3710 (pour lesquelles la charge polluante principale provient d'une ou plusieurs installations relevant de la rubrique 3670) de la nomenclature des installations classées pour la protection de l'environnement lui sera applicable à partir du 9 décembre 2024.
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

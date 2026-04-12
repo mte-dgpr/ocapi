@@ -1,0 +1,2262 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2023-02-06_document de procédure_85_Dossier-Reexamen-IED_0058503946.pdf.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div>
+    Dossier de réexamen IED
+   </div>
+   <div>
+    Code AIOT : 0058503946
+   </div>
+   <div>
+    Etat du dossier : Transmis préfecture
+   </div>
+   <div>
+    Date de transmission : 07-05-19
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Dossier de réexamen IED - Transmis préfecture - 07-05-19
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Dossier de réexamen IED - Transmis préfecture - 07-05-19
+2 / 18
+    </div>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Initialisation éleveur" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     1. Initialisation éleveur
+    </h2>
+    <section data-number="1.1" data-spec="section" data-title="Informations générales de l'exploitation" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.1. Informations générales de l'exploitation
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Code AIOT : 0058503946
+     </div>
+     <div data-number="2" data-spec="alinea">
+      SIRET de l'établissement concerné : 52447939100012
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Code postal : 85700
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Ville : MENOMBLET
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Département : 85
+     </div>
+    </section>
+    <section data-number="1.2" data-spec="section" data-title="Situation administrative" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.2. Situation administrative
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Activités soumises aux rubriques 3000 et suivantes de la nomenclature ICPE :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <table>
+       <tr>
+        <td>
+        </td>
+        <td>
+         Nombre d'emplacements maximal autorisés par arrêté préfectoral (AP)
+        </td>
+        <td>
+         Situation actuelle (si différente du dernier AP)
+        </td>
+       </tr>
+       <tr>
+        <td>
+         3660-a : élevage intensif de volailles (plus de 40 000 emplacements)
+        </td>
+        <td>
+         171176.0
+        </td>
+        <td>
+         141176.0
+        </td>
+       </tr>
+       <tr>
+        <td colspan="3">
+         Autres rubriques de la nomenclature ICPE auxquelles l'établissement est soumis :
+        </td>
+       </tr>
+       <tr>
+        <td>
+         2111 : élevage de volailles, gibier à plumes (animaux-équivalents)
+        </td>
+        <td>
+         120000.0
+        </td>
+        <td>
+         120000.0
+        </td>
+       </tr>
+      </table>
+     </div>
+    </section>
+    <section data-number="1.3" data-spec="section" data-title="Répartition par espèce ou catégorie de volailles" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.3. Répartition par espèce ou catégorie de volailles
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      <table>
+       <tr>
+        <td>
+        </td>
+        <td>
+         Nombre d'emplacements autorisé
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Poules pondeuses
+        </td>
+        <td>
+         Non autorisé
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Poulettes ou reproducteurs
+        </td>
+        <td>
+         Non autorisé
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Poulets de chair
+        </td>
+        <td>
+         141176
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Canards
+        </td>
+        <td>
+         Non autorisé
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Dindes
+        </td>
+        <td>
+         40000
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Autres volailles (pintades, oies, cailles, pigeons, faisans ou perdrix)
+        </td>
+        <td>
+         Non autorisé
+        </td>
+       </tr>
+      </table>
+     </div>
+    </section>
+    <section data-number="1.4" data-spec="section" data-title="Répartition des porcs par stade de croissance de vos porcs" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.4. Répartition des porcs par stade de croissance de vos porcs
+     </h3>
+     <a data-page_index="2" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       Dossier de réexamen IED - Transmis préfecture - 07-05-19
+3 / 18
+      </div>
+     </div>
+     <div data-number="1" data-spec="alinea">
+      <table>
+       <tr>
+        <td>
+        </td>
+        <td>
+         Nombre d'emplacements autorisé
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Porcelets en post-sevrage
+        </td>
+        <td>
+         Non autorisé
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Porcs de production
+        </td>
+        <td>
+         Non autorisé
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Truies
+        </td>
+        <td>
+         Non autorisé
+        </td>
+       </tr>
+      </table>
+     </div>
+    </section>
+    <section data-number="1.5" data-spec="section" data-title="Bâtiments d'hébergement" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.5. Bâtiments d'hébergement
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      <table>
+       <tr>
+        <td>
+         Intitulé des bâtiments d'hébergement
+        </td>
+        <td>
+         Statut
+        </td>
+       </tr>
+       <tr>
+        <td>
+         V2
+        </td>
+        <td>
+         existant
+        </td>
+       </tr>
+       <tr>
+        <td>
+         V3
+        </td>
+        <td>
+         existant
+        </td>
+       </tr>
+       <tr>
+        <td>
+         V1
+        </td>
+        <td>
+         existant
+        </td>
+       </tr>
+      </table>
+     </div>
+    </section>
+    <section data-number="1.6" data-spec="section" data-title="Gestion des effluents" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.6. Gestion des effluents
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      <table>
+       <tr>
+        <td>
+        </td>
+        <td>
+         Oui/Non
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Est-ce que l'installation génère des effluents solides (fumier, fientes, compost, fraction solide de lisier ou de digestat...) ?
+        </td>
+        <td>
+         Oui
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Est-ce que l'installation génère des effluents liquides (lisier, digestat de méthanisation, fraction liquide de digestat...) ?
+        </td>
+        <td>
+         Non
+        </td>
+       </tr>
+       <tr>
+        <td colspan="2">
+         Stockage des effluents
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Est-ce que ces effluents d'élevage sont stockés sur votre installation ou en bout de champ ? (Dans le cas contraire, les effluents sont transférés sans stockage hors de l'installation chez un prestataire.)
+        </td>
+        <td>
+         Non
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Si Oui, ces effluents liquides sont-ils stockés dans une fosse extérieure en dur ?
+        </td>
+        <td>
+         Non
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Si Oui, ces effluents liquides sont-ils stockés dans une lagune ou une fosse géomembrane ?
+        </td>
+        <td>
+         Non
+        </td>
+       </tr>
+       <tr>
+        <td colspan="2">
+         Traitement des effluents
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Est-ce que les effluents d'élevage font l'objet d'un traitement au sein de l'installation (compostage, méthanisation, séparation de phase, nitrification-dénitrification, séchage) ?
+        </td>
+        <td>
+         Non
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Est-ce que les effluents d'élevage sont intégralement valorisés sous forme de produits normalisés (NFU 44-051 ou NFU 42-001) ou homologués ? (L'installation ne dispose donc d'aucun plan d'épandage.)
+        </td>
+        <td>
+         Oui
+        </td>
+       </tr>
+      </table>
+     </div>
+     <a data-page_index="3" data-spec="page_separator">
+     </a>
+     <div data-number="2" data-spec="alinea">
+      <table>
+       <tr>
+        <th colspan="2">
+         Épandage des effluents
+        </th>
+       </tr>
+       <tr>
+        <td>
+         Est-ce que les effluents d’élevage (bruts ou traités) font l’objet d’un épandage (dans le cadre d’un plan d’épandage) ?
+        </td>
+        <td>
+         Non
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Si Oui, le plan d'épandage comprend-il des parcelles gérés en propre par l'éleveur soumis au réexamen ?
+        </td>
+        <td>
+         Non
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Si Oui, le plan d'épandage comprend-il des parcelles mises à disposition par des prêteurs ?
+        </td>
+        <td>
+         Non
+        </td>
+       </tr>
+       <tr>
+        <th colspan="2">
+         Traitement de l'air
+        </th>
+       </tr>
+       <tr>
+        <td>
+         Est-ce que l’installation est équipée d’un ou plusieurs laveurs d’air (laveur d'air à l'acide, biolaveur, système d'épuration d'air à 2 ou 3 étages)?
+        </td>
+        <td>
+         Non
+        </td>
+       </tr>
+      </table>
+     </div>
+    </section>
+    <section data-number="1.7" data-spec="section" data-title="Ouvrages de stockage des effluents" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.7. Ouvrages de stockage des effluents
+     </h3>
+     <div data-spec="page_footer">
+      <div>
+       Dossier de réexamen IED - Transmis préfecture - 07-05-19
+      </div>
+     </div>
+     <a data-page_index="4" data-spec="page_separator">
+     </a>
+    </section>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Comparaison aux MTD" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2. Comparaison aux MTD
+    </h2>
+    <section data-number="2.1" data-spec="section" data-title="Stratégies alimentaires" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.1. Stratégies alimentaires
+     </h3>
+     <section data-number="2.1.1" data-spec="section" data-title="Détermination quantités excrétées" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.1.1. Détermination quantités excrétées
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Méthode de détermination annuelle des quantités d'azote et de phosphore excrétés par catégorie animale (MTD 24)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          Appliquez-vous les meilleures techniques suivantes ?
+         </th>
+         <th>
+          Oui
+         </th>
+        </tr>
+        <tr>
+         <td>
+          a. Est-ce que les quantités d'azote total et de phosphore total excrétés sont estimées par un bilan massique sur l'azote et le phosphore (en se basant sur les quantités d'aliment ingéré, les performances de l'animal et la teneur en MAT et phosphore du ou des aliments) ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+     <section data-number="2.1.2" data-spec="section" data-title="Excrétion azote" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.1.2. Excrétion azote
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Quantité d'azote excrété par emplacement par an (MTD 3)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+         </th>
+         <th>
+          Valeurs de l'installation
+         </th>
+         <th>
+          Performance associée aux MTD (azote excrété en kg de N/emplacement/an)
+         </th>
+        </tr>
+        <tr>
+         <td>
+          Poulet de chair
+         </td>
+         <td>
+          0.209
+         </td>
+         <td>
+          &lt;= 0,6
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Dinde
+         </td>
+         <td>
+          0.988
+         </td>
+         <td>
+          &lt;= 2,3
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       <table>
+        <tr>
+         <th colspan="2">
+          Poulets de chair (Appliqué à tous)
+         </th>
+        </tr>
+        <tr>
+         <th>
+          Appliquez-vous les meilleures techniques suivantes ?
+         </th>
+         <th>
+          Oui
+         </th>
+        </tr>
+        <tr>
+         <td>
+          a. Est-ce que les apports protéiques alimentaires sont en adéquation avec les besoins des animaux ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          b. Est-ce que les animaux reçoivent une alimentation multiphase, c'est-à-dire répondant aux besoins spécifiques des périodes de production ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          c. Est-ce que le régime alimentaire est pauvre en protéines et enrichi en acides aminés essentiels ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          d. Est-ce que les différents aliments distribués contiennent des additifs alimentaires visant à réduire les quantités d'azote excrété ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+     <section data-number="2.1.3" data-spec="section" data-title="Excrétion phosphore" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.1.3. Excrétion phosphore
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Quantité de phosphore excrété par emplacement par an (MTD 4)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+         </th>
+         <th>
+          Valeurs de l'installation
+         </th>
+         <th>
+          Performance associée à la MTD (phosphore total excrété en kg de P2O5/emplacement/an)
+         </th>
+        </tr>
+        <tr>
+         <td>
+          Poulets de chair
+         </td>
+         <td>
+          0.041
+         </td>
+         <td>
+          &lt;= 0,25
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Dindes
+         </td>
+         <td>
+          0.315
+         </td>
+         <td>
+          &lt;= 1,0
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          Poulets de chair (Appliqué à tous)
+         </th>
+        </tr>
+       </table>
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        Dossier de réexamen IED - Transmis préfecture - 07-05-19
+       </div>
+      </div>
+      <a data-page_index="5" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        Dossier de réexamen IED - Transmis préfecture - 07-05-19
+6 / 18
+       </div>
+      </div>
+      <div data-number="4" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          Appliquez-vous les meilleures techniques suivantes ?
+         </th>
+         <th>
+          Oui
+         </th>
+        </tr>
+        <tr>
+         <td>
+          a. Est-ce que les animaux reçoivent une alimentation multiphase, c'est-à-dire répondant aux besoins spécifiques des périodes de production ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          b. Est-ce que les différents aliments distribués contiennent des additifs alimentaires visant à réduire les quantités de phosphore excrété ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          c. Est-ce qu'une partie du phosphore alimentaire est remplacée par des phosphates inorganiques hautement digestibles ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+    </section>
+    <section data-number="2.2" data-spec="section" data-title="Émissions d'ammoniac" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.2. Émissions d'ammoniac
+     </h3>
+     <section data-number="2.2.1" data-spec="section" data-title="Détermination émissions" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.2.1. Détermination émissions
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Méthode de détermination annuelle des émissions d'ammoniac dans l'atmosphère (MTD 25)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="2">
+          V2 ______ (existant) (Appliqué à tous)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+         <td>
+          Oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          a. Est-ce que les émissions d'ammoniac sont estimées à l'aide d'un bilan massique sur l'azote (en se basant sur les quantités d'aliment ingérées, les performances de l'animal et la teneur en MAT du ou des aliments) ? Le module de calcul GEREP répond à cette technique.
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+     <section data-number="2.2.2" data-spec="section" data-title="Émissions poulets" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.2.2. Émissions poulets
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Poulets de chair – Réduction des émissions de NH3 au bâtiment (MTD 32)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="3">
+          V2 ______ (existant)
+         </td>
+        </tr>
+        <tr>
+         <td colspan="3">
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+        </tr>
+        <tr>
+         <td>
+          a. Est-ce qu'un système de ventilation dynamique est associé à un système d'abreuvement ne fuyant pas ?
+         </td>
+         <td colspan="2">
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Poids final maximal des poulets de chair
+         </td>
+         <td>
+          Émissions d'ammoniac (kg NH3/emplacement/an)
+         </td>
+         <td>
+          Valeurs limites (kg NH3/emplacement/an)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          2,5 kg
+         </td>
+         <td>
+          0.02
+         </td>
+         <td>
+          0,08
+         </td>
+        </tr>
+        <tr>
+         <td>
+          &gt; 2,5 kg et 3,2 kg
+         </td>
+         <td>
+          0
+         </td>
+         <td>
+          0,105
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       <table>
+        <tr>
+         <td>
+          V3 ______ (existant)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+        </tr>
+       </table>
+      </div>
+      <a data-page_index="6" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        Dossier de réexamen IED - Transmis préfecture - 07-05-19
+7 / 18
+       </div>
+      </div>
+      <div data-number="4" data-spec="alinea">
+       a. Est-ce qu'un système de ventilation dynamique est associé à un système d'abreuvement ne fuyant pas ?
+      </div>
+      <div data-number="5" data-spec="alinea">
+       <table>
+        <tr>
+         <td>
+          oui
+         </td>
+         <td>
+         </td>
+         <td>
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="6" data-spec="alinea">
+       Poids final maximal des poulets de chair
+      </div>
+      <div data-number="7" data-spec="alinea">
+       <table>
+        <tr>
+         <td>
+          Émissions d'ammonia c (kg NH3/emplacement/an)
+         </td>
+         <td>
+          Valeurs limites (kg NH3/emplacement/an)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          2,5 kg
+         </td>
+         <td>
+          0,02
+         </td>
+        </tr>
+        <tr>
+         <td>
+          &gt; 2,5 kg et 3,2 kg
+         </td>
+         <td>
+          0
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="8" data-spec="alinea">
+       0,105
+      </div>
+      <div data-number="9" data-spec="alinea">
+       V1 _______ (existant)
+      </div>
+      <div data-number="10" data-spec="alinea">
+       Appliquez-vous les meilleures techniques suivantes ?
+      </div>
+      <div data-number="11" data-spec="alinea">
+       <table>
+        <tr>
+         <td>
+          a. Est-ce qu'un système de ventilation dynamique est associé à un système d'abreuvement ne fuyant pas ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="12" data-spec="alinea">
+       Poids final maximal des poulets de chair
+      </div>
+      <div data-number="13" data-spec="alinea">
+       <table>
+        <tr>
+         <td>
+          Émissions d'ammonia c (kg NH3/emplacement/an)
+         </td>
+         <td>
+          Valeurs limites (kg NH3/emplacement/an)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          2,5 kg
+         </td>
+         <td>
+          0,02
+         </td>
+        </tr>
+        <tr>
+         <td>
+          &gt; 2,5 kg et 3,2 kg
+         </td>
+         <td>
+          0
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+     <section data-number="2.2.3" data-spec="section" data-title="Émissions dindes" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.2.3. Émissions dindes
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Dindes – Réduction des émissions de NH3 au bâtiment (MTD 34)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="2">
+          V2 _______ (existant) (Appliqué à tous)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+         <td>
+          Oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Est-ce qu'un système d'abreuvement ne fuyant pas est mis en place ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+    </section>
+    <section data-number="2.3" data-spec="section" data-title="Gestion eau, énergie et eaux souillées" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.3. Gestion eau, énergie et eaux souillées
+     </h3>
+     <section data-number="2.3.1" data-spec="section" data-title="Eau" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.3.1. Eau
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Utilisation efficace de l'eau (MTD 5)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="2">
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+        </tr>
+        <tr>
+         <td>
+          a. Est-ce que les consommations d'eau sont enregistrées?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          b. Faites-vous attention aux fuites et les réparez-vous ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          c. Est-ce que le lavage des bâtiments et des équipements est effectué à l'aide d'un système de nettoyage à sec ou d'un laveur à haute pression ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+      <a data-page_index="7" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        Dossier de réexamen IED - Transmis préfecture - 07-05-19
+8 / 18
+       </div>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       d. Est-ce que les systèmes d'abreuvement sont adaptés aux différentes catégories d'animaux ? | oui
+      </div>
+      <div data-number="4" data-spec="alinea">
+       e. Est-ce que les quantités d'eau délivrées par les systèmes d'abreuvement sont régulièrement vérifiées et ajustées si nécessaire ? | oui
+      </div>
+     </section>
+     <section data-number="2.3.2" data-spec="section" data-title="Eaux souillées" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.3.2. Eaux souillées
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Réduction de la production d'eaux résiduaires (MTD 6)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="2">
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+        </tr>
+        <tr>
+         <td>
+          a. Est-ce que l'ensemble de l'installation d'élevage et des aires aménagées est maintenu en bon état de propreté ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          b. Est-ce que la consommation d'eau est optimisée ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          c. Est-ce que les eaux de pluie non contaminées sont séparées des flux d'eaux résiduaires nécessitant un traitement ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+     <section data-number="2.3.3" data-spec="section" data-title="Réduction eaux souillées" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.3.3. Réduction eaux souillées
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Réduction des émissions d'eaux résiduaires (MTD 7)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="2">
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+        </tr>
+        <tr>
+         <td>
+          c. Est-ce que les eaux résiduaires sont épandues, par exemple, au moyen d'un système d'irrigation ou en mélange avec la litière ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+     <section data-number="2.3.4" data-spec="section" data-title="Économie énergie" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.3.4. Économie énergie
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Utilisation efficace de l'énergie (MTD 8)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="2">
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+        </tr>
+        <tr>
+         <td>
+          c. Est-ce que les murs, sols et/ou plafonds du bâtiment d'élevage sont bien isolés ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          d. Est-ce qu'un éclairage basse consommation est utilisé ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+    </section>
+    <section data-number="2.4" data-spec="section" data-title="Nuisances" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.4. Nuisances
+     </h3>
+     <section data-number="2.4.1" data-spec="section" data-title="Bruit" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.4.1. Bruit
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Prévention et/ou réduction des émissions sonores (MTD 10)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="2">
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Est-ce que les distances réglementaires vis-à-vis des tiers et des zones sensibles sont respectées ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+      <a data-page_index="8" data-spec="page_separator">
+      </a>
+      <div data-number="3" data-spec="alinea">
+       <table>
+        <tr>
+         <td>
+          Est-ce que les équipements sont disposés de façon à réduire les niveaux de bruit :
+          <br/>
+          - en augmentant la distance entre l'émetteur et le récepteur (en installant l'équipement le plus loin possible des zones sensibles)
+          <br/>
+          - en réduisant le plus possible la longueur des tuyaux de distribution de l'alimentation
+          <br/>
+          - en choisissant l'emplacement des bennes et silos contenant l'alimentation de façon à limiter le plus possible le déplacement des véhicules au sein de l'installation d'élevage ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Dans la pratique quotidienne, est-ce qu'une vigilance particulière est apportée aux points suivants :
+          <br/>
+          - fermeture des portes et principaux accès du bâtiment, en particulier lors de l'alimentation des animaux
+          <br/>
+          - utilisation des équipements par du personnel expérimenté
+          <br/>
+          - évitement des activités bruyantes pendant la nuit et le weekend, si possible
+          <br/>
+          - précautions pour éviter le bruit pendant les opérations d'entretien
+          <br/>
+          - utiliser les convoyeurs et les auges à pleine charge, si possible
+          <br/>
+          - limiter le plus possible la taille des zones de plein air raclées afin de réduire le bruit des tracteurs racleurs ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Est-ce que des équipements peu bruyants tels que ceux listés ci-dessous sont utilisés :
+          <br/>
+          - ventilateurs à haute efficacité, lorsque la ventilation statique n'est pas possible ou pas suffisante
+          <br/>
+          - pompes et compresseurs
+          <br/>
+          - système de nourrissage permettant de réduire le stimulus pré-ingestif (par exemple, trémies d'alimentation, mangeoires automatiques ad libitum, mangeoires compactes) ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Est-ce que la propagation du bruit est limitée en intercalant des obstacles entre les émetteurs et les récepteurs ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td colspan="2">
+          Commentaires éventuels :
+         </td>
+        </tr>
+        <tr>
+         <td colspan="2">
+          Installation de bottes de paille pour limiter la propagation de bruit
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+     <section data-number="2.4.2" data-spec="section" data-title="Odeurs" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.4.2. Odeurs
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Prévention et/ou réduction des émissions d'odeurs (MTD 13)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Appliquez-vous les meilleures techniques suivantes ?
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        Dossier de réexamen IED - Transmis préfecture - 07-05-19
+       </div>
+      </div>
+      <a data-page_index="9" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        Dossier de réexamen IED - Transmis préfecture - 07-05-19
+10 / 18
+       </div>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Est-ce que les distances réglementaires vis-à-vis des tiers et des zones sensibles sont respectées ? | oui
+      </div>
+      <div data-number="4" data-spec="alinea">
+       ---|---
+      </div>
+      <div data-number="5" data-spec="alinea">
+       Est-ce que le système d'élevage met en place au moins un des principes suivants :
+      </div>
+      <div data-number="6" data-spec="alinea">
+       <ul>
+        <li>
+         - garder les animaux et les surfaces propres et sèches
+        </li>
+        <li>
+         - réduire les surfaces émettrices des effluents (i.e : utilisation de lattes en plastique ou métal, préfosse réduite...)
+        </li>
+        <li>
+         - retirer les effluents fréquemment vers un stockage externe
+        </li>
+        <li>
+         - réduire la température intérieure et des effluents
+        </li>
+        <li>
+         - réduire le débit et la vitesse de l'air au-dessus de la surface des effluents
+        </li>
+        <li>
+         - maintenir une litière sèche et en aérobiose dans le cas d'un élevage sur litière ? | 0ui
+        </li>
+       </ul>
+      </div>
+      <div data-number="7" data-spec="alinea">
+       Est-ce que les conditions de sortie d'air des bâtiments sont optimisées grâce à l'application d'un ou une combinaison des principes suivants :
+      </div>
+      <div data-number="8" data-spec="alinea">
+       <ul>
+        <li>
+         - augmenter la hauteur des sorties d'air
+        </li>
+        <li>
+         - augmenter la vitesse de ventilation de la sortie d'air verticale
+        </li>
+        <li>
+         - mettre en place de barrières pour créer des turbulences du flux d'air sortant
+        </li>
+        <li>
+         - équiper les ouvertures de déflecteurs pour diriger l'air vicié vers le sol
+        </li>
+        <li>
+         - disperser l'air évacué sur le côté du bâtiment d'hébergement qui est le plus éloigné de la zone sensible
+        </li>
+        <li>
+         - aligner l'axe du faîtage d'un bâtiment à ventilation statique perpendiculairement à la direction du vent dominant ? | oui
+        </li>
+       </ul>
+      </div>
+     </section>
+    </section>
+    <section data-number="f.2" data-spec="section" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      f.2.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Est-ce que les effluents solides sont compostés? | oui
+     </div>
+     <section data-number="2.4.3" data-spec="section" data-title="Poussières" data-type="unknown">
+      <h4 data-error_codes="non_contiguous_titles" data-level="2" data-spec="section_title">
+       2.4.3. Poussières
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Prévention et/ou réduction des émissions des poussières (MTD 11)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="2">
+          V2 _______ (existant)
+         </td>
+        </tr>
+        <tr>
+         <td colspan="2">
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+        </tr>
+        <tr>
+         <td>
+          a.3. Est-ce que la nourriture des animaux est distribuée à volonté ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          a.6. Est-ce que le système de ventilation est conçu et utilisé pour une faible vitesse de l'air à l'intérieur du bâtiment ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          b.1. Est-ce qu'un système de brumisation d'eau est utilisé ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td colspan="2">
+          V3 _______ (existant)
+         </td>
+        </tr>
+       </table>
+      </div>
+      <a data-page_index="10" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        Dossier de réexamen IED - Transmis préfecture - 07-05-19
+11 / 18
+       </div>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="2">
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+        </tr>
+        <tr>
+         <td>
+          a.3. Est-ce que la nourriture des animaux est distribuée à volonté ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          a.6. Est-ce que le système de ventilation est conçu et utilisé pour une faible vitesse de l'air à l'intérieur du bâtiment ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          b.1. Est-ce qu'un système de brumisation d'eau est utilisé ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="4" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="2">
+          V1____________(existant)
+         </td>
+        </tr>
+        <tr>
+         <td colspan="2">
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+        </tr>
+        <tr>
+         <td>
+          a.3. Est-ce que la nourriture des animaux est distribuée à volonté ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          a.6. Est-ce que le système de ventilation est conçu et utilisé pour une faible vitesse de l'air à l'intérieur du bâtiment ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          b.1. Est-ce qu'un système de brumisation d'eau est utilisé ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+     <section data-number="2.4.4" data-spec="section" data-title="Détermination poussières" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.4.4. Détermination poussières
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Suivi des émissions annuelles de poussières au sein d'un bâtiment d'élevage (MTD 27)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="2">
+          V2____________(existant)
+         </td>
+        </tr>
+        <tr>
+         <td colspan="2">
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+        </tr>
+        <tr>
+         <td>
+          b. Est-ce que les émissions de poussières sont estimées à l'aide de facteurs d'émission ?
+          <br/>
+          Le module de calcul GEREP répond à cette technique.
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="2">
+          V3____________(existant)
+         </td>
+        </tr>
+        <tr>
+         <td colspan="2">
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+        </tr>
+        <tr>
+         <td>
+          b. Est-ce que les émissions de poussières sont estimées à l'aide de facteurs d'émission ?
+          <br/>
+          Le module de calcul GEREP répond à cette technique.
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="4" data-spec="alinea">
+       <table>
+        <tr>
+         <td colspan="2">
+          V1____________(existant)
+         </td>
+        </tr>
+        <tr>
+         <td colspan="2">
+          Appliquez-vous les meilleures techniques suivantes ?
+         </td>
+        </tr>
+        <tr>
+         <td>
+          b. Est-ce que les émissions de poussières sont estimées à l'aide de facteurs d'émission ?
+          <br/>
+          Le module de calcul GEREP répond à cette technique.
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+    </section>
+    <section data-number="2.5" data-spec="section" data-title="Organisation" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.5. Organisation
+     </h3>
+     <section data-number="2.5.1" data-spec="section" data-title="Organisation (MTD 1, 2, 9, 12, 26 et 29)" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.5.1. Organisation (MTD 1, 2, 9, 12, 26 et 29)
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Amélioration des performances environnementales grâce à un système de management environnemental (MTD 1, 2, 9, 12, 26 et 29)
+      </div>
+      <a data-page_index="11" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        Dossier de réexamen IED - Transmis préfecture - 07-05-19
+       </div>
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <th colspan="2">
+          Appliquez-vous les meilleures techniques suivantes ?
+         </th>
+        </tr>
+        <tr>
+         <td>
+          Est-ce que les consignes de sécurité adéquates (par exemple : incendie, écoulement dans le milieu naturel, produits dangereux) sont mises en œuvre ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Est-ce qu'une ou plusieurs formations relatives aux sujets suivants, par exemple, ont été suivies :- sur la réglementation environnementale (Installations Classées, zone vulnérable le cas échéant) ;
+          <br/>
+          - sur les problématiques environnementales d'un élevage : cycle de l'azote de l'alimentation animale à l'épandage, les risques associés de pollution des eaux et de l'air ; sensibilités locales (Natura 2000...)
+          <br/>
+          - sur les nuisances auprès du voisinage : odeur, bruit, mouches et les bonnes pratiques de communication
+          <br/>
+          - sur les risques potentiels : incendie, écoulement vers le milieu naturel et les mesures de prévention
+          <br/>
+          - sur l'autosurveillance de l'activité ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Est-ce qu'un plan de contrôle et maintenance préventive des équipements est mis en œuvre ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          - mouvement d'animaux (entrée, sortie, naissance, mortalité)
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          - consommation d'aliment
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          - production d'effluents d'élevage
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          - consommation d'eau
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          - consommation d'électricité et/ou de combustibles
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          - production de déchets
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Est-ce que les cadavres d'animaux sont stockés conformément à la réglementation ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Êtes-vous dans l'une de ces deux situations :
+          <br/>
+          - vous avez reçu des plaintes avérées au sujet de nuisances sonores et/ou olfactives et avez mis en place un registre des plaintes ?
+          <br/>
+          - vous n'avez jamais reçu de plaintes (indiquez-le alors également dans « Commentaires éventuels ») ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Est-ce qu'une procédure de gestion des accidents / incidents a été établie (par exemple : registre, déclaration en DDPP et actions correctives) ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        12 / 18
+       </div>
+      </div>
+      <a data-page_index="12" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        Dossier de réexamen IED - Transmis préfecture - 07-05-19
+13 / 18
+       </div>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       <table>
+        <tr>
+         <td>
+          Êtes-vous dans l'une de ces deux situations :
+- vous avez reçu des plaintes liées à des nuisances probables
+ou constatées concernant les
+odeurs ou le bruit et avez mis en place un plan d'actions
+reprenant les mises en conformité et les progrès en
+environnement ?
+- vous n'avez pas reçu de plaintes de ce type
+(indiquez-le alors également dans « Commentaires
+éventuels ») ?
+         </td>
+         <td>
+          oui
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="4" data-spec="alinea">
+       <table>
+        <tr>
+         <td>
+          Commentaires éventuels :
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Registre des plaintes mis en place
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+    </section>
+    <section data-number="2.6" data-spec="section" data-title="Émissions totales de l'élevage" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.6. Émissions totales de l'élevage
+     </h3>
+     <section data-number="2.6.1" data-spec="section" data-title="Émissions totales de l'élevage" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       2.6.1. Émissions totales de l'élevage
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Émissions d'ammoniac totales et comparaison par rapport à un élevage standard (MTD 23)
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          Poste d'émission en ammoniac
+         </th>
+         <th>
+          Émissions en ammoniac de l'élevage
+         </th>
+         <th>
+          Émissions en ammoniac d'un élevage de volailles analogue standard
+         </th>
+        </tr>
+        <tr>
+         <td>
+          Bâtiment d'élevage
+         </td>
+         <td>
+          4624
+         </td>
+         <td>
+          5847
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Stockage des effluents
+         </td>
+         <td>
+          0
+         </td>
+         <td>
+          5855
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Épandage des effluents sur les terres en propre
+         </td>
+         <td>
+          0
+         </td>
+         <td>
+          2817
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Épandage des effluents sur les terres mises à disposition
+         </td>
+         <td>
+          0
+         </td>
+         <td>
+          0
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Total
+         </td>
+         <td>
+          4624
+         </td>
+         <td>
+          14519
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       <table>
+        <tr>
+         <td>
+          Si vous le jugez pertinent, vous pouvez apporter des informations complémentaires ci-dessous :
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Changement de production : 5 lots de poulets et 1 lot de dinde réalisés dans tous les bâtiments
+         </td>
+        </tr>
+       </table>
+      </div>
+      <a data-page_index="13" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        Dossier de réexamen IED - Transmis préfecture - 07-05-19
+14 / 18
+       </div>
+      </div>
+     </section>
+    </section>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Synthèse du réexamen" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     3. Synthèse du réexamen
+    </h2>
+    <section data-number="3.1" data-spec="section" data-title="CONFORMITE DES ACTIVITES ANNEXES" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.1. CONFORMITE DES ACTIVITES ANNEXES
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         Conformité des activités annexes
+        </th>
+        <th>
+         oui
+        </th>
+       </tr>
+       <tr>
+        <td>
+         Si vous mettez en œuvre certaines des activités connexes à l'activité d'élevage comprises dans le périmètre de réexamen, notamment :
+         <br/>
+         - traitement des effluents (compostage – rubrique 2780, méthanisation – rubrique 2781, nitrification-dénitrification – rubrique 2751, ...)
+         <br/>
+         - production d'effluents normalisés ou homologués (rubrique 2170)
+         <br/>
+         - fabrication d'aliment à la ferme (rubrique 2220)
+         <br/>
+         - stockage d'aliment ou de litière (rubrique 1532)
+         <br/>
+         ces annexes respectent-elles l'état de l'art applicable, notamment les prescriptions générales des arrêtés ministériels concernés ?
+        </td>
+        <td>
+         oui
+        </td>
+       </tr>
+      </table>
+     </div>
+    </section>
+    <section data-number="3.2" data-spec="section" data-title="RAPPORT DE BASE" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.2. RAPPORT DE BASE
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         Détermination de la nécessité d'un rapport de base
+        </th>
+        <th>
+         Oui
+        </th>
+       </tr>
+       <tr>
+        <td>
+         Est-ce que la ou les cuves de carburant liquide destinées au chauffage des bâtiments d'élevage ont une capacité supérieure à 50 tonnes (ou à 250 tonnes dans le cas où elle(s) est/sont constituée(s) d'une double enveloppe avec système de détection des fuites) ?
+        </td>
+        <td>
+         non
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Utilisez-vous des médicaments vétérinaires ou des produits biocides dans des conditions autres que celles prévues dans la notice d'emploi ?
+        </td>
+        <td>
+         non
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Si vous utilisez des détergents non biodégradables (se référer au point 12 des fiches de données de sécurité des produits concernés), sont-ils utilisés sur le site en dehors des opérations courantes de nettoyage ou est-ce que les quantités diffèrent significativement des préconisations fournisseurs ?
+        </td>
+        <td>
+         non
+        </td>
+       </tr>
+       <tr>
+        <td colspan="2">
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Je n'ai pas besoin de remettre un rapport de base
+        </td>
+        <td>
+         oui
+        </td>
+       </tr>
+      </table>
+     </div>
+    </section>
+    <section data-number="3.3" data-spec="section" data-title="SYNTHESE DES ACTIONS PROPOSEES" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.3. SYNTHESE DES ACTIONS PROPOSEES
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      <table>
+       <tr>
+        <td colspan="2">
+         V2
+        </td>
+       </tr>
+       <tr>
+        <td colspan="2">
+         Respect des niveaux d'émissions d'ammoniac associés aux MTD
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Les émissions d'ammoniac de ce bâtiment respectent ces niveaux d'émission
+        </td>
+        <td>
+         oui
+        </td>
+       </tr>
+       <tr>
+        <td colspan="2">
+         V3
+        </td>
+       </tr>
+      </table>
+     </div>
+     <a data-page_index="14" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       Dossier de réexamen IED - Transmis préfecture - 07-05-19
+      </div>
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <table>
+       <tr>
+        <td colspan="2">
+         Respect des niveaux d'émissions d'ammoniac associés aux MTD
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Les émissions d'ammoniac de ce bâtiment respectent ces niveaux d'émission
+        </td>
+        <td>
+         oui
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <table>
+       <tr>
+        <td colspan="2">
+         V1________
+        </td>
+       </tr>
+       <tr>
+        <td colspan="2">
+         Respect des niveaux d'émissions d'ammoniac associés aux MTD
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Les émissions d'ammoniac de ce bâtiment respectent ces niveaux d'émission
+        </td>
+        <td>
+         oui
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       15 / 18
+      </div>
+     </div>
+     <a data-page_index="15" data-spec="page_separator">
+     </a>
+     <div data-number="4" data-spec="alinea">
+      Synthèse des déclarations de non-conformité
+     </div>
+     <div data-number="5" data-spec="alinea">
+      <table>
+       <tr>
+        <td>
+         Dans le tableau ci-dessus, si vous ne mettez pas en conformité votre élevage d'ici au 21 février 2021 pour des MTD autres que celles encadrées par un niveau d'émission associé, vous devez justifier cette demande d'aménagement aux MTD sur la base d'une étude jointe au dossier dématérialisé. Si vous faites une demande d'aménagement aux MTD, cocher la case suivante :
+        </td>
+        <td>
+         non
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Si l'activité d'élevage ou l'environnement autour de l'élevage ont été substantiellement modifiés depuis la dernière étude d'impact réalisée, il peut être nécessaire de la mettre à jour. Si c'est le cas, joindre la mise à jour de l'étude d'impact. Si les modifications de l'élevage ou autour de l'élevage nécessitent une mise à jour de l'étude d'impact, cocher la case suivante :
+        </td>
+        <td>
+         non
+        </td>
+       </tr>
+       <tr>
+        <td colspan="2">
+         Commentaire inspecteur : Dossier de réexamen des MTD conforme pour l'effectif autorisé à ce jour, soit 141 176 emplacements de volailles dans les 3 bâtiments autorisés dénommés V1, V2 et V3
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       Dossier de réexamen IED - Transmis préfecture - 07-05-19
+      </div>
+     </div>
+     <a data-page_index="16" data-spec="page_separator">
+     </a>
+     <div data-number="6" data-spec="alinea">
+      Synthèse des commentaires inspecteurs
+     </div>
+     <div data-number="7" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         MTD
+        </th>
+        <th>
+         Bâtiment / Ouvrage / Espèce / Terre
+        </th>
+        <th>
+         Commentaire inspecteur
+        </th>
+       </tr>
+       <tr>
+        <td>
+         Synthèse des actions proposées
+        </td>
+        <td>
+        </td>
+        <td>
+         Dossier de réexamen des MTD conforme pour l'effectif autorisé à ce jour, soit 141 176 emplacements de volailles dans les 3 bâtiments autorisés dénommés V1, V2 et V3
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       Dossier de réexamen IED - Transmis préfecture - 07-05-19
+      </div>
+     </div>
+     <a data-page_index="17" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       Dossier de réexamen IED - Transmis préfecture - 07-05-19
+      </div>
+     </div>
+    </section>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Transmission et validation" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     4. Transmission et validation
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'éleveur a transmis son dossier le 18/02/19
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Ce dossier a été validé par l'inspection après analyse et transmis à la préfecture le 07/05/19
+    </div>
+    <div data-number="3" data-spec="alinea">
+     18 / 18
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

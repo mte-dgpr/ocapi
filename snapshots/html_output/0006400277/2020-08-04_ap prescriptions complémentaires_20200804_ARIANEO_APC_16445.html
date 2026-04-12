@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2020-08-04_ap prescriptions complémentaires_20200804_ARIANEO_APC_16445.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     04108/2020
+
+Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFET DES ALPES-MARITIMES
+    </div>
+    <div>
+     DIRECTION DEPARTEMENTALE DE LA PROTECTION DES POPULATIONS DES ALPES-MARITIMES
+    </div>
+    <div>
+     service environnement
+    </div>
+    <div>
+     INSTALLATIONS CLASSEES POUR LA PROTECTION DE L'ENVIRONNEMENT Société SONITHERM Etablissement situé 33, boulevard de l’Ariane, à Nice
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté préfectoral complémentaire relatif aux mesures d’urgence en cas d’épisodes de pollution de l’air ambiant
+    </h1>
+   </div>
+   <div data-spec="identification">
+    <div>
+     N° 16445
+    </div>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le préfet des Alpes-Maritimes
+    </div>
+    <div>
+     Chevalier de la Légion d’Honneur
+    </div>
+    <div>
+     Officier de l’Ordre National du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    , notamment le livre V, titre Ier ;
+   </div>
+   <div data-spec="visa">
+    VU l’arrêté interministériel du 7 avril 2016 modifié relatif au déclenchement des procédures préfectorales en cas d’épisodes de pollution de l’air ambiant ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2017-06-20" data-num="inter-préfectoral" data-spec="document_reference" data-type="arrete">
+     arrêté inter-préfectoral du
+     <time data-spec="date" datetime="2017-06-20">
+      20 juin 2017
+     </time>
+    </a>
+    portant organisation du dispositif d’urgence en cas d’épisode de pollution de l’air ambiant sur les départements des régions Occitanie et Provence-Alpes-Côte-d’Azur ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2017-07-27" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2017-07-27">
+      27 juillet 2017
+     </time>
+    </a>
+    portant organisation du dispositif d’urgence en cas d’épisode de pollution de l’air ambiant sur le département des Alpes-Maritimes ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2011-07-04" data-num="13804" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 13804 du
+     <time data-spec="date" datetime="2011-07-04">
+      4 juillet 2011
+     </time>
+    </a>
+    autorisant la société SONITHERM à exploiter les installations situées 33, boulevard de l’Ariane, à Nice ;
+   </div>
+   <div data-spec="visa">
+    VU l’étude d’impact économique et social (EIES) remise en mai 2017 par la société SONITHERM définissant les mesures de nature à réduire les rejets atmosphériques en cas d’épisodes de pollution aux particules, au dioxyde d’azote ou à l’ozone ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport référencé 2020_293 du 27 juillet 2020 de l’inspection des installations classées ;
+   </div>
+   <div data-spec="visa">
+    VU la consultation du 9 juin 2020 de la société SONITHERM sur le projet d’arrêté préfectoral annexé au rapport susvisé du 27 juillet 2020 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que la qualité de l’air constitue dans la région PACA un enjeu sanitaire majeur ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que l’arrêté interministériel du 7 avril 2016 modifié vise à harmoniser les modalités de déclenchement des procédures préfectorales en cas d’épisodes de pollution caractérisés de l’air ambiant ;
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <th rowspan="3">
+       Polluants
+       <br/>
+       (µg/m³)
+      </th>
+      <th colspan="5">
+       Procédures et seuils réglementaires
+      </th>
+     </tr>
+     <tr>
+      <th rowspan="2">
+       Niveau
+       <br/>
+       information -
+       <br/>
+       recommandation
+      </th>
+      <th colspan="2">
+       Niveau « alerte » N1
+       <br/>
+       1
+       <sup>
+        er
+       </sup>
+       niveau de mesures d'urgence
+      </th>
+      <th colspan="2">
+       Niveau « alerte » N2
+       <br/>
+       2
+       <sup>
+        ème
+       </sup>
+       niveau de mesures d'urgence
+      </th>
+     </tr>
+     <tr>
+      <th>
+       Sur prévision
+      </th>
+      <th>
+       Sur persistance
+       <br/>
+       (constat et prévision)
+      </th>
+      <th>
+       Sur prévision
+      </th>
+      <th>
+       Sur persistance
+       <br/>
+       (constat et prévision)
+      </th>
+     </tr>
+     <tr>
+      <td>
+       Particules fines
+       <br/>
+       (PM₁₀)
+      </td>
+      <td>
+       50
+       <br/>
+       en moyenne sur 24 heures
+       <br/>
+       soit à J ou J+1
+      </td>
+      <td>
+       80
+       <br/>
+       en moyenne sur 24 heures
+       <br/>
+       soit à J ou J+1
+      </td>
+      <td>
+       50
+       <br/>
+       en moyenne sur 24 heures
+       <br/>
+       pendant 2 jours
+       <br/>
+       soit J et J+1
+      </td>
+      <td>
+      </td>
+      <td>
+       80
+       <br/>
+       en moyenne sur 24 heures
+       <br/>
+       pendant 2 jours à J et J+1
+       <br/>
+       <br/>
+       ou
+       <br/>
+       <br/>
+       50
+       <br/>
+       en moyenne sur 24 heures
+       <br/>
+       pendant 4 jours
+       <br/>
+       soit J-2, J-1, J et J+1
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Dioxyde d’azote
+       <br/>
+       (NO₂)
+      </td>
+      <td>
+       200
+       <br/>
+       en moyenne horaire
+       <br/>
+       à J ou J+1
+      </td>
+      <td>
+       400
+       <br/>
+       en moyenne horaire
+       <br/>
+       dépassé pendant 3 heures consécutives
+       <br/>
+       à J ou J+1
+      </td>
+      <td>
+       200
+       <br/>
+       en moyenne horaire
+       <br/>
+       pendant 3 jours,
+       <br/>
+       soit J-1, J et J+1
+      </td>
+      <td>
+      </td>
+      <td>
+       400
+       <br/>
+       en moyenne horaire
+       <br/>
+       dépassé pendant 3 heures consécutives,
+       <br/>
+       pendant 2 jours,
+       <br/>
+       soit J et J+1
+       <br/>
+       <br/>
+       ou
+       <br/>
+       <br/>
+       200
+       <br/>
+       en moyenne horaire,
+       <br/>
+       pendant 4 jours,
+       <br/>
+       soit J-2, J-1, J et J+1
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Ozone
+       <br/>
+       (O₃)
+      </td>
+      <td>
+       180
+       <br/>
+       en moyenne horaire
+       <br/>
+       à J ou J+1
+      </td>
+      <td>
+       240, en moyenne horaire, dépassé pendant 3 heures consécutives
+       <br/>
+       à J ou J+1
+      </td>
+      <td>
+       180
+       <br/>
+       en moyenne horaire
+       <br/>
+       pendant 2 jours,
+       <br/>
+       à J et J+1
+      </td>
+      <td>
+       300
+       <br/>
+       en moyenne horaire, dépassé pendant 3 heures consécutives
+       <br/>
+       à J ou J+1
+       <br/>
+       <br/>
+       ou
+       <br/>
+       <br/>
+       360
+       <br/>
+       en moyenne horaire,
+       <br/>
+       à J ou J+1
+      </td>
+      <td>
+       240
+       <br/>
+       en moyenne horaire, dépassé pendant 3 heures consécutives
+       <br/>
+       pendant 2 jours à J et J+1
+       <br/>
+       <br/>
+       ou
+       <br/>
+       <br/>
+       180
+       <br/>
+       en moyenne horaire
+       <br/>
+       pendant 4 jours,
+       <br/>
+       soit J-2, J-1, J et J+1
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div>
+    * « Persistance d’un épisode de pollution aux particules ou à l’ozone » : il y a « persistance » d’un épisode de pollution pour un polluant donné, lorsque le dépassement du seuil d’information et de recommandation est prévu pour le jour même et le lendemain, ou en absence de modélisation, lorsqu’il est constaté le dépassement du seuil d’information et de recommandation sur station de fond durant deux jours consécutifs. Les constats peuvent être observés sur des stations de fond différentes au sein d’une même superficie retenue pour la caractérisation de l’épisode de pollution.
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="2.2" data-spec="section" data-title="Déclenchement, durée d’application et modalités de levée des procédures préfectorales (procédure préfectorale d’information et de recommandation – procédure préfectorale d’alerte)" data-type="article">
+    <h3 data-level="1" data-spec="section_title">
+     Article 2.2 – Déclenchement, durée d’application et modalités de levée des procédures préfectorales (procédure préfectorale d’information et de recommandation – procédure préfectorale d’alerte)
+    </h3>
+    <div data-number="1" data-spec="alinea">
+     Dès lors qu’une procédure préfectorale d’information et de recommandation est déclenchée, les mesures listées à l’
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="2.3" data-type="article">
+      article 2.3
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="1" data-type="self">
+      présent arrêté
+     </a>
+     sont activées immédiatement après la réception du communiqué d’activation de la procédure préfectorale d’information et de recommandation. La mise en œuvre de ces mesures est réalisée suivant les éventuels délais annoncés dans l’étude d’impact économique et social remise par l’exploitant et susvisée.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     En cas de déclenchement d’une procédure préfectorale d’alerte, il existe deux niveaux de mesures d’urgence :
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     &amp;gt; ne pas réaliser d'essai industriel ni de modification significative des paramètres de procédé (stabilité du procédé).
+    </div>
+    <section data-number="2.3.2" data-spec="section" data-title="Mesures en cas de dépassement du seuil d'information et de recommandation pour le dioxyde d'azote (NO₂) ou pour l'ozone (O₃):" data-type="article">
+     <h4 data-error_codes="non_contiguous_titles" data-level="2" data-spec="section_title">
+      Article 2.3.2 - Mesures en cas de dépassement du seuil d'information et de recommandation pour le dioxyde d'azote (NO₂) ou pour l'ozone (O₃):
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      En cas de dépassement du seuil d'information et de recommandation défini à l'
+      <a data-parent_reference="2" data-spec="section_reference" data-start_num="2.1" data-type="article">
+       article 2.1
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="2" data-type="self">
+       présent arrêté
+      </a>
+      pour le dioxyde d'azote (NO₂) et l'ozone (O₃), les mesures suivantes s'appliquent selon les modalités définies à l'
+      <a data-parent_reference="3" data-spec="section_reference" data-start_num="2.2" data-type="article">
+       article 2.2
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="3" data-type="self">
+       présent arrêté
+      </a>
+      :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - affichage de l'information qu'un épisode de pollution est en cours ;
+       </li>
+       <li>
+        - rappels des bonnes pratiques à l'ensemble du personnel avec une vigilance accrue pour limiter et maîtriser les émissions de NOx pendant toute la durée de l'épisode de pollution ;
+       </li>
+       <li>
+        - vérification du bon fonctionnement des équipements de traitement des fumées (traitement des NOx) : suivi des paramètres de fonctionnement via les données du système de contrôle-commande et de supervision ;
+       </li>
+       <li>
+        - vérification du bon fonctionnement des appareils de mesures des émissions de NOx : information du personnel pour une vigilance accrue des performances environnementales pendant toute la durée de l'épisode de pollution avec traçabilité de l'épisode de pollution dans le cahier de poste pour la relève ;
+       </li>
+       <li>
+        - renforcement du contrôle des valeurs limites d'émissions (VLE) en NOx et application des procédures sur la conduite à tenir en cas de dépassement de ces VLE ;
+       </li>
+       <li>
+        - stabilisation et optimisation du procédé d'incinération : vigilance particulière sur la maîtrise des opérations suivantes :
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      &amp;gt; mélange des déchets en fosse pour obtenir un combustible (déchets) le plus homogène possible ;
+     </div>
+     <div data-number="4" data-spec="alinea">
+      &amp;gt; suivi de tous les paramètres de fonctionnement (tonnage traité, combustion, consommation d'eau et de réactifs, ...) via le système de contrôle-commande et de supervision afin d'agir éventuellement sur ceux-ci pour améliorer la performance et les rejets en NOx.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      &amp;gt; ne pas réaliser d'essai industriel ni de modification significative des paramètres de procédé (stabilité du procédé).
+     </div>
+    </section>
+   </section>
+   <section data-number="2.4" data-spec="section" data-title="Définition des mesures d'urgence de niveau N1 à mettre en œuvre de façon systématique en cas de dépassement du seuil d'alerte" data-type="article">
+    <h3 data-level="1" data-spec="section_title">
+     Article 2.4 - Définition des mesures d'urgence de niveau N1 à mettre en œuvre de façon systématique en cas de dépassement du seuil d'alerte
+    </h3>
+    <div data-number="1" data-spec="alinea">
+     En cas de dépassement des seuils d'alerte définis à l'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="2.1" data-type="article">
+      article 2.1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="4" data-type="self">
+      présent arrêté
+     </a>
+     , pour les particules
+     <q>
+      PM₁₀
+     </q>
+     ou le dioxyde d'azote (NO₂) ou l'ozone (O₃), les mesures d'urgence définies aux articles suivants s'appliquent selon les modalités définies à l'
+     <a data-parent_reference="5" data-spec="section_reference" data-start_num="2.2" data-type="article">
+      article 2.2
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="5" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Au début de la procédure d'alerte, l'exploitant fait état à l'inspection des installations classées des mesures d'urgence de niveau N1 qu'il va mettre en œuvre, en renseignant et en transmettant par message électronique la fiche jointe au
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     en
+     <a data-spec="section_reference" data-start_num="1" data-type="annexe">
+      annexe 1
+     </a>
+     .
+    </div>
+    <section data-number="2.4.1" data-spec="section" data-title="Mesures d'urgence de niveau N1 en cas de dépassement du seuil d'alerte pour les particules « PM₁₀ » :" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      Article 2.4.1 - Mesures d'urgence de niveau N1 en cas de dépassement du seuil d'alerte pour les particules « PM₁₀ » :
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      <ul>
+       <li>
+        - application des mesures relatives au dépassement du seuil d'information et de recommandation pour les PM10 ;
+       </li>
+       <li>
+        - mise en place de mesures pour réduire les rejets atmosphériques de poussières :
+       </li>
+      </ul>
+     </div>
+     <div data-number="2" data-spec="alinea">
+      &amp;gt; afin d'optimiser l'efficacité des électrofiltres, limiter l'incinération des déchets d'activités économiques qui contiennent de plus fortes teneurs en soufre notamment des déchets de déconstruction. Cette mesure ne vise pas les DASRI (déchets d'Activités de Soins à Risque Infectieux) ;
+     </div>
+     <a data-page_index="3" data-spec="page_separator">
+     </a>
+    </section>
+   </section>
+   <section data-number="2.6" data-spec="section" data-title="Communication et estimation de la pollution évitée au cours d’un pic de pollution" data-type="article">
+    <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+     Article 2.6 – Communication et estimation de la pollution évitée au cours d’un pic de pollution
+    </h3>
+    <div data-number="1" data-spec="alinea">
+     Au maximum deux jours après la fin de la procédure d’alerte, la fiche jointe en
+     <a data-parent_reference="6" data-spec="section_reference" data-start_num="1" data-type="annexe">
+      annexe 1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="6" data-type="self">
+      présent arrêté
+     </a>
+     est mise à jour par l’exploitant et transmise à l’inspection des installations classées.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 - Délais et voies de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La présente décision peut être déférée à la juridiction administrative :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       1° par le pétitionnaire ou exploitant, dans un délai de deux mois à compter du jour où la décision lui a été notifiée ;
+      </li>
+      <li>
+       2° par les tiers intéressés en raison des inconvénients ou des dangers pour les intérêts mentionnés à l’
+       <a data-parent_reference="7" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+        article L.511-1
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="7" data-title="Code de l'environnement" data-type="code">
+        code de l’environnement
+       </a>
+       dans un délai de quatre mois à compter de :
+      </li>
+      <li>
+       a) l’affichage en mairie dans les conditions prévues à l’
+       <a data-parent_reference="8" data-spec="section_reference" data-start_num="4" data-type="article">
+        article 4
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="8" data-type="self">
+        présent arrêté
+       </a>
+       ;
+      </li>
+      <li>
+       b) la publication de la décision sur le site internet de la préfecture prévue à l’
+       <a data-parent_reference="9" data-spec="section_reference" data-start_num="4" data-type="article">
+        article 4
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="9" data-type="self">
+        présent arrêté
+       </a>
+       . Le délai court à compter de la dernière formalité accomplie. Si l’affichage constitue cette dernière formalité, le délai court à compter du premier jour d’affichage de la décision.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le recours contentieux pourra être formé :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - soit par voie postale : Tribunal administratif 18, avenue des Fleurs – 06000 Nice,
+      </li>
+      <li>
+       - soit par voie dématérialisée via l’application Télerecours Citoyens.
+      </li>
+     </ul>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     La décision mentionnée au
+     <a data-spec="section_reference" data-start_num="1" data-type="alinea">
+      premier alinéa
+     </a>
+     peut faire l’objet d’un recours gracieux ou hiérarchique dans le délai de deux mois. Ce recours administratif prolonge de deux mois les délais mentionnés au 1° et 2°.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4 - Publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En vue de l’information des tiers :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - une copie du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       est déposée à la mairie de Nice et peut y être consultée ;
+      </li>
+      <li>
+       - un extrait de cet arrêté est affiché à la mairie de Nice pendant une durée minimum d’un mois ;
+      </li>
+      <li>
+       - procès-verbal de l’accomplissement de cette formalité est dressé par les soins du maire ;
+      </li>
+      <li>
+       - l’arrêté est publié sur le site internet de la préfecture des Alpes-Maritimes pendant une durée minimale de quatre mois.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Exécution" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5 - Exécution
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le secrétaire général de la préfecture des Alpes-Maritimes est chargé de l’exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont copie est adressée :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - à la société SONITHERM,
+      </li>
+      <li>
+       - au maire de Nice,
+      </li>
+      <li>
+       - à la cheffe de l’unité départementale des Alpes-Maritimes de la DREAL PACA,
+      </li>
+      <li>
+       - au directeur départemental de la sécurité publique.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Fait à Nice, le 04 AOUT 2020
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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d23ueoFaWm2wgtk9cVdwM5oAWiiigAooooAKpREyXO7HHarTvsRie1RWwDJ5gGN3SgCxRRRQAUUUUAFFFFABTQ4bOO1Oqu4kTeyYINAErOETcaVWDLkVRkuRI6gqRH3q8NoTII20AKrBulNkfy42Y9qVGUruA4qveMwiPoaAJFcPEHwcMudvepqgtzutoz320IzCRkPIHegCRpFV1U9W6Co5pxF1Ut9KUx75Qx7dKZM671TIBNAFgLjsKWiigBCARyKMUtFACYoIyMEfnS0UAJgenfNLRRQAUn4UtFACEA0tFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFQyTRwpvkcKOnPGfpT5HWNC7nCjqa5eRm8R6mqR5W2tnzuHegB8F5d69qM1sbZodNi/wCWmeZPpXQwW0VtEEiRVA/ujFOhgjgiCIoAHtUtABRRRQAUUUUAFFFFABRRRQAUUUUAFc/4oiWSxQ9weK6CsTxMfL0aaVRl0X5RQBneEJtli+/hNxANOldLvWVfghawdF1KJNJeJHIk396s6RcM+r5fp3BoA7uHiJB/s1JSYxgAcCloAKKKKACiiigCvcsPLC936VLEnlxKvoKgQieYMD8iVaoAKKKKACiiigAooooAKTA596WigBpRTj5Rge1J5Y8vZ7U+igBAABgDigqG4IBFLRQAgUKMAYFGB6daWigBgQJ1amG3jLhyDkVKQPSloAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiqd/drZWjO0gU/dXPrQBka7fSPNDp9tGZHkb95tboK1dOsItOtliRVBJySBjNY3hvTWWae/mO9pW3LnsK6bqeRQAtFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFZmuRCfSJlbjitOq14gktpRjPy5xQB5EqG3uMLz8/IrZsJvJu4nP41l3RUX0uDxnIq1aklN5z7UAepxPvgVz3GakrL0O6E+nopfLqMGtSgAooooAKguHZVCp95ulSsQBknH1qGFhMTJ2HSgCSOIRx7R+NSUUUAFFFFABRSEgdah+0x79m7mgCeiiigAooooAKKKKACiiigAooooAKKK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"/>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-number="5" data-spec="alinea">
+     <table>
+      <tr>
+       <td colspan="8">
+        Mesures en cas de dépassement du seuil d'alerte PM10
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        3
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        ...
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td colspan="8">
+        Mesures en cas de dépassement du seuil d'alerte NO₃
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        3
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        ...
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td colspan="8">
+        Mesures en cas de dépassement du seuil d'alerte O₃ (au besoin, différencier les mesures en fonction des trois seuils d'alerte ozone)
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        3
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        ...
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td colspan="8">
+        Mesures d'urgence de niveau N2
+       </td>
+      </tr>
+      <tr>
+       <td colspan="8">
+        Mesures en cas de dépassement du seuil d'alerte PM10
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        3
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        ...
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td colspan="8">
+        Mesures en cas de dépassement du seuil d'alerte NO₃
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        3
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        ...
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td colspan="8">
+        Mesures en cas de dépassement du seuil d'alerte O₃ (au besoin, différencier les mesures en fonction des trois seuils d'alerte ozone)
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2020-11-03_ap prescriptions complémentaires_20201103_APCExtensionPilotageConnect.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DE LA SEINE-
+MARITIME
+Liberté
+Égalité
+Fraternité
+
+DIRECTION RÉGIONALE DE L'ENVIRONNEMENT, DE L'AMÉNAGEMENT ET DU LOGEMENT DE NORMANDIE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     DIRECTION RÉGIONALE DE L'ENVIRONNEMENT, DE L'AMÉNAGEMENT ET DU LOGEMENT DE NORMANDIE
+    </div>
+    <div>
+     Unité Départementale du Havre Équipe Raffinage Pétrochimie
+    </div>
+    <div>
+     Affaire suivie par : Romain MAILLOT Tél. 02.35.19.32.74 - Fax 02.35.19.32.99 Mél. : romain.mailot@developpement-durable.gouv.fr
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté du -
+     <time data-spec="date" datetime="2020-11-03">
+      3 NOV. 2020
+     </time>
+     Prescriptions complémentaires à la société AIR LIQUIDE HYDROGÈNE, relatives au projet d'extension du pilotage Connect, pour le site de PORT-JÉRÔME-SUR-SEINE
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le préfet de la région Normandie, préfet de la Seine-Maritime,
+    </div>
+    <div>
+     Officier de la Légion d'honneur,
+    </div>
+    <div>
+     Officier de l'ordre national du Mérite,
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le livre V du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    et notamment ses
+    <a data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     articles L.511-1
+    </a>
+    , et R.181-46 ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code des relations entre le public et l'administration" data-type="code">
+     code des relations entre le public et l'administration
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2009-09-07" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2009-09-07">
+      7 septembre 2009
+     </time>
+    </a>
+    fixant les prescriptions techniques applicables aux installations d'assainissement non collectif recevant une charge brute de pollution organique inférieure ou égale à 1,2 kg/j de DBO5 ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="1998-02-02" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="1998-02-02">
+      2 février 1998
+     </time>
+     modifié
+    </a>
+    relatif aux prélèvements et à la consommation d'eau ainsi qu'aux émissions de toute nature des installations classées pour la protection de l'environnement soumises à autorisation ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="2004-04-29" data-num="2004-374" data-spec="document_reference" data-type="decret">
+     décret n° 2004-374 du
+     <time data-spec="date" datetime="2004-04-29">
+      29 avril 2004
+     </time>
+    </a>
+    modifié relatif aux pouvoirs des préfets, à l'organisation et à l'action des services de l'État dans les régions et les départements ;
+   </div>
+   <div data-spec="visa">
+    Vu le décret du Président de la République en date du 1er avril 2019 nommant M. Pierre-André DURAND préfet de la région Normandie, préfet de la Seine-Maritime ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2020-10-13" data-num="20-77" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 20-77 du
+     <time data-spec="date" datetime="2020-10-13">
+      13 octobre 2020
+     </time>
+    </a>
+    portant délégation de signature à Monsieur Yvan CORDIER, secrétaire général de la préfecture de la Seine-Maritime ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     1/4
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    Vu l'arrêté préfectoral d'autorisation cadre du 18 mars 2004 modifié autorisant et réglementant les activités exercées par la société AIR LIQUIDE HYDROGÈNE ;
+   </div>
+   <div data-spec="visa">
+    Vu le courrier en date du 10 janvier 2020 par lequel AIR LIQUIDE HYDROGÈNE, dont le siège social est 6, rue Cognacq-Jay - 75007 PARIS, porte à la connaissance de l'administration son projet d'extension du pilotage à distance d'une partie de ses unités ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport de l'inspection des installations classées en date du 18 mai 2020 ;
+   </div>
+   <div data-spec="visa">
+    Vu le courrier de l'exploitant en date du 28 février 2018, proposant un montant actualisé de garanties financières au titre de l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="R516-1-5" data-type="article">
+     article R.516-1-5
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     Code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu la transmission du projet d'arrêté faite à l'exploitant le 5 juin 2020 ;
+   </div>
+   <div data-spec="visa">
+    Vu les observations formulées par l'exploitant par courriel du 3 septembre 2020 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT QUE
+    <ul>
+     <li>
+      - AIR LIQUIDE HYDROGÈNE souhaite modifier le mode d'exploitation de ses unités, en étendant la possibilité de piloter à distance une partie de ses installations par un centre situé en agglomération lyonnaise ;
+     </li>
+     <li>
+      - la modification présentée n'est pas une modification substantielle au sens des articles L.181-14 et R.181-46 du code de l'environnement ;
+     </li>
+     <li>
+      - il y a lieu, en conséquence, de faire application à l'encontre de la société AIR LIQUIDE HYDROGÈNE située à PORT-JERÔME-SUR-SEINE des dispositions prévues à l'article R. 181-45 du Code de l'environnement susvisé ;
+     </li>
+    </ul>
+   </div>
+   <div>
+    ET CONSIDÉRANT QUE
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="2,11,213" data-spec="segmentation:text_span" data-start="2,11,0">
+      - l'arrêté ministériel du 6 mai 1996 fixant les prescriptions techniques applicables aux systèmes d'assainissement non collectif a été abrogé et a été remplacé par l'arrêté ministériel du 7 septembre 2009 susvisé ;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="2,12,197" data-spec="segmentation:text_span" data-start="2,12,0">
+      - l'exploitant a proposé un nouveau montant de garanties financières au titre des dispositions de l'article R.516-1-5 du Code de l'environnement, ainsi qu'une nouvelle quantité maximale de déchets :
+     </arretify-segmentation>
+     <arretify-segmentation data-end="2,13,155" data-spec="segmentation:text_span" data-start="2,13,0">
+      - ☑ il convient donc de modifier les dispositions de l'article 1.11.3 du titre 1 de l'arrêté préfectoral cadre pour prendre en compte ces nouvelles valeurs.
+     </arretify-segmentation>
+     <arretify-segmentation data-end="2,14,186" data-spec="segmentation:text_span" data-start="2,14,0">
+      - l'exploitant utilise du glyphosate et que cette substance n'a pas fait l'objet d'une campagne de mesures au titre de l'action de recherche des substances dangereuses dans l'eau (RSDE) :
+     </arretify-segmentation>
+     <arretify-segmentation data-end="2,15,114" data-spec="segmentation:text_span" data-start="2,15,0">
+      - ☑ cette substance est réglementée par les dispositions de l'arrêté ministériel du 2 février 1998 modifié susvisé,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="2,16,173" data-spec="segmentation:text_span" data-start="2,16,0">
+      - ☑ il convient donc de déterminer par une campagne annuelle les quantités et concentrations de ce polluant susceptibles de se trouver dans les rejets aqueux de l'exploitant,
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     2/4
+    </div>
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Sur proposition du secrétaire général de la préfecture
+ARRÊTE
+    </div>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1er -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société AIR LIQUIDE HYDROGÈNE dont le siège social est 6, rue Cognacq-Jay - 75007 PARIS est tenue de respecter les prescriptions complémentaires ci-annexées pour l'exploitation de son site de PORT-JERÔME-SUR-SEINE.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     est tenue au siège de l'exploitation, à la disposition des autorités chargées d'en contrôler l'exécution et est affichée en permanence de façon visible à l'intérieur du site.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'établissement est soumis à la surveillance de l'inspection des installations classées ainsi qu'à l'exécution de toutes mesures ultérieures que l'administration jugerait nécessaire d'ordonner dans l'intérêt de la sécurité et de la salubrité publique.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En cas de contraventions dûment constatées aux dispositions qui précèdent, le titulaire du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     peut faire l'objet, indépendamment de sanctions pénales, de sanctions administratives prévues par la législation sur les installations classées.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Sauf cas de force majeure,
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     cesse de produire effet si l'établissement n'est pas exploité pendant trois années consécutives.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Au cas où la société est amenée à céder son exploitation, le nouvel exploitant ou son représentant en fait la demande au préfet dans les formes prévues à l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+      article R.516-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     S'il est mis un terme au fonctionnement de l'activité, l'exploitant est tenu d'en faire la déclaration au moins trois mois avant la date de cessation, dans les formes prévues à l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="R512-39-1" data-type="article">
+      article R. 512-39-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , et de prendre les mesures qui s'imposent pour remettre le site dans un état tel qu'il ne s'y manifeste aucun des dangers ou inconvénients mentionnés à l'
+     <a data-spec="section_reference" data-start_num="L511" data-type="article">
+      article L. 511
+     </a>
+     .1 du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6 -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est soumis à un contentieux de pleine juridiction. Conformément aux dispositions de l'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="R181-50" data-type="article">
+      article R.181-50
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     , il peut être déféré auprès du tribunal administratif de ROUEN :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       1° par les pétitionnaires, ou exploitants, dans un délai de deux mois à compter du jour où ledit acte lui a été notifié ;
+      </li>
+      <li>
+       2° par les tiers intéressés en raison des inconvénients ou des dangers pour les intérêts mentionnés l'
+       <a data-parent_reference="5" data-spec="section_reference" data-start_num="L181-3" data-type="article">
+        article L.181-3
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="5" data-title="Code de l'environnement" data-type="code">
+        Code de l'environnement
+       </a>
+       , dans un délai de quatre mois à compter de :
+       <div data-spec="page_footer">
+        <div>
+         3/4
+        </div>
+       </div>
+       <a data-page_index="3" data-spec="page_separator">
+       </a>
+      </li>
+      <li>
+       - l'affichage en mairie dudit acte dans les conditions prévues au 2° de l'
+       <a data-parent_reference="6" data-spec="section_reference" data-start_num="R181-44" data-type="article">
+        article R.181-44
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="6" data-title="Code de l'environnement" data-type="code">
+        Code de l'environnement
+       </a>
+      </li>
+      <li>
+       - la publication de la décision sur le site internet de la préfecture prévue au 4° du même article ;
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le délai court à compter de la dernière formalité accomplie. Si l'affichage constitue cette dernière formalité, le délai court à compter du premier jour d'affichage de la décision.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les tiers qui n'ont acquis ou pris à bail des immeubles ou n'ont élevé des constructions dans le voisinage d'une installation classée que postérieurement à l'affichage ou à la publication de l'arrêté autorisant l'ouverture de cette installation ou atténuant les prescriptions primitives ne sont pas recevables à déférer ledit arrêté à la juridiction administrative.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Conformément aux dispositions de l'
+     <a data-spec="section_reference" data-start_num="R414-6" data-type="article">
+      article R. 414-6
+     </a>
+     du code de la justice administrative, les personnes de droit privé autres que celles chargées de la gestion permanente d'un service public non représentées par un avocat, peuvent adresser leur requête à la juridiction par voie électronique au moyen d'un téléservice accessible par le site www.telerecours.fr. Ces personnes ne peuvent régulièrement saisir la juridiction par voie électronique que par l'usage de ce téléservice.
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="Publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 7 - Publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément aux dispositions de l'
+     <a data-parent_reference="7" data-spec="section_reference" data-start_num="R181-44" data-type="article">
+      article R 181-44
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="7" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     , un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     mentionnant qu'une copie du texte intégral est déposée aux archives des mairies et mise à disposition de toute personne intéressée, sera affiché en mairie de PORT-JERÔME-SUR-SEINE pendant une durée minimum d'un mois.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     La maire de PORT-JERÔME-SUR-SEINE fera connaître par procès-verbal, adressé à la préfecture de la Seine-Maritime, l'accomplissement de cette formalité.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le même extrait sera affiché en permanence, de façon visible, sur le site de l'exploitant à la diligence de la société AIR LIQUIDE HYDROGÈNE.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     L'arrêté est publié sur le site internet de la préfecture de la Seine-Maritime pendant une durée minimale de quatre mois.
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 8 -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le secrétaire général de la préfecture de la Seine-Maritime, la sous-préfète du Havre, la maire de PORT-JERÔME-SUR-SEINE, le directeur régional de l'environnement, de l'aménagement et du logement, et l'inspection des installations classées pour la protection de l'environnement sont chargés chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie sera adressée à la maire de PORT-JERÔME-SUR-SEINE et à la société AIR LIQUIDE HYDROGÈNE.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Fait à ROUEN, le - 3 NOV. 2020
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Pour le préfet de la Seine-Maritime,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     et par délégation,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     le secrétaire général
+    </div>
+    <div data-number="6" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCABxAOkDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iiigAooooAKKKKACiiigAopM80UAI+Npz6VE+FXdxgL19qlODx61zHifVJYYoLC0BN1cnbgfwqT1qoQ55consZ82fFOvKkZP2Gwfk5/1jDvXaRRpGpRVCgdgKoaNpcelabHbxAZAyzep71pKMHnGaqpO75VshRT6gVBGKAoAx6U6isyhKhurhLW2eaRgqIMk1May/EMTS6BeqvXymP5DNKKvKwFm0u0vLeO4icGNx+dYvjfw7P4k0VLa2lWOWOUSAPwG4Ixnt1z+FReBbgT+GbccMUJB/M11Yq5x5ZWA4BfE3i6wiFpceF5Z7hQFEsWSjdixxkDp0yKu+FPDeoWmp32uau0Qvr1eYYj8qAnJB49h3NdlSHpUPYChqUCTaXcxuCQY26/Q1n+FSH0gBmLbTswTnpWvcLm2mHqh/lWB4Q3fYLhQc4mIrSnrRZPU6ZeFxjGKdSL04pagoKKKKACiiigAooooAKKKKACiiigAooooAaetFIaQ8YJ6UPRXHYbM6xwu7EbQpJzXI+HoX1fXLvW5einyoB2AH+TVnxffy2+nx2lvhp7lhGR/stwf51s6VZrYWMFsi8Bfm+tbr3KfN1ZineRfQgqCOmKcDyaavSnL3rm2sai0UUVQCGs/W226LeEnA8h8/8AfJrQNUNY/wCQNe+v2eT/ANBNVH4kJ7GH4Gs4rXQ45InYrIuefrXViub8EZ/4Ri1z7/zNdLVVfjYo7BQelFNbO5fSsnsUV7ttlpM2eiE/pWB4M40+4lJ4eYmrHii/ay0Z9gzLL+6Uf73H9an8PWP2LR4YiPmYbm+tbRXLR9Sb6myoAHFLSL06UtZFBRRRQAUUUUAFFFFABRRRQAUUUUAFFFBoAbjJNMkAwAehp/eqmo3AtbGaUnG1CRQo3dhSdkctAW1jxu0hYGCxG0jP8Xb9SK7NUUdK5bwXabbB7yUfvrqQux9SOP6V1YrWs/e5exMFpcTApRS0VkWFFFFADT1rO1zI0S8K9fJf/wBBNaB61na9KItDvGbgeUw/MYoou87CZT8Lbf8AhHLNEGflJJ/4Ea3ucda4Nr+60vwVZLp4Bu5mCorfWls/F+oaeBHrtlIhPV0AIrpnh5SbkiFJI7rPvUU8ojQszhVXksT0rnk8baDMhb7YAR/CVYGse81C88YymxtEeCxB+eXpuHtURw87++rIHK+xZgkl8U6/uZSthZvxxw7Dv+tdqAAMAYAqnp9hFp1nFbQrhEUD3P41dAqKs7uy2RUUKOlLRRUFBRRRQAUUUUAFFFFABRRRQAUUUUAFFFFADc81zHja5aPSUt4z89xIE/CulYYJJ9K5DW2N34s0617RDzP51rQV537GdV6HRaZbi2sLeED/AFaAVoCmJxx6cVJWT1k5FrRWCiiigYUd6KKAGHrWF4vyfDlyoON2Bn8RW93rnvGrL/wjzxH/AJayon5sKuiv3iaE3oZNtAt3f6NFnKQQ72A59a6+S3hnXbJGkg/2lzXM+GAr6xeOP4IUj/ID/GuvrXENqdkTCzVzFl8NaPM5Z9OhB9VUVo21tFZxCKCJVQdABirVFY88nu7lKKQwH5ctS4ANOoqLDCiiimAUUhpKBDqKbRQDHUUUUDCiiigAooooAKKKKAGMAwIPQ9a5A5k8fpn+CHA+nNdeW5/GuPnY2vjqKSQYWRNoraj1M6nQ65QCvPepKjXBAHpUmaxNBaKTNGaAFoozSE0AHeuU8c/NaWKbsKbpGb6Bga6rNcV8SGZNFidThgzAH0JFbYazqIzqPTQn8FL5v9oXQPDXJA9wAB/SuvFc74Rt/s/h6zCjBZdz+59a6IGliJXrSKgvdFopu7nFLkVkULRTdw7U3zAO2KV0BJSE0xpFAyzAD3NZ11r+l2mfOu41I7ZqlGT2RLkluaZPBqN5AigkgZ7muVufHNmWZbGGe8IH/LNeP1rLu7zxF4ii8lNOe1iP8TMBito4dv4tES6qtod55yhMs6g56g07ev8Az0FeeWngPWy8bz66+wHcYw7Yrq/7Cl/5/X/WlOnTi7KQQk2tjeorN17T59T0ma2tbqW1uCMxSxSFCGHTJHOK5nwP4juZ3l0DWGYapaZAZ8kyqO5z3/oRWJodxRXnniHW73xB4hg8PeH7qSEwvuubmKUrgAdMg9s/jwK7Oyns7Zk0pb5ZrqFADHJMGmIx95s8+9AGhRUM00VvC808qRxKMs7thQPU54FRm/s1sheG6hFqRuE28bCPr0oAtUGsjT/Eui6pO0FnqVvLIP4N2CfoD1/Cr91d21lD511cRQR5C75XCjJ7ZNADzy2DXLeMrR/Kt9RhB32r7zjuOBWle+KtC0+6+z3WpwRy4DFeT16HI4rSzDeWwIKywSrkMDkEHvVQqck7ikrlbSb5NR0+GeNhkr8w75rRJx1OB61w81nf+Fr2S6somurGQ5aJTyorCu/FF54w1hdFsLwadEozMzcN7jOKudPXmhqhKSPT1vLZ2KrcQsfQOM1MD71wC/DrTZIla21C7WXb/rUmbk+vXmtnw5bazZWk0GrXKSxxf6uQHL4Hrx6Vm00O6OlLKoyWAA6mo1vLZ32LPEzegcV53Jc6h4412azs55rLR7UlJJUYgyNV2X4b2KQZt728gnQfJKJSCT1Hep1Gd0cZx3NY3iPRLfX9P+wzS+Wc5GDXN+F/EFzY6lP4f1ly00LnyZ5DksuM8nP1rG8aa1by+MNN8vUp0tVgKypASCT83TFaQhOL5okyaPTNPtYrSxgtonDLEu3Oat8DnNeJXGsS6BqFrd6TJqc8EsgHlXMhKnn3NdNq+r+KNQ0a4nTThZxC3Y7vMwR15qvY1Hqx3R6MZI+u9RjrzVC81iwtAGlu4lA9Gya8v8O+C9U8RaNDeXfiO5SGYZKwyNng46/hTtX8I3fhF49VjkOpWcLDzUm+Z9p4JyfrUqEU7T2E5O2h11x45tA2yytpbhuxRetQrq/ijU+LSxW3jP8AFJ1FXb0Wsfgu9vdNjjhzZvIjx/KVO05wR05p3gCea68H2txczyTSs0gaSVtxOHYck81r7WnBe5EjlbKH/CLa1fc3+ruqnqsdaFn4I0q1OZEadz1aQ5z+dcxo+lar4j1XWmPiPUbWK2vHjRI5GIxub3HHpXW6F4cu9GvJJp9cvr9XjKLHOxIU5BzyTzx+tS8RUasnYapLc0rbS7OzUi2tYox7IOathRxgbf8AZrzjVF1HVfiXcaTDrN7ZQeUsgEMhAXCKcY4+tSWN3rfhPxTY6RqeoyahaXxwjsdzhicDJYk4Bx3rFuT3ZfKj0YcdsUu6gDijFHqD02FNcB8SNDAsx4itJWgvbTarSIxDFSQBjHOQT6969ArmfH1vc3fhG6gtIJ55XZMJCu44DA9OvbtzQMj8DaFFo+gRT4LXV6qzSu2CeRwufQVj+LN3h7xjpfiOMqIJyLa4Hdvf/vnn/gNdpoyNHolgjqVZbeNSrdQQoqj4u0hda8N3drtLShDJFjruXkAfXp+NAHO/EW4a+Ol+H7ckyXswdwvUKDjP5kn/AIDWt4i0XQF0ixTVZ2ttPsWARA+EfthgBz07c1zvgfTNXvNe/tXWrWWFrO1W3gMsRQt2zyMnjIz71P8AEGyu21LStS+xyX2nWxzNbpkjg7iSMcAgYz7UAYPi698MCwtv+EejVbu1lVxLbw7Qo54Zsc84xmui8fXD3fw6trmTaHmMMj4HGSuT+HNZfiLUr7W9Cax0Hw5d29iyh5Wa12b1BBAUD3weOa2PFun3dx8OrO2gtJpbhBBuiSNiwwuDkDnj3oAs6R4I0R/DMMM1qk0txCrSTnBk3FR91u1V/hqJorDU7CadpUs7toY85wAOuB2yefxrrNJie30axilBV44EVgexCgGue8DWd1aTa8bm3lhEuoO8fmIV3L6jPagDqmjUqwYDaRg15V4P0TTdVvdbg1CI/aY7pmyrFX2YGORzXrDdO341xGveGNQt9abX9AMYvGULLExIDf0/OmnJaIXKiVvBkkan7Lrd5CG5ChjgfmajudD8Rx2skdvqsToEP3h8zceuKqDxF4ulHkDQVikAx5rEEZ9a3vDWmanaRPNqt80803/LPaNqVoq1REOGpwXgWx1t7LUI7PULdJhcEPEckj1PSup/4RbXJmZp9df5uCqnpzUWoeGNR0fWpNW8PPGGlG6aFwcO3tx6VE+t+MrofZY9DjtpGBDTMw2j9af1ifZfcHIu5zk/hiKX4g2FgdQlupBGzTMJGypweM/TFTeKPC0UXjrR7bSW+zyvExDP8/TcSTuzXZ+FvCzaPJNe3kgm1K5JMkuSecYx+VRazo93d+ONN1SKMmK2h8t/xJ/xqPaTfUrlRy66Xcp4xsrbxLeCW3HzW5Vdill6D5RjqK9B15VHh2/XA2C3fAxwOD2qr4p8PLrumgR4W8tj5lu3+0OQD+NQQJql54NntLyAi+8pozz1JB6fmKh67lWQ3wBkeCrAP5afK3K8fxtWp4gkgh0S8NwAY/IbG4/eODgVxeiv4w0PR4tPi0GGdY8gSNIM8kn+tW5tB8R+JriL+2XitbWMhvJRjlvbigLEWjxTR/Ca7EwYFrWZlBPQYOK2PhwoPgey/wB6T/0M1o61p5i8IahY2cRcizkSNFBJJ2njjk5qr4Btriz8H2kF1BLBKrSFklTYwy7dQaAOR0C38Szarr50K7s4IxfyBxcDOW3N7H3rvNAg12GGYa7c208hYeWbcYAHfPArhdN1PXfDmraysPhy8u4bm8kkWTy3HG5sYwDxXV+HPEWqavfTQX+hXGnxIm+OSVWAY7sbeQOcH+dAHH62NX/4Wpdf2IYxe+SuN+3G3y1z1p/hyG61/wActL4huQuoacNsduECliCTkY4IGc5Fa9vZXr/Fm4vmsblbQwbBM0RCMQg6N0p/jXQ7mO+tvEmjxyPqFu6iSOIZMiDvgc+x9s0AdyMUuKq6bdPe6dBcyW8tu8iBmhlXDIfQirdABRRRQAUUUUAFFFFABRRRQAUUUUAFRv0NFFDAcn3RTV+9RRT6AOP3TTU/1dFFIY2T7qVL3oooEMj+8aRP9c9FFACjrQn32oooAkooooAKKKKACiiigAooooA//9k="/>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      Vu pour être annexe à mon arrêté en date du : - 3 NOV. 2020 Le Préfet, Pour le Préfet et par délégation, Le Secrétaire Général, Yvan CORDIER
+     </div>
+    </div>
+   </section>
+  </main>
+  <footer data-spec="appendix">
+   <section data-number="I" data-spec="section" data-title="nformations très sensibles - Non communicables au public" data-type="annexe">
+    <h2 data-level="0" data-spec="section_title">
+     Annexe Informations très sensibles - Non communicables au public
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Prescriptions annexées à l'arrêté préfectoral
+    </div>
+    <div data-number="2" data-spec="alinea">
+     en date du - 3 NOV. 2020
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Société AIR LIQUIDE HYDROGÈNE à PORT-JERÔME-SUR-SEINE
+    </div>
+    <section data-number="1" data-spec="section" data-title="Objet" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 1er : Objet
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La société AIR LIQUIDE HYDROGÈNE, dont le siège social est situé
+      <address data-spec="address">
+       6 rue Cognacq-Jay
+      </address>
+      , 75007 PARIS, est tenue de respecter les dispositions du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      pour ses installations implantées Zone Industrielle de Port-Jérôme, Avenue Kennedy - CD 110 - Bloc 70, 76330 PORT-JERÔME-SUR-SEINE.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les prescriptions du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      complètent les prescriptions de l'
+      <a data-date="2004-03-18" data-spec="document_reference" data-type="arrete-prefectoral">
+       arrêté préfectoral du
+       <time data-spec="date" datetime="2004-03-18">
+        18 mars 2004
+       </time>
+       modifié
+      </a>
+      .
+     </div>
+    </section>
+    <section data-number="2" data-spec="section" data-title="Prescriptions complémentaires au titre 1" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 2 : Prescriptions complémentaires au titre 1
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      À l'
+      <a data-spec="section_reference" data-start_num="2.1.3" data-tag_id="11" data-type="article">
+       article 2.1.3
+      </a>
+      <span data-direction="rtl" data-has_operand="true" data-keyword="supprimé" data-operand="12" data-operation_type="delete" data-references="11" data-spec="operation">
+       du chapitre 2.1 de la section 2 du titre 1, le paragraphe ci-dessous est
+       <b>
+        supprimé
+       </b>
+       :
+      </span>
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <blockquote data-tag_id="12">
+       <p>
+        Le COOD ne peut agir que sur la consigne de production de l'unité Cryocap. Cette consigne de production doit se trouver à l'intérieur de fourchettes opératoires définies par le site. En particulier, le COOD ne peut pas intervenir sur les équipements pour modifier la consigne de production de l'unité Cryocap, lorsqu'ils sont en fonctionnement en mode local ou mis en sécurité par le système local. Le COOD ne peut pas intervenir sur les équipements en dehors de l'action sur la consigne de production de l'unité Cryocap à l'intérieur des fourchettes opératoires définies par le site.
+       </p>
+      </blockquote>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Il est remplacé par le paragraphe suivant :
+     </div>
+     <div data-number="4" data-spec="alinea">
+      <blockquote>
+       <p>
+        Le COOD peut agir sur les consignes de production de l'unité Cryocap, le contrôle de la charge de l'unité de production d'hydrogène, ainsi que sur l'arrêt du conditionnement d'emballage d'hydrogène et le contrôle du débit/pression d'import et d'export d'hydrogène vers la plateforme de GONFREVILLE L'ORCHER depuis les tuyauteries dédiées.
+       </p>
+       <p>
+        Lorsque le COOD transmet une consigne de production, celle-ci doit se trouver à l'intérieur de fourchettes opératoires définies par le site. En particulier, le COOD ne peut pas intervenir sur les équipements pour modifier une consigne de production, lorsqu'ils sont en fonctionnement en mode local ou mis en sécurité par le système local.
+       </p>
+      </blockquote>
+     </div>
+    </section>
+    <section data-number="3" data-spec="section" data-title="Prescriptions complémentaires au titre II" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 3 : Prescriptions complémentaires au titre II
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      À la section 15 du titre II de l'
+      <a data-date="2004-03-18" data-spec="document_reference" data-tag_id="13" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="2004-03-18">
+        18 mars 2004
+       </time>
+       modifié
+      </a>
+      <span data-direction="rtl" data-has_operand="true" data-keyword="supprimé" data-operand="14" data-operation_type="delete" data-references="13" data-spec="operation">
+       , le paragraphe suivant est
+       <b>
+        supprimé
+       </b>
+       :
+      </span>
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       1/3
+      </div>
+     </div>
+     <a data-page_index="5" data-spec="page_separator">
+     </a>
+     <div data-number="2" data-spec="alinea">
+      <blockquote data-tag_id="14">
+       <p>
+        Protection contre la cyber-malveillance
+       </p>
+       <p>
+        L'exploitant transmettra à l'inspection des installations classées d'ici le 31 décembre 2018 :
+       </p>
+       <ul>
+        <li>
+         1) les conclusions d'un test d'intrusion effectué par une société agréée par l'ANSSI permettant de valider le niveau de cybersécurité des solutions de connexion à distance ;
+        </li>
+        <li>
+         2) le cas échéant les mesures et leurs échéances à déployer suite au résultat de ces tests.
+        </li>
+       </ul>
+      </blockquote>
+     </div>
+    </section>
+    <section data-number="4" data-spec="section" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 4 :
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      À l'
+      <a data-parent_reference="8" data-spec="section_reference" data-start_num="4.3.1" data-tag_id="15" data-type="article">
+       article 4.3.1
+      </a>
+      du titre 1 de l'
+      <a data-date="2004-03-18" data-spec="document_reference" data-tag_id="8" data-type="arrete-prefectoral">
+       arrêté préfectoral du
+       <time data-spec="date" datetime="2004-03-18">
+        18 mars 2004
+       </time>
+       modifié
+      </a>
+      <span data-direction="rtl" data-has_operand="true" data-keyword="supprimée" data-operand="16" data-operation_type="delete" data-references="15" data-spec="operation">
+       , la phrase suivante est
+       <b>
+        supprimée
+       </b>
+       :
+      </span>
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <blockquote data-tag_id="16">
+       <p>
+        Les rejets des eaux usées d'origine domestique sont réalisés dans un système de traitement conforme à l'
+        <a data-date="1996-05-06" data-spec="document_reference" data-type="arrete">
+         arrêté du
+         <time data-spec="date" datetime="1996-05-06">
+          6 mai 1996
+         </time>
+        </a>
+        .
+       </p>
+      </blockquote>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Elle est remplacée par la phrase ci-dessous :
+     </div>
+     <div data-number="4" data-spec="alinea">
+      <blockquote>
+       <p>
+        Les rejets des eaux usées d'origine domestique sont réalisés dans un système de traitement conforme à l'
+        <a data-date="2009-09-07" data-spec="document_reference" data-type="arrete-ministeriel">
+         arrêté ministériel du
+         <time data-spec="date" datetime="2009-09-07">
+          7 septembre 2009
+         </time>
+        </a>
+        (NOR : DEVO0809422A)
+       </p>
+      </blockquote>
+     </div>
+    </section>
+    <section data-number="5" data-spec="section" data-title="Modification du montant des garanties financières" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 5 : Modification du montant des garanties financières
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les dispositions de l'
+      <a data-parent_reference="9" data-spec="section_reference" data-start_num="1.11.3" data-tag_id="17" data-type="article">
+       article 1.11.3
+      </a>
+      du titre 1 de l'
+      <a data-date="2004-03-18" data-spec="document_reference" data-tag_id="9" data-type="arrete-prefectoral">
+       arrêté préfectoral du
+       <time data-spec="date" datetime="2004-03-18">
+        18 mars 2004
+       </time>
+       modifié
+      </a>
+      <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operation_type="replace" data-references="17" data-spec="operation">
+       sont supprimées et sont
+       <b>
+        remplacées
+       </b>
+       par les dispositions suivantes :
+      </span>
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Le montant des garanties financières est fixé à 72 599,87 € TTC.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      À tout moment (incluant les phases d'arrêt), les quantités de déchets pouvant être entreposées sur le site ne doivent dépasser, pour chaque type de déchets, les valeurs maximales définies dans le tableau ci-dessous, sur la base desquelles le montant des garanties financières fixé au présent article a été calculé.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         Type de déchets / produits
+        </th>
+        <th>
+         Quantité maximale susceptible d'être stockée au sein de l'installation
+        </th>
+       </tr>
+       <tr>
+        <td>
+         Déchets non dangereux
+        </td>
+        <td>
+         119,25 tonnes
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Déchets liquides ou pâteux (eaux industrielles, boues décanteur, éthylène glycol, huiles usagées)
+        </td>
+        <td>
+         93,42 tonnes
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Déchets industriels dangereux (dont catalyseurs valorisés mais non enlevés gratuitement)
+        </td>
+        <td>
+         65,3 tonnes
+        </td>
+       </tr>
+      </table>
+     </div>
+    </section>
+    <section data-number="6" data-spec="section" data-title="Modification de l'annexe 3" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 6 : Modification de l'annexe 3
+     </h3>
+     <a data-page_index="6" data-spec="page_separator">
+     </a>
+     <div data-number="1" data-spec="alinea">
+      Les dispositions de l'
+      <a data-parent_reference="10" data-spec="section_reference" data-start_num="3" data-tag_id="18" data-type="annexe">
+       annexe 3
+      </a>
+      de l'
+      <a data-date="2004-03-18" data-spec="document_reference" data-tag_id="10" data-type="arrete-prefectoral">
+       arrêté préfectoral du
+       <time data-spec="date" datetime="2004-03-18">
+        18 mars 2004
+       </time>
+       modifié
+      </a>
+      <span data-direction="rtl" data-keyword="remplacées" data-operation_type="replace" data-references="18" data-spec="operation">
+       sont supprimées. Elles sont
+       <b>
+        remplacées
+       </b>
+       par les dispositions
+      </span>
+      ci-après.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      VALEURS LIMITES DE REJETS DES EFFLUENTS AQUEUX
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        1) ÉMISSAIRE PRINCIPAL
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les rejets d'eau résiduaire en sortie de l'émissaire principal doivent respecter les caractéristiques maximales suivantes :
+     </div>
+     <div data-number="5" data-spec="alinea">
+      <ul>
+       <li>
+        - débit journalier maximum sur 24 heures : 24 m³/j
+       </li>
+       <li>
+        - pH compris entre 5,5 et 8,5
+       </li>
+       <li>
+        - température &amp;lt;30°C
+       </li>
+      </ul>
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Le pH et le débit sont mesurés en continu au point de rejet principal. De plus, l'exploitant met en place un contrôle final avec enregistrement en continu du pH et de la température du rejet des eaux asservi à une alarme entraînant l'arrêt de tout rejet non-conforme.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Les autres paramètres doivent respecter les dispositions suivantes :
+     </div>
+     <div data-number="8" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         Paramètres
+        </th>
+        <th>
+         Code SANDRE
+        </th>
+        <th>
+         Fréquence de surveillance
+        </th>
+        <th>
+         Concentration maximale (mg/l)
+        </th>
+        <th>
+         Flux maximaux (kg/j)
+        </th>
+       </tr>
+       <tr>
+        <td>
+         DCO
+        </td>
+        <td>
+         1314
+        </td>
+        <td>
+         mensuelle
+        </td>
+        <td>
+         300
+        </td>
+        <td>
+         3
+        </td>
+       </tr>
+       <tr>
+        <td>
+         DBO₅
+        </td>
+        <td>
+         1313
+        </td>
+        <td>
+         mensuelle
+        </td>
+        <td>
+         30
+        </td>
+        <td>
+         0,5
+        </td>
+       </tr>
+       <tr>
+        <td>
+         MES
+        </td>
+        <td>
+         1305
+        </td>
+        <td>
+         mensuelle
+        </td>
+        <td>
+         30
+        </td>
+        <td>
+         0,5
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Amines
+        </td>
+        <td>
+         107
+        </td>
+        <td>
+         mensuelle
+        </td>
+        <td>
+         30
+        </td>
+        <td>
+         0,5
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Azote global
+        </td>
+        <td>
+         1551
+        </td>
+        <td>
+         mensuelle
+        </td>
+        <td>
+         30
+        </td>
+        <td>
+         0,1
+        </td>
+       </tr>
+       <tr>
+        <td>
+         HC totaux
+        </td>
+        <td>
+         7009
+        </td>
+        <td>
+         mensuelle
+        </td>
+        <td>
+         10
+        </td>
+        <td>
+         0,1
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Phosphore total
+        </td>
+        <td>
+         1350
+        </td>
+        <td>
+         mensuelle
+        </td>
+        <td>
+         10
+        </td>
+        <td>
+         0,1
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Cuivre
+        </td>
+        <td>
+         1392
+        </td>
+        <td>
+         mensuelle
+        </td>
+        <td>
+         0,5
+        </td>
+        <td>
+         0,005
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Fer+Al
+        </td>
+        <td>
+         7714
+        </td>
+        <td>
+         mensuelle
+        </td>
+        <td>
+         5
+        </td>
+        <td>
+         0,03
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Acide formique
+        </td>
+        <td>
+         7931
+        </td>
+        <td>
+         mensuelle
+        </td>
+        <td>
+         175
+        </td>
+        <td>
+         3
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Acide acétique
+        </td>
+        <td>
+         6942
+        </td>
+        <td>
+         mensuelle
+        </td>
+        <td>
+         25
+        </td>
+        <td>
+         0,5
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Méthanol
+        </td>
+        <td>
+         2052
+        </td>
+        <td>
+         mensuelle
+        </td>
+        <td>
+         5
+        </td>
+        <td>
+         0,1
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Pour les effluents aqueux, les valeurs limites s'imposent à des mesures, prélèvement ou analyses moyens réalisés sur 24 heures.
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Pour les analyses, les normes utilisées seront celles citées dans l'
+      <a data-date="1998-02-02" data-spec="document_reference" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="1998-02-02">
+        02 février 1998
+       </time>
+       modifié
+      </a>
+      .
+     </div>
+     <div data-number="11" data-spec="alinea">
+      <ul>
+       <li>
+        2) EAUX PLUVIALES
+       </li>
+      </ul>
+     </div>
+     <div data-number="12" data-spec="alinea">
+      Le rejet des eaux pluviales ne doit pas contenir plus de :
+     </div>
+     <div data-number="13" data-spec="alinea">
+      <ul>
+       <li>
+        - 5 mg/l d'hydrocarbures (Norme SANDRE 7009)
+       </li>
+       <li>
+        - 15 mg/l de MES (SANDRE 1305)
+       </li>
+       <li>
+        - 28 µg/l de glyphosate* (SANDRE 1506).
+       </li>
+      </ul>
+     </div>
+     <div data-number="14" data-spec="alinea">
+      (*) Le glyphosate fera l'objet d'une campagne de mesure d'un an, dont les résultats seront transmis à l'inspection des installations classées. Cette campagne sera mensuelle durant les phases d'épandage, et trimestrielle sinon. En cas de substitution de cette substance par une autre substance phytosanitaire, l'exploitant transmettra à l'inspection des installations classées une proposition de plan de surveillance.
+     </div>
+    </section>
+   </section>
+  </footer>
+ </body>
+</html>

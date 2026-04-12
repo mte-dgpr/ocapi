@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2010-11-25_arrêté préfectoral_AP complémentaire (Art. R. 512-31).pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+
+RÉPUBLIQUE FRANÇAISE
+
+PREFET DU HAUT-RHIN
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFECTURE
+    </div>
+    <div>
+     Direction des Collectivités Locales et des Procédures Publiques
+    </div>
+    <div>
+     Bureau des Enquêtes Publiques et Installations Classées
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     n° 747
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ
+    </h1>
+   </div>
+   <div data-spec="identification">
+    <div>
+     N° 2010-329-22 du 25 novembre 2010 portant prescriptions complémentaires concernant les rejets de substances dangereuses dans le milieu aquatique à la Société DSM Nutritional Products France pour l'exploitation de son site de VILLAGE-NEUF en référence au titre Ier du Livre V du Code de l'Environnement
+    </div>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet du Haut-Rhin
+    </div>
+    <div>
+     Chevalier de la Légion d'Honneur
+    </div>
+    <div>
+     Officier de l'Ordre National du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2000" data-num="60" data-spec="document_reference" data-type="eu-directive">
+     directive 2000/60/CE
+    </a>
+    du 23 octobre 2000 établissant un cadre pour une politique communautaire dans le domaine de l'eau (DCE),
+   </div>
+   <div data-spec="visa">
+    VU la directive fille n° 2008/105/CE du 16/12/08 établissant des normes de qualité environnementale dans le domaine de l'eau, modifiant et abrogeant les directives du Conseil 82/176/CEE, 83/513/CEE, 84/156/CEE, 84/491/CEE, 86/280/CEE et modifiant la directive 2000/6,
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    et notamment son titre 1er des parties réglementaires et législatives du Livre V,
+   </div>
+   <div data-spec="visa">
+    VU la nomenclature des installations classées codifiée à l'
+    <a data-parent_reference="1" data-spec="section_reference" data-type="annexe">
+     annexe
+    </a>
+    de l'
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="R511-9" data-tag_id="1" data-type="article">
+     article R511-9
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    VU les
+    <a data-end_num="R211-11-3" data-spec="section_reference" data-start_num="R211-11-1" data-type="article">
+     articles R211-11-1 à R211-11-3
+    </a>
+    du titre 1 du livre II du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    relatifs au programme national d'action contre la pollution des milieux aquatiques par certaines substances dangereuses,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2005-04-20" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2005-04-20">
+      20 avril 2005
+     </time>
+     modifié
+    </a>
+    pris en application du
+    <a data-date="2005-04-20" data-spec="document_reference" data-type="decret">
+     décret du
+     <time data-spec="date" datetime="2005-04-20">
+      20 avril 2005
+     </time>
+    </a>
+    relatif au programme national d'action contre la pollution des milieux aquatiques par certaines substances dangereuses,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2005-06-30" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2005-06-30">
+      30 juin 2005
+     </time>
+     modifié
+    </a>
+    relatif au programme national d'action contre la pollution des milieux aquatiques par certaines substances dangereuses,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1998-02-02" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="1998-02-02">
+      2 février 1998
+     </time>
+     modifié
+    </a>
+    relatif aux prélèvements et à la consommation d'eau ainsi qu'aux émissions de toute nature des installations classées pour la protection de l'environnement soumises à autorisation,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2008-01-31" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2008-01-31">
+      31 janvier 2008
+     </time>
+    </a>
+    relatif à la déclaration annuelle des émissions polluantes et des déchets,
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2002-02-04" data-spec="document_reference" data-type="circulaire">
+     circulaire DPPR/DE du
+     <time data-spec="date" datetime="2002-02-04">
+      4 février 2002
+     </time>
+    </a>
+    qui organise une action nationale de recherche et de réduction des rejets de substances dangereuses dans l'eau par les installations classées,
+   </div>
+   <div data-spec="visa">
+    VU la circulaire DCE 2005/12 du 28 juillet 2005 relative à la définition du « bon état »,
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+     circulaire du
+     <time data-spec="date" datetime="2007-05-07">
+      7 mai 2007
+     </time>
+    </a>
+    définissant les « normes de qualité environnementale provisoires (NQEp) » et les objectifs nationaux de réduction des émissions de certaines substances,
+   </div>
+   <div data-spec="visa">
+    VU la circulaire 05 janvier 2009 relative à la mise en œuvre de la deuxième phase de l'action nationale de recherche et de réduction des substances dangereuses pour le milieu aquatique présentes dans les rejets des installations classées pour la protection de l'environnement,
+   </div>
+   <div data-spec="visa">
+    VU le courrier du Ministère de l'Écologie, de l'Énergie, du Développement Durable et de la Mer du 04/01/210 à Monsieur le directeur de l'UIC,
+   </div>
+   <div data-spec="visa">
+    VU le rapport d'étude de l'INERIS N°DRC-07-82615-13836C du 15/01/08 faisant état de la synthèse des mesures de substances dangereuses dans l'eau réalisées dans certains secteurs industriels,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2008-04-04" data-num="2008-09-51" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral N° 2008-09-51 du
+     <time data-spec="date" datetime="2008-04-04">
+      04 avril 2008
+     </time>
+    </a>
+    et autres actes administratifs antérieurs autorisant la société DSM Nutritional Products à exercer ses activités relevant de la nomenclature des installations classées sur le territoire de la commune de Village-Neuf,
+   </div>
+   <div data-spec="visa">
+    VU le courrier de l'inspection du 18/02/2010 qui a proposé un projet d'arrêté préfectoral,
+   </div>
+   <div data-spec="visa">
+    VU les courriers de l'industriel du 15/03/2010 et 31/03/2010 en réponse,
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l'inspection des installations classées en date du 13 août 2010,
+   </div>
+   <div data-spec="visa">
+    VU l'avis du CODERST du 07 octobre 2010,
+   </div>
+   <div data-spec="visa">
+    VU les résultats du/des rapport(s) établi(s) par le Centre d'Analyses et de Recherches référencés HYP-PRE-05-Rapport final – DSM Saint Louis et daté(s) du 22 novembre 2005 présentant les résultats d'analyse menées dans le cadre de la première phase de recherche de substances dangereuses dans l'eau,
+   </div>
+   <div data-spec="motifs">
+    Considérant l'objectif de respect des normes de qualité environnementale dans le milieu en 2015 fixé par la
+    <a data-date="2000" data-num="60" data-spec="document_reference" data-type="eu-directive">
+     directive 2000/60/CE
+    </a>
+    du 23 octobre 2000 établissant un cadre pour une politique communautaire dans le domaine de l'eau (DCE),
+   </div>
+   <div data-spec="motifs">
+    Considérant les objectifs de réduction et de suppression de certaines substances dangereuses fixées dans la
+    <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+     circulaire DE/DPPR du
+     <time data-spec="date" datetime="2007-05-07">
+      7 mai 2007
+     </time>
+    </a>
+    ,
+   </div>
+   <div data-spec="motifs">
+    Considérant que l'établissement est autorisé à exploiter des installations classées visées par la
+    <a data-date="2009-01-05" data-spec="document_reference" data-type="circulaire">
+     circulaire du
+     <time data-spec="date" datetime="2009-01-05">
+      5 janvier 2009
+     </time>
+    </a>
+    relative à la mise en œuvre de la deuxième phase de l'action nationale de recherche et de réduction des substances dangereuses pour le milieu aquatique présentes dans les rejets des installations classées pour la protection de l'environnement et à ce titre peut être à l'origine d'un rejet potentielle des substances dangereuses définis par la circulaire pré-citée,
+   </div>
+   <div data-spec="motifs">
+    Considérant la nécessité d'évaluer qualitativement et quantitativement par une surveillance périodique les rejets de substances dangereuses dans l'eau issus du fonctionnement de l'établissement au titre des installations classées pour la protection de l'environnement afin de proposer le cas échéant des mesures de réduction ou de suppression adaptées,
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     2 / 9
+    </div>
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    Considérant les effets toxiques, persistants et bioaccumulables des substances dangereuses visées par
+    <a data-spec="document_reference" data-type="self">
+     le présent arrêté
+    </a>
+    sur le milieu aquatique,
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     APRES communication du projet d'arrêté à l'exploitant,
+    </div>
+    <div>
+     Sur proposition du Secrétaire Général de la Préfecture,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Objet" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1 - Objet
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La Société DSM Nutritional Products dont le siège social est situé à Village-Neuf doit respecter, pour ses installations situées sur le territoire de la ou des communes de Village-Neuf, au boulevard d'Alsace les modalités du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     préfectoral complémentaire qui vise à fixer les modalités de surveillance des rejets de substances dangereuses dans l'eau afin d'améliorer la connaissance qualitative et quantitative des rejets de ces substances.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Prescriptions techniques applicables aux opérations de prélèvements et d'analyses" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 - Prescriptions techniques applicables aux opérations de prélèvements et d'analyses
+    </h2>
+    <section data-number="2.1" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.1 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les prélèvements et analyses réalisés en application du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      doivent respecter les dispositions du fascicule joint au
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+    </section>
+    <section data-number="2.2" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.2 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Pour l'analyse des substances, l'exploitant doit faire appel à un laboratoire d'analyse accrédité selon la norme NF EN ISO/CEI 17025 pour la matrice
+      <q>
+       Eaux Résiduaires
+      </q>
+      , pour chaque substance à analyser.
+     </div>
+    </section>
+    <section data-number="2.3" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.3 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant doit être en possession de l'ensemble des pièces suivantes fournies par le laboratoire qu'il aura choisi, avant le début des opérations de prélèvement et de mesures afin de s'assurer que ce prestataire remplit bien les dispositions du fascicule joint au
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      1. Justificatifs d'accréditations sur les opérations de prélèvements et d'analyse de substances dans la matrice
+      <q>
+       eaux résiduaires
+      </q>
+      comprenant a minima :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      a. Numéro d'accréditation
+     </div>
+     <div data-number="4" data-spec="alinea">
+      b. Extrait de l'annexe technique sur les substances concernées
+     </div>
+     <div data-number="5" data-spec="alinea">
+      2. Liste de références en matière d'opérations de prélèvements de substances dangereuses dans les rejets industriels ;
+     </div>
+     <div data-number="6" data-spec="alinea">
+      3. Tableau des performances et d'assurance qualité précisant les limites de quantification pour l'analyse des substances qui doivent être inférieures ou égales à celles du fascicule joint au
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      ;
+     </div>
+     <div data-number="7" data-spec="alinea">
+      4. Attestation du prestataire s'engageant à respecter les prescriptions du fascicule.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Les modèles des documents visés au point 3 et 4 précédents sont repris dans le fascicule joint au
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+     </div>
+    </section>
+    <section data-number="2.1" data-spec="section" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      2.1 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Dans le cas où l'exploitant souhaite réaliser lui-même le prélèvement des échantillons, celui-ci doit fournir à l'inspection avant le début des opérations de prélèvement et de mesures prévues à l'
+      <a data-parent_reference="3" data-spec="section_reference" data-start_num="3" data-type="article">
+       article 3
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="3" data-type="self">
+       présent arrêté
+      </a>
+      , les procédures qu'il aura établies démontrant la fiabilité et la reproductibilité de ses pratiques de prélèvement et de mesure de débit.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       3 / 9
+      </div>
+     </div>
+     <a data-page_index="3" data-spec="page_separator">
+     </a>
+     <div data-number="2" data-spec="alinea">
+      Ces procédures doivent intégrer les points détaillés au
+      <a data-spec="section_reference" data-start_num="3" data-type="unknown">
+       paragraphe 3
+      </a>
+      du fascicule joint au
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      et préciser les modalités de traçabilité de ces opérations.
+     </div>
+    </section>
+    <section data-number="2.2" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.2 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les mesures de surveillance des rejets aqueux déjà imposées à l'industriel par arrêté préfectoral sur des substances visées dans
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      peuvent se substituer à certaines mesures visées dans
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      , sous réserve du respect des conditions suivantes :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - la fréquence de mesures imposée dans
+        <a data-spec="document_reference" data-type="self">
+         le présent arrêté
+        </a>
+        est respectée ;
+       </li>
+       <li>
+        - les modalités de prélèvement et d'analyses pour les mesures de surveillance répondent aux exigences du fascicule joint au
+        <a data-spec="document_reference" data-type="self">
+         présent arrêté
+        </a>
+        , notamment sur les limites de quantification.
+       </li>
+      </ul>
+     </div>
+    </section>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Mise en œuvre de la surveillance initiale" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 - Mise en œuvre de la surveillance initiale
+    </h2>
+    <section data-number="3.1" data-spec="section" data-title="Programme de surveillance initiale" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.1 - Programme de surveillance initiale
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant met en œuvre **sous 3 mois** (passation de commande au(x) laboratoire(s) retenu(s)) à compter de la notification du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      le programme de surveillance aux points de rejet des effluents industriels de l'établissement ( rejet STEP et rejet eaux pluviales) dans les conditions suivantes :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - liste des substances dangereuses : substances dangereuses visées dans l'
+        <a data-parent_reference="4" data-spec="section_reference" data-type="annexe">
+         annexe
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="4" data-type="self">
+         présent arrêté
+        </a>
+       </li>
+       <li>
+        - périodicité : 1 mesure par mois pendant 6 mois, la première mesure portera sur l'ensemble des substances visées en
+        <a data-parent_reference="5" data-spec="section_reference" data-type="annexe">
+         annexe
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="5" data-type="self">
+         présent arrêté
+        </a>
+        . Certaines de ces substances (précisées dans cette annexe) seront abandonnées si elles ne sont pas détectées lors de cette première mesure,
+       </li>
+       <li>
+        - durée de chaque prélèvement : 24 heures représentatives du fonctionnement de l'installation,
+       </li>
+       <li>
+        - la limite de quantification des substances à atteindre par les laboratoires en μg/L fixée par le fascicule.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Dans le cas où il s'avérerait impossible d'effectuer un prélèvement proportionnel au débit de l'effluent, le préleveur pratiquera un prélèvement asservi au temps (minimum 2H), ou des prélèvements ponctuels si la nature des rejets le justifie.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Dans ce cas, le débit et son évolution seront estimés par le préleveur en fonction des renseignements collectés sur place (compteurs d'eau, bilan hydrique, etc). Le préleveur devra lors de la restitution préciser la méthodologie de prélèvement mise en œuvre
+     </div>
+    </section>
+    <section data-number="3.2" data-spec="section" data-title="Rapport de synthèse de la surveillance initiale" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.2 - Rapport de synthèse de la surveillance initiale
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant doit fournir à l'inspection des installations classées au plus tard 12 mois à compter de la date du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      préfectoral un rapport de synthèse de la surveillance initiale devant comprendre :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - un tableau récapitulatif des mesures sous une forme synthétique. Ce tableau comprend, pour chaque substance, sa concentration et son flux, pour chacune des mesures réalisées. Le tableau comprend également les concentrations minimale, maximale et moyenne relevées au cours de la période de mesures, ainsi que les flux minimal, maximal et moyen et les limites de quantification pour chaque mesure ;
+       </li>
+       <li>
+        - l'ensemble des rapports d'analyses réalisées en application du
+        <a data-spec="document_reference" data-type="self">
+         présent arrêté
+        </a>
+        ;
+       </li>
+       <li>
+        - l'ensemble des éléments permettant d'attester de la traçabilité de ces opérations de prélèvement et de mesure de débit et de vérifier le respect des dispositions de l'
+        <a data-parent_reference="6" data-spec="section_reference" data-start_num="2" data-type="article">
+         article 2
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="6" data-type="self">
+         présent arrêté
+        </a>
+        ;
+       </li>
+       <li>
+        - des commentaires et explications sur les résultats obtenus et leurs éventuelles variations, en évaluant les origines possibles des substances rejetées, notamment au regard des activités industrielles exercées et des produits utilisés ;
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      4 / 9
+     </div>
+     <a data-page_index="4" data-spec="page_separator">
+     </a>
+     <div data-number="4" data-spec="alinea">
+      <ul>
+       <li>
+        - des propositions dûment argumentées, le cas échéant, si l'exploitant met en évidence la possibilité d'arrêter la surveillance de certaines substances, en référence aux dispositions de l'
+        <a data-spec="section_reference" data-start_num="3.3" data-type="article">
+         article 3.3.
+        </a>
+       </li>
+       <li>
+        - des propositions dûment argumentées, le cas échéant, si l'exploitant souhaite adopter un rythme de mesures autre que trimestriel pour la poursuite de la surveillance ;
+       </li>
+       <li>
+        - le cas échéant, les résultats de mesures de qualité des eaux d'alimentation en précisant leur origine (superficielle, souterraine ou adduction d'eau potable).
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="3.3" data-spec="section" data-title="Conditions à satisfaire pour arrêter la surveillance d'une substance" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.3 - Conditions à satisfaire pour arrêter la surveillance d'une substance
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La surveillance au rejet d'une substance telle que celles visées dans
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      pourra être stoppée si, sur la base de 6 mesures consécutives, au moins l'une des trois conditions suivantes est vérifiée (la troisième condition n'étant remplie que si les deux critères 3.1 et 3.2 qui la composent sont tous les deux respectés) :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - condition 1. Il est clairement établi que ce sont les eaux amont qui sont responsables de la présence de la substance dans les rejets de l'établissement ;
+       </li>
+       <li>
+        - condition 2. Toutes les concentrations mesurées pour la substance sont strictement inférieures à la limite de quantification LQ reprise dans le tableau en
+        <a data-spec="section_reference" data-start_num="2" data-type="annexe">
+         annexe 2
+        </a>
+        du fascicule ;
+       </li>
+       <li>
+        - condition 3.
+       </li>
+       <li>
+        - critère 3.1 Toutes les concentrations mesurées pour la substance sont inférieures à 10⁺NQE (norme de qualité environnementale ou, en l'attente de leur adoption en droit français, 10⁺NQEp, norme de qualité environnementale provisoire fixée dans la
+        <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+         circulaire DE/DPPR du
+         <time data-spec="date" datetime="2007-05-07">
+          7 mai 2007
+         </time>
+        </a>
+        ) ;
+       </li>
+       <li>
+        - ET
+       </li>
+       <li>
+        - critère 3.2 Tous les flux calculés pour la substance sont inférieurs à 10% du flux théorique admissible par le milieu récepteur (le flux admissible étant le produit du débit mensuel d'étiage de fréquence quinquennale sèche QMNA5 et de la NQE ou NQEp conformément aux explications de l'alinéa précédent).
+       </li>
+      </ul>
+     </div>
+    </section>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Mise en œuvre de la surveillance pérenne" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 - Mise en œuvre de la surveillance pérenne
+    </h2>
+    <section data-number="4.1" data-spec="section" data-title="Programme de surveillance pérenne" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.1 - Programme de surveillance pérenne
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant poursuit le programme de surveillance au point de rejet des effluents industriels de l'établissement dans les conditions suivantes :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - liste des substances dangereuses : substances dangereuses visées dans l'
+        <a data-parent_reference="7" data-spec="section_reference" data-type="annexe">
+         annexe
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="7" data-type="self">
+         présent arrêté
+        </a>
+        , dont la surveillance est retenue sur la base du rapport de synthèse établi à l'issue de la surveillance initiale en référence aux
+        <a data-group_id="1" data-parent_reference="8" data-spec="section_reference" data-start_num="3.2" data-type="article">
+         articles 3.2.
+        </a>
+        et
+        <a data-group_id="1" data-parent_reference="8" data-spec="section_reference" data-start_num="3.3" data-type="article">
+         3.3.
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="8" data-type="self">
+         présent arrêté
+        </a>
+        ;
+       </li>
+       <li>
+        - périodicité : 1 mesure par trimestre pendant une durée minimale de 2 ans et 6 mois, soit 10 mesures,
+       </li>
+       <li>
+        - durée de chaque prélèvement : 24 heures représentatives du fonctionnement de l'installation, ou selon
+        <a data-spec="section_reference" data-start_num="3.1" data-type="article">
+         article 3.1
+        </a>
+       </li>
+       <li>
+        - limite de quantification à atteindre par substance par les laboratoires en µg/l.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Les prélèvements et analyses réalisés en application du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      doivent respecter les dispositions du fascicule joint au
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      préfectoral.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Lors de cette phase de surveillance et en référence aux dispositions prévues par la
+      <a data-date="2009-01-05" data-spec="document_reference" data-type="circulaire">
+       circulaire du
+       <time data-spec="date" datetime="2009-01-05">
+        5 janvier 2009
+       </time>
+      </a>
+      , l'inspection des installations classées peut demander par écrit à l'exploitant d'adapter si besoin, en terme de substances ou de périodicité, le programme de surveillance qu'il a proposé de poursuivre, au vu du rapport établi en application de l'
+      <a data-parent_reference="9" data-spec="section_reference" data-start_num="3.2" data-type="article">
+       article 3.2.
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="9" data-type="self">
+       présent arrêté
+      </a>
+      et d'éléments complémentaires d'informations connues concernant notamment l'état de la masse d'eau à laquelle le rejet est associé.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       5 / 9
+      </div>
+     </div>
+     <a data-page_index="5" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       6 / 9
+      </div>
+     </div>
+    </section>
+    <section data-number="4.2" data-spec="section" data-title="Étude technico-économique" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.2 - Étude technico-économique
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant fournira à l'inspection des installations classées, au plus tard 30 mois à compter du début de la surveillance initiale, une étude technico-économique, accompagnée d'un échéancier de réalisation pouvant s'échelonner jusqu'en 2021 répondant aux objectifs suivants pour l'ensemble des substances figurant dans la surveillance prescrite à l'
+      <a data-spec="section_reference" data-start_num="4.1" data-type="article">
+       article 4.1.
+      </a>
+      ci-dessus :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - pour les substances dangereuses prioritaires figurant à l'
+        <a data-parent_reference="10" data-spec="section_reference" data-start_num="10" data-type="annexe">
+         annexe X
+        </a>
+        de la
+        <a data-date="2000" data-num="60" data-spec="document_reference" data-tag_id="10" data-type="eu-directive">
+         directive 2000/60/CE
+        </a>
+        du 23 octobre 2000 : possibilités de réduction à l'échéance 2015 et de suppression à l'échéance 2021 (2028 pour anthracène et endosulfan) ;
+       </li>
+       <li>
+        - pour les substances prioritaires figurant l'
+        <a data-parent_reference="11" data-spec="section_reference" data-start_num="10" data-type="annexe">
+         annexe X
+        </a>
+        de la
+        <a data-date="2000" data-num="60" data-spec="document_reference" data-tag_id="11" data-type="eu-directive">
+         directive 2000/60/CE
+        </a>
+        du 23 octobre 2000 et pour les substances pertinentes de la liste I de la
+        <a data-date="2006" data-num="11" data-spec="document_reference" data-type="eu-directive">
+         directive 2006/11/CE
+        </a>
+        ne figurant pas à l'
+        <a data-parent_reference="12" data-spec="section_reference" data-start_num="10" data-type="annexe">
+         annexe X
+        </a>
+        de la
+        <a data-date="2000" data-num="60" data-spec="document_reference" data-tag_id="12" data-type="eu-directive">
+         directive 2000/60/CE
+        </a>
+        susvisée, : possibilités de réduction à l'échéance 2015 ;
+       </li>
+       <li>
+        - pour les substances pertinentes figurant à la liste 2 de l'
+        <a data-parent_reference="13" data-spec="section_reference" data-start_num="1" data-type="annexe">
+         annexe I
+        </a>
+        de la
+        <a data-date="2006" data-num="11" data-spec="document_reference" data-tag_id="13" data-type="eu-directive">
+         directive 2006/11/CE
+        </a>
+        du 15/02/06, lorsqu'elles sont émises avec un flux supérieur à 20% du flux admissible dans le milieu : possibilités de réduction à l'échéance 2015 ;
+       </li>
+       <li>
+        - pour les substances pertinentes figurant à la liste 2 de l'
+        <a data-parent_reference="14" data-spec="section_reference" data-start_num="1" data-type="annexe">
+         annexe I
+        </a>
+        de la
+        <a data-date="2006" data-num="11" data-spec="document_reference" data-tag_id="14" data-type="eu-directive">
+         directive 2006/11/CE
+        </a>
+        du 15/02/06, émises avec un flux inférieur à 20% du flux admissible dans le milieu mais pour lesquelles la norme de qualité environnementale n'est pas respectée : possibilités de réduction à l'échéance 2015.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Cette étude devra mettre en exergue les substances dangereuses dont la présence dans les rejets doit conduire à les supprimer, à les substituer ou à les réduire, à partir d'un examen approfondi s'appuyant notamment sur les éléments suivants :
+     </div>
+     <div data-number="4" data-spec="alinea">
+      <ul>
+       <li>
+        - les résultats de la surveillance prescrite ;
+       </li>
+       <li>
+        - l'identification des produits, des procédés, des opérations ou des pratiques à l'origine de l'émission des substances dangereuses au sein de l'établissement ;
+       </li>
+       <li>
+        - un état des perspectives d'évolution de l'activité (process, niveau de production ...) pouvant impacter dans le temps qualitativement ou quantitativement le rejet de substances dangereuses ;
+       </li>
+       <li>
+        - la définition des actions permettant de réduire ou de supprimer l'usage ou le rejet de ces substances. Sur ce point, l'exploitant devra faire apparaître explicitement les mesures concernant la ou les substances dangereuses prioritaires et celles liées aux autres substances. Les actions mises en œuvre et/ou envisagées devront répondre aux enjeux vis à vis du milieu, notamment par une comparaison, pour chaque substance concernée, des flux rejetés et des flux admissibles dans le milieu. En particulier, l'exploitant définira un plan d'actions approprié dans le cas d'un rejet effectué dans une masse d'eau déclassée due à la présence excédentaire des substances dangereuses. Ce plan d'actions sera assorti d'une proposition d'échéancier de réalisation.
+       </li>
+      </ul>
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Pour chacune des substances devant être réduite ou supprimée dans le rejet, l'étude devra faire apparaître l'estimation chiffrée pour chaque substance concernée, du rejet évité par rapport au rejet annuel moyen de l'installation (en valeur absolue en kg/an et en valeur relative en %), et être comparée avec les objectifs de réduction ou de suppression ci-avant précisée.
+     </div>
+    </section>
+    <section data-number="4.3" data-spec="section" data-title="Rapport de synthèse de la surveillance pérenne" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.3 - Rapport de synthèse de la surveillance pérenne
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant doit fournir à l'inspection des installations classées dans un délai de 4 ans à compter de la notification du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      , un rapport de synthèse de la surveillance pérenne dans les formes prévues à l'
+      <a data-parent_reference="15" data-spec="section_reference" data-start_num="3.2" data-type="article">
+       article 3.2.
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="15" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Ce rapport devra conduire l'exploitant à proposer la nature du programme de surveillance à poursuivre selon les dispositions de l'
+      <a data-spec="section_reference" data-start_num="3.3" data-type="article">
+       article 3.3.
+      </a>
+      et en fonction des conclusions de l'étude technico-économique visée au point 4.2., lorsque l'engagement d'une telle étude aura été nécessaire.
+     </div>
+     <a data-page_index="6" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       7 / 9
+      </div>
+     </div>
+    </section>
+    <section data-number="4.4" data-spec="section" data-title="Actualisation et poursuite du programme de surveillance pérenne" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.4 - Actualisation et poursuite du programme de surveillance pérenne
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant poursuit le programme de surveillance au(x) point(s) de rejet des effluents industriels de l'établissement dans les conditions suivantes :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - liste des substances dangereuses : substances dangereuses visées dans l'
+        <a data-parent_reference="16" data-spec="section_reference" data-type="annexe">
+         annexe
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="16" data-type="self">
+         présent arrêté
+        </a>
+        , dont la surveillance est retenue sur la base du rapport de synthèse établi en référence aux
+        <a data-group_id="2" data-parent_reference="17" data-spec="section_reference" data-start_num="4.3" data-type="article">
+         articles 4.3.
+        </a>
+        et
+        <a data-group_id="2" data-parent_reference="17" data-spec="section_reference" data-start_num="3.3" data-type="article">
+         3.3.
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="17" data-type="self">
+         présent arrêté
+        </a>
+        ,
+       </li>
+       <li>
+        - périodicité : proposer par l'exploitant conformément au 4.3, et validée après instruction du rapport de synthèse de surveillance pérenne par les services de l'inspection.
+       </li>
+       <li>
+        - durée de chaque prélèvement : 24 heures représentatives du fonctionnement de l'installation,
+       </li>
+       <li>
+        - limite de quantification à atteindre par substance par les laboratoires en µg/l source.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      En cas d'évolution dans les produits, des procédés, des opérations ou des pratiques susceptibles d'être à l'origine de l'émission dans les rejets de nouvelles substances dangereuses au sein de l'établissement, l'exploitant est tenu d'actualiser le cadre de sa surveillance à ces nouvelles substances jusqu'à la vérification du respect des dispositions définies à l'
+      <a data-spec="section_reference" data-start_num="3.3" data-type="article">
+       article 3.3.
+      </a>
+      Il en informera l'inspection des installations classées.
+     </div>
+    </section>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Rapportage de la surveillance des rejets" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 - Rapportage de la surveillance des rejets
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les résultats des mesures du mois N devront être saisis sur le site de télédéclaration du ministère chargé de l'environnement GIDAF prévu à cet effet et transmis mensuellement à l'inspection des installations classées par voie électronique avant la fin du mois N+1 (par mail à l'inspecteur en charge des problématiques milieu du site).
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Si l'exploitant n'utilise pas la transmission électronique via le site de télédéclaration susvisé, il est tenu de transmettre mensuellement par écrit avant la fin du mois N+1 à l'inspection des installations classées un rapport de synthèse relatif aux résultats des mesures et analyses du mois N imposées à l'
+     <a data-spec="section_reference" data-start_num="3" data-type="article">
+      article 3
+     </a>
+     ainsi que les éléments relatifs au contexte de la mesure analytique des substances repris dans le fascicule joint au
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="Dispositions applicables en cas d'infraction ou d'inobservations du présent arrêté" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6 - Dispositions applicables en cas d'infraction ou d'inobservations du présent arrêté
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les infractions ou l'inobservation des conditions légales fixées par
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     entraîneront l'application des sanctions pénales et administratives prévues par le titre 1er du livre V du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      Code de l'Environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 7 - Délais et voies de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est soumis à un contentieux de pleine juridiction.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Il peut être déféré à la juridiction administrative territorialement compétente :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     1. Par les demandeurs ou exploitants, dans un délai de deux mois qui commence à courir du jour où lesdits actes leur ont été notifiés ;
+    </div>
+    <div data-number="4" data-spec="alinea">
+     2. Par les tiers, personnes physiques ou morales, les communes intéressées ou leurs groupements, en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts visés à l'
+     <a data-spec="section_reference" data-start_num="L511-1" data-type="article">
+      article L. 511-1
+     </a>
+     , dans un délai de quatre ans à compter de la publication ou de l'affichage des-dits actes, ce délai étant, le cas échéant, prolongé jusqu'à la fin d'une période de deux années suivant la mise en activité de l'installation.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Les tiers qui n'ont acquis ou pris à bail des immeubles ou n'ont élevé des constructions dans le voisinage d'une installation classée que postérieurement à l'affichage ou à la publication de l'arrêté autorisant l'ouverture de cette installation ou atténuant les prescriptions primitives ne sont pas recevables à déférer ledit arrêté à la juridiction administrative.
+    </div>
+    <a data-page_index="7" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      8 / 9
+     </div>
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-title="Mesures de publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 8 - Mesures de publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En vue de l'information des tiers, les mesures de publicité prévues à l'
+     <a data-parent_reference="18" data-spec="section_reference" data-start_num="R512-39" data-type="article">
+      article R.512-39
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="18" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , sont mises en œuvre.
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-title="Exécution" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 9 - Exécution
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Un avis faisant connaître qu'une copie de l'arrêté portant prescriptions complémentaires est déposée à la mairie de Village-Neuf et mise à la disposition de toute personne intéressée, sera inséré par les soins du Préfet et aux frais de l'exploitant dans deux journaux locaux.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     énumérant notamment les prescriptions auxquelles l'installation est soumise sera affiché à la mairie de Village-Neuf pendant une durée minimum d'un mois et affiché en permanence de façon visible dans l'installation par les soins de l'exploitant.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le Secrétaire Général de la Préfecture du Haut-Rhin, le Sous-Préfet de Mulhouse, le Maire de Village-Neuf et la Directrice Régionale de l'Environnement, de l'Aménagement et du Logement chargée de l'inspection des Installations, sont chargés, chacun en ce qui le concerne, de veiller à l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie sera notifiée à la Société DSM Nutritional Products France à Village-Neuf.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Fait à Colmar, le 25 novembre 2010
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Pour le Préfet
+    </div>
+    <div data-number="6" data-spec="alinea">
+     et par délégation
+    </div>
+    <div data-number="7" data-spec="alinea">
+     le Secrétaire Général
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Signé
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Délai et voie de recours
+    </div>
+    <div data-number="10" data-spec="alinea">
+     La présente décision peut faire l'objet d'un recours contentieux devant le Tribunal administratif de STRASBOURG dans un délai de 2 mois à compter de la notification, par le demandeur, ou dans un délai de 4 ans à compter de la publication ou de l'affichage des présentes décisions par des tiers ou les communes intéressées (
+     <a data-parent_reference="19" data-spec="section_reference" data-start_num="L514-6" data-type="article">
+      article L 514-6
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="19" data-title="Code de l'environnement" data-type="code">
+      Code de l'Environnement
+     </a>
+     ).
+    </div>
+    <a data-page_index="8" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      9 / 9
+     </div>
+    </div>
+   </section>
+  </main>
+  <footer data-spec="appendix">
+   <section data-number="f" data-spec="section" data-title="ascicule contenant les prescriptions applicables aux opérations de prélèvements et d'analyses" data-type="annexe">
+    <h2 data-level="0" data-spec="section_title">
+     ANNEXE : fascicule contenant les prescriptions applicables aux opérations de prélèvements et d'analyses
+    </h2>
+   </section>
+   <section data-number="L" data-spec="section" data-title="iste des substances dangereuses faisant partie du programme de surveillance (article 1.3 de l'arrêté préfectoral)" data-type="annexe">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     ANNEXE : Liste des substances dangereuses faisant partie du programme de surveillance (article 1.3 de l'arrêté préfectoral)
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - Catégorie 1 : Substances Dangereuses Prioritaires issues de l'
+       <a data-spec="section_reference" data-start_num="10" data-type="annexe">
+        annexe X
+       </a>
+       de la DCE (tableau A de la
+       <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+        circulaire du
+        <time data-spec="date" datetime="2007-05-07">
+         07/05/07
+        </time>
+       </a>
+       ) et de la directive fille de la DCE adoptée le 20 octobre 2008 (anthracène et endosulfan)
+      </li>
+      <li>
+       - Catégorie 2 : Substances Prioritaires issues de l'
+       <a data-spec="section_reference" data-start_num="10" data-type="annexe">
+        annexe X
+       </a>
+       de la DCE (tableau A de la
+       <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+        circulaire du
+        <time data-spec="date" datetime="2007-05-07">
+         07/05/07
+        </time>
+       </a>
+       )
+      </li>
+      <li>
+       - Catégorie 3 : Autres substances pertinentes issues de la liste I de la
+       <a data-date="2006" data-num="11" data-spec="document_reference" data-type="eu-directive">
+        directive 2006/11/CE
+       </a>
+       (anciennement
+       <a data-date="1976" data-num="464" data-spec="document_reference" data-type="eu-directive">
+        Directive 76/464/CEE
+       </a>
+       ) et ne figurant pas à l'
+       <a data-spec="section_reference" data-start_num="10" data-type="annexe">
+        annexe X
+       </a>
+       de la DCE (tableau B de la
+       <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+        circulaire du
+        <time data-spec="date" datetime="2007-05-07">
+         07/05/07
+        </time>
+       </a>
+       )
+      </li>
+      <li>
+       - Catégorie 4 : Autres substances pertinentes issues de la liste II de la
+       <a data-date="2006" data-num="11" data-spec="document_reference" data-type="eu-directive">
+        directive 2006/11/CE
+       </a>
+       (anciennement
+       <a data-date="1976" data-num="464" data-spec="document_reference" data-type="eu-directive">
+        Directive 76/464/CEE
+       </a>
+       ) et autres substances, non SDP ni SP (tableaux D et E de la
+       <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+        circulaire du
+        <time data-spec="date" datetime="2007-05-07">
+         07/05/07
+        </time>
+       </a>
+       )
+      </li>
+     </ul>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     (*) Un objectif de réduction national a été fixé par la DCE pour les substances dangereuses dans les masses d'eau ainsi que pour les familles de substances pertinentes et les autres substances au titre du programme national d'action contre la pollution des milieux aquatiques par certaines substances dangereuses.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Pour les substances de catégorie 1 et 3 : l'objectif national de réduction est de 50% pour l'ensemble des émissions susceptibles d'avoir un impact sur l'eau et les milieux aquatiques, d'ici à 2015 par rapport au niveau de ces émissions en 2004, en vue d'une surpression totale pour 2021.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour les substances de catégorie 2 : l'objectif national de réduction est de 30% pour l'ensemble des émissions susceptibles d'avoir un impact sur l'eau et les milieux aquatiques, d'ici à 2015 par rapport au niveau de ces émissions en 2004.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Pour les substances de catégorie 4 : l'objectif de réduction est de 10% pour l'ensemble des émissions susceptibles d'avoir un impact sur l'eau et les milieux aquatiques, d'ici à 2015 par rapport à ce qu'elles ont été en 2004.
+    </div>
+   </section>
+  </footer>
+ </body>
+</html>

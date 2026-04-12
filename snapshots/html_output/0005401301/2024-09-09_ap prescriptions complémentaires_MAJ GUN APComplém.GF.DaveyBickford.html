@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2024-09-09_ap prescriptions complémentaires_MAJ GUN APComplém.GF.DaveyBickford.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET DE L'YONNE
+Liberté
+Égalité
+Fraternité
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Secrétariat général aux affaires départementales
+    </div>
+    <div>
+     Bureau de l'environnement
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté n° PREF-SGAD-BE-2024-187 du - 9 SEP. 2024 portant prescriptions complémentaires applicables à la société DAVEY BICKFORD SAS pour les installations de production de produits pyrotechniques qu'elle exploite sur le territoire de la commune d'HÉRY
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet de l’Yonne,
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    , en particulier, ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L516-1" data-type="article">
+     articles L. 516-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+     R. 516-1
+    </a>
+    et suivants ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2012-07-31" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2012-07-31">
+      31 juillet 2012
+     </time>
+    </a>
+    relatif aux modalités de constitution de garanties financières prévues aux
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+     articles R. 516-1
+    </a>
+    et suivants du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2018-09-24" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2018-09-24">
+      24 septembre 2018
+     </time>
+    </a>
+    fixant les règles de calcul et les modalités de constitution des garanties financières prévues par l’
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="R516-2" data-type="article">
+     article R. 516-2
+    </a>
+    -I du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="1997-07-18" data-num="97-103" data-spec="document_reference" data-type="circulaire">
+     circulaire n° 97-103 du
+     <time data-spec="date" datetime="1997-07-18">
+      18 juillet 1997
+     </time>
+    </a>
+    relative aux garanties financières pour les installations figurant sur la liste prévue à l’
+    <a data-spec="section_reference" data-start_num="7" data-type="article">
+     article 7
+    </a>
+    -1 de la loi du 19 juillet 1976 ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="1960-05-26" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="1960-05-26">
+      26 mai 1960
+     </time>
+     modifié
+    </a>
+    portant autorisation de construire et d’exploiter divers bâtiments à usage industriel en vue de l’extension de la pyrotechnie (ETS DAVEY-BICKFORD-SMITH &amp;amp; CIE) sur le territoire de la commune d’HÉRY ;
+   </div>
+   <div data-spec="visa">
+    VU la note de révision du calcul du montant des garanties financières transmise à l’inspection des installations classées le 16 mai 2024 ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l’inspection des installations classées en date du 2 août 2024 ;
+   </div>
+   <div data-spec="visa">
+    VU le projet d’arrêté complémentaire porté à la connaissance de l’exploitant le 23 août 2024 ;
+   </div>
+   <div data-spec="visa">
+    VU les observations de l’exploitant sur ce projet transmises le 4 septembre 2024 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que la
+    <a data-date="1997-07-18" data-spec="document_reference" data-type="circulaire">
+     circulaire du
+     <time data-spec="date" datetime="1997-07-18">
+      18 juillet 1997
+     </time>
+    </a>
+    susvisée (
+    <a data-spec="section_reference" data-start_num="1" data-type="annexe">
+     annexe 1
+    </a>
+    , section 3, paragraphe b) et l’
+    <a data-date="1960-05-26" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="1960-05-26">
+      26 mai 1960
+     </time>
+    </a>
+    susvisé prévoient que le montant des garanties financières à constituer doit être réévalué dans les six mois qui suivent une augmentation supérieure de 15 % de l’index de travaux publics TP 01 sur une période inférieure à 5 ans ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que l’index TP 01 a augmenté de plus de 15 % entre mars 2021 et mai 2024 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu’il est nécessaire d’actualiser le montant des garanties financières à constituer pour l’exploitation par la société DAVEY BICKFORD SAS d’installations de production de produits pyrotechniques à Héry, conformément à la
+    <a data-date="1997-07-18" data-num="97-103" data-spec="document_reference" data-type="circulaire">
+     circulaire n° 97-103 du
+     <time data-spec="date" datetime="1997-07-18">
+      18 juillet 1997
+     </time>
+    </a>
+    susvisée ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que le calcul proposé par l’exploitant est adapté à la situation du site et aux coûts prévisibles de mise en sécurité suite à un accident industriel ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Préfecture de l’Yonne
+Place de la Préfecture
+CS 80119 – 89016 AUXERRE CEDEX
+tél. 03 86 72 79 89 www.yonne.gouv.fr
+1/3
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'il convient de fixer la date exécutoire de ce nouveau montant de garanties financières au plus tôt, tout en laissant à l'exploitant le temps nécessaire à leur constitution ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition de Madame la Secrétaire générale de la préfecture de l'Yonne,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Actualisation du montant des garanties financières" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1er - Actualisation du montant des garanties financières
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     À partir du 1er octobre 2024, le montant des garanties financières à constituer par l'exploitant est de : 363 000 € TTC.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Dans les 3 mois qui suivent la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , l'exploitant adresse au préfet un document attestant la constitution des garanties financières établie dans les formes prévues par l'
+     <a data-date="2012-07-31" data-spec="document_reference" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="2012-07-31">
+       31 juillet 2012
+      </time>
+     </a>
+     relatif aux modalités de constitution de garanties financières prévues aux
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+      articles R. 516-1
+     </a>
+     et suivants du
+     <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'exploitant est tenu d'actualiser le montant des garanties financières dans les cas suivants :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - tous les 5 ans, au prorata de la variation de l'index TP 01 publié ;
+      </li>
+      <li>
+       - dans les six mois qui suivent une augmentation supérieure à 15 % de l'index TP 01 publié sur une période inférieure à 5 ans.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 - Publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est notifié à la société DAVEY BICKFORD SAS.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     En vue de l'information des tiers :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     1. Une copie de
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     est déposée à la mairie d'Héry et peut y être consultée.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     2. Un extrait de cet arrêté est affiché à la mairie d'Héry pendant une durée minimum d'un mois ; procès-verbal de l'accomplissement de cette formalité est dressé par les soins du maire.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     3. L'arrêté est publié sur le site internet des services de l'État dans le département où il a été délivré, pendant une durée minimale de 4 mois.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 - Délais et voies de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément aux
+     <a data-group_id="2" data-parent_reference="4" data-spec="section_reference" data-start_num="L181-17" data-type="article">
+      articles L. 181-17
+     </a>
+     et
+     <a data-group_id="2" data-parent_reference="4" data-spec="section_reference" data-start_num="R181-50" data-type="article">
+      R. 181-50
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     ,
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     est soumis à un contentieux de pleine juridiction.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Il peut être déféré au Tribunal administratif de Dijon :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       1° par l'exploitant dans un délai de deux mois à compter de la notification ;
+      </li>
+      <li>
+       2° par les tiers intéressés en raisons des inconvénients ou dangers pour les intérêts mentionnés à l'
+       <a data-parent_reference="5" data-spec="section_reference" data-start_num="L181-3" data-type="article">
+        article L. 181-3
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="5" data-title="Code de l'environnement" data-type="code">
+        code de l'environnement
+       </a>
+       , dans un délai de quatre mois à compter de :
+       <div data-spec="page_footer">
+        <div>
+         2/3
+        </div>
+       </div>
+       <a data-page_index="2" data-spec="page_separator">
+       </a>
+      </li>
+      <li>
+       a) l'affichage en mairie dans les conditions prévues au 2° de l'
+       <a data-parent_reference="6" data-spec="section_reference" data-start_num="R181-44" data-type="article">
+        article R. 181-44
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="6" data-title="Code de l'environnement" data-type="code">
+        code de l'environnement
+       </a>
+       ;
+      </li>
+      <li>
+       b) la publication de la décision sur le site internet de la préfecture, prévue au 4° du même article.
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le délai court à compter de la dernière formalité accomplie. S'il s'agit de l'affichage, le délai court à compter du premier jour de l'affichage de la décision.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     peut également faire objet d'un recours gracieux ou hiérarchique dans un délai de deux mois, dont l'exercice prolonge de deux mois les délais de recours contentieux mentionnés au 1° et 2° du présent article.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Le Tribunal administratif peut être saisi d'un recours déposé via l'application Télérecours citoyens accessible par le site internet www.telerecours.fr.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Exécution" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 – Exécution
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Madame la Secrétaire générale de la préfecture de l'Yonne et Monsieur le Directeur régional de l'environnement, de l'aménagement et du logement de Bourgogne-Franche-Comté sont chargés, chacun en ce qui le concerne, de l'exécution des dispositions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , dont une copie sera adressée à :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - Monsieur le Maire d'Héry,
+      </li>
+      <li>
+       - Monsieur le Responsable de l'Unité interdépartementale Nièvre/Yonne de la DREAL de Bourgogne-Franche-Comté.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Fait à Auxerre, le – 9 SEP. 2024
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le Préfet et par délégation,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     La Sous-préfète,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Secrétaire générale,
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Pauline GIRARDOT
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

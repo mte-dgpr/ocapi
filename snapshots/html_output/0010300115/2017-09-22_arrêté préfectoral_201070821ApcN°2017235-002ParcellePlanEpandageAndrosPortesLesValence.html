@@ -1,0 +1,2869 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2017-09-22_arrêté préfectoral_201070821ApcN°2017235-002ParcellePlanEpandageAndrosPortesLesValence.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+PRÉFET DE LA DRÔME
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Direction départementale de la Protection des Populations
+    </div>
+    <div>
+     Service protection de l’environnement
+    </div>
+    <div>
+     Affaire suivie par : Valérie DELVAL et
+    </div>
+    <div>
+     DREAL U ID 26/07 : Thierry JULIEN Tél. : 04-26-52-22-09 Fax : 04-26-52-21-62 Courriel : valerie.delval@drome.gouv.fr Valence, le 21 AOÛT 2017
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE PREFECTORAL COMPLEMENTAIRE N° 2017235-0002 AU TITRE DES INSTALLATIONS CLASSEES POUR LA PROTECTION DE L’ENVIRONNEMENT Société ANDROS SNC à PORTES-LES-VALENCE
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet du département de la Drôme
+    </div>
+    <div>
+     Chevalier de la Légion d’Honneur
+    </div>
+    <div>
+     Chevalier de l’Ordre National du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    et notamment son titre VIII du livre I ;
+   </div>
+   <div data-spec="visa">
+    VU la nomenclature des Installations Classées pour la Protection de l’Environnement ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-num="09-4699" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n°09-4699
+    </a>
+    délivré le 14 octobre 2009 autorisant la société FRUIVAL à exploiter ses activités au titre du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l’Environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU le récépissé de déclaration n°89/11 délivré le 12 juillet 2011 à la société ANDROS SNC sise à Portes-les-Valence relatif à la prise en charge, à compter du 30 juin 2011, des installations exploitées précédemment par la société FRUIVAL ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-num="2011314-0018" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire n°2011314-0018
+    </a>
+    délivré le 10 novembre 2011 à la société ANDROS SNC modifiant l’
+    <a data-date="2009-10-14" data-num="09-4699" data-spec="document_reference" data-type="arrete">
+     arrêté d’autorisation n°09-4699 du
+     <time data-spec="date" datetime="2009-10-14">
+      14 octobre 2009
+     </time>
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-num="2016235-0005" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire n°2016235-0005
+    </a>
+    délivré le 18 août 2016 à la société ANDROS SNC mettant à jour la situation administrative de leur établissement ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-num="2017101-0004" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire n° 2017101-0004
+    </a>
+    délivré le 10 avril 2017 à la société ANDROS SNC les autorisant à modifier le périmètre d’épandage des boues de la station d’épuration industrielle de leur établissement ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l’inspection de l’environnement du 11 août 2017 ;
+   </div>
+   <div data-spec="motifs">
+    Considérant qu’il convient de modifier des parcelles du plan d’épandage ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que l’avis du Conseil Départemental de l’Environnement et des Risques Sanitaires et Technologiques n’est pas requis ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition de Monsieur le Secrétaire Général de la Préfecture de la Drôme,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     33 avenue de Romans – B.P.96 – 26 904 VALENCE cedex 9 – Téléphone : 04-26-52-21-61
+Site Internet de l’État en Drôme : http://www.drome.gouv.fr/
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="1" data-tag_id="3" data-type="annexe">
+      annexe 1
+     </a>
+     de l'
+     <a data-date="2017-04-10" data-num="2017101-0004" data-spec="document_reference" data-tag_id="1" data-type="arrete-prefectoral">
+      arrêté préfectoral n° 2017101-0004 du
+      <time data-spec="date" datetime="2017-04-10">
+       10 avril 2017
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="annulée et remplacée" data-operation_type="replace" data-references="3" data-spec="operation">
+      est
+      <b>
+       annulée et remplacée
+      </b>
+      par l'
+     </span>
+     <a data-spec="section_reference" data-start_num="1" data-type="annexe">
+      annexe 1
+     </a>
+     modifiée ci-après.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Droits des tiers" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 : Droits des tiers
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les droits des tiers sont et demeurent exclusivement réservés.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 : Délais et voies de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     peut faire l'objet d'un recours contentieux devant le tribunal administratif de Grenoble (
+     <address data-spec="address">
+      2 place de Verdun
+     </address>
+     - BP1135 - 38 022 GRENOBLE Cedex 1) :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       1° par les tiers intéressés en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts mentionnés aux
+       <a data-group_id="1" data-spec="section_reference" data-start_num="L211-1" data-type="article">
+        articles L. 211-1
+       </a>
+       et
+       <a data-group_id="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+        L. 511-1
+       </a>
+       dans un délai de quatre mois à compter du premier jour de la publication ou de l'affichage de la présente décision ;
+      </li>
+      <li>
+       2° par les demandeurs ou exploitants, dans un délai de deux mois à compter de la date à laquelle la décision leur a été notifiée.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les tiers qui n'ont acquis ou pris à bail des immeubles ou n'ont élevé des constructions dans le voisinage d'une installation classée que postérieurement à l'affichage ou à la publication de l'arrêté autorisant l'ouverture de cette installation ou atténuant les prescriptions primitives ne sont pas recevables à déférer ledit arrêté à la juridiction administrative.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     peut faire l'objet d'un recours gracieux ou hiérarchique dans le délai de deux mois. Ce recours prolonge de deux mois les délais mentionnés aux 1° et 2° ci-avant.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 - Publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément aux dispositions de l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="R181-44" data-type="article">
+      article R.181-44
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     mentionnant qu'une copie du texte intégral est déposée aux archives de la mairie et mise à la disposition de toute personne intéressée, sera affiché en mairie de Portes-les-Valence pendant une durée minimum d'un mois.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le maire de Portes-les-Valence fera connaître par procès-verbal, adressé à la Direction Départementale de la Protection des Populations de la Drôme l'accomplissement de cette formalité.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est publié sur le site internet de la préfecture de la Drôme pendant une durée minimale d'un mois.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Exécution et copie" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 - Exécution et copie
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le Secrétaire Général de la Préfecture de la Drôme, la Directrice Régionale de l'Environnement, de l'Aménagement et du Logement (DREAL) chargée de l'Inspection de l'environnement et la maire de Portes-les-Valence sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie sera adressée à la société ANDROS SNC.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+   </section>
+  </main>
+  <footer data-spec="appendix">
+   <section data-number="1" data-spec="section" data-type="annexe">
+    <h2 data-level="0" data-spec="section_title">
+     Annexe 1
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     (112)
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      08/08/2017
+     </div>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Andros à Portes-Les-Valence – Parcellaire épandage des boues
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Exploitant
+       </th>
+       <th>
+        Propriétaire
+       </th>
+       <th>
+        N° flot
+       </th>
+       <th>
+        Commune
+       </th>
+       <th>
+        Code commune
+       </th>
+       <th>
+        Section
+       </th>
+       <th>
+        N° Cadastraux
+       </th>
+       <th>
+        Surface totale (ha)
+       </th>
+       <th>
+        contrainte
+       </th>
+       <th>
+        Exclusion revue suite contrôle 29/05/2017
+       </th>
+       <th>
+        Surface épandable revue suite contrôle 29/05/2017 (ha)
+       </th>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M1
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        H
+       </td>
+       <td>
+        11p, 12p, 13, 14, 15, 16p, 25, 26
+       </td>
+       <td>
+        2,7
+       </td>
+       <td>
+        Eau/bois /roche
+       </td>
+       <td>
+        1,7
+       </td>
+       <td>
+        1
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M2
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        H
+       </td>
+       <td>
+        30p, 32p
+       </td>
+       <td>
+        0,14
+       </td>
+       <td>
+        non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        0,14
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M3
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        H
+       </td>
+       <td>
+        1,43
+       </td>
+       <td>
+        0,73
+       </td>
+       <td>
+        Eau
+       </td>
+       <td>
+        0,73
+       </td>
+       <td>
+        0
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="2">
+        MANSON
+       </td>
+       <td rowspan="2">
+       </td>
+       <td rowspan="2">
+        M4
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        G
+       </td>
+       <td>
+        10p,111, 112, 113
+       </td>
+       <td rowspan="2">
+        1,92
+       </td>
+       <td rowspan="2">
+        Bois/roche
+       </td>
+       <td rowspan="2">
+        0,5
+       </td>
+       <td rowspan="2">
+        1,42
+       </td>
+      </tr>
+      <tr>
+       <td>
+        St Laurent du Pape
+       </td>
+       <td>
+        26100
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        13, 19, 20
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="2">
+        MANSON
+       </td>
+       <td rowspan="2">
+        MANSON
+       </td>
+       <td rowspan="2">
+        M5
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        113p, 114, 116
+       </td>
+       <td rowspan="2">
+        3,65
+       </td>
+       <td rowspan="2">
+        bois
+       </td>
+       <td rowspan="2">
+        1,52
+       </td>
+       <td rowspan="2">
+        2,13
+       </td>
+      </tr>
+      <tr>
+       <td>
+        St Laurent du Pape
+       </td>
+       <td>
+        26100
+       </td>
+       <td>
+        G
+       </td>
+       <td>
+        12, 14p, 15p, 18,21,22,,23
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+        MANSON
+       </td>
+       <td>
+        M6
+       </td>
+       <td>
+        St Laurent du Pape
+       </td>
+       <td>
+        26100
+       </td>
+       <td>
+        G
+       </td>
+       <td>
+        25,27,28,29
+       </td>
+       <td>
+        1,04
+       </td>
+       <td>
+        Pente/arbres
+       </td>
+       <td>
+        0,57
+       </td>
+       <td>
+        0,47
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="2">
+        MANSON
+       </td>
+       <td rowspan="2">
+        MANSON
+       </td>
+       <td rowspan="2">
+        M7
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        467p 103
+       </td>
+       <td rowspan="2">
+        1,69
+       </td>
+       <td rowspan="2">
+        eau+tiers
+       </td>
+       <td rowspan="2">
+        0,51
+       </td>
+       <td rowspan="2">
+        1,18
+       </td>
+      </tr>
+      <tr>
+       <td>
+        St Laurent du Pape
+       </td>
+       <td>
+        26100
+       </td>
+       <td>
+        F
+       </td>
+       <td>
+        567, 568, 569p, 570
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+        MANSON
+       </td>
+       <td>
+        M8
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        9p, 467p
+       </td>
+       <td>
+        1,24
+       </td>
+       <td>
+        eau+tiers
+       </td>
+       <td>
+        1,24
+       </td>
+       <td>
+        0
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="2">
+        MANSON
+       </td>
+       <td rowspan="2">
+        MANSON
+       </td>
+       <td rowspan="2">
+        M9
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        A/B
+       </td>
+       <td>
+        271, 272, 275, 278, 479,481
+       </td>
+       <td rowspan="2">
+        2,15
+       </td>
+       <td rowspan="2">
+        Arbres chemins
+       </td>
+       <td rowspan="2">
+        0,5
+       </td>
+       <td rowspan="2">
+        1,55
+       </td>
+      </tr>
+      <tr>
+       <td>
+        St Laurent du Pape
+       </td>
+       <td>
+        26100
+       </td>
+       <td>
+        F
+       </td>
+       <td>
+        501, 502,603
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+        MANSON
+       </td>
+       <td>
+        M10
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        16, 19, 20, 24, 460
+       </td>
+       <td>
+        1,47
+       </td>
+       <td>
+        Eau/chemin
+       </td>
+       <td>
+        0,92
+       </td>
+       <td>
+        0,55
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+        MANSON
+       </td>
+       <td>
+        M11
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        A/B
+       </td>
+       <td>
+        259p,260p, 261p, 273p
+       </td>
+       <td>
+        1,5
+       </td>
+       <td>
+        Eau/arbres
+       </td>
+       <td>
+        1
+       </td>
+       <td>
+        0,5
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+        MANSON
+       </td>
+       <td>
+        M12
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        B
+       </td>
+       <td>
+        254p, 256p
+       </td>
+       <td>
+        0,63
+       </td>
+       <td>
+        Eau
+       </td>
+       <td>
+        0,37
+       </td>
+       <td>
+        0,26
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+        MANSON
+       </td>
+       <td>
+        M13
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        B
+       </td>
+       <td>
+        250p
+       </td>
+       <td>
+        0,9
+       </td>
+       <td>
+        Eau
+       </td>
+       <td>
+        0,24
+       </td>
+       <td>
+        0,66
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+        MANSON
+       </td>
+       <td>
+        M14
+       </td>
+       <td>
+        St Laurent du Pape
+       </td>
+       <td>
+        26100
+       </td>
+       <td>
+        F
+       </td>
+       <td>
+        506p,507p,508p
+       </td>
+       <td>
+        1,55
+       </td>
+       <td>
+        Eau+bois
+       </td>
+       <td>
+        0,14
+       </td>
+       <td>
+        1,41
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+        MANSON
+       </td>
+       <td>
+        M15
+       </td>
+       <td>
+        St Laurent du Pape
+       </td>
+       <td>
+        26100
+       </td>
+       <td>
+        F
+       </td>
+       <td>
+        500, 504, 508p
+       </td>
+       <td>
+        6
+       </td>
+       <td>
+        Eau+bois
+       </td>
+       <td>
+        3
+       </td>
+       <td>
+        3
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+        MANSON
+       </td>
+       <td>
+        M16
+       </td>
+       <td>
+        St Laurent du Pape
+       </td>
+       <td>
+        26100
+       </td>
+       <td>
+        F
+       </td>
+       <td>
+        505p, 509, 510, 511, 512p
+       </td>
+       <td>
+        1,77
+       </td>
+       <td>
+        Eau
+       </td>
+       <td>
+        0,29
+       </td>
+       <td>
+        1,48
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="2">
+        MANSON
+       </td>
+       <td rowspan="2">
+       </td>
+       <td rowspan="2">
+        M17
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        B
+       </td>
+       <td>
+        312p
+       </td>
+       <td rowspan="2">
+        0,2
+       </td>
+       <td rowspan="2">
+        Non
+       </td>
+       <td rowspan="2">
+        0
+       </td>
+       <td rowspan="2">
+        0,2
+       </td>
+      </tr>
+      <tr>
+       <td>
+        St Laurent du Pape
+       </td>
+       <td>
+        26100
+       </td>
+       <td>
+        F
+       </td>
+       <td>
+        668p
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+        LEBRAS
+       </td>
+       <td>
+        M18
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        C
+       </td>
+       <td>
+        170, 241, 243
+       </td>
+       <td>
+        1
+       </td>
+       <td>
+        Tiers/Arbres
+       </td>
+       <td>
+        0,3
+       </td>
+       <td>
+        0,7
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+        LEBRAS
+       </td>
+       <td>
+        M19
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        C
+       </td>
+       <td>
+        167,17
+       </td>
+       <td>
+        0,41
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        0,15
+       </td>
+       <td>
+        0,26
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+        LEBRAS
+       </td>
+       <td>
+        M20
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        C
+       </td>
+       <td>
+        251p
+       </td>
+       <td>
+        1,61
+       </td>
+       <td>
+        Eau/arbres
+       </td>
+       <td>
+        0,69
+       </td>
+       <td>
+        0,92
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="2">
+        MANSON
+       </td>
+       <td rowspan="2">
+        LEBRAS
+       </td>
+       <td rowspan="2">
+        M21
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        E
+       </td>
+       <td>
+        152
+       </td>
+       <td rowspan="2">
+        0,96
+       </td>
+       <td rowspan="2">
+        eau+tiers
+       </td>
+       <td rowspan="2">
+        0,35
+       </td>
+       <td rowspan="2">
+        0,61
+       </td>
+      </tr>
+      <tr>
+       <td>
+        St Laurent du Pape
+       </td>
+       <td>
+        26100
+       </td>
+       <td>
+        C
+       </td>
+       <td>
+        597
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+        LEBRAS
+       </td>
+       <td>
+        M23
+       </td>
+       <td>
+        Rompon
+       </td>
+       <td>
+        19800
+       </td>
+       <td>
+        C
+       </td>
+       <td>
+        5p, 254p
+       </td>
+       <td>
+        1,12
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        1,12
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M24
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        YA
+       </td>
+       <td>
+        2
+       </td>
+       <td>
+        2,15
+       </td>
+       <td>
+        Natura 2000
+       </td>
+       <td>
+        2,18
+       </td>
+       <td>
+        0
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M25
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        YA
+       </td>
+       <td>
+        64p
+       </td>
+       <td>
+        1,58
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        1,56
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M26
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        YA
+       </td>
+       <td>
+        13
+       </td>
+       <td>
+        0,8
+       </td>
+       <td>
+        Natura 2000
+       </td>
+       <td>
+        0,8
+       </td>
+       <td>
+        0
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M27
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        YA
+       </td>
+       <td>
+        5p
+       </td>
+       <td>
+        0,33
+       </td>
+       <td>
+        Natura 2000
+       </td>
+       <td>
+        0,33
+       </td>
+       <td>
+        0
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M28
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        YA
+       </td>
+       <td>
+        13
+       </td>
+       <td>
+        2,78
+       </td>
+       <td>
+        Eau
+       </td>
+       <td>
+        0,67
+       </td>
+       <td>
+        2,11
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M29
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        ZY
+       </td>
+       <td>
+        125p
+       </td>
+       <td>
+        2,76
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        0,65
+       </td>
+       <td>
+        2,11
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M30
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AH
+       </td>
+       <td>
+        2,198
+       </td>
+       <td>
+        1,03
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        1,03
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M31
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AH
+       </td>
+       <td>
+        17, 18 190p
+       </td>
+       <td>
+        3,2
+       </td>
+       <td>
+        Eau+natura 2000
+       </td>
+       <td>
+        2
+       </td>
+       <td>
+        1,2
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M32
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AH
+       </td>
+       <td>
+        61p
+       </td>
+       <td>
+        0,72
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        0,72
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M33
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AH
+       </td>
+       <td>
+        82, 87, 90, 91, 184, 93
+       </td>
+       <td>
+        2,95
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        2,95
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M34
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AH
+       </td>
+       <td>
+        90p, 95p, 98, 99, 102, 103, 104
+       </td>
+       <td>
+        2,1
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        2,1
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M35
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AH
+       </td>
+       <td>
+        111p, 113p, 187p
+       </td>
+       <td>
+        1,5
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        1,5
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M36
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AE
+       </td>
+       <td>
+        61, 65-70
+       </td>
+       <td>
+        3,2
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        0,2
+       </td>
+       <td>
+        3
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M37
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AE
+       </td>
+       <td>
+        109, 110, 113, 114, 116, 117, 120, 122, 134, 137, 141, 1442, 150, 153, 159,162, 169, 170
+       </td>
+       <td>
+        3,58
+       </td>
+       <td>
+        Tiers bois
+       </td>
+       <td>
+        0,29
+       </td>
+       <td>
+        3,29
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M38
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AE
+       </td>
+       <td>
+        286, 287, 458
+       </td>
+       <td>
+        0,85
+       </td>
+       <td>
+        Capadage AEP
+       </td>
+       <td>
+        0,85
+       </td>
+       <td>
+        0
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M39
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AE
+       </td>
+       <td>
+        373p, 374-381, 385p, 386, 387, 388p, 392-395, 396p, 400p, 401-405, 406p
+       </td>
+       <td>
+        2,23
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        0,16
+       </td>
+       <td>
+        2,07
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M40
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AE
+       </td>
+       <td>
+        413-417, 432, 453-455
+       </td>
+       <td>
+        1,55
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        1,58
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M41
+       </td>
+       <td>
+        St Cierge la Serre
+       </td>
+       <td>
+        22100
+       </td>
+       <td>
+        C
+       </td>
+       <td>
+        78, 79, 80, 81
+       </td>
+       <td>
+        0,62
+       </td>
+       <td>
+        Eau
+       </td>
+       <td>
+        0,25
+       </td>
+       <td>
+        0,37
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M42
+       </td>
+       <td>
+        St Cierge la Serre
+       </td>
+       <td>
+        22100
+       </td>
+       <td>
+        C
+       </td>
+       <td>
+        75p, 76p, 82p, 83p, 84p, 85p, 89p
+       </td>
+       <td>
+        0,31
+       </td>
+       <td>
+        Eau
+       </td>
+       <td>
+        0,3
+       </td>
+       <td>
+        0,01
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M43
+       </td>
+       <td>
+        St Cierge la Serre
+       </td>
+       <td>
+        22100
+       </td>
+       <td>
+        C
+       </td>
+       <td>
+        84p, 85p, 88p, 89p
+       </td>
+       <td>
+        1,28
+       </td>
+       <td>
+        Eau
+       </td>
+       <td>
+        0,64
+       </td>
+       <td>
+        0,64
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M44
+       </td>
+       <td>
+        St Cierge la Serre
+       </td>
+       <td>
+        22100
+       </td>
+       <td>
+        C
+       </td>
+       <td>
+        92
+       </td>
+       <td>
+        1,08
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        1,25
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M45
+       </td>
+       <td>
+        St Cierge la Serre
+       </td>
+       <td>
+        22100
+       </td>
+       <td>
+        C
+       </td>
+       <td>
+        94p, 123, 124
+       </td>
+       <td>
+        0,5
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        0,02
+       </td>
+       <td>
+        0,48
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M46
+       </td>
+       <td>
+        St Cierge la Serre
+       </td>
+       <td>
+        22100
+       </td>
+       <td>
+        C
+       </td>
+       <td>
+        133p, 134, 135, 136, 137, 138, 158p
+       </td>
+       <td>
+        1,16
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        0,03
+       </td>
+       <td>
+        1,47
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M47
+       </td>
+       <td>
+        St Cierge la Serre
+       </td>
+       <td>
+        22100
+       </td>
+       <td>
+        D
+       </td>
+       <td>
+        128, 129p
+       </td>
+       <td>
+        0,77
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        1
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M48
+       </td>
+       <td>
+        St Cierge la Serre
+       </td>
+       <td>
+        22100
+       </td>
+       <td>
+        B
+       </td>
+       <td>
+        86, 88, 89
+       </td>
+       <td>
+        0,46
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        0,46
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M49
+       </td>
+       <td>
+        St Cierge la Serre
+       </td>
+       <td>
+        22100
+       </td>
+       <td>
+        D
+       </td>
+       <td>
+        170p
+       </td>
+       <td>
+        0,18
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0,03
+       </td>
+       <td>
+        0,15
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M50
+       </td>
+       <td>
+        St Cierge la Serre
+       </td>
+       <td>
+        22100
+       </td>
+       <td>
+        D
+       </td>
+       <td>
+        146, 152, 153p
+       </td>
+       <td>
+        0,79
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        0,32
+       </td>
+       <td>
+        0,47
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MANSON
+       </td>
+       <td>
+       </td>
+       <td>
+        M51
+       </td>
+       <td>
+        St Cierge la Serre
+       </td>
+       <td>
+        22100
+       </td>
+       <td>
+        D
+       </td>
+       <td>
+        143p, 144
+       </td>
+       <td>
+        0,75
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        0,48
+       </td>
+       <td>
+        0,27
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COMBES
+       </td>
+       <td>
+       </td>
+       <td>
+        C1
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AE
+       </td>
+       <td>
+        229, 231, 232, 233, 237, 245, 253, 255, 517, 583
+       </td>
+       <td>
+        3,8
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        0,98
+       </td>
+       <td>
+        2,62
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COMBES
+       </td>
+       <td>
+       </td>
+       <td>
+        C2
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AE
+       </td>
+       <td>
+        327
+       </td>
+       <td>
+        0,22
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        0,22
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COMBES
+       </td>
+       <td>
+       </td>
+       <td>
+        C3
+       </td>
+       <td>
+        La Voulte sur Rhône
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AE
+       </td>
+       <td>
+        339,34
+       </td>
+       <td>
+        1,7
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        0,3
+       </td>
+       <td>
+        1,4
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COMBES
+       </td>
+       <td>
+       </td>
+       <td>
+        C4
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        34900
+       </td>
+       <td>
+        AE
+       </td>
+       <td>
+        349, 352, 356, 357, 359, 371, 373p, 506, 507
+       </td>
+       <td>
+        7,5
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        1,04
+       </td>
+       <td>
+        6,46
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COMBES
+       </td>
+       <td>
+       </td>
+       <td>
+        C5
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        ZH
+       </td>
+       <td>
+        61p, 62p
+       </td>
+       <td>
+        1,49
+       </td>
+       <td>
+        Captage AEP
+       </td>
+       <td>
+        1,49
+       </td>
+       <td>
+        0
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COMBES
+       </td>
+       <td>
+       </td>
+       <td>
+        C6
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        ZI
+       </td>
+       <td>
+        117
+       </td>
+       <td>
+        0,35
+       </td>
+       <td>
+        Captage AEP
+       </td>
+       <td>
+        0,35
+       </td>
+       <td>
+        0
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COMBES
+       </td>
+       <td>
+       </td>
+       <td>
+        C7
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        YI
+       </td>
+       <td>
+        57
+       </td>
+       <td>
+        4,92
+       </td>
+       <td>
+        Eau+tiers+fruits
+       </td>
+       <td>
+        1,89
+       </td>
+       <td>
+        3,03
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COMBES
+       </td>
+       <td>
+       </td>
+       <td>
+        C8
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        YE
+       </td>
+       <td>
+        24p
+       </td>
+       <td>
+        4,74
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        0,3
+       </td>
+       <td>
+        4,44
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COMBES
+       </td>
+       <td>
+       </td>
+       <td>
+        C9
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        YE
+       </td>
+       <td>
+        38
+       </td>
+       <td>
+        0,73
+       </td>
+       <td>
+        Non
+       </td>
+       <td>
+        0
+       </td>
+       <td>
+        0,73
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COMBES
+       </td>
+       <td>
+       </td>
+       <td>
+        C10
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        YE
+       </td>
+       <td>
+        44
+       </td>
+       <td>
+        0,3
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        0,15
+       </td>
+       <td>
+        0,15
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COMBES
+       </td>
+       <td>
+       </td>
+       <td>
+        C11
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        YE
+       </td>
+       <td>
+        50,51
+       </td>
+       <td>
+        3,56
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        1,22
+       </td>
+       <td>
+        2,34
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COMBES
+       </td>
+       <td>
+       </td>
+       <td>
+        C12
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        YE
+       </td>
+       <td>
+        142
+       </td>
+       <td>
+        3,6
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        1,84
+       </td>
+       <td>
+        1,96
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COMBES
+       </td>
+       <td>
+       </td>
+       <td>
+        C13
+       </td>
+       <td>
+        Livron sur Drôme
+       </td>
+       <td>
+        16500
+       </td>
+       <td>
+        YE
+       </td>
+       <td>
+        57
+       </td>
+       <td>
+        0,64
+       </td>
+       <td>
+        Tiers
+       </td>
+       <td>
+        0,3
+       </td>
+       <td>
+        0,34
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+        TOTAL
+       </td>
+       <td>
+        109,57
+       </td>
+       <td>
+       </td>
+       <td>
+        TOTAL
+       </td>
+       <td>
+        74,91
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Vu pour être annexé
+    </div>
+    <div data-number="6" data-spec="alinea">
+     à l'
+     <a data-date="2017-08-21" data-num="235-0002" data-spec="document_reference" data-type="arrete">
+      arrêté n° 235-0002 du
+      <time data-spec="date" datetime="2017-08-21">
+       21 AOÛT 2017
+      </time>
+     </a>
+    </div>
+    <div data-number="7" data-spec="alinea">
+     le Préfet
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Pour le Préfet, par délégation
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Le Secrétaire Général
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Frédéric LOISEAU
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-number="11" data-spec="alinea">
+     ^{}[]
+    </div>
+   </section>
+  </footer>
+ </body>
+</html>

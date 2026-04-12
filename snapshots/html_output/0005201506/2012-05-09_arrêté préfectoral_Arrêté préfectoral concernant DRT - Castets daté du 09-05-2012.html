@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2012-05-09_arrêté préfectoral_Arrêté préfectoral concernant DRT - Castets daté du 09-05-2012.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFET DES LANDES
+    </div>
+    <div>
+     DIRECTION DE LA RÉGLEMENTATION ET DES LIBERTES PUBLIQUES 1er
+    </div>
+    <div>
+     Bureau PR/DRLP/2012/ n°261
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ PREFECTORAL DE PROROGATION DE L’ARRÊTE DU
+     <time data-spec="date" datetime="2011-09-08">
+      8 SEPTEMBRE 2011
+     </time>
+     PROROGEANT LE DÉLAI D’APPROBATION DU PLAN DE PRÉVENTION DES RISQUES TECHNOLOGIQUES DE LA SOCIÉTÉ «DRT à CASTETS»
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet des Landes
+    </div>
+    <div>
+     Chevalier de la Légion d’honneur,
+    </div>
+    <div>
+     Chevalier de l’ordre national du Mérite,
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="R515-40" data-type="article">
+     article R 515-40
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    relatif aux plans de prévention des risques technologiques ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2010-02-12" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2010-02-12">
+      12 février 2010
+     </time>
+    </a>
+    prescrivant l’établissement d’un plan de prévention des risques technologiques pour la société DRT sur le territoire de la commune de Castets ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2011-09-08" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2011-09-08">
+      8 septembre 2011
+     </time>
+    </a>
+    prorogeant le délai d’approbation du PPRT d’une durée de 10 mois, soit jusqu’au 12 juin 2012,
+   </div>
+   <div>
+    ATTENDU que le plan de prévention des risques technologiques de la société DRT ne pourra être approuvé pour le 12 juin 2012, délai fixé par l’arrêté préfectoral du 8 septembre 2011 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que ce retard est dû à une réflexion menée par l’exploitant en vue d’écarter un phénomène dangereux du PPRT (UVCE du local chaudière) ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les résultats de cette réflexion conduisent à valider l’exclusion de ce phénomène dangereux et à prescrire par arrêté préfectoral complémentaire une nouvelle mesure de maîtrise des risques ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que, suite à cet événement, les services de l’état ne pourront pas élaborer le PPRT dans le délai des 10 mois supplémentaires fixés par l’
+    <a data-date="2011-09-08" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2011-09-08">
+      8 septembre 2011
+     </time>
+    </a>
+    ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition du Secrétaire Général de la préfecture des Landes,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Délai" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1 : Délai
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le délai d’approbation du plan de prévention des risques technologiques de la société DRT sur le territoire de la commune de Castets est prolongé jusqu’au 12 novembre 2012.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Mesures de publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 : Mesures de publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Un exemplaire du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     est notifié aux personnes et organismes associés définis dans l’
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="4" data-type="article">
+      article 4
+     </a>
+     de l’
+     <a data-date="2010-02-12" data-spec="document_reference" data-tag_id="2" data-type="arrete">
+      arrêté du
+      <time data-spec="date" datetime="2010-02-12">
+       12 février 2010
+      </time>
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Il doit être affiché pendant un mois à la mairie de CASTETS ainsi qu’au siège de la communauté de communes Côtes Landes Nature.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Préfecture des Landes - 40021 Mont de Marsan Cedex - Tél. 05 58 06 58 06 - Fax 05 58 75 83 81
+Adresse internet : http://www.landes.gouv.fr
+     </div>
+    </div>
+    <a data-page_index="1" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     Mention de cet affichage sera insérée, par les soins du Préfet des Landes, dans un journal diffusé dans le département des Landes.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Il sera publié au recueil des actes administratifs de l'État dans le département des Landes.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Application" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 : Application
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le secrétaire général de la préfecture des Landes, le sous-préfet de l'arrondissement de DAX, le maire de CASTETS, le président de la communauté de communes du Canton de Castets, le Directeur Régional de l'Environnement, de l'Aménagement et du Logement de la région Aquitaine et le Directeur Départemental des Territoires et de la Mer des Landes, sont chargés, chacun en ce qui le concerne de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Une copie de cet arrêté est adressée à Monsieur le Maire de CASTETS.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Fait à Mont de Marsan, le 09 MAI 2012
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le préfet,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     le secrétaire général
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Romuald de PONTBRIAND
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

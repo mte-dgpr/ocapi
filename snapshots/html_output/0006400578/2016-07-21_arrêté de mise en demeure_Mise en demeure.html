@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2016-07-21_arrêté de mise en demeure_Mise en demeure.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+PREFET DES BOUCHES-DU-RHONE
+DREAL-UT 13
+☐ CORÉO ☐ 531C ☐ non
+N° A/ 26 JUIL. 2016
+Destinataire : VR
+☐ Attribution ☐ Info
+Copie :
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PREFECTURE
+    </div>
+    <div>
+     Direction des Collectivités Locales, de l'Utilité Publique et de l'Environnement
+    </div>
+    <div>
+     Bureau des Installations et Travaux réglementés pour la Protection des Milieux
+    </div>
+    <div>
+     Dossier suivi par : M ARGUIMBAU Tél. : 04.84.35.42.68
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     N° 119-2016 MED
+    </div>
+   </div>
+   <div>
+    Marseille le 21 JUIL. 2016
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE DE MISE EN DEMEURE à l'encontre de la Société SITA SUD concernant l'exploitation d'une installation de stockage de déchets non dangereux située au Jas de Rhodes sur la commune des Pennes-Mirabeau
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     LE PRÉFET DE LA RÉGION PROVENCE, ALPES, CÔTE D'AZUR, PRÉFET DE LA ZONE DE DEFENSE ET DE SECURITE SUD, PRÉFET DES BOUCHES-DU-RHÔNE
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l'Environnement
+    </a>
+    , en particulier ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-6" data-type="article">
+     articles L 171-6
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+     L 171-8
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L172-1" data-type="article">
+     L.172-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     L.511-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L514-5" data-type="article">
+     L 514-5
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="7" data-type="article">
+     article 7
+    </a>
+    de l'
+    <a data-date="1997-09-09" data-spec="document_reference" data-tag_id="1" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="1997-09-09">
+      9 septembre 1997
+     </time>
+    </a>
+    et de son
+    <a data-spec="section_reference" data-start_num="2" data-type="annexe">
+     annexe II
+    </a>
+    interdisant les déchets d'emballages et dangereux en ISDND,
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2011-07-22" data-num="318-2010-PC" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire n°318-2010-PC du
+     <time data-spec="date" datetime="2011-07-22">
+      22 juillet 2011
+     </time>
+    </a>
+    réglementant la réception de déchets en provenance d'autres départements sur le site du Jas de Rhode, exploité par la société SITA SUD,
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-num="444-2013" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral d'autorisation n°444-2013
+    </a>
+    A délivré le 22 décembre 2014 à la société SITA SUD pour l'exploitation d'une installation de stockage de déchets non-dangereux sur le territoire de la commune des Pennes-Mirabeau, au lieu dit du Jas de Rhodes, concernant notamment la rubrique n°2760 de la nomenclature des installations classées pour la protection de l'environnement,
+   </div>
+   <div data-spec="visa">
+    Vu la lettre adressée par la Directrice Régionale de l'Environnement, de l'Aménagement et du Logement à la société SITA SUD le 10 juin 2016,
+   </div>
+   <div data-spec="visa">
+    Vu le rapport de la Directrice Régionale de l'Environnement, de l'Aménagement et du Logement du 10 juin 2016,
+   </div>
+   <div data-spec="visa">
+    Vu l'avis du sous-préfet d'Aix-en-Provence en date du 24 juin 2016,
+   </div>
+   <div data-spec="visa">
+    Vu la lettre de procédure contradictoire du Préfet adressée à la société SITA SUD le 30 juin 2016, et reçue par cette dernière le 4 juillet 2016,
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     1/3
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    Considérant que lors de l'inspection des modalités de contrôle visuel des déchets reçus à l'admission sur site et sur la zone de déchargement de l'ISDND, réalisée le 15 décembre 2015 entre 7h30 et 10h, les inspecteurs de l'environnement (spécialité installations classées) ont constaté des non conformités flagrantes dans la nature des déchets stockés, tels que plusieurs chargements constitués en très grande majorité de déchets d'emballages recyclables, ou un déchet dangereux d'équipement électrique et électronique (téléviseur à tube cathodique usagé),
+   </div>
+   <div data-spec="motifs">
+    Considérant que les modalités de contrôle visuel des déchets reçus sur cette ISDND sont insuffisantes, voire inopérantes pour détecter les non-conformités et assurer la reprise de ces déchets, afin de les envoyer vers l'exutoire adapté,
+   </div>
+   <div data-spec="motifs">
+    Considérant que ce constat constitue un manquement aux dispositions l'
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="7.6.4" data-type="article">
+     article 7.6.4
+    </a>
+    de l'
+    <a data-date="2014-12-22" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2014-12-22">
+      22 décembre 2014
+     </time>
+    </a>
+    et de l'
+    <a data-parent_reference="3" data-spec="section_reference" data-start_num="7" data-type="article">
+     article 7
+    </a>
+    de l'
+    <a data-date="1997-09-09" data-spec="document_reference" data-tag_id="3" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="1997-09-09">
+      9 septembre 1997
+     </time>
+    </a>
+    et de son
+    <a data-spec="section_reference" data-start_num="2" data-type="annexe">
+     annexe II
+    </a>
+    interdisant les déchets d'emballages et dangereux en ISDND,
+   </div>
+   <div data-spec="motifs">
+    Considérant que face à ce manquement, il convient de faire application des dispositions de l'
+    <a data-parent_reference="4" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+     article L. 171-8
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    en mettant en demeure la société SITA SUD de respecter les prescriptions l'
+    <a data-parent_reference="5" data-spec="section_reference" data-start_num="7.6.4" data-type="article">
+     article 7.6.4
+    </a>
+    de l'
+    <a data-date="2014-12-22" data-spec="document_reference" data-tag_id="5" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2014-12-22">
+      22 décembre 2014
+     </time>
+    </a>
+    et de l'
+    <a data-parent_reference="6" data-spec="section_reference" data-start_num="7" data-type="article">
+     article 7
+    </a>
+    de l'
+    <a data-date="1997-09-09" data-spec="document_reference" data-tag_id="6" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="1997-09-09">
+      9 septembre 1997
+     </time>
+    </a>
+    susvisés, afin d'assurer la protection des intérêts visés à l'
+    <a data-parent_reference="7" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     article L. 511-1
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="7" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ,
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition de Monsieur le Secrétaire Général de la préfecture des Bouches-du-Rhône
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1er
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société SITA SUD exploitant une installation de stockage de déchets non-dangereux sise lieu dit du
+     <q>
+      Jas de Rhode
+     </q>
+     sur la commune des Pennes-Mirabeau est mise en demeure de respecter, sous un mois à compter de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , les dispositions de l'
+     <a data-parent_reference="8" data-spec="section_reference" data-start_num="7.6.4" data-type="article">
+      article 7.6.4
+     </a>
+     de l'
+     <a data-date="2014-12-22" data-spec="document_reference" data-tag_id="8" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2014-12-22">
+       22 décembre 2014
+      </time>
+     </a>
+     et de l'
+     <a data-parent_reference="9" data-spec="section_reference" data-start_num="7" data-type="article">
+      article 7
+     </a>
+     de l'
+     <a data-date="1997-09-09" data-spec="document_reference" data-tag_id="9" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="1997-09-09">
+       9 septembre 1997
+      </time>
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Afin de respecter les termes de la présente mise en demeure, la société SITA SUD adresse à monsieur le Préfet, sous un mois, un descriptif des mesures mises en place pour assurer le respect des dispositions précitées. En particulier, l'exploitant précise les moyens mis en œuvre afin de :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - renforcer l'efficacité du contrôle visuel des déchets accueillis sur site pour garantir la détection et le traitement des chargements non-conformes ;
+      </li>
+      <li>
+       - permettre une reprise totale ou partielle des chargements non-conformes au niveau de la zone de déchargement dans le casier en exploitation.
+      </li>
+     </ul>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dans le cas où l'une des obligations prévues à l'
+     <a data-spec="section_reference" data-start_num="1" data-type="article">
+      article 1er
+     </a>
+     ne serait pas satisfaite dans le délai prévu par ce même article, et indépendamment des poursuites pénales qui pourraient être engagées, il pourra être pris à l'encontre de l'exploitant les sanctions prévues à l'
+     <a data-parent_reference="10" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+      article L. 171-8
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="10" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3-
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="11" data-spec="section_reference" data-start_num="L514-6" data-type="article">
+      article L. 514-6
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="11" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , la présente décision est soumise à un contentieux de pleine juridiction. Elle peut être déférée à la juridiction administrative compétente, le tribunal administratif de Marseille, dans les délais prévus à l'
+     <a data-spec="section_reference" data-start_num="R514-3-1" data-type="article">
+      article R. 514-3-1
+     </a>
+     du même code :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - par l'exploitant dans un délai de deux mois qui suivent la date de notification du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       ;
+      </li>
+      <li>
+       - par les tiers, personnes physiques ou morales, les communes intéressées ou leurs groupements, en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts mentionnés aux
+       <a data-group_id="2" data-spec="section_reference" data-start_num="L211-1" data-type="article">
+        articles L. 211-1
+       </a>
+       et
+       <a data-group_id="2" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+        L. 511-1
+       </a>
+       du même code dans un délai d'un an à compter de la publication ou de l'affichage de ces décisions.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les droits des tiers sont et demeurent expressément réservés.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - Le Secrétaire Général de la Préfecture des Bouches-du-Rhône,
+      </li>
+      <li>
+       - Le Sous-Préfet d'Aix en Provence,
+      </li>
+      <li>
+       - Le Maire des Pennes-Mirabeau,
+      </li>
+      <li>
+       - La Directrice Régionale de l'Environnement, de l'Aménagement et du Logement,
+      </li>
+      <li>
+       - Le Directeur Départemental des Services d'Incendie et de Secours,
+      </li>
+      <li>
+       - Le Directeur Départemental des Territoires et de la mer, et toutes autorités de Police et de Gendarmerie, sont chargés, chacun en ce qui le concerne, de l'exécution du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       .
+      </li>
+     </ul>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     MARSEILLE, le 21 JUIL. 2016
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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IMrY54x8vNdBpHhe0tbkardN9t1aVAHu5eSo/uoOij6c+ua3h8pC4/KgCCy060060S1sreK3t0GFijQKo9eB61aHSkyM4oyM0AI1J0rH1LxPp9jJ9njZry8J2i1tfnkB9wPuj61XisNa1hEk1KcafBuybS1Y72HPDyZ6ey/nQBfm1i1W9+wQyLPelC6wrk9Bnlhwv41mJYarfgXOqzLHKTlLaAkJGOcZI++eh54GenetnT9Ks9KtRbWNukMQ7LnJ9yTkn8augYoApWVl9nDEtktnvmrnO/HtSnPajHegBR0ooooAac5/xo2DOe/rS45paAEAxTafTdpoASlXrRtNKBigBaKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAaWAPPWlznpQQCc0h4FAHFeJr3Ur3WI9B0iM+ZIm+e9DEJbqDkrkA4fpx1ww7V0en6XFZQKkbFsYLOTlnOOpPc1m6n4bmmuLi70rV7zTLuY7iUbzYi2ANxibgnaMcY6Z60kXh3XvJQS+MtQaTaAxW1twCe+AYyf1oA6UHAA5qjd6zpdjvN1qFrCU5IeVQR+Gc1m23hSOK3kiu9V1S+Mgw7T3TDjOeAuAPTjtVvTfD+k6UV+xWMaMpJDEl2GevzNk0AVR4kkvnVNH0q6ug3SeZTBEOM5ywyfwHNEuiajq8YXV9QC27H57O0XYjD0Ln5z+GK3wuKcBgUAUbDSLDS41jsbOCBVG0FFwcdeT1P41eHSiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigBMUY5paKACkC470tFAARmmhADmnUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAU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"/>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     ^{}[]
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

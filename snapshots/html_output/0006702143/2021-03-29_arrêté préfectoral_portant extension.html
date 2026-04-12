@@ -1,0 +1,3563 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2021-03-29_arrêté préfectoral_portant extension.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET DU HAUT-RHIN
+Liberté
+Égalité
+Fraternité
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     SERVICE DE LA COORDINATION DES POLITIQUES PUBLIQUES ET DE L'APPUI TERRITORIAL
+    </div>
+    <div>
+     BUREAU DES ENQUÊTES PUBLIQUES ET INSTALLATIONS CLASSÉES SK/711
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté du
+     <time data-spec="date" datetime="2021-03-29">
+      29 mars 2021
+     </time>
+     portant prescriptions complémentaires à la société PROTECHNIC pour son établissement de Cernay
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le préfet du Haut-Rhin
+    </div>
+    <div>
+     Chevalier de la Légion d'Honneur
+    </div>
+    <div>
+     Chevalier de l'Ordre national du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , livre V, titre 1er relatif aux installations classées pour la protection de l'environnement et livre I, titre VIII relatif aux procédures administratives, et notamment l'
+    <a data-spec="section_reference" data-start_num="R181-45" data-type="article">
+     article R.181-45
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code des relations entre le public et l'administration" data-type="code">
+     code des relations entre le public et l'administration
+    </a>
+    et notamment son
+    <a data-spec="section_reference" data-start_num="L121-1" data-type="article">
+     article L.121-1
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1995-04-25" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="1995-04-25">
+      25 avril 1995
+     </time>
+    </a>
+    autorisant la société Protechnic à exploiter à Cernay des activités d'extrusion de matière plastique et d'impression,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2017-03-28" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2017-03-28">
+      28 mars 2017
+     </time>
+    </a>
+    (prescriptions complémentaires) autorisant la poursuite des activités et révisant les prescriptions d'exploiter de l'
+    <a data-date="1995-04-25" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="1995-04-25">
+      25 avril 1995
+     </time>
+    </a>
+    susvisé,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2017-12-12" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2017-12-12">
+      12 décembre 2017
+     </time>
+     modifiant
+    </a>
+    les prescriptions de l'
+    <a data-date="2017-03-28" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2017-03-28">
+      28 mars 2017
+     </time>
+    </a>
+    susvisé,
+   </div>
+   <div data-spec="visa">
+    VU la demande de la société Protechnic du 15 mai 2018 pour l'extension des activités d'extrusion par la mise en place d'une nouvelle extrudeuse (dite WEB4) installée dans le bâtiment « M5-BLOWN »,
+   </div>
+   <div data-spec="visa">
+    VU les lettres de la société Protechnic des 27 juin 2018 et 4 février 2021 faisant le point sur la réalisation de divers aménagements pour lesquels une échéance de mise en conformité était imposée dans l'
+    <a data-date="2017-03-28" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2017-03-28">
+      28 mars 2017
+     </time>
+     modifié
+    </a>
+    susvisé,
+   </div>
+   <div data-spec="visa">
+    VU le rapport de la direction régionale de l'environnement, de l'aménagement et du logement chargée de l'inspection des installations classées en date du 12 février 2021,
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     2/17
+    </div>
+   </div>
+   <div data-spec="motifs">
+    Considérant que l'extension de l'activité d'extrusion par la mise en place de la nouvelle extrudeuse (WEB4) ne modifie pas le régime de classement (Déclaration) de l'activité de transformation de matières plastiques relevant de la rubrique 2661 de la nomenclature des installations classées, qu'il peut être statué sur la demande sans examen préalable d'une demande d'examen au cas par cas et qu'il y a lieu de modifier la rédaction de l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="1" data-type="article">
+     article 1
+    </a>
+    -2-1 de l'
+    <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="1" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2017-03-28">
+      28 mars 2017
+     </time>
+     modifié
+    </a>
+    susvisé pour en faire état,
+   </div>
+   <div data-spec="motifs">
+    Considérant que compte tenu de l'évolution du parc des extrudeuses et du seuil d'activité d'extrusion il y a lieu d'imposer à l'exploitant la tenue d'un bilan de la quantité de matière plastique extrudée quotidiennement, par machine d'extrusion,
+   </div>
+   <div data-spec="motifs">
+    Considérant que la mise en exploitation de l'extrudeuse WEB4 impacte la rédaction de divers articles de l'
+    <a data-date="2017-03-28" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2017-03-28">
+      28 mars 2017
+     </time>
+     modifié
+    </a>
+    susvisé qu'il convient de mettre à jour et plus particulièrement les
+    <a data-spec="section_reference" data-start_num="1" data-type="article">
+     articles 1
+    </a>
+    -2-4 (consistance des installations autorisées), 3-2-2 (conduits et installations raccordées - rejets gazeux), 3-2-3 (conditions générales de rejet gazeux), 3-2-4 (valeurs limites des concentrations et des flux dans les rejets atmosphériques), 7-2-2 (bâtiments et locaux), 8-3-1-3 (bâtiment BLOWN-M5), 3-1-3-3 (cellule «extrusion BLOWN-regranulation») et 9-2-1-1-1 (auto surveillance par la mesure des émissions canalisées ou diffuses),
+   </div>
+   <div data-spec="motifs">
+    Considérant que depuis la notification de l'
+    <a data-date="2017-03-28" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2017-03-28">
+      28 mars 2017
+     </time>
+     modifié
+    </a>
+    susvisé la nomenclature des installations classées a été modifiée à plusieurs reprises et qu'il y a lieu de mettre à jour les rubriques de classement concernées, les intitulés de rubriques, les seuils d'activité (
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="1" data-type="article">
+     article 1
+    </a>
+    -2-1 de l'
+    <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2017-03-28">
+      28 mars 2017
+     </time>
+     modifié
+    </a>
+    susvisé), l'établissement continuant à relever du régime de l'autorisation au titre des installations classées pour les rubriques :
+    <ul>
+     <li>
+      - 3670-2 «traitement de surface de matières, d'objets ou de produits à l'aide de solvants organiques, notamment pour les opérations (...) d'impression, (...), de nettoyage (...), avec une capacité de consommation de solvant organique supérieure à 200 tonnes/an » (activité IED),
+     </li>
+     <li>
+      - 2450 A-a) «Imprimeries ou ateliers de reproduction graphique sur tout support tel que (...) matières plastiques, textiles, etc. utilisant une forme imprimante - héliogravure, flexographie (...), la quantité totale de produits consommée pour revêtir le support étant supérieure à 200 kg/j », et qu'il y a également lieu de préciser à l'article 7-2-7 « chaufferies » que les dispositions de l'arrêté ministériel du 3 août 2018 relatif aux prescriptions générales applicables aux installations classées pour la protection de l'environnement soumises à déclaration au titre de la rubrique 2910 (installations de combustion) ne s'appliquent pas aux appareils de combustion de la société Protechnic puisque de puissance nominale inférieure à 1 MW,
+     </li>
+    </ul>
+   </div>
+   <div data-spec="motifs">
+    Considérant que compte tenu des informations fournies par la société Protechnic dans ses courriers des 27 juin 2018 et 4 février 2021 quant à la réalisation de divers aménagements, il y a lieu de mettre à jour les prescriptions de l'
+    <a data-date="2017-03-28" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2017-03-28">
+      28 mars 2017
+     </time>
+     modifié
+    </a>
+    susvisé quand elles imposaient à l'exploitant de signaler au préfet la réalisation des aménagements imposés et plus particulièrement dans les
+    <a data-spec="section_reference" data-start_num="3" data-type="article">
+     articles 3
+    </a>
+    -2-3, 4-3-13-2, 4-3-13-3, 7-6-8-1-2, 7-6-8-1-3, 9-2-4-1-1 A, 9-2-4-1-2-1, 10-1, 10-2 et 10-3,
+   </div>
+   <div data-spec="motifs">
+    Considérant qu'il y a lieu de modifier l'échéance de réalisation de la surveillance de l'impact acoustique,
+   </div>
+   <div data-spec="motifs">
+    Considérant qu'il y a de lieu de modifier la prescription des
+    <a data-parent_reference="3" data-spec="section_reference" data-start_num="7" data-type="article">
+     articles 7
+    </a>
+    -2-2 et 8-3-1-3-2 de l'
+    <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="3" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2017-03-28">
+      28 mars 2017
+     </time>
+     modifié
+    </a>
+    susvisé concernant le dépassement en toiture et latéral-bâtiment du mur Coupe Feu 2 heures réalisé entre la cellule de stockage dite « M5 » et la cellule d'extrusion dite « BLOWN » du bâtiment « BLOWN-M5 » construit fin 2014 si
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div>
+    l'exploitant peut justifier que les mesures et aménagements réalisés sur le bâtiment apportent les garanties de non propagation d'incendie d'une cellule à l'autre équivalentes au dépassement en toiture et latéral-bâtiment du mur coupe feu 2 heures, et qu'ils sont validés par les services du service départemental d'incendie et de secours,
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Après communication du projet d'arrêté à l'exploitant,
+    </div>
+    <div>
+     Sur proposition du sous-préfet, secrétaire général de la préfecture,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="CHAMP D'APPLICATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1 : CHAMP D'APPLICATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société Protechnic, désignée
+     <q>
+      exploitant
+     </q>
+     dans
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     , dont le siège social est situé
+     <address data-spec="address">
+      41 avenue Montaigne
+     </address>
+     – BP30178 à Cernay (68072), est tenue de respecter les prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     pour l'exploitation de son établissement situé à la même adresse.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="MODIFICATIONS ET COMPLÉMENTS APPORTÉS AUX PRESCRIPTIONS DES ACTES ANTÉRIEURS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 : MODIFICATIONS ET COMPLÉMENTS APPORTÉS AUX PRESCRIPTIONS DES ACTES ANTÉRIEURS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les prescriptions suivantes sont modifiées par
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Références de l'arrêté préfectoral
+       </th>
+       <th>
+        Références des articles dont les prescriptions sont supprimées ou modifiées
+       </th>
+       <th>
+        Nature des modifications
+       </th>
+      </tr>
+      <tr>
+       <td rowspan="22">
+        Du 28 mars 2017 modifié
+       </td>
+       <td>
+        <a data-spec="section_reference" data-start_num="1" data-type="article">
+         article 1
+        </a>
+        -2-1
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        la ligne « bâtiment BLOWN-M5 » du tableau « les bâtiments techniques » de l'
+        <a data-spec="section_reference" data-start_num="1" data-type="article">
+         article 1
+        </a>
+        -2-4
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <a data-spec="section_reference" data-start_num="3" data-type="article">
+         article 3
+        </a>
+        -2-2
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <a data-spec="section_reference" data-start_num="3" data-type="article">
+         article 3
+        </a>
+        -2-3
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        tableau à
+        <a data-spec="section_reference" data-start_num="3" data-type="article">
+         article 3
+        </a>
+        -2-4
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <a data-parent_reference="4" data-spec="section_reference" data-start_num="2" data-type="alinea">
+         2eme alinéa
+        </a>
+        de l'
+        <a data-spec="section_reference" data-start_num="4.3.13.2" data-tag_id="4" data-type="article">
+         article 4.3.13.2
+        </a>
+       </td>
+       <td>
+        supprimé
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <a data-parent_reference="5" data-spec="section_reference" data-start_num="2" data-type="alinea">
+         2eme alinéa
+        </a>
+        de l'
+        <a data-spec="section_reference" data-start_num="4.3.13.3" data-tag_id="5" data-type="article">
+         article 4.3.13.3
+        </a>
+       </td>
+       <td>
+        supprimé
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Les 2 lignes «Cellule M5 du bâtiment BLOWN-M5 » et «Cellule BLOWN- (extrusion et re-granulation) du bâtiment BLOWN - M5 » du tableau de l'
+        <a data-spec="section_reference" data-start_num="7" data-type="article">
+         article 7
+        </a>
+        -2-2
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        dispositions du paragraphe «éclairage » de l'
+        <a data-spec="section_reference" data-start_num="7" data-type="article">
+         article 7
+        </a>
+        -2-2
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <a data-spec="section_reference" data-start_num="7" data-type="article">
+         article 7
+        </a>
+        -2-7
+       </td>
+       <td>
+        complété
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <a data-spec="section_reference" data-start_num="7" data-type="article">
+         article 7
+        </a>
+        -6-8-1-2
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Les dispositions du
+        <a data-parent_reference="6" data-spec="section_reference" data-start_num="3" data-type="alinea">
+         3eme paragraphe
+        </a>
+        de l'
+        <a data-spec="section_reference" data-start_num="7" data-tag_id="6" data-type="article">
+         article 7
+        </a>
+        -6-8-1-3
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <a data-spec="section_reference" data-start_num="8" data-type="article">
+         article 8
+        </a>
+        -3-1-3
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <a data-spec="section_reference" data-start_num="8" data-type="article">
+         article 8
+        </a>
+        -3-1-3-2
+       </td>
+       <td>
+        remplacé
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <a data-spec="section_reference" data-start_num="8" data-type="article">
+         article 8
+        </a>
+        -3-1-3-3
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        dernière ligne du tableau de l'
+        <a data-spec="section_reference" data-start_num="9" data-type="article">
+         article 9
+        </a>
+        -2-1-1-1
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <a data-spec="section_reference" data-start_num="9" data-type="article">
+         article 9
+        </a>
+        -2-4-1-1-A
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <a data-spec="section_reference" data-start_num="9" data-type="article">
+         article 9
+        </a>
+        -2-4-1-2-1
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        prescriptions du
+        <a data-parent_reference="7" data-spec="section_reference" data-start_num="2" data-type="alinea">
+         2eme paragraphe
+        </a>
+        de l'
+        <a data-spec="section_reference" data-start_num="9" data-tag_id="7" data-type="article">
+         article 9
+        </a>
+        -2-7-1
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        tableau récapitulatif de l'
+        <a data-spec="section_reference" data-start_num="10" data-type="article">
+         article 10
+        </a>
+        -1
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        tableau récapitulatif de l'
+        <a data-spec="section_reference" data-start_num="10" data-type="article">
+         article 10
+        </a>
+        -2
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        dernière ligne du tableau récapitulatif de l'
+        <a data-spec="section_reference" data-start_num="10" data-type="article">
+         article 10
+        </a>
+        -3
+       </td>
+       <td>
+        modifié
+       </td>
+      </tr>
+      <tr>
+       <td>
+        La pièce joint n°3
+       </td>
+       <td>
+        remplacée
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3:
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les prescriptions de l'
+     <a data-spec="section_reference" data-start_num="1" data-type="article">
+      article 1
+     </a>
+     -2-1
+     <q>
+      liste des installations concernées par une rubrique de la nomenclature des installations classées
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="15" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="16" data-operation_type="replace" data-references="15" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les prescriptions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="16">
+      <tr>
+       <th>
+        Rubrique
+       </th>
+       <th>
+        Régime
+       </th>
+       <th>
+        Libellé de la rubrique (activité)
+       </th>
+       <th>
+        Nature de l'installation
+       </th>
+       <th>
+        Volume autorisé
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2450-A a)
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        Imprimeries ou ateliers de reproduction graphique sur tout support tel que métal, papier, carton, matières plastiques, textiles, etc. utilisant une forme imprimante - A. (...), héliogravure, flexographie (...) si la quantité totale de produits consommée pour revêtir le support est : a) supérieure à 200 kg/j
+       </td>
+       <td>
+        Secteur DECOPLAST: 2 rotatives d'impression (héliogravure) : CERUTTI et WINDMOELLER :
+        <br/>
+        • conso. encre à 40 % d'extrait sec : 60,42 t/an (36,25 t/an de solvant),
+        <br/>
+        • conso. solvant neuf : 128,67 t/an (*), soit une consommation quotidienne totale d'encre et solvant : 822,20 kg/j (189,09 tonnes/an ; 230 jours d'activités).
+        <br/>
+        (*) : quantité de solvants organiques achetée et utilisée dans l'installation sur une période de 12 mois, diminuée de la quantité de solvants organiques récupérée et destinée à être régénérée en externe en vue de leur utilisation.
+       </td>
+       <td>
+        826,20 kg/j
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2450-B
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Imprimeries ou ateliers de reproduction graphique sur tout support tel que métal, papier, carton, matières plastiques, textiles, etc. utilisant une forme imprimante - B. Autres procédés, y compris les techniques offset non visées en A. si la quantité d'encre consommée est : b) Supérieure à 100 kg/j, mais inférieure ou égale à 400 kg/j
+       </td>
+       <td>
+        1 imprimante numérique :
+        <br/>
+        • conso. encre à 70 % d'extrait sec (sous forme de cartouches) : 4 kg/j (soit 1,2 kg/j de solvant) et 920 kg/an (soit 276 kg/an de solvant),
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2915-1a
+       </td>
+       <td>
+        E
+       </td>
+       <td>
+        Chauffage (procédés de) utilisant comme fluide caloporteur des corps organiques combustibles :
+        <br/>
+        1. Lorsque la température d'utilisation est égale ou supérieure au point éclair des fluides, si la quantité totale de fluides présente dans l'installation (mesurée à 25 °C) est : a) supérieure à 1 000 l
+       </td>
+       <td>
+        - PE fluide : 255 °C et temp. utilisation : 260 °C
+        <br/>
+        - quantité totale de fluide : 4500 l
+       </td>
+       <td>
+        4500 l
+       </td>
+      </tr>
+      <tr>
+       <td>
+        3670-2
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        Traitement de surface de matières, d'objets ou de produits à l'aide de solvants organiques, notamment pour les opérations (...), d'impression, (...) de dégraissage, (...) de nettoyage (...), avec une capacité de consommation de solvant organique : 2. Supérieure à 200 tonnes par an pour les autres installations que celles classées au titre du 1
+       </td>
+       <td>
+        Opérations de (capacité de consommation) :
+        <br/>
+        - impression (héliogravure,) : 243 tonnes/an,
+        <br/>
+        - impression numérique : 276 kg/an
+        <br/>
+        - installation de nettoyage des fûts et installation de nettoyage de petit matériel d'impression (encriers, plaques, ...) : 14,20 tonnes.
+        <br/>
+        (nota : dans le DDAE septembre 1994, la consommation annuelle de solvant était estimée à 66,75 t/an).
+       </td>
+       <td>
+        257,48 t/an
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2661-1c
+       </td>
+       <td>
+        D
+       </td>
+       <td>
+        Polymères (matières plastiques,
+       </td>
+       <td>
+        - bâtiment THERMOPLAST/ activité
+       </td>
+       <td>
+        9,4 t/j
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+        caoutchoucs, élastomères, résines et adhésifs synthétiques) (transformation de) : 1. Par des procédés exigeant des conditions particulières de température ou de pression (extrusion, injection, (...)), la quantité de matière susceptible d'être traitée étant : c) Supérieure ou égale à 1 t/j, mais inférieure à 10 t/j
+       </td>
+       <td>
+        d'extrusion :
+        <br/>
+        • machines WEB1, WEB2 et WEB3
+        <br/>
+        • machines TX1, TX4 et TX6
+        <br/>
+        - cellule « BLOWN » dans le bâtiment BLOWN-M5 (bâtiment de 2000 m² construit en 2014)/ activité d'extrusion ;
+        <br/>
+        • machine BLOWN 1 (2014)
+        <br/>
+        • machine WEB4 (2018)
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2661-2b
+       </td>
+       <td>
+        D
+       </td>
+       <td>
+        Matières plastiques (Transformation par procédés mécaniques). 2. Par tout procédé exclusivement mécanique (sciage, découpage, meulage, broyage, etc.), la quantité de matière susceptible d'être traitée étant : b) Supérieure ou égale à 2 t/j, mais inférieure à 20 t/j
+       </td>
+       <td>
+        - Installations de découpage de film et voile plastiques (bâtiment THERMOPLAST) : 13 t/j
+        <br/>
+        - installation de re-granulation de film plastique (cellule BLOWN du bâtiment « BLOWN-M5 ») : 0,1 t/j
+       </td>
+       <td>
+        13,1 t/j
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2662-2
+       </td>
+       <td>
+        D
+       </td>
+       <td>
+        Polymères (matières plastiques, caoutchoucs, élastomères, résines et adhésifs synthétiques) (stockage de) à l'exception des installations classées au titre de la rubrique 1510. Le volume susceptible d'être stocké étant : 2. Supérieur ou égal à 100 m³ mais inférieur à 1 000 m³
+       </td>
+       <td>
+        dépôts de matières plastiques (matières 1eres)
+        <br/>
+        - bâtiment THERMOPLAST (construit avant 1994) : 20/30 m³
+        <br/>
+        - bâtiment de stockage M4 (construit en 1999/2000): au maximum 398 m³
+        <br/>
+        - cellule M5 du bâtiment BLOWN-M5 (construit en 2015) : au maximum 443 m³
+        <br/>
+        total : au maximum 871 m³
+       </td>
+       <td>
+        871 m³
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2663-2b
+       </td>
+       <td>
+        D
+       </td>
+       <td>
+        Produits dont 50 % au moins de la masse totale unitaire est composée de matières plastiques (stockage de). 2. Dans les autres cas et pour les pneumatiques, le volume susceptible d'être stocké étant : b) Supérieur ou égal à 1 000 m³ mais inférieur à 10 000 m³
+       </td>
+       <td>
+        dépôts de matières plastiques (produits finis)
+        <br/>
+        - bâtiment de stockage M4 (construit en 1999/2000): au maximum1070 m³,
+        <br/>
+        - local LOCABRI (mis en place en 2001) : au maximum 455 m³,
+        <br/>
+        - cellule M5 du bâtiment BLOWN-M5 : au maximum 1085 m³.
+        <br/>
+        total : au maximum 2610 m³
+       </td>
+       <td>
+        2610 m³
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2910-A
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Combustion - A. Lorsque sont consommés exclusivement, seuls ou en mélange, du gaz naturel (...), du fioul domestique, (...), si la puissance thermique nominale est : 2. Supérieure ou égale à 1 MW, mais inférieure à 20 MW
+       </td>
+       <td>
+        - 1 chaudière (LOOS) gaz (bâtiment DECOPLAST) : 450 kW
+        <br/>
+        - 1 chaudière (bâtiment BLOWN-M5) : 100 kW
+        <br/>
+        - divers aérothermes : 668 kW
+        <br/>
+        total : 1,218 MW
+        <br/>
+        nota : Les appareils de combustion de puissance thermique nominale inférieure à 1 MW ne sont pas soumis aux dispositions de l'
+        <a data-date="2018-08-03" data-spec="document_reference" data-type="arrete-ministeriel">
+         arrêté ministériel du
+         <time data-spec="date" datetime="2018-08-03">
+          03/08/18
+         </time>
+        </a>
+        relatif aux prescriptions générales applicables aux installations classées pour la protection de l'environnement soumises à déclaration au titre de la rubrique 2910
+        <br/>
+        nota : l'installation d'épuration thermique (BABCOCK) non classable au titre de la rubrique
+       </td>
+       <td>
+        1,218 MW
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2640
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Colorants et pigments (Emploi de)
+       </td>
+       <td>
+        - 400 kg/an
+        <br/>
+        - 1,75 kg/j
+       </td>
+       <td>
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      5/17
+     </div>
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        4331
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Dépôt de liquides inflammables
+       </td>
+       <td>
+        - catégorie 2 :
+        <br/>
+        • 4 citernes (MEC, Acétate d'éthyle, Acétate d'isopropyle, Ethanol) pour un poids total cumulé de 10,10 t ;
+        <br/>
+        • fûts (encres neuves) : 13 t ;
+        <br/>
+        • fûts (encres mélangées réutilisables dans l'activité d'impression du site) : 18 t ;
+        <br/>
+        • dans les installations : 2 t.
+       </td>
+       <td>
+        43,10 T
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4718
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Dépôt de gaz combustible
+       </td>
+       <td>
+        23 bouteilles de 13 kg (propane)
+       </td>
+       <td>
+        299 kg
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2564
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Nettoyage, dégraissage, décapage de surfaces quelconques par des procédés utilisant des liquides organohalogénés ou des solvants organiques, à l'exclusion des activités classées au titre de la rubrique 3670. 1. Hors procédé sous vide, le volume des cuves affectées au traitement étant : c.. Supérieur à 200 l, mais inférieur ou égal à 1500 l pour les autres liquides organohalogénés ou solvants organiques
+       </td>
+       <td>
+        14,20 tonnes/an
+       </td>
+       <td>
+        14,20 t/an
+       </td>
+      </tr>
+      <tr>
+       <td colspan="5">
+        Pour mémoire : activité initialement classée mais rubrique supprimée de la nomenclature
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2920
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Installation de compression
+       </td>
+       <td>
+        Totalité des compresseurs du site
+       </td>
+       <td>
+        46 kW
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     A (Autorisation) ; D (Déclaration) ; E (Enregistrement) ; NC (Non Classé)
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Volume autorisé : éléments caractérisant la consistance, le rythme de fonctionnement, le volume des installations ou les capacités maximales autorisées.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Au sens de l'
+     <a data-parent_reference="8" data-spec="section_reference" data-start_num="R515-61" data-type="article">
+      article R.515-61
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="8" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , la rubrique principale est la rubrique 3670 et les conclusions sur les meilleures techniques disponibles relatives à la rubrique principale sont celles faisant référence aux Installations de traitement de surface utilisant des solvants (BREF STS).
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="9" data-spec="section_reference" data-start_num="R515-71" data-type="article">
+      article R.515-71
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="9" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , l'exploitant adresse au préfet les informations nécessaires, mentionnées à l'
+     <a data-spec="section_reference" data-start_num="L515-29" data-type="article">
+      article L.515-29
+     </a>
+     , sous la forme d'un dossier de réexamen dont le contenu est décrit à l'
+     <a data-spec="section_reference" data-start_num="R515-72" data-type="article">
+      article R.515-72
+     </a>
+     dans les douze (12) mois qui suivent la date de publication des décisions concernant les conclusions sur les meilleures techniques disponibles relatives aux Installations de traitement de surface utilisant des solvants (BREF STS).
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Bilan d'extrusion : l'exploitant tient à jour, par machine d'extrusion, un bilan de la quantité de matière plastique extrudée quotidiennement ; ce bilan est tenu à la disposition de l'inspection des installations classées ou communiqué sur simple demande. Aucune valeur journalière moyenne n'est acceptée quant à la tenue de ce bilan. »
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les dispositions de la ligne
+     <q>
+      bâtiment BLOWN-M5
+     </q>
+     du tableau
+     <q>
+      les bâtiments techniques
+     </q>
+     de l'
+     <a data-spec="section_reference" data-start_num="1" data-type="article">
+      article 1
+     </a>
+     -2-4
+     <q>
+      consistance des installations autorisées
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="17" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="18" data-operation_type="replace" data-references="17" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les prescriptions suivantes :
+     </span>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      6/17
+     </div>
+    </div>
+    <a data-page_index="6" data-spec="page_separator">
+    </a>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="18">
+      <p>
+      </p>
+      <p>
+       Bâtiment BLOWN-M5
+      </p>
+      <p>
+       Bâtiment construit en 2014 :
+      </p>
+      <ul>
+       <li>
+        - 1 cellule de stockage mixte de matières plastiques (matières 1eres et produits finis) - dite M5 ; hauteur : 8 m
+       </li>
+       <li>
+        - 1 cellule d'extrusion/regranulation dite cellule «extrusion BLOWN- regranulation » (hauteur de 8 m et 16 m du côté Ouest au-dessus le l'extrudeuse BLOWN) ; compartimentée en 2 sous-cellules, pour :
+       </li>
+      </ul>
+      <p>
+       1/la sous-cellule BLOWN :
+      </p>
+      <ul>
+       <li>
+        - l'extrudeuse verticale BLOWN 1 (extrusion film)
+       </li>
+       <li>
+        - l'unité de re-granulation des chutes de film en matière plastiques issues de l'extrudeuse BLOWN,
+       </li>
+       <li>
+        - une zone de stockage de 160 m² pour les chutes de films de matières plastiques issues de l'activité BLOWN, à re-granuler ; le volume de chutes de film plastique à traiter est d'au maximum 50 m³,
+       </li>
+      </ul>
+      <p>
+       2/ la sous-cellule WEB4 : une machine d'extrusion dite
+       <q>
+        WEB4
+       </q>
+       (extrusion voile) installée en 2018 en partie Est de cette cellule.
+      </p>
+      <p>
+       .
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les dispositions de l'
+     <a data-spec="section_reference" data-start_num="3" data-type="article">
+      article 3
+     </a>
+     -2-2
+     <q>
+      conduits et installations raccordées
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="19" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="20" data-operation_type="replace" data-references="19" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les prescriptions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="20">
+      <p>
+      </p>
+      <table>
+       <tr>
+        <th>
+         N° de Conduit
+        </th>
+        <th>
+         Installations raccordées
+        </th>
+        <th>
+         Combustible ou autres caractéristiques
+        </th>
+       </tr>
+       <tr>
+        <td>
+         1
+        </td>
+        <td>
+         L'épurateur thermique BABCOCK
+        </td>
+        <td>
+         Traite les émissions de :
+- les rejets des 2 rotatives (héliogravure) : CERUTTI et WINDMOELLER
+- les émissions au malaxeur d'encres (cuisine couleurs)
+- les émissions de la machine à laver (au solvant) les fûts, de l'unité de lavage (au solvant) de petit matériel d'impression (encriers, plaques, ...), et des unités de sous-tirage et distribution de solvant
+- les émissions de l'imprimante numérique
+(combustible de l'épurateur : gaz)
+        </td>
+       </tr>
+       <tr>
+        <td>
+         2
+        </td>
+        <td>
+         Le laminateur et la Double-Graineuse KELLER-DORIAN
+        </td>
+        <td>
+         - Laminateur : rejet recyclé en atelier
+- Double-graineuse KELLER-DORIAN : rejet extérieur en toiture
+        </td>
+       </tr>
+       <tr>
+        <td>
+         3
+        </td>
+        <td>
+         Le petit laboratoire « d'essai de couleur »
+        </td>
+        <td>
+         /
+        </td>
+       </tr>
+       <tr>
+        <td>
+         4
+        </td>
+        <td>
+         Les émissions de l'extrudeuse « BLOWN 1 »
+        </td>
+        <td>
+         Rejet en toiture
+        </td>
+       </tr>
+       <tr>
+        <td>
+         4bis
+        </td>
+        <td>
+         émissions de l'extrudeuse WEB4
+        </td>
+        <td>
+         Rejet en toiture
+        </td>
+       </tr>
+       <tr>
+        <td>
+         5, 5 bis et 5 ter
+        </td>
+        <td>
+         les émissions des extrudeuses TX (TX1, TX4 et TX6)
+        </td>
+        <td>
+         - 1 conduit par extrudeuse
+- rejet en toiture
+        </td>
+       </tr>
+       <tr>
+        <td>
+         6 et 6 bis
+        </td>
+        <td>
+         les installations de combustion (chaufferie et chaudières)
+        </td>
+        <td>
+         Conduits de rejet des 2 chaufferies :
+- chaudière LOOS de la chaufferie dans le bâtiment DECOPLAST
+- chaudière de la chaufferie en bordure Nord du bâtiment BLOWN-M5
+        </td>
+       </tr>
+       <tr>
+        <td>
+         /
+        </td>
+        <td>
+         les émissions des extrudeuses WEB (WEB1, WEB2 et WEB3)
+        </td>
+        <td>
+         Installations ne générant aucun rejet à l'extérieur ; Extracteurs pour l'évacuation de la chaleur de l'atelier.
+En cas de modification du bâtiment ou des équipements, ces extrudeuses devront être équipées de conduits de rejets des émissions gazeuses
+        </td>
+       </tr>
+      </table>
+      <p>
+       Les conduits n°3, n°6 et 6 bis ne sont cités que pour mémoire dans le cadre du recensement des émissaires atmosphériques du site. En effet au vu :
+      </p>
+      <ul>
+       <li>
+        - des quantités mises en œuvre au niveau du laboratoire « essai de couleur »,
+        <a data-page_index="7" data-spec="page_separator">
+        </a>
+       </li>
+       <li>
+        - de la nature du combustible et de la puissance des installations de combustion (Les appareils de combustion de puissance thermique nominale inférieure à 1 MW ne sont pas soumis aux dispositions de l'
+        <a data-date="2018-08-03" data-spec="document_reference" data-type="arrete-ministeriel">
+         arrêté ministériel du
+         <time data-spec="date" datetime="2018-08-03">
+          03/08/18
+         </time>
+        </a>
+        relatif aux prescriptions générales applicables aux installations classées pour la protection de l'environnement soumises à déclaration au titre de la rubrique 2910), il n'apparaît pas opportun en l'état d'inscrire ces émissaires dans le suivi des émissions atmosphériques du site.
+       </li>
+      </ul>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les dispositions de l'
+     <a data-spec="section_reference" data-start_num="3" data-type="article">
+      article 3
+     </a>
+     -2-3
+     <q>
+      conditions générales de rejet
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="21" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="22" data-operation_type="replace" data-references="21" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les prescriptions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="22">
+      <tr>
+       <th>
+        Identification
+       </th>
+       <th>
+        Hauteur en m
+       </th>
+       <th>
+        Débit nominal en Nm³/h
+       </th>
+       <th>
+        Vitesse minimum d'éjection en m/s
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Conduit n°1 (épurateur thermique)
+       </td>
+       <td>
+        21 m (5 m au-dessus de la hauteur de la partie de cellule BLOWN du bâtiment M5 haute de 16 m construite en 2014)
+       </td>
+       <td>
+        38500
+       </td>
+       <td>
+        8
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Conduits n°5, 5 bis et 5 ter (rejets des extrudeuses TX1, TX4 et TX6)
+       </td>
+       <td>
+        11 m [3 m au-dessus du toit du bâtiment THERMOPLAST] (*)
+       </td>
+       <td>
+        - TX1 : 4 800
+        <br/>
+        - TX4 : 3 400
+        <br/>
+        - TX6 : 4 800
+       </td>
+       <td>
+        /
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Conduit n°4 (rejets de l'extrudeuse BLOWN 1)
+       </td>
+       <td>
+        24 m [3 m au-dessus du toit de la cellule BLOWN du bâtiment BLOWN-M5 ] (*)
+       </td>
+       <td>
+        BLOWN1 : 320
+       </td>
+       <td>
+        /
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Conduit n°4bis (rejets de l'extrudeuse WEB4)
+       </td>
+       <td colspan="3">
+        Le point de rejet des effluents atmosphériques doit dépasser d'au moins 3 mètres les bâtiments situés dans un rayon de 15 mètre (*)
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Conduit n°2 (rejets de la Double-Graineuse KELLER-DORIAN)
+       </td>
+       <td>
+        12 m [3 m au-dessus du toit du bâtiment Hélioplast ] (**)
+       </td>
+       <td>
+        1550
+       </td>
+       <td>
+        /
+       </td>
+      </tr>
+      <tr>
+       <td>
+        En cas de modification du bâtiment ou des extrudeuses WEB1, WEB2,WB3, ces extrudeuses devront être équipées de conduits de rejets des émissions gazeuses
+       </td>
+       <td colspan="3">
+        Le point de rejet des effluents atmosphériques doit dépasser d'au moins 3 mètres les bâtiments situés dans un rayon de 15 mètre (*)
+       </td>
+      </tr>
+     </table>
+     <br/>
+     (*)
+     <a data-date="2000-01-14" data-spec="document_reference" data-type="arrete-ministeriel">
+      Arrêté ministériel du
+      <time data-spec="date" datetime="2000-01-14">
+       14 janvier 2000
+      </time>
+      modifié
+     </a>
+     (art. 6-2c) relatif aux prescriptions générales applicables aux installations classées pour la protection de l'environnement soumises à déclaration sous la rubrique n°2661 (Transformation de polymères [matières plastiques, ...]). Toutefois, s'agissant du conduit de rejet associé aux émissions canalisées de l'extrudeuse WEB4, le débouché du conduit pourra n'être que de 3 mètres au-dessus de la toiture de la partie du bâtiment sous laquelle se situe l'extrudeuse, sous réserve que l'exploitant :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - justifie au préfet que :
+      </li>
+      <li>
+       - les concentrations et flux de polluants canalisés rejetés par la WEB4 sont très faibles,
+      </li>
+      <li>
+       - la dispersion des émissions reste correcte, même avec un rejet 3 mètres au-dessus de toiture et avec (sur 1 côté) une hauteur de bâtiment de 16 mètres,
+      </li>
+      <li>
+       - et présente une étude technico-économique proportionnée appuyant la demande de dérogation.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 7 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     le tableau de l'
+     <a data-spec="section_reference" data-start_num="3" data-type="article">
+      article 3
+     </a>
+     -2-4
+     <q>
+      valeurs limites de concentration et des flux dans les rejets atmosphériques
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="23" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacé" data-operand="24" data-operation_type="replace" data-references="23" data-spec="operation">
+      susvisé est
+      <b>
+       remplacé
+      </b>
+      par le tableau suivant :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="24">
+      <tr>
+       <th>
+        Nature de l'installation/identification des émissaires de rejets
+       </th>
+       <th>
+        paramètres
+       </th>
+       <th>
+        Concentration en mg/Nm³
+       </th>
+       <th>
+        Flux maxi horaire en kg/h
+       </th>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="8" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <td rowspan="5">
+        Conduit n°1 (rejet épurateur thermique)
+       </td>
+       <td>
+        COV non méthanique en C total
+       </td>
+       <td>
+        30 (*)
+       </td>
+       <td>
+        &lt;1,155 kg/h
+       </td>
+      </tr>
+      <tr>
+       <td>
+        NOx (en équivalent NO2)
+       </td>
+       <td>
+        100 (**)
+       </td>
+       <td>
+        3,85 kg/h
+       </td>
+      </tr>
+      <tr>
+       <td>
+        CO
+       </td>
+       <td>
+        100 (**)
+       </td>
+       <td>
+        3,85 kg/h
+       </td>
+      </tr>
+      <tr>
+       <td>
+        CH4
+       </td>
+       <td>
+        50 (**)
+       </td>
+       <td>
+        1,925 kg/h
+       </td>
+      </tr>
+      <tr>
+       <td>
+        poussières
+       </td>
+       <td>
+        - 40 (***)
+        <br/>
+        -100 (***)
+       </td>
+       <td>
+        - si flux &gt; 1 (***)
+        <br/>
+        - si flux &lt; 1 (***)
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="2">
+        Conduit n°2 (rejet graineuse KELLER-DORIAN)
+       </td>
+       <td>
+        COV non méthanique
+       </td>
+       <td>
+        75 (***)
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        poussières
+       </td>
+       <td>
+        - 40 (***)
+        <br/>
+        -100 (***)
+       </td>
+       <td>
+        - si flux &gt; 1 (***)
+        <br/>
+        - si flux &lt; 1 (***)
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Conduits n°5, 5 bis et 5 ter (rejet des extrudeuses TX1, TX4 et TX6).
+        <br/>
+        Conduit n°4 (rejet extrudeuse BLOWN 1).
+        <br/>
+        Conduit n°4bis : (rejet extrudeuse WEB4).
+       </td>
+       <td>
+        poussières
+       </td>
+       <td>
+        - 150 (***)
+        <br/>
+        - 100 (***)
+       </td>
+       <td>
+        - si flux &lt; 0,5 (***)
+        <br/>
+        - si flux &gt; 0,5 (***)
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Au rejet des conduits des extrudeuses WEB1, WEB2, WEB3 en cas de remplacement des installations existantes ou de modification du bâtiment
+       </td>
+       <td>
+        COV non méthanique en C total
+       </td>
+       <td>
+        - 110 (***)
+       </td>
+       <td>
+        - si flux (canalisé ou diffus) &gt; 2 (***)
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 8:
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     le
+     <a data-parent_reference="10" data-spec="section_reference" data-start_num="2" data-type="alinea">
+      2ème alinéa
+     </a>
+     de l'
+     <a data-spec="section_reference" data-start_num="4.3.13.2" data-tag_id="10" data-type="article">
+      article 4.3.13.2
+     </a>
+     <q>
+      Rejets au canal usinier (rejet à la THUR)
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="25" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-keyword="supprimé" data-operation_type="delete" data-references="25" data-spec="operation">
+      susvisé est
+      <b>
+       supprimé
+      </b>
+     </span>
+     .
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 9:
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     le
+     <a data-parent_reference="11" data-spec="section_reference" data-start_num="2" data-type="alinea">
+      2ème alinéa
+     </a>
+     de l'
+     <a data-spec="section_reference" data-start_num="4.3.13.3" data-tag_id="11" data-type="article">
+      article 4.3.13.3
+     </a>
+     <q>
+      Rejets en infiltration
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="26" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-keyword="supprimé" data-operation_type="delete" data-references="26" data-spec="operation">
+      susvisé est
+      <b>
+       supprimé
+      </b>
+     </span>
+     .
+    </div>
+   </section>
+   <section data-number="10" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 10:
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les dispositions des 2 lignes
+     <q>
+      Cellule M5 du bâtiment BLOWN-M5
+     </q>
+     et
+     <q>
+      Cellule BLOWN- (extrusion et re-granulation) du bâtiment BLOWN - M5
+     </q>
+     du tableau de l'
+     <a data-spec="section_reference" data-start_num="7" data-type="article">
+      article 7
+     </a>
+     -2-2
+     <q>
+      bâtiments et locaux
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="27" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operation_type="replace" data-references="27" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les prescriptions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <div data-error_codes="unbalanced_quote" data-spec="error">
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        Cellule M5 du bâtiment BLOWN-M5 (stockage mixte de matières plastiques et produits en matières plastiques) (construit en 2014)
+       </td>
+       <td>
+        Les locaux abritant l'installation de stockage doivent présenter les caractéristiques de réaction et de résistance au feu minimales suivantes :
+        <br/>
+        - ossature (ossature verticale et charpente de toiture) stable au feu de degré 1/2 heure (hauteur sous pied de ferme &lt; 8 mètres),
+        <br/>
+        - pas de plancher haut ou mezzanine,
+        <br/>
+        - murs extérieurs et portes PF degré 1/2 heure, les portes étant munies d'un ferme-porte ou d'un dispositif assurant leur fermeture automatique,
+        <br/>
+        - couverture sèche constituée exclusivement en matériaux M0 ou couverture constituée d'un support de couverture en matériaux M0, et d'une isolation et d'une étanchéité en matériaux classés M2 non gouttants, à l'exception de la surface dédiée à l'éclairage zénithal et aux dispositifs permettant l'évacuation des fumées et gaz de combustion.
+        <br/>
+        <br/>
+        D'autre part, afin de ne pas aggraver les effets d'un incendie, la cellule de stockage M5 (8 m de hauteur) est séparée de la cellule BLOWN-regranulation
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      9/17
+     </div>
+    </div>
+    <a data-page_index="9" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+       </td>
+       <td>
+        (pour partie 8 m de hauteur et pour partie 16 m au-dessus de l'extrudeuse BLOWN) par un mur coupe feu 2 heures :
+        <br/>
+        - dépassant de 1 m en toiture,
+        <br/>
+        - et dépassant latéralement de 0,5 mètre latéralement,
+        <br/>
+        ou tout autre dispositif ou travaux d'efficacité équivalente pour éviter la propagation d'un incendie d'une cellule à l'autre et sous réserve que l'exploitant justifie de cette équivalence et que les dispositifs ou travaux fassent l'objet d'un avis favorable écrit des services du SDIS.
+        <br/>
+        <br/>
+        Les ouvertures percées dans ce mur sont équipées de porte coupe feu 1 heure à fermeture automatique associée à la détection de chaleur.
+        <br/>
+        <br/>
+        La couverture ne comporte pas d'exutoires, d'ouvertures ou d'éléments constitutifs de l'éclairage zénithal sur une largeur de 4 mètres de part et d'autre à l'aplomb de tous les murs coupe-feu séparatifs.
+        <br/>
+        <br/>
+        La cellule M5 est sprinklée.
+        <br/>
+        Dans le cas d'une installation équipée d'un système d'extinction automatique d'incendie de type sprinklage, toutes dispositions doivent être prises pour que l'ouverture automatique ou manuelle des exutoires de fumée et de chaleur n'intervienne que postérieurement à l'opération d'extinction.
+        <br/>
+        <br/>
+        Les règles de stockage et aménagement intérieur sont définies à l'
+        <a data-spec="section_reference" data-start_num="8" data-type="article">
+         article 8
+        </a>
+        -3-1-3-1.
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Cellule BLOWN-granulation (extrusion et re-granulation) du bâtiment BLOWN - M5 (construit en 2014)
+       </td>
+       <td>
+        - ossature (ossature verticale et charpente de toiture) stable au feu de degré 1 heure (hauteur sous pied de ferme &gt; 8 mètres),
+        <br/>
+        - aucun plancher haut ou mezzanine,
+        <br/>
+        - murs extérieurs et portes PF degré 1/2 heure, les portes étant munies d'un ferme-porte ou d'un dispositif assurant leur fermeture automatique,
+        <br/>
+        - couverture sèche constituée exclusivement en matériaux M0 ou couverture constituée d'un support de couverture en matériaux M0, et d'une isolation et d'une étanchéité en matériaux classés M2 non gouttants, à l'exception de la surface dédiée à l'éclairage zénithal et aux dispositifs permettant l'évacuation des fumées et gaz de combustion.
+        <br/>
+        <br/>
+        D'autre part, afin de ne pas aggraver les effets d'un incendie, la cellule de stockage M5 (8 m de hauteur) est séparée de la cellule BLOWN-regranulation (pour partie 8 m de hauteur et pour partie 16 m au-dessus de l'extrudeuse BLOWN) par un mur coupe feu 2 heures :
+        <br/>
+        - dépassant de 1 m en toiture,
+        <br/>
+        - et dépassant latéralement de 0,5 mètre latéralement.
+        <br/>
+        ou tout autre dispositif ou travaux d'efficacité équivalente pour éviter la propagation d'un incendie d'une cellule à l'autre et sous réserve que l'exploitant justifie de cette équivalence et que les dispositifs ou travaux fassent l'objet d'un avis favorable écrit des services du SDIS.
+        <br/>
+        <br/>
+        Les ouvertures percées dans ce mur sont équipées de porte coupe feu 1 heure à fermeture automatique associée à la détection de chaleur.
+        <br/>
+        <br/>
+        La couverture ne comporte pas d'exutoires, d'ouvertures ou d'éléments constitutifs de l'éclairage zénithal sur une largeur de 4 mètres de part et d'autre à l'aplomb de tous les murs coupe-feu séparatifs.
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      10/17
+     </div>
+    </div>
+    <a data-page_index="10" data-spec="page_separator">
+    </a>
+    <div data-number="5" data-spec="alinea">
+     La cellule BLOWN est sprinklée.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Dans le cas d'une installation équipée d'un système d'extinction automatique d'incendie de type sprinklage, toutes dispositions doivent être prises pour que l'ouverture automatique ou manuelle des exutoires de fumée et de chaleur n'intervienne que postérieurement à l'opération d'extinction.
+    </div>
+   </section>
+   <section data-number="11" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 11 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les dispositions du paragraphe
+     <q>
+      éclairage
+     </q>
+     de l'
+     <a data-spec="section_reference" data-start_num="7" data-type="article">
+      article 7
+     </a>
+     -2-2
+     <q>
+      bâtiments et locaux
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="28" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="29" data-operation_type="replace" data-references="28" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="29">
+      <p>
+       Eclairage :
+      </p>
+      <ul>
+       <li>
+        - des locaux de stockage de matières plastiques (bâtiments M4, LOCABRI et cellule M5 du bâtiment BLOWN-M5),
+       </li>
+       <li>
+        - de la cellule d'extrusion « BLOWN-granulation » du bâtiment BLOWN-M5.
+       </li>
+       <li>
+        - des bâtiments THERMOPLAST et DECOPLAST
+       </li>
+       <li>
+        - du local de stockage des encres,
+       </li>
+       <li>
+        - du bâtiment FRISOMAT,
+       </li>
+       <li>
+        - ...
+       </li>
+      </ul>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="12" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 12 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les dispositions de l'
+     <a data-spec="section_reference" data-start_num="7" data-type="article">
+      article 7
+     </a>
+     -2-7
+     <q>
+      chaufferies
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="30" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="complétées" data-operand="31" data-operation_type="add" data-references="30" data-spec="operation">
+      susvisé sont
+      <b>
+       complétées
+      </b>
+      par le paragraphe suivant :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="31">
+      <p>
+       Hormis les dispositions ci-dessus, les appareils de combustion de puissance thermique nominale inférieure à 1 MW ne sont pas soumis aux dispositions de l'
+       <a data-date="2018-08-03" data-spec="document_reference" data-type="arrete-ministeriel">
+        arrêté ministériel du
+        <time data-spec="date" datetime="2018-08-03">
+         3 août 2018
+        </time>
+       </a>
+       relatif aux prescriptions générales applicables aux installations classées pour la protection de l'environnement soumises à déclaration au titre de la rubrique 2910.
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="13" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 13 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les dispositions de l'
+     <a data-spec="section_reference" data-start_num="7" data-type="article">
+      article 7
+     </a>
+     -6-8-1-2
+     <q>
+      Dispositif de confinement particulier au bâtiment DECOPLAST et au local des encres et solvants
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="32" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="33" data-operation_type="replace" data-references="32" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="33">
+      <p>
+       Le bâtiment DECOPLAST (dont le local de stockage des encres et solvants, la cuisine couleurs) dispose d'une possibilité de confinement des eaux d'extinction d'incendie pour un volume a minima de 350 m³ (175 m³/h pendant 2 heures) ; ce volume peut être constitué de :
+      </p>
+      <ul>
+       <li>
+        - cuvettes de rétention associées au bâtiment et au local de stockage des encres et solvants,
+       </li>
+       <li>
+        - la superficie imperméabilisée du bâtiment et du local de stockage des encres et solvants associée à des batardeaux, ou tout autre dispositif d'efficacité équivalente, mis en place au niveau des couvertures :
+       </li>
+       <li>
+        - ces batardeaux, ou tout autre dispositif d'efficacité équivalente, sont toujours en bon état et vérifiés régulièrement,
+       </li>
+       <li>
+        - leur mise en place doit être rapide et aisée ; à cet effet des consignes sont élaborées et des exercices de mise en œuvre sont régulièrement réalisés ; l'exploitant doit pouvoir en justifier,
+       </li>
+       <li>
+        - en période de « non-activité du bâtiment », les batardeaux, ou tout autre dispositif d'efficacité équivalente, sont mis en place au niveau des ouvertures.
+       </li>
+      </ul>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="14" data-spec="section" data-title="les dispositions du 3ème paragraphe de l'article 7-6-8-1-3 « Dispositif de" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 14 : les dispositions du 3ème paragraphe de l'article 7-6-8-1-3 « Dispositif de
+    </h2>
+    <div data-spec="page_footer">
+     <div>
+      11/17
+     </div>
+    </div>
+    <a data-page_index="11" data-spec="page_separator">
+    </a>
+    <div data-number="1" data-spec="alinea">
+     confinement général du site» de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="34" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="35" data-operation_type="replace" data-references="34" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="35">
+      <p>
+       Les plans justifiant de la mise en œuvre du confinement et des volumes disponibles sont tenus à la disposition de l'inspection des installations classées.
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="15" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 15 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les prescriptions de l'
+     <a data-spec="section_reference" data-start_num="8" data-type="article">
+      article 8
+     </a>
+     -3-1-3
+     <q>
+      Bâtiment BLOWN-M5 (hauteur du bâtiment de 8 m pour la cellule de stockage M5 et de 8 m et 16 m (au-dessus de la zone d'extrusion BLOWN) pour la cellule
+     </q>
+     extrusion BLOWN et re-granulation
+     <q>
+      )
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="36" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="37" data-operation_type="replace" data-references="36" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les prescriptions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="37">
+      <p>
+       Le bâtiment de BLOWN-M5 est constitué de :
+      </p>
+      <ul>
+       <li>
+        - une cellule de stockage de produits en matières plastiques (cellule M5) de 1200 m² qui ne nécessite pas la mise en place d'écran de cantonnement (Surface &amp;lt; 1600 m²),
+       </li>
+       <li>
+        - une cellule d'extrusion/regranulation dite cellule «extrusion BLOWN-regranulation » (voir
+        <a data-spec="section_reference" data-start_num="8" data-type="article">
+         article 8
+        </a>
+        -3-1-3-3 ci après).
+       </li>
+      </ul>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="16" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 16 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     l'
+     <a data-spec="section_reference" data-start_num="8" data-type="article">
+      article 8
+     </a>
+     -3-1-3-2
+     <q>
+      Isolement de la cellule de stockage M5 et de la cellule BLOWN
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="38" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacé" data-operand="39" data-operation_type="replace" data-references="38" data-spec="operation">
+      susvisé est
+      <b>
+       remplacé
+      </b>
+      par l'article suivant :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="39">
+      <p>
+       <a data-spec="section_reference" data-start_num="8.3.1.3" data-type="article">
+        Article 8.3.1.3
+       </a>
+       -2 : Isolement de la cellule de stockage M5 et de la cellule BLOWN-regranulation
+      </p>
+      <p>
+       Afin de ne pas aggraver les effets d'un incendie, la cellule de stockage M5 (8 m de hauteur) est séparée de la cellule BLOWN-regranulation (pour partie 8 m de hauteur et pour partie 16 m au-dessus de la zone d'extrusion BLOWN) par un mur coupe feu 2 heures :
+      </p>
+      <ul>
+       <li>
+        - dépassant de 1 mètre en toiture,
+       </li>
+       <li>
+        - et dépassant de 0,5 mètre latéralement.
+       </li>
+      </ul>
+      <p>
+       ou tout autre dispositif ou travaux d'efficacité équivalente pour éviter la propagation d'un incendie d'une cellule à l'autre et sous réserve que l'exploitant justifie de cette équivalence et que les dispositifs ou travaux fassent l'objet d'un avis favorable écrit des services du SDIS.
+      </p>
+      <p>
+       Le mur est percé d'une ouverture.
+      </p>
+      <p>
+       L'ouverture percée dans ce mur est équipée de porte a minima CF 1 heure, à fermeture automatique associée à la détection de chaleur.
+      </p>
+      <p>
+       Tout stockage de matières, produits ou matériel pouvant nuire à la fermeture automatique complète de la porte coupe feu est interdit. Des dispositions physiques sont prises afin d'interdire tout stockage de matières, produits ou matériel à proximité de cette porte et pouvant nuire à la fermeture automatique complète.
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="17" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 17 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les prescriptions de l'
+     <a data-spec="section_reference" data-start_num="8" data-type="article">
+      article 8
+     </a>
+     -3-1-3-3
+     <q>
+      Cellule
+     </q>
+     extrusion BLOWN-regranulation » de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="40" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="41" data-operation_type="replace" data-references="40" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les prescriptions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="41">
+      <p>
+       Cette cellule est compartimentée en 2 sous-cellules :
+      </p>
+      <p>
+       1/la sous-cellule BLOWN :
+      </p>
+      <ul>
+       <li>
+        - l'extrudeuse verticale BLOWN 1 (extrusion film)
+        <div data-spec="page_footer">
+         <div>
+          12/17
+         </div>
+        </div>
+        <a data-page_index="12" data-spec="page_separator">
+        </a>
+       </li>
+       <li>
+        - l'unité de re-granulation des chutes de film en matière plastiques issues de l'extrudeuse BLOWN,
+       </li>
+       <li>
+        - une zone de stockage de 160m² pour les chutes de films de matières plastiques issues de l'activité BLOWN, à re-granuler,
+       </li>
+      </ul>
+      <p>
+       2/ la sous-cellule WEB4 : une machine d'extrusion dite
+       <q>
+        WEB4
+       </q>
+       (extrusion voile) installée en 2018 en partie Est de cette cellule.
+      </p>
+      <p>
+       Les seules activités exploitées dans cette cellule sont :
+      </p>
+      <ul>
+       <li>
+        - l'extrudeuse verticale BLOWN 1,
+       </li>
+       <li>
+        - l'installation de re-granulation de chutes de films de matières plastiques et son stockage associé de chutes de film plastique ; le volume de chutes de film plastique à traiter est d'au maximum 50m³,
+       </li>
+       <li>
+        - l'extrudeuse WEB4 (installée en 2018).
+       </li>
+      </ul>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="18" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 18 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les prescriptions de la dernière ligne du tableau de l'
+     <a data-spec="section_reference" data-start_num="9" data-type="article">
+      article 9
+     </a>
+     -2-1-1-1
+     <q>
+      Auto surveillance par la mesure des émissions canalisées ou diffuses
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="42" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operation_type="replace" data-references="42" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les prescriptions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <div data-error_codes="unbalanced_quote" data-spec="error">
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <td rowspan="3">
+        Les rejets des extrudeuses :
+        <br/>
+        - TX (TX1, TX4 et TX6)
+        <br/>
+        - WEB (WEB1, WEB2, WEB3 et WEB4
+        <br/>
+        - BLOWN1
+       </td>
+       <td>
+        débit
+       </td>
+       <td>
+        annuel
+       </td>
+       <td>
+        /
+       </td>
+      </tr>
+      <tr>
+       <td>
+        poussières
+       </td>
+       <td>
+        annuel
+       </td>
+       <td>
+        /
+       </td>
+      </tr>
+      <tr>
+       <td>
+        COVnm
+       </td>
+       <td>
+        annuel
+       </td>
+       <td>
+        /
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="19" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 19 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les prescriptions de l'
+     <a data-spec="section_reference" data-start_num="9" data-type="article">
+      article 9
+     </a>
+     -2-4-1-1-A
+     <q>
+      Réseau de surveillance
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="43" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="44" data-operation_type="replace" data-references="43" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les prescriptions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="44">
+      <p>
+       Le réseau de surveillance se compose a minima des ouvrages suivants :
+      </p>
+      <table>
+       <tr>
+        <th>
+         N°BSS de l'ouvrage
+        </th>
+        <th>
+         Localisation par rapport au site (amont ou aval)
+        </th>
+        <th>
+         Aquifère capté
+        </th>
+        <th>
+         Profondeur de l'ouvrage en m
+        </th>
+       </tr>
+       <tr>
+        <td>
+         /
+        </td>
+        <td>
+         Pz Amont
+        </td>
+        <td rowspan="5">
+         nappe
+        </td>
+        <td>
+         10
+        </td>
+       </tr>
+       <tr>
+        <td>
+         BSS 003 ETRU
+        </td>
+        <td>
+         Pz1- Aval
+        </td>
+        <td>
+         10
+        </td>
+       </tr>
+       <tr>
+        <td>
+         BSS 003 EUBM
+        </td>
+        <td>
+         Pz2bis- Aval
+        </td>
+        <td>
+         10
+        </td>
+       </tr>
+       <tr>
+        <td>
+         BSS 003 ETRY
+        </td>
+        <td>
+         Pz3- Aval
+        </td>
+        <td>
+         10
+        </td>
+       </tr>
+       <tr>
+        <td>
+         BSS EUAW
+        </td>
+        <td>
+         Pz4- Aval
+        </td>
+        <td>
+         10
+        </td>
+       </tr>
+      </table>
+      <p>
+       (voir plan joint en annexe PJ9-Sept 2017).
+      </p>
+      <p>
+       L'exploitant tient à jour un atlas concernant les puits de surveillance de la qualité des eaux souterraines constitué a minima de :
+      </p>
+      <ul>
+       <li>
+        - un plan de localisation des ouvrages,
+       </li>
+       <li>
+        - les indices BSS des ouvrages,
+       </li>
+       <li>
+        - les coupes techniques des ouvrages.
+       </li>
+      </ul>
+      <p>
+       Cet atlas est tenu à la disposition de l'inspection des installations classées.
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="20" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 20 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les prescriptions de l'
+     <a data-spec="section_reference" data-start_num="9" data-type="article">
+      article 9
+     </a>
+     -2-4-1-2-1
+     <q>
+      Surveillance de la qualité des eaux souterraines
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="45" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="46" data-operation_type="replace" data-references="45" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les prescriptions suivantes :
+     </span>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      13/17
+     </div>
+    </div>
+    <a data-page_index="13" data-spec="page_separator">
+    </a>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="46">
+      <p>
+       Les prélèvements, l'échantillonnage et le conditionnement des échantillons d'eau doivent être effectués conformément aux méthodes normalisées en vigueur, par un organisme extérieur accrédité ou agréé par le ministère concerné pour les paramètres considérés. Les seuils de détection retenus pour les analyses doivent permettre de comparer les résultats aux normes de potabilité en vigueur.
+      </p>
+      <p>
+       L'exploitant fait analyser, sur chaque piézomètre composant le réseau de surveillance et selon la fréquence définie ci-dessous, a minima les paramètres suivants:
+      </p>
+      <table>
+       <tr>
+        <td rowspan="2">
+         N°BSS de l'ouvrage
+        </td>
+        <td rowspan="2">
+         Localisation par rapport au site
+        </td>
+        <td rowspan="2">
+         Fréquence des analyses
+        </td>
+        <td colspan="2">
+         Paramètre
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Nom
+        </td>
+        <td>
+         Code SANDRE
+        </td>
+       </tr>
+       <tr>
+        <td rowspan="2">
+         /
+        </td>
+        <td rowspan="2">
+         - Puits de contrôle « Amont »
+        </td>
+        <td rowspan="2">
+         A minima annuelle pour le puits Amont, en période de Hautes eaux.
+        </td>
+        <td>
+         pH
+        </td>
+        <td>
+         1302
+        </td>
+       </tr>
+       <tr>
+        <td>
+         conductivité
+        </td>
+        <td>
+         1303
+        </td>
+       </tr>
+       <tr>
+        <td rowspan="3">
+         BSS 003 ETRU
+        </td>
+        <td rowspan="3">
+         - Puits de contrôle « Aval n°1»
+        </td>
+        <td rowspan="10">
+         Semestrielle pour les 4 puits Aval en périodes de: - Basses eaux - Hautes eaux
+        </td>
+        <td>
+         Arsenic
+        </td>
+        <td>
+         1369
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Plomb
+        </td>
+        <td>
+         1382
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Chrome total
+        </td>
+        <td>
+         1389
+        </td>
+       </tr>
+       <tr>
+        <td rowspan="2">
+         BSS EUAW
+        </td>
+        <td rowspan="2">
+         - Puits de contrôle « Aval n°2bis»
+        </td>
+        <td>
+         Cuivre
+        </td>
+        <td>
+         1392
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Aluminium
+        </td>
+        <td>
+         1370
+        </td>
+       </tr>
+       <tr>
+        <td rowspan="3">
+         BSS 003 EUBM
+        </td>
+        <td rowspan="3">
+         - Puits de contrôle « Aval n°3»
+        </td>
+        <td>
+         Hydrocarbures totaux (*)
+        </td>
+        <td>
+         1442
+        </td>
+       </tr>
+       <tr>
+        <td>
+         AOX
+        </td>
+        <td>
+         1106
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Methyléthylcétone
+        </td>
+        <td>
+         1514
+        </td>
+       </tr>
+       <tr>
+        <td rowspan="3">
+         BSS 003 ETRU
+        </td>
+        <td rowspan="3">
+         - Puits de contrôle « Aval n°4»
+        </td>
+        <td>
+         Acétate d'éthyle
+        </td>
+        <td>
+         1496
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Acétate d'isopropyle
+        </td>
+        <td>
+         2710
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Ethanol
+        </td>
+        <td>
+         1745
+        </td>
+       </tr>
+      </table>
+      <br/>
+      (*) Pour les Hydrocarbures, l'analyse sera réalisée par découpage par tranches carbone C5-C40.
+      <p>
+       Au vu des éléments fournis par l'exploitant :
+      </p>
+      <ul>
+       <li>
+        - la période de hautes eaux : mars
+       </li>
+       <li>
+        - la période de basses eaux : octobre/novembre
+       </li>
+      </ul>
+      <p>
+       Au vu des résultats d'analyses de surveillance, un contrôle de la qualité des eaux souterraines portant sur :
+      </p>
+      <ul>
+       <li>
+        - un nombre de puits de surveillance plus important que celui actuellement défini,
+       </li>
+       <li>
+        - un nombre de paramètres plus important que celui actuellement défini, pourra ultérieurement être exigé par le Préfet.
+       </li>
+      </ul>
+      <p>
+       Par ailleurs, en fonction des résultats de surveillance, la fréquence de surveillance pourra ultérieurement être revue.
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="21" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 21 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     les prescriptions du
+     <a data-parent_reference="12" data-spec="section_reference" data-start_num="2" data-type="alinea">
+      2ème paragraphe
+     </a>
+     de l'
+     <a data-spec="section_reference" data-start_num="9" data-tag_id="12" data-type="article">
+      article 9
+     </a>
+     -2-7-1
+     <q>
+      Mesures périodiques
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="47" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="48" data-operation_type="replace" data-references="47" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les prescriptions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="48">
+      <p>
+       Ce délai est compté à partir d'octobre 2015.
+      </p>
+      <p>
+       Lors de la prochaine campagne de bruit (au plus tard avant le 31 mars 2021) les mesures seront réalisées :
+      </p>
+      <ul>
+       <li>
+        - en niveaux de bruit ambiant
+       </li>
+       <li>
+        - et niveaux de bruit résiduel.
+       </li>
+      </ul>
+     </blockquote>
+    </div>
+    <a data-page_index="14" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="22" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 22:
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     le tableau récapitulatif de l'
+     <a data-spec="section_reference" data-start_num="10" data-type="article">
+      article 10
+     </a>
+     -1
+     <q>
+      documents à transmettre à l'inspection
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="49" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacé" data-operand="50" data-operation_type="replace" data-references="49" data-spec="operation">
+      susvisé est
+      <b>
+       remplacé
+      </b>
+      par le tableau suivant :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="50">
+      <tr>
+       <th>
+        Articles
+       </th>
+       <th>
+        Documents à transmettre
+       </th>
+       <th>
+        Périodicité
+       </th>
+      </tr>
+      <tr>
+       <td>
+        1.2.1
+       </td>
+       <td>
+        Dossier de réexamen
+       </td>
+       <td>
+        dans les 12 mois qui suivent la date de publication des décisions concernant les conclusions sur les meilleures techniques disponibles relatives aux installations de traitement de surface utilisant des solvants
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Art. 1-7-6
+       </td>
+       <td>
+        Notification de mise à l'arrêt définitif
+       </td>
+       <td>
+        6 mois avant la date de cessation d'activité
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Art. 2.5.1
+       </td>
+       <td>
+        Rapport d'incident ou accident
+       </td>
+       <td>
+        Sous 15 jours après l'incident ou accident
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Art. 9-2-7-1
+       </td>
+       <td>
+        Prochaine campagne de bruit
+       </td>
+       <td>
+        Au plus tard le 31 mars 2021 à transmettre au plus tard le 30 juin 2021
+        <br/>
+        Puis tous les 5 ans
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Art.9.3.2.1
+       </td>
+       <td>
+        Résultats d'auto surveillance
+       </td>
+       <td>
+        15 juillet année n
+        <br/>
+        15 janvier année n+1
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Art.9.3.2.2.3
+       </td>
+       <td>
+        Rapport de synthèse
+       </td>
+       <td>
+        Au plus tard le 31 mars de chaque année
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Art. 9-3-2-3
+       </td>
+       <td>
+        Bilan solvant - annuel
+       </td>
+       <td>
+        31 janvier de l'année [n], s'agissant des émissions de l'année [n-1]
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Art. 9.4.1.1
+       </td>
+       <td>
+        Déclaration annuelle des émissions polluantes
+       </td>
+       <td>
+        1er avril de chaque année
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Art. 9.4-3
+       </td>
+       <td>
+        Bilan quadriennal de l'ensemble des rejets et de la surveillance de la qualité des eaux souterraines
+       </td>
+       <td>
+        Tous les 4 ans, au plus tard le 30 juin
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Art 9.4.6
+       </td>
+       <td>
+        Plan de gestion de solvants
+       </td>
+       <td>
+        Annuel au plus tard le 31 mars de l'année [n+1]
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="23" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 23:
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     le tableau récapitulatif de l'
+     <a data-spec="section_reference" data-start_num="10" data-type="article">
+      article 10
+     </a>
+     -2
+     <q>
+      échéances
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="51" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacé" data-operand="52" data-operation_type="replace" data-references="51" data-spec="operation">
+      susvisé est
+      <b>
+       remplacé
+      </b>
+      par le tableau suivant :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="52">
+      <tr>
+       <th>
+        Articles
+       </th>
+       <th>
+        Type de mesure à prendre
+       </th>
+       <th>
+        Date d'échéance
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Art.8-3-5-3
+       </td>
+       <td>
+        Local d'impression numérique à équiper d'aménagements permettant l'évacuation de fumées d'incendie
+       </td>
+       <td>
+        Avant le 31 mai 2018
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Art.9-3-2-3
+       </td>
+       <td>
+        Bilan COV
+       </td>
+       <td>
+        31 janvier de chaque année
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Art.9-4-1-1
+       </td>
+       <td>
+        Rapport et bilan annuel
+       </td>
+       <td>
+        1er avril de chaque année
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Art.9-4-3
+       </td>
+       <td>
+        Bilan quadriennal
+       </td>
+       <td>
+        Au plus tard le 30 juin, tous les 4 ans
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="24" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 24:
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     la dernière ligne du tableau récapitulatif de l'
+     <a data-spec="section_reference" data-start_num="10" data-type="article">
+      article 10
+     </a>
+     -3
+     <q>
+      Contrôles à effectuer
+     </q>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="53" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacé" data-operand="54" data-operation_type="replace" data-references="53" data-spec="operation">
+      susvisé est
+      <b>
+       remplacé
+      </b>
+      par le tableau suivant :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="54">
+      <tr>
+       <td>
+        Art.9-2-7-1
+       </td>
+       <td>
+        Contrôle des émissions sonores
+       </td>
+       <td>
+        Au plus tard le 31 mars 2021
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="25" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 25:
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     la pièce jointe n°3
+     <q>
+      plan de situation des installations
+     </q>
+     à l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="55" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacée" data-operation_type="replace" data-references="55" data-spec="operation">
+      susvisé est
+      <b>
+       remplacée
+      </b>
+      par la pièce jointe suivante :
+     </span>
+    </div>
+    <a data-page_index="15" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      PJ3- Février 2021 Plan de situation des installations sur le site (avec la WEB4)
+     </div>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Et le tableau des
+     <a data-parent_reference="13" data-spec="section_reference" data-type="annexe">
+      annexes
+     </a>
+     de l'
+     <a data-date="2017-03-28" data-spec="document_reference" data-tag_id="13" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-03-28">
+       28 mars 2017
+      </time>
+      modifié
+     </a>
+     susvisé devient :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        PJ1
+       </td>
+       <td>
+        Plan de localisation de l'établissement
+       </td>
+      </tr>
+      <tr>
+       <td>
+        PJ2-Sept 2017
+       </td>
+       <td>
+        Plan des limites du site
+       </td>
+      </tr>
+      <tr>
+       <td>
+        PJ3- Février 2021
+       </td>
+       <td>
+        Plan de situation des installations sur le site (avec la WEB4)
+       </td>
+      </tr>
+      <tr>
+       <td>
+        PJ4-Sept 2017
+       </td>
+       <td>
+        Plan du réseau de rejets des eaux pluviales de ruissellement (toitures, parking et voirie) avec implantation :
+• des 3 décanteurs-déshuileurs (séparateurs) d'hydrocarbures
+• des points de rejet (vers le milieu souterrain et vers le canal usinier)
+• des points de prélèvement à contrôler [dont le point 5 qui rejette au canal usinier des eaux pluviales (sol et voirie) et des eaux sanitaires traitées sur 2 fosses septiques)
+       </td>
+      </tr>
+      <tr>
+       <td>
+        PJ5-Sept 2017
+       </td>
+       <td>
+        Plan de localisation des points de contrôle de la qualité des émissions à l'atmosphère
+       </td>
+      </tr>
+      <tr>
+       <td>
+        PJ6
+       </td>
+       <td>
+        Plan des points de mesure de Bruit et situation des ZER
+       </td>
+      </tr>
+      <tr>
+       <td>
+        PJ7
+       </td>
+       <td>
+        Plan des aménagements de stockage (racks) dans :
+- le bâtiment M4,
+- la cellule M5 du bâtiment « BLOWN-M5 »
+       </td>
+      </tr>
+      <tr>
+       <td>
+        PJ8
+       </td>
+       <td>
+        Plan de localisation des 6 PIN.
+       </td>
+      </tr>
+      <tr>
+       <td>
+        PJ9-Sept 2017
+       </td>
+       <td>
+        Plan du réseau de surveillance des eaux souterraines
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="26" data-spec="section" data-title="FRAIS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 26 : FRAIS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les frais inhérents à l'application des prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sont à la charge de l'exploitant.
+    </div>
+   </section>
+   <section data-number="27" data-spec="section" data-title="SANCTIONS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 27 : SANCTIONS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En cas de manquement aux prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , il pourra être fait application des dispositions du chapitre I du titre VII du livre I du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="28" data-spec="section" data-title="DIFFUSION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 28 : DIFFUSION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     est déposée aux archives de la mairie de Cernay pour y être consultée. Un extrait est affiché dans ladite mairie pendant une durée minimum d'un mois ; procès-verbal de l'accomplissement de cette formalité est dressé par les soins du maire de Cernay.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le même extrait est affiché en permanence et de façon visible dans l'installation par l'exploitant.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'arrêté est publié sur le site internet de la préfecture du Haut-Rhin pendant une durée minimale de quatre mois.
+    </div>
+   </section>
+   <section data-number="29" data-spec="section" data-title="TRANSMISSION À L'EXPLOITANT" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 29 : TRANSMISSION À L'EXPLOITANT
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     est transmise à l'exploitant qui doit l'avoir en sa possession et la présenter à toute réquisition.
+    </div>
+    <a data-page_index="16" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      17/17
+     </div>
+    </div>
+   </section>
+   <section data-number="30" data-spec="section" data-title="EXÉCUTION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 30 : EXÉCUTION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le secrétaire général de la préfecture du Haut-Rhin, le maire de Cernay et le directeur régional de l'environnement, de l'aménagement et du logement Grand Est (service de l'inspection des installations classées) sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , dont une copie est notifiée à la société Protechnic
+    </div>
+    <div data-number="2" data-spec="alinea">
+     À Colmar, le 29 mars 2021
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le préfet, pour le préfet et par délégation, le secrétaire général
+    </div>
+    <div data-number="4" data-spec="alinea">
+     signé
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Jean-Claude GENEY
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Délais et voie
+    </div>
+    <div data-number="7" data-spec="alinea">
+     de recours
+    </div>
+    <div data-number="8" data-spec="alinea">
+     (
+     <a data-parent_reference="14" data-spec="section_reference" data-start_num="R181-50" data-type="article">
+      article R.181-50
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="14" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     ).
+    </div>
+    <div data-number="9" data-spec="alinea">
+     La présente décision peut être déférée au tribunal administratif de Strasbourg :
+    </div>
+    <div data-number="10" data-spec="alinea">
+     <ul>
+      <li>
+       - par les pétitionnaires ou exploitants, dans un délai de deux mois à compter du jour où la décision leur a été notifiée ;
+      </li>
+      <li>
+       - par les tiers, intéressés en raison des inconvénients ou des dangers pour les intérêts mentionnés à l'
+       <a data-spec="section_reference" data-start_num="L181-3" data-type="article">
+        article L. 181-3
+       </a>
+       , dans un délai de quatre mois à compter de :
+      </li>
+      <li>
+       a) l'affichage en mairie dans les conditions prévues au 2° de l'
+       <a data-spec="section_reference" data-start_num="R181-44" data-type="article">
+        article R. 181-44
+       </a>
+       ;
+      </li>
+      <li>
+       b) la publication de la décision sur le site internet de la préfecture prévue au 4° du même article.
+      </li>
+     </ul>
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Le délai court à compter de la dernière formalité accomplie. Si l'affichage constitue cette dernière formalité, le délai court à compter du premier jour d'affichage de la décision. Les décisions mentionnées au
+     <a data-spec="section_reference" data-start_num="1" data-type="alinea">
+      premier alinéa
+     </a>
+     peuvent faire l'objet d'un recours gracieux ou hiérarchique dans le délai de deux mois. Ce recours administratif prolonge de deux mois les délais mentionnés aux 1° et 2°.
+    </div>
+    <div data-number="12" data-spec="alinea">
+     Annexes à l'arrêté de prescriptions complémentaires du 29 mars 2021
+    </div>
+    <div data-number="13" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        - PJ3- Février 2021
+       </td>
+       <td>
+        Plan de situation des installations sur le site (avec la WEB4)
+       </td>
+      </tr>
+      <tr>
+       <td colspan="2">
+        -
+        <a data-date="1995-04-25" data-spec="document_reference" data-type="arrete-prefectoral">
+         Arrêté préfectoral du
+         <time data-spec="date" datetime="1995-04-25">
+          25 avril 1995
+         </time>
+        </a>
+        autorisant la société PROTECHNIC à exploiter à Cernay, au 41 rue Montaigne ses activités d'impression (héliogravure) et d'extrusion de matières plastiques, consolidé, suite aux modifications des arrêtés préfectoraux des ;
+        <br/>
+        - 28 mars 2017 (prescriptions complémentaires),
+        <br/>
+        - 12 décembre 2017 (prescriptions complémentaires),
+        <br/>
+        - (prescriptions complémentaires : implantation d'une extrudeuse WEB4 dans le bâtiment BLOWN-MS).
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

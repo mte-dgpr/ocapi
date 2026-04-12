@@ -1,0 +1,1675 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2020-10-30_rapport_20201020-RAP-DAEN0753Inspection2020Polytechny.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Direction Régionale de l'Environnement, de l'Aménagement et du Logement d'Auvergne-Rhône-Alpes
+
+Liberté • Égalité • Fraternité
+    </div>
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <td colspan="2">
+       Rapport de contrôle de l'inspection des installations classées
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Référence : 20201020-RAP-DAEN0753
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Nom et adresse de l'établissement contrôlé
+      </td>
+      <td>
+       Code DREAL
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Société POLYTECHNYL
+       <br/>
+       220 avenue des Auréats
+       <br/>
+       VALENCE
+       <br/>
+       SIREN : 815232848
+       <br/>
+       SIRET : 81523284800037
+      </td>
+      <td>
+       S3IC 61-2767
+       <br/>
+       Priorité DREAL ☐PN ☑ AE ☐SP ☐Autre
+       <br/>
+       Régime ☑A ☐E ☐D ☐NC
+       <br/>
+       SEVESO / IED ☐HAUT ☐BAS / ☑IED
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Activité principale : fabrication de polyamide 6.6
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Date du contrôle : 29/09/2020
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Inspecteur(s) : Elodie MOUROUX
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Type de contrôle
+      </td>
+     </tr>
+     <tr>
+      <td>
+       ☑Inspection annoncée
+       <br/>
+       ☐Inspection inopinée
+      </td>
+      <td>
+       ☑Inspection planifiée
+       <br/>
+       ☐Inspection circonstancielle
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Circonstances du contrôle
+      </td>
+     </tr>
+     <tr>
+      <td>
+       ☑Plan de contrôle de la DREAL
+       <br/>
+       ☐Incident/Accident du ...
+      </td>
+      <td>
+       ☐Plainte
+       <br/>
+       ☐Autre :
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Thème(s) du contrôle
+       <br/>
+       Eau
+       <br/>
+       Déchets
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Principale(s) installation(s) contrôlée(s)
+       <br/>
+       • rétentions de la chaufferie
+       <br/>
+       • extérieurs Ouest
+       <br/>
+       • RDC Poly1
+       <br/>
+       • zone F1 de stockage et de préparations des huiles d'ensimage
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Référentiel(s) du contrôle
+       <br/>
+       • Arrêté préfectoral d'autorisation d'exploiter du 02/08/2000 modifié
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Personne(s) rencontrée(s) et fonction(s)
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Nom Société Qualité
+       <br/>
+       M. LACROZE POLYTECHNYL Responsable environnement
+       <br/>
+       M. PIRIOU POLYTECHNYL Responsable utilités
+       <br/>
+       M. BELLIOT POLYTECHNYL Directeur de site
+       <br/>
+       M. BARASCU POLYTECHNYL animateur HSE
+       <br/>
+       Mme BALY POLYTECHNYL service HSE
+       <br/>
+       M. ALT POLYTECHNYL responsable maintenance
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Copies
+      </td>
+      <td>
+       ☑Exploitant
+       <br/>
+       DREAL : ☑Chrono ☐PRICAE ☑Subdivision 5
+       <br/>
+       ☐Autre :
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Page 1 sur 10
+    </div>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     RÉPUBLIQUE FRANÇAISE
+
+Unité interdépartementale Drôme-Ardèche
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     I – Synthèse de la visite et des constatations
+    </div>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="I.1" data-spec="section" data-title="Périmètre inspecté" data-type="unknown">
+    <h3 data-level="1" data-spec="section_title">
+     I.1 – Périmètre inspecté
+    </h3>
+    <div data-number="1" data-spec="alinea">
+     Les thématiques de cette inspection retenues lors de la préparation et annoncées à l'exploitant par courrier du 08/09/2020 correspondaient au périmètre suivant à inspecter : les suites de l'inspection précédente, eau, déchets.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le déroulement de la visite a permis de vérifier l'ensemble des prescriptions qui avaient été identifiées.
+    </div>
+   </section>
+   <section data-number="I.2" data-spec="section" data-title="Contexte" data-type="unknown">
+    <h3 data-level="1" data-spec="section_title">
+     I.2 – Contexte
+    </h3>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant a indiqué que les années 2016-2017 ont été difficiles au niveau de la production, notamment à cause de l'incendie de 2016. La production est remontée à 13 600 t de fibre polyamide 6.6 en 2018. Il a y également eu le lancement de la ligne de granulation en février 2018 qui a tourné environ 1 mois et demi. En 2019, environ 13 000 t de fibres ont été produites. La partie granulation a fonctionné 15 jours en 2019 (1 000t). En 2020, les pertes pour cause de crise COVID19 sont évaluées à environ 25 % sur l'année. Le directeur indique manquer de visibilité pour l'avenir. L'emploi est cependant maintenu à 130 personnes.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le rachat par le groupe belge DOMO a eu lieu en début 2020. Un changement d'exploitant a eu lieu.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Projets : RAS
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Incident/accident : l'exploitant indique qu'en février 2020, un départ de feu a eu lieu au niveau d'un condensateur dans une armoire. Il s'est consumé puis a pris feu. Celui-ci a été maîtrisé très rapidement par les pompiers. La détection de l'incendie a été une détection visuelle. Un plan d'actions curatif et préventif a été mis en œuvre et/ou prévu : remise en état du poste et des câbles + déplacement des armoires similaires dans un endroit plus sûr. Le volume des eaux d'incendie était d'environ 200 L et a été contenu dans le poste.
+    </div>
+   </section>
+   <section data-number="I.3" data-spec="section" data-title="Vérification de la situation administrative de l'installation" data-type="unknown">
+    <h3 data-level="1" data-spec="section_title">
+     I.3 – Vérification de la situation administrative de l'installation
+    </h3>
+    <div data-number="1" data-spec="alinea">
+     Depuis la dernière mise à jour de la situation administrative par
+     <a data-date="2017-02-15" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-02-15">
+       15/02/2017
+      </time>
+     </a>
+     , les rubriques suivantes ont été impactées par des décrets modifiant la nomenclature ICPE :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     2915 : l'exploitant indique ne pas avoir modifié son activité et être classé de la même manière
+    </div>
+    <div data-number="3" data-spec="alinea">
+     2660 : l'exploitant indique ne pas avoir modifié son activité et être sous la rubrique 2660-a).
+    </div>
+    <div data-number="4" data-spec="alinea">
+     2910 : l'exploitant indique ne pas avoir modifié son activité et être classé de la même manière
+    </div>
+    <div data-number="5" data-spec="alinea">
+     2565 : l'exploitant indique ne pas avoir modifié son activité et être sous la rubrique 2565-2-b (DC)
+    </div>
+    <div data-number="6" data-spec="alinea">
+     2575 : l'exploitant indique ne pas avoir modifié son activité et être classé de la même manière
+    </div>
+    <div data-number="7" data-spec="alinea">
+     1414 : l'exploitant indique ne pas avoir modifié son activité et être classé de la même manière
+    </div>
+    <div data-number="8" data-spec="alinea">
+     1185 : l'exploitant indique ne pas avoir modifié son activité et être classé de la même manière
+    </div>
+    <div data-number="9" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        n°
+       </td>
+       <td>
+        Écarts constatés lors de la visite du 29/09/2020
+       </td>
+       <td>
+        Demande d'actions
+       </td>
+       <td>
+        Délais
+       </td>
+      </tr>
+      <tr>
+       <td>
+        NC1¹
+       </td>
+       <td>
+        La nomenclature relative aux activités a été modifiée et l'exploitant ne s'est pas repositionné sur les rubriques. Il indique que son classement n'a pas été modifié.
+       </td>
+       <td>
+        L'exploitant se repositionnera sur l'ensemble des rubriques de la nomenclature qui ont été modifiées depuis la dernière mise à jour de sa situation administrative.
+       </td>
+       <td>
+        31/03/2021
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 2 sur 10
+     </div>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="I.3" data-spec="section" data-title="Suivi des suites non soldées de la précédente inspection du 05/09/2017" data-type="unknown">
+    <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+     I.3 – Suivi des suites non soldées de la précédente inspection du 05/09/2017
+    </h3>
+    <div data-number="1" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        n°
+       </th>
+       <th>
+        Écarts constatés lors de la visite du 05/09/2017 - Demande d'actions
+       </th>
+       <th>
+        Réponses de l'exploitant et analyse de l'inspection
+       </th>
+      </tr>
+      <tr>
+       <td>
+        O1_2017
+       </td>
+       <td>
+        L'exploitant a précisé qu'un redimensionnement de l'installation de lutte contre l'incendie (installation déluge) était en cours de discussion avec les assureurs sur l'installation Poly 2. L'exploitant devra préciser à l'inspection dans ce cadre le dimensionnement du nouveau système et
+        <strong>
+         démontrer sa capacité à retenir les eaux d'extinction incendie associée
+        </strong>
+        . La modification du système de protection incendie constitue une modification notable qui devra être portée à la connaissance du préfet.
+       </td>
+       <td>
+        Lors de la visite du 05/09/2017, l'exploitant indique qu'un macro-chiffrage a été fait (environ 200 000€). L'appel d'offres est à faire. Le lancement des travaux serait prévu d'ici fin 2018. L'étude réalisée prend en compte la rétention des eaux issues du sprinklage.
+        <br/>
+        <br/>
+        Par courrier du 24/07/2018, l'exploitant indique que pour l'atelier de production, l'extension du système de protection contre l'incendie par déluge en place, a été réalisée.
+        <br/>
+        <br/>
+        Pour la partie énergies et fluides, le premier chiffrage est de 250 000 €. D'autres fournisseurs ont été contactés. Il est prévu de réaliser la partie sprinklage en 2018, et de faire la partie rétention des eaux issues d'un incendie en 2019.
+        <br/>
+        <br/>
+        Lors de la visite du 29/09/2020, l'exploitant a indiqué que les travaux de mise en place du sprinklage fonctionnant avec de l'eau additivée dans la chaufferie ont débuté mis septembre 2020. La mise en service est prévue en novembre 2020. Une réserve d'eau réalimentable de 650 m³ est présente sur le site.
+        <br/>
+        <br/>
+        L'exploitant a présenté le calcul du volume nécessaire pour une extinction (442 m³).
+        <br/>
+        <br/>
+        <strong>
+         L'exploitant devra transmettre d'ici le 31/12/2020 le rapport de mise en service du sprinklage de la chaufferie.
+        </strong>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        A2_2017
+       </td>
+       <td>
+        Des dépassements de pH sur les rejets sont toujours constatés (pH compris en moyenne entre 9 et 10 pour une valeur limite dans l'arrêté préfectoral à 9,5). L'arrêté ministériel du 2/02/98 précise dans son
+        <a data-spec="section_reference" data-start_num="34" data-type="article">
+         article 34
+        </a>
+        que pour un rejet raccordé, c'est un volet spécifique de l'étude d'impact qui atteste de l'aptitude de l'infrastructure collective d'assainissement à acheminer et traiter l'effluent. En conséquence, si l'exploitant envisage de solliciter une modification des valeurs limites applicables dans son arrêté préfectoral, il devra transmettre à l'inspection sous 6 mois un dossier attestant de l'aptitude du réseau et de la station à acheminer et traiter l'effluent. À défaut des mesures compensatoires permettant de réduire le pH des rejets devront
+       </td>
+       <td>
+        L'étude relative à l'aptitude du réseau de collecte et de la station à acheminer et traiter les effluents industriels du site a été envoyée le 29/01/2015. Elle a fait l'objet de demande de complément. L'exploitant indique qu'une étude de faisabilité de la régulation du pH devait être faite courant 2ème semestre 2016.
+        <br/>
+        <br/>
+        Par courrier du 14/04/2017, l'exploitant indique qu'avec tous les événements de l'année 2016, cette étude n'a pas été lancée. Une personne depuis mars 2017 est chargée de réaliser cette étude.
+        <br/>
+        <br/>
+        Lors de la visite du 05/09/2017, l'exploitant indique qu'un entretien régulier des réseaux est fait. Aucun écart majeur n'est à signaler concernant leur état.
+        <br/>
+        <br/>
+        Lors de la visite du 29/09/2020, l'exploitant a indiqué que la station de prétraitement fonctionnant au CO2 a été mise en service le 23/08/2018. Elle prétraite uniquement les eaux industrielles provenant de la polymérisation (pH et température).
+        <br/>
+        <br/>
+        Un retour à la normale du pH est constaté dans les déclarations d'autosurveillance à partir de septembre 2018. L'exploitant a répondu à la demande.
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="1" data-spec="section" data-title="O : observation" data-type="unknown">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     1 O : observation
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     NC : Non conformité
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      être proposées.
+     </div>
+    </div>
+    <section data-number="I.4" data-spec="section" data-title="Suivi des suites du contrôle inopiné eau du 28/11/2017" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      I.4 - Suivi des suites du contrôle inopiné eau du 28/11/2017
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Un contrôle inopiné sur les rejets aqueux a eu lieu le 20 et 21 septembre 2017. Le rapport précise que le point de rejets des eaux claires n'est pas aménagé de manière à faire une mesure de débit correcte.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Aménagement du point de rejet [
+      <a data-spec="section_reference" data-start_num="50" data-type="article">
+       article 50
+      </a>
+      de l'arrêté du 2 février 1998]
+     </div>
+     <div data-number="3" data-spec="alinea">
+      L'exploitant a présenté le point de rejet des eaux claires sur le parking Nord-ouest, en face des magasins. Ce point permet de procéder à une mesure de débit.
+     </div>
+    </section>
+    <section data-number="I.5" data-spec="section" data-title="Constats effectués lors de la visite du 29/09/2020" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      I.5 – Constats effectués lors de la visite du 29/09/2020
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      EAU
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Consommation d'eau [
+      <a data-spec="section_reference" data-start_num="1" data-type="annexe">
+       annexe 1
+      </a>
+      de l'arrêté du 02/08/2000] =&amp;gt; article à revoir sans SETILA (le dossier de demande d'autorisation de 2000 indiquait une consommation d'eau de forage de 465 000 m³/an)
+     </div>
+     <div data-number="3" data-spec="alinea">
+      L'exploitant indique qu'il dispose d'un puits principal (puits III) et de deux puits de secours (II et IV). Les puits III et IV sont situés à l'extérieur du site, à l'Ouest. Les terrains situés autour des puits n'ont pas été rachetés lors du changement d'exploitant. L'exploitant dispose d'une servitude d'accès aux forages mais n'a plus la maîtrise foncière des terrains qui ont été rachetés par la société TRIGANO qui y stocke actuellement des mobile-homes.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Déclaration GEREP 2019 : 143 703 m³ eau de forage + 1493 m³ eau de ville
+     </div>
+     <div data-number="5" data-spec="alinea">
+      GEREP 2018 : 152804 m³ eau de forage + 2054 m³ eau de ville
+     </div>
+     <div data-number="6" data-spec="alinea">
+      GEREP 2017 : 258 583 m³ eau de forage + 1899 m³ eau de ville
+     </div>
+     <div data-number="7" data-spec="alinea">
+      L'exploitant a présenté le plan d'actions de réduction des consommations d'eau et les actions menées depuis environ 10 ans sur ce sujet. Ce point est très suivi par l'exploitant. Des actions de recherches des fuites, de remplacement du réseau incendie et un travail sur le taux de concentration dans les TAR ont été menés entre 2015 et 2020. Une très baisse significative des consommations d'eaux est constatée (la consommation annuelle a baissé de 200 000 m³ entre 2015 et 2019). La consommation d'eau par tonne de fibre ou de granulés produites est suivie. En 2018 et 2019, environ 11 t d'eau sont nécessaires pour produire 1 t de fibre et entre 14 et 16 t d'eau pour 1 t de granulés.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      L'exploitant indique avoir atteint la 'limite' de baisse des consommations d'eau car il n'arrive plus à respecter les valeurs limites en concentration de ses effluents sur plusieurs paramètres. Il indique que des pénalités vont lui être imputées cette année par le gestionnaire de la STEP pour les dépassements récurrents en concentration en 2020.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Les eaux de refroidissement recyclées au moins à 95 % [4.2.3 de l'
+      <a data-spec="section_reference" data-start_num="2" data-type="article">
+       article 2
+      </a>
+      de l'arrêté préfectoral du 02/08/2000]
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Les eaux de refroidissement sont utilisées dans les TAR et au niveau du granulateur. L'exploitant a présenté un tableau calculant le taux de recyclage des eaux : en 2018, le taux est de 98 % et en 2019 de 99 %. Le fonctionnement du granulateur a tendance à faire baisser ce taux.
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Autorisation de déversement [article de l'
+      <a data-spec="section_reference" data-start_num="2" data-type="article">
+       article 2
+      </a>
+      de l'arrêté préfectoral du 02/08/2000]
+     </div>
+     <div data-number="12" data-spec="alinea">
+      L'exploitant a transmis par courriel son autorisation de déversement du 29/07/2019 valable jusqu'au 31/12/2023. Il indique que cette autorisation va être renégociée dans les mois qui viennent.
+     </div>
+     <div data-number="13" data-spec="alinea">
+      Plan des réseaux [4.3.2 de l'
+      <a data-spec="section_reference" data-start_num="2" data-type="article">
+       article 2
+      </a>
+      de l'arrêté préfectoral du 02/08/2000]
+     </div>
+     <div data-number="14" data-spec="alinea">
+      L'exploitant a présenté un plan des réseaux du 03/07/2020. Ce plan présente les secteurs collectés, les points de branchement, les regards, les avaloirs, les postes de mesures, les vannes manuelles.
+     </div>
+     <div data-number="15" data-spec="alinea">
+      Station de prétraitement [4.6.3 et 4.6.7 de l'
+      <a data-spec="section_reference" data-start_num="2" data-type="article">
+       article 2
+      </a>
+      de l'arrêté préfectoral du 02/08/2000]
+     </div>
+     <div data-number="16" data-spec="alinea">
+      L'exploitant a présenté le tableau de suivi de la station CO2. Les paramètres de fonctionnement sont mesurés périodiquement, sont asservis à une alarme et sont enregistrés. L'exploitant indique
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       Page 4 sur 10
+      </div>
+     </div>
+     <a data-page_index="4" data-spec="page_separator">
+     </a>
+     <div data-number="17" data-spec="alinea">
+      que 5 personnes sont formées sur la station CO2, dont 4 formations internes. Il a présenté les consignes d'utilisation et de surveillance de la station issues du module de formation interne. Une ronde journalière est effectuée. Les paramètres suivis sont le débit de la pompe de circulation, le débit d'effluent, la pression de CO2, la consommation de CO2/m³ d'eau. Les opérations de maintenance sont tracées dans le logiciel SAP (vu demande de changement préventif de la pompe le 23/03/2020 – action faite le 15/04/2020).
+     </div>
+     <div data-number="18" data-spec="alinea">
+      Les dispositions du 4.6.7 de l'
+      <a data-parent_reference="1" data-spec="section_reference" data-start_num="2" data-type="article">
+       article 2
+      </a>
+      de l'
+      <a data-date="2000-08-02" data-spec="document_reference" data-tag_id="1" data-type="arrete-prefectoral">
+       arrêté préfectoral du
+       <time data-spec="date" datetime="2000-08-02">
+        02/08/2000
+       </time>
+      </a>
+      ne sont plus d'actualité car le système de prétraitement a évolué.
+     </div>
+     <div data-number="19" data-spec="alinea">
+      Asservissement au débit du préleveur automatique au point de rejet eaux claires [4.7.2 de l'
+      <a data-spec="section_reference" data-start_num="2" data-type="article">
+       article 2
+      </a>
+      de l'arrêté préfectoral du 02/08/2000]
+     </div>
+     <div data-number="20" data-spec="alinea">
+      Contrôle de recalage [4.7.3. de l'
+      <a data-spec="section_reference" data-start_num="2" data-type="article">
+       article 2
+      </a>
+      de l'arrêté préfectoral du 02/08/2000]
+     </div>
+     <div data-number="21" data-spec="alinea">
+      L'exploitant a présenté une analyse des eaux usées du 04/09/2020 par un laboratoire externe et fait donc un contrôle de recalage externe pour les paramètres de concentration DCO et MES, de pH et de température. Le débit utilisé est celui mesuré par le débitmètre interne. L'exploitant indique que le débitmètre interne est inséré dans la conduite finale dirigeant les EU vers le réseau public des EU.
+     </div>
+     <div data-number="22" data-spec="alinea">
+      GIDAF et valeurs limites d'émission [
+      <a data-spec="section_reference" data-start_num="3" data-type="annexe">
+       annexe 3
+      </a>
+      de l'arrêté préfectoral du 02/08/2000]
+     </div>
+     <div data-number="23" data-spec="alinea">
+      L'exploitant transmet régulièrement et dans les délais ses déclarations d'autosurveillance Eau.
+     </div>
+     <div data-number="24" data-spec="alinea">
+      Eaux industrielles :
+     </div>
+     <div data-number="25" data-spec="alinea">
+      janvier 2020 : dépassement concentration MES et DCO sur plusieurs jours et DBO5 sur 1 jour
+     </div>
+     <div data-number="26" data-spec="alinea">
+      février 2020 : dépassement concentration DCO sur plusieurs jours
+     </div>
+     <div data-number="27" data-spec="alinea">
+      mars 2020 : dépassement concentration DCO sur 1 jour
+     </div>
+     <div data-number="28" data-spec="alinea">
+      avril 2020 : dépassement concentration DCO sur plusieurs jours
+     </div>
+     <div data-number="29" data-spec="alinea">
+      mai 2020 : dépassement concentration MES et DCO sur plusieurs jours
+     </div>
+     <div data-number="30" data-spec="alinea">
+      juin 2020 : dépassement concentration MES et DCO sur plusieurs jours
+     </div>
+     <div data-number="31" data-spec="alinea">
+      juillet 2020 : dépassement concentration MES et DCO sur plusieurs jours
+     </div>
+     <div data-number="32" data-spec="alinea">
+      août 2020 : dépassement concentration MES et DCO sur plusieurs jours
+     </div>
+     <div data-number="33" data-spec="alinea">
+      L'exploitant a présenté les analyses du 04/09/2020. Il y a un dépassement en concentration en DBO5 par rapport à l'
+      <a data-spec="section_reference" data-start_num="3" data-type="annexe">
+       annexe 3
+      </a>
+      de l'AP mais pas par rapport à la nouvelle autorisation spéciale de déversement (ASD) (2333 mg/L), en DCO (4580 mg/L – non conforme à l'AP et l'ASD), en azote (non conforme à l'AP et ASD).
+     </div>
+     <div data-number="34" data-spec="alinea">
+      L'exploitant indique avoir un projet multi-services pour diminuer les concentrations en DCO et DBO5. Une cartographie des effluents a été faite : la partie 'ensimage' pollue davantage que les autres secteurs. 13 actions ont été identifiées afin de faire baisser la DCO.
+     </div>
+     <div data-number="35" data-spec="alinea">
+      Eaux claires (purges eaux de refroidissement, purges résines échangeuses d'ions, rejet 'granulateur')
+     </div>
+     <div data-number="36" data-spec="alinea">
+      L'inspection a constaté dans les déclarations GIDAF que résultats d'autosurveillance indiquent des dépassements chroniques dans les eaux claires sur le paramètre pH avec des valeurs atteignant parfois 9 depuis au moins janvier 2016. Ce rejet s'effectue dans le milieu naturel (ruisseau Chaffit qui se déverse dans le Rhône). Aussi, l'inspection a demandé par courrier du 11/03/2019 la transmission sous 3 mois l'analyse des causes de ces dépassements ainsi que le plan d'actions afin de respecter les valeurs limites normales de pH situées en dessous de 8,5 conformément à l'
+      <a data-parent_reference="2" data-spec="section_reference" data-start_num="31" data-type="article">
+       article 31
+      </a>
+      de l'
+      <a data-date="1998-02-02" data-spec="document_reference" data-tag_id="2" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="1998-02-02">
+        2 février 1998
+       </time>
+      </a>
+      .
+     </div>
+     <div data-number="37" data-spec="alinea">
+      Par courrier du 07/06/2019, l'exploitant indique avoir amélioré ses pratiques en matières d'analyses des eaux et envisage l'abaissement du pH des eaux de purge de déconcentration des TAR. Lors de la visite, l'exploitant a indiqué que cette action a été mise en œuvre en février 2020.
+     </div>
+     <div data-number="38" data-spec="alinea">
+      décembre 2019 : pH&amp;gt;8,5 sur 10 jours
+     </div>
+     <div data-number="39" data-spec="alinea">
+      janvier 2020, février 2020, mars 2020 : RAS
+     </div>
+     <div data-number="40" data-spec="alinea">
+      avril 2020 : 1 journée de dépassement pH&amp;gt;8,5
+     </div>
+     <div data-number="41" data-spec="alinea">
+      mai juin juillet août 2020 : RAS
+     </div>
+     <div data-number="42" data-spec="alinea">
+      Au vu des résultats, cette action est suffisante pour maintenir le pH à un niveau correct.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       5/10
+      </div>
+     </div>
+     <a data-page_index="5" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       Page 6 sur 10
+      </div>
+     </div>
+     <div data-number="43" data-spec="alinea">
+      RSDE
+     </div>
+     <div data-number="44" data-spec="alinea">
+      La surveillance pérenne RSDE était prévu sur les paramètres suivants :
+     </div>
+     <div data-number="45" data-spec="alinea">
+      <div data-error_codes="unbalanced_quote" data-spec="error">
+       Eaux usées »:
+      </div>
+     </div>
+     <div data-number="46" data-spec="alinea">
+      <ul>
+       <li>
+        - Zinc : concentration
+       </li>
+       <li>
+        - cuivre et ses composés
+       </li>
+      </ul>
+     </div>
+     <div data-number="47" data-spec="alinea">
+      <div data-error_codes="unbalanced_quote" data-spec="error">
+       Eaux claires »:
+      </div>
+     </div>
+     <div data-number="48" data-spec="alinea">
+      <ul>
+       <li>
+        - cuivre et ses composés
+       </li>
+      </ul>
+     </div>
+     <div data-number="49" data-spec="alinea">
+      [
+      <a data-spec="section_reference" data-start_num="34" data-type="article">
+       Article 34
+      </a>
+      de l'arrêté du 02/02/1998]
+     </div>
+     <div data-number="50" data-spec="alinea">
+      Cuivre et ses composés (en Cu) 1392
+     </div>
+     <div data-number="51" data-spec="alinea">
+      VLE : 0,150 mg/l si le rejet dépasse 5 g/j
+     </div>
+     <div data-number="52" data-spec="alinea">
+      Zn et ses composés (en Zn) 1383
+     </div>
+     <div data-number="53" data-spec="alinea">
+      VLE : 0,8 mg/l si le rejet dépasse 20 g/j
+     </div>
+     <div data-number="54" data-spec="alinea">
+      L'exploitant a présenté des données indiquant que les flux en Zn et Cu sur les eaux usées et en Cu sur les eaux claires sont dépassés. Aussi, une autosurveillance doit être maintenue sur ces paramètres. Le maintien d'une fréquence trimestrielle est proposé.
+     </div>
+     <div data-number="55" data-spec="alinea">
+      EAUX SOUTERRAINES
+     </div>
+     <div data-number="56" data-spec="alinea">
+      Bilan quadriennal 2017-2020
+     </div>
+     <div data-number="57" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         n°
+        </th>
+        <th>
+         Écarts constatés lors de la visite du 29/09/2020
+        </th>
+        <th>
+         Demande d'actions
+        </th>
+        <th>
+         Délais
+        </th>
+       </tr>
+       <tr>
+        <td>
+         O1
+        </td>
+        <td>
+         Les volumes annuels et journaliers prélevés sont très nettement inférieurs à ceux autorisés, notamment parce que l'usine SETILA était prise en compte en 2000.
+        </td>
+        <td>
+         Il convient que l'exploitant fasse une proposition raisonnable d'un volume annuel prélevé dans la nappe et d'un débit maximal journalier afin que l'
+         <a data-spec="section_reference" data-start_num="1" data-type="annexe">
+          annexe 1
+         </a>
+         de son arrêté soit révisée.
+        </td>
+        <td>
+         31/03/2021
+        </td>
+       </tr>
+       <tr>
+        <td>
+         NC2
+        </td>
+        <td>
+         L'exploitant indique que le débit du rejet des eaux claires est trop faible pour que le préleveur en place permette un échantillonnage représentatif s'il est asservi au débit. Actuellement, il est asservi au temps. Le débit d'effluent est variable. Aussi, l'échantillon n'est pas représentatif des rejets.
+        </td>
+        <td>
+         L'exploitant doit disposer d'un système de prélèvement d'eau asservi au débit pour ses 'eaux claires' conformément à l'
+         <a data-parent_reference="3" data-spec="section_reference" data-start_num="4.7.2" data-type="article">
+          article 4.7.2
+         </a>
+         de l'
+         <a data-parent_reference="4" data-spec="section_reference" data-start_num="2" data-tag_id="3" data-type="article">
+          article 2
+         </a>
+         de l'
+         <a data-date="2000-08-02" data-spec="document_reference" data-tag_id="4" data-type="arrete-prefectoral">
+          arrêté préfectoral du
+          <time data-spec="date" datetime="2000-08-02">
+           02/08/2000
+          </time>
+         </a>
+         . L'exploitant transmettra un plan d'actions et s'engagera sur un échéancier de réalisation.
+        </td>
+        <td>
+         31/03/2021
+        </td>
+       </tr>
+       <tr>
+        <td>
+         O2
+        </td>
+        <td>
+         Le fonctionnement du granulateur fait baisser le taux de recyclage des eaux de refroidissement. En 2018 et 2019, le granulateur a fonctionné sur des durées faibles (quelques semaines sur l'année).
+        </td>
+        <td>
+         Il convient que l'exploitant vérifie qu'il atteint toujours un taux de recyclage des eaux de refroidissement supérieur à 95 % si le granulateur fonctionne davantage. L'exploitant tiendra l'inspection informée de ces conclusions.
+        </td>
+        <td>
+         /
+        </td>
+       </tr>
+       <tr>
+        <td>
+         O3
+        </td>
+        <td>
+         Le plan des réseaux d'eaux ne mentionne pas la présence de l'obturateur sur le réseau des eaux usées. Il mentionne que les avaloirs situés sous les racks sont connectés au réseau d'eaux pluviales alors que l'exploitant déclare que les eaux pluviales sous rack sont envoyées au réseau d'eaux usées.
+        </td>
+        <td>
+         L'exploitant corrigera, complétera et transmettra à l'inspection son plan des réseaux.
+        </td>
+        <td>
+         31/03/2021
+        </td>
+       </tr>
+       <tr>
+        <td>
+         NC3
+        </td>
+        <td>
+         L'exploitant n'a pas justifié de la formation de son personnel au suivi de la station de prétraitement au CO2.
+        </td>
+        <td>
+         L'exploitant formalisera et transmettra les justificatifs pour la formation de son personnel au suivi de la station de prétraitement au CO2 conformément au 4.6.7 de l'
+         <a data-parent_reference="5" data-spec="section_reference" data-start_num="2" data-type="article">
+          article 2
+         </a>
+         de l'
+         <a data-date="2000-08-02" data-spec="document_reference" data-tag_id="5" data-type="arrete-prefectoral">
+          arrêté préfectoral du
+          <time data-spec="date" datetime="2000-08-02">
+           02/08/2000
+          </time>
+         </a>
+         .
+        </td>
+        <td>
+         31/12/2020
+        </td>
+       </tr>
+      </table>
+     </div>
+     <a data-page_index="6" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       7/10
+      </div>
+     </div>
+     <div data-number="58" data-spec="alinea">
+      <table>
+       <tr>
+        <td>
+         NC4
+        </td>
+        <td>
+         L'exploitant ne fait pas contrôler le débit de ses eaux usées par un organisme extérieur.
+        </td>
+        <td>
+         L'exploitant doit faire procéder annuellement à un recalage externe de son débitmètre conformément au 4.7.3. de l'
+         <a data-parent_reference="6" data-spec="section_reference" data-start_num="2" data-type="article">
+          article 2
+         </a>
+         de l'
+         <a data-date="2000-08-02" data-spec="document_reference" data-tag_id="6" data-type="arrete-prefectoral">
+          arrêté préfectoral du
+          <time data-spec="date" datetime="2000-08-02">
+           02/08/2000
+          </time>
+         </a>
+         . L'exploitant transmettra les justificatifs à l'inspection.
+        </td>
+        <td>
+         31/12/2020
+        </td>
+       </tr>
+       <tr>
+        <td>
+         NC5
+        </td>
+        <td>
+         L'analyse des causes et le plan d'actions n'est pas systématiquement renseigné dans GIDAF en cas de dépassement.
+        </td>
+        <td>
+         L'exploitant doit indiquer les commentaires sur les causes des dépassements constatés sur les effluents aqueux et les actions correctives mises en œuvre conformément au 4.7.5 de l'
+         <a data-parent_reference="7" data-spec="section_reference" data-start_num="2" data-type="article">
+          article 2
+         </a>
+         de l'
+         <a data-date="2000-08-02" data-spec="document_reference" data-tag_id="7" data-type="arrete-prefectoral">
+          arrêté préfectoral du
+          <time data-spec="date" datetime="2000-08-02">
+           02/08/2000
+          </time>
+         </a>
+         .
+        </td>
+        <td>
+         31/12/2020
+        </td>
+       </tr>
+       <tr>
+        <td>
+         O4
+        </td>
+        <td>
+         Les dispositions du 4.6.7 de l'
+         <a data-parent_reference="8" data-spec="section_reference" data-start_num="2" data-type="article">
+          article 2
+         </a>
+         de l'
+         <a data-date="2000-08-02" data-spec="document_reference" data-tag_id="8" data-type="arrete-prefectoral">
+          arrêté préfectoral du
+          <time data-spec="date" datetime="2000-08-02">
+           02/08/2000
+          </time>
+         </a>
+         ne sont plus d'actualité car le système de prétraitement a évolué.
+        </td>
+        <td>
+         Il convient que l'exploitant sollicite une modification du 4.6.7 de l'
+         <a data-parent_reference="9" data-spec="section_reference" data-start_num="2" data-type="article">
+          article 2
+         </a>
+         de l'
+         <a data-date="2000-08-02" data-spec="document_reference" data-tag_id="9" data-type="arrete-prefectoral">
+          arrêté préfectoral du
+          <time data-spec="date" datetime="2000-08-02">
+           02/08/2000
+          </time>
+         </a>
+         et porte succintement à connaissance les éléments modifiés.
+        </td>
+        <td>
+         /
+        </td>
+       </tr>
+       <tr>
+        <td>
+         NC6
+        </td>
+        <td>
+         Des dépassements réguliers en concentration en DCO sont constatés. L'exploitant a prévu un plan d'actions multi-services.
+        </td>
+        <td>
+         L'exploitant enverra un bilan des actions menées et une évaluation de l'abaissement de la DCO si l'autorisation spéciale n'a pu être révisée.
+        </td>
+        <td>
+         31/12/2021
+        </td>
+       </tr>
+       <tr>
+        <td>
+         O5
+        </td>
+        <td>
+         Le dernier bilan sur les eaux souterraines portait sur la période 2013-2016.
+        </td>
+        <td>
+         Il convient que l'exploitant réalise un bilan sur le suivi de ses eaux souterraines sur la période 2017-2020.
+        </td>
+        <td>
+         31/03/2021
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-number="59" data-spec="alinea">
+      DÉCHETS
+     </div>
+     <div data-number="60" data-spec="alinea">
+      Quantités maximales de déchets [
+      <a data-parent_reference="10" data-spec="section_reference" data-start_num="12" data-type="article">
+       article 12
+      </a>
+      de l'
+      <a data-date="2014-08-06" data-spec="document_reference" data-tag_id="10" data-type="arrete-prefectoral">
+       arrêté préfectoral du
+       <time data-spec="date" datetime="2014-08-06">
+        06/08/2014
+       </time>
+       modifiant
+      </a>
+      l'
+      <a data-parent_reference="11" data-spec="section_reference" data-start_num="5.4.5" data-type="article">
+       article 5.4.5
+      </a>
+      de l'
+      <a data-spec="section_reference" data-start_num="2" data-tag_id="11" data-type="article">
+       article 2
+      </a>
+      de l'arrêté préfectoral du 02/08/2000]
+     </div>
+     <div data-number="61" data-spec="alinea">
+      L'exploitant a présenté un état des stocks de déchets. Les quantités présentes sont inférieures à 10 m³.
+     </div>
+     <div data-number="62" data-spec="alinea">
+      Les déchets dangereux sont stockés dans un bâtiment fermé.
+     </div>
+     <div data-number="63" data-spec="alinea">
+      <table>
+       <tr>
+        <td>
+         n°
+        </td>
+        <td>
+         Écarts constatés lors de la visite du 29/09/2020
+        </td>
+        <td>
+         Demande d'actions
+        </td>
+        <td>
+         Délais
+        </td>
+       </tr>
+       <tr>
+        <td>
+         O6
+        </td>
+        <td>
+         Les déchets stockés dans le bâtiment 'déchets' ne sont pas correctement étiquetés.
+         <br/>
+         Les déchets contenus dans des maxitainers (dioxyde de titane) ne sont pas correctement étiquetés et comportent parfois les étiquettes du précédent produit contenu.
+        </td>
+        <td>
+         Il convient que les déchets soient correctement identifiables et que les anciennes étiquettes des emballages réutilisés soient illisibles ou retirées afin de ne pas prêter à confusion. Les mentions de dangers, quand il y en a, doivent également figurer sur l'emballage.
+        </td>
+        <td>
+         31/12/2020
+        </td>
+       </tr>
+       <tr>
+        <td>
+         NC7
+        </td>
+        <td>
+         Des déchets dangereux pour l'environnement situés dans le bâtiment 'déchets' ne sont pas sur rétention.
+        </td>
+        <td>
+         L'exploitant doit placer ses déchets sur des aires bordées de murettes conçues de manière à contenir les éventuels déversements accidentels conformément au 5.4.1 de l'
+         <a data-parent_reference="12" data-spec="section_reference" data-start_num="2" data-type="article">
+          article 2
+         </a>
+         de l'
+         <a data-date="2000-08-02" data-spec="document_reference" data-tag_id="12" data-type="arrete-prefectoral">
+          arrêté préfectoral du
+          <time data-spec="date" datetime="2000-08-02">
+           02/08/2000
+          </time>
+         </a>
+         .
+        </td>
+        <td>
+         31/12/2020
+        </td>
+       </tr>
+      </table>
+     </div>
+     <a data-page_index="7" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       Page 8 sur 10
+      </div>
+     </div>
+     <div data-number="64" data-spec="alinea">
+      RISQUES ACCIDENTELS
+     </div>
+     <div data-number="65" data-spec="alinea">
+      État des stocks [6.2.1 de l'
+      <a data-spec="section_reference" data-start_num="2" data-type="article">
+       article 2
+      </a>
+      de l'arrêté préfectoral du 02/08/2000]
+     </div>
+     <div data-number="66" data-spec="alinea">
+      L'exploitant a présenté un état des stocks des déchets tenu à jour avec un plan de localisation.
+     </div>
+     <div data-number="67" data-spec="alinea">
+      L'exploitant a transmis par courriel du 02/10/2020 un état des stocks des produits dangereux avec leur mention de dangers.
+     </div>
+     <div data-number="68" data-spec="alinea">
+      Rétention des eaux d'extinction au niveau de la chaufferie
+     </div>
+     <div data-number="69" data-spec="alinea">
+      La rétention des eaux d'extinction au niveau de la chaufferie est assurée par des caniveaux qui redirige les eaux vers le sous-sol de la chaufferie. Le volume de rétention nécessaire calculé est de 442 m³ pour un volume disponible de 580 m³ (justificatifs présentés). En cas de débordement de cette zone de rétention, les eaux seraient dirigées vers le réseau d'eaux usées selon les déclarations de l'exploitant. Une vanne d'isolement est mise en place sur le réseau d'eau usées.
+     </div>
+     <div data-number="70" data-spec="alinea">
+      Rétention des produits [4.2.2.5. de l'
+      <a data-spec="section_reference" data-start_num="2" data-type="article">
+       article 2
+      </a>
+      de l'arrêté préfectoral du 02/08/2000]
+     </div>
+     <div data-number="71" data-spec="alinea">
+      L'inspection a porté sur les zones nommées S4, P1, F1 et T2. Les autres zones mentionnées dans l'arrêté ne comportent plus de produits selon les déclarations de l'exploitant.
+     </div>
+     <div data-number="72" data-spec="alinea">
+      L'exploitant a transmis par courriel du 02/10/2020 un schéma des réseaux de récupérations des rétentions situées dans la partie Poly1 au RDC. Ce schéma indique que les regards situés dans les différentes rétentions sous les pompes ou sous les petites capacités sont dirigées vers un décanteur de 2 m³.
+     </div>
+     <div data-number="73" data-spec="alinea">
+      S4 : La rétention de la cuve de 1000 m³ de sels de nylon située à l'Ouest du site est en bon état et est correctement dimensionnée.
+     </div>
+     <div data-number="74" data-spec="alinea">
+      F1 : les huiles d'ensimage sont stockées dans des bidons de 120L sur une rétention bétonnée comportant des caniveaux dirigeant les écoulements vers un puisard de 5 m³ connecté au réseau d'eaux usées via une pompe de relevage. Dans cette même zone sont stockées les huiles d'ensimage diluées (avant utilisation dans le procédé). Au vu des faibles volumes et faibles capacités des bidons d'huiles d'ensimage, au vu de l'absence de mention de dangers sur ces huiles, l'inspection considère que les risques de pollutions accidentelles sont suffisamment maîtrisés.
+     </div>
+     <div data-number="75" data-spec="alinea">
+      T4 : la zone de mise en œuvre du fluide thermique est placée sur une petite rétention et est connectée à un système de vidange rapide.
+     </div>
+     <div data-number="76" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         n°
+        </th>
+        <th>
+         Écarts constatés lors de la visite du 29/09/2020
+        </th>
+        <th>
+         Demande d'actions
+        </th>
+        <th>
+         Délais
+        </th>
+       </tr>
+       <tr>
+        <td>
+         NC8
+        </td>
+        <td>
+         L'exploitant ne dispose pas d'un état des stocks tenu à jour en permanence. Notamment, les quantités de matières combustibles ne sont pas spécifiées.
+        </td>
+        <td>
+         L'exploitant doit disposer des informations concernant la nature et la quantité de produits présents sur site conformément à l'
+         <a data-parent_reference="13" data-spec="section_reference" data-start_num="6.2.1" data-type="article">
+          article 6.2.1
+         </a>
+         de l'
+         <a data-parent_reference="14" data-spec="section_reference" data-start_num="2" data-tag_id="13" data-type="article">
+          article 2
+         </a>
+         de l'
+         <a data-date="2000-08-02" data-spec="document_reference" data-tag_id="14" data-type="arrete-prefectoral">
+          arrêté préfectoral du
+          <time data-spec="date" datetime="2000-08-02">
+           02/08/2000
+          </time>
+         </a>
+         . L'
+         <a data-parent_reference="15" data-spec="section_reference" data-start_num="46" data-type="article">
+          article 46
+         </a>
+         de l'
+         <a data-date="2010-10-04" data-spec="document_reference" data-tag_id="15" data-type="arrete-ministeriel">
+          arrêté ministériel du
+          <time data-spec="date" datetime="2010-10-04">
+           04/10/2010
+          </time>
+         </a>
+         vient renforcer cette disposition à compter du 01/01/2021. L'exploitant veillera à prendre en compte cette évolution de réglementation. Un état des stocks remplissant les critères sera transmis à l'inspection.
+        </td>
+        <td>
+         31/03/2021
+        </td>
+       </tr>
+       <tr>
+        <td>
+         O7
+        </td>
+        <td>
+         Les sous-sols de la chaufferie ne forment pas une rétention étanche car la porte donnant historiquement vers SETILA n'est pas scellée de manière étanche et des tuyauteries transverses le mur attenant à cette porte.
+        </td>
+        <td>
+         Il convient que l'exploitant mène les travaux nécessaires afin que la rétention des eaux d'extinction de la chaufferie soit étanche. L'exploitant transmettra les justificatifs de réalisation des travaux.
+        </td>
+        <td>
+         31/12/2020
+        </td>
+       </tr>
+      </table>
+     </div>
+     <a data-page_index="8" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       9/10
+      </div>
+     </div>
+     <div data-number="77" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         n°
+        </th>
+        <th>
+         Écarts constatés lors de la visite du 29/09/2020
+        </th>
+        <th>
+         Demande d'actions
+        </th>
+        <th>
+         Délais
+        </th>
+       </tr>
+       <tr>
+        <td>
+         O8
+        </td>
+        <td>
+         Les caniveaux présents dans la chaufferie sont recouverts majoritairement par des plaques métalliques pleines. Quelques-uns sont recouverts par des caillebotis. De plus, le déversoir final des caniveaux avant la rétention a une dimension assez faible.
+        </td>
+        <td>
+         Il convient que l'exploitant s'assure de l'aptitude des caniveaux à acheminer les eaux d'extinction vers les sous-sols de la chaufferie en tenant compte du débit maximal des sprinklers.
+        </td>
+        <td>
+         31/12/2020
+        </td>
+       </tr>
+       <tr>
+        <td>
+         O9
+        </td>
+        <td>
+         La réserve incendie où les services d'incendie peuvent se connecter n'est pas signalée.
+        </td>
+        <td>
+         Il convient que l'exploitant refasse la signalétique de la réserve incendie.
+        </td>
+        <td>
+         /
+        </td>
+       </tr>
+       <tr>
+        <td>
+         O10
+        </td>
+        <td>
+         L'obturateur du réseau d'eaux usées n'a pas été entretenu depuis sa mise en service.
+        </td>
+        <td>
+         Il convient que l'exploitant s'assure du bon fonctionnement de l'obturateur du réseau d'eaux usées. Les justificatifs seront transmis à l'inspection.
+        </td>
+        <td>
+         31/03/2020
+        </td>
+       </tr>
+       <tr>
+        <td>
+         O11
+        </td>
+        <td>
+         L'exploitant n'a pas été en mesure d'indiquer où sont dirigées les eaux pluviales susceptibles d'être polluées dans un incendie (bassin ? Puits d'infiltration?).
+        </td>
+        <td>
+         Il convient que l'exploitant informe l'inspection des dispositions prises afin que les eaux susceptibles d'être polluées, notamment celles de voirie, soient retenues sur site selon les dispositions du 4.9.1 de l'
+         <a data-parent_reference="16" data-spec="section_reference" data-start_num="2" data-type="article">
+          article 2
+         </a>
+         de l'
+         <a data-date="2000-08-02" data-spec="document_reference" data-tag_id="16" data-type="arrete-prefectoral">
+          arrêté préfectoral du
+          <time data-spec="date" datetime="2000-08-02">
+           02/08/2000
+          </time>
+         </a>
+         .
+        </td>
+        <td>
+         31/03/2021
+        </td>
+       </tr>
+       <tr>
+        <td>
+         O12
+        </td>
+        <td>
+         Les dispositions du 4.2.2.5. de l'
+         <a data-parent_reference="17" data-spec="section_reference" data-start_num="2" data-type="article">
+          article 2
+         </a>
+         de l'
+         <a data-date="2000-08-02" data-spec="document_reference" data-tag_id="17" data-type="arrete-prefectoral">
+          arrêté préfectoral du
+          <time data-spec="date" datetime="2000-08-02">
+           02/08/2000
+          </time>
+         </a>
+         sont, pour parties, obsolètes car les noms des lieux ont été modifiés et des stockages ont été supprimés.
+        </td>
+        <td>
+         Il convient que l'exploitant sollicite une révision du 4.2.2.5. de l'
+         <a data-parent_reference="18" data-spec="section_reference" data-start_num="2" data-type="article">
+          article 2
+         </a>
+         de l'
+         <a data-date="2000-08-02" data-spec="document_reference" data-tag_id="18" data-type="arrete-prefectoral">
+          arrêté préfectoral du
+          <time data-spec="date" datetime="2000-08-02">
+           02/08/2000
+          </time>
+         </a>
+         et que les modifications l'impactait soient précisées.
+        </td>
+        <td>
+         31/03/2021
+        </td>
+       </tr>
+       <tr>
+        <td>
+         O13
+        </td>
+        <td>
+         Zone Poly1 RDC : Les mélangeurs de sels de nylon R10600 et R10620 sont placées sur des rétentions nettement sous dimensionnées.
+        </td>
+        <td>
+         L'exploitant s'assurera, qu'en cas d'épandage important au niveau des mélangeurs à Poly1 et de débordement des rétentions, les liquides épandus soient dirigés vers l'intérieur du bâtiment vers un réseau maintenu fermé par défaut.
+        </td>
+        <td>
+         31/12/2020
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-number="78" data-spec="alinea">
+      II – Proposition de suites en fonction des enjeux et des engagements de l'exploitant
+     </div>
+     <div data-number="79" data-spec="alinea">
+      Propositions de suites administratives : néant
+     </div>
+     <div data-number="80" data-spec="alinea">
+      Autres suites :
+     </div>
+     <div data-number="81" data-spec="alinea">
+      Cette visite a permis de relever 8 non-conformités et 13 observations vis-à-vis des prescriptions examinées. L'exploitant devra fournir, selon les délais mentionnés dans le présent rapport, les éléments permettant de justifier de la mise en œuvre des actions correctives nécessaires pour les lever.
+     </div>
+     <div data-number="82" data-spec="alinea">
+      Renforcement des prescriptions
+     </div>
+     <div data-number="83" data-spec="alinea">
+      Vu l'
+      <a data-date="2003-09-11" data-spec="document_reference" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="2003-09-11">
+        11/09/2003
+       </time>
+      </a>
+      portant application du
+      <a data-date="1996-02-02" data-num="96-102" data-spec="document_reference" data-type="decret">
+       décret n° 96-102 du
+       <time data-spec="date" datetime="1996-02-02">
+        2 février 1996
+       </time>
+      </a>
+      et fixant les prescriptions générales applicables aux sondage, forage, création de puits ou d'ouvrage souterrain soumis à déclaration en application des
+      <q>
+       <a data-end_num="L214-3" data-spec="section_reference" data-start_num="L214-1" data-type="article">
+        articles L. 214-1 à L. 214-3
+       </a>
+      </q>
+      du
+      <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      et relevant de la rubrique " 1.1.1.0,
+     </div>
+     <a data-page_index="9" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       Page 10 sur 10
+      </div>
+     </div>
+     <div data-number="84" data-spec="alinea">
+      Considérant que l'exploitant n'a plus la maîtrise foncière autour de ses forages,
+     </div>
+     <div data-number="85" data-spec="alinea">
+      Considérant la perméabilité des terrains dans le secteur des Auréats,
+     </div>
+     <div data-number="86" data-spec="alinea">
+      L'inspection propose à monsieur le préfet de renforcer les dispositions applicables aux forages afin de palier à un risque de pollution du milieu selon les dispositions des
+      <a data-group_id="1" data-parent_reference="19" data-spec="section_reference" data-start_num="L181-14" data-type="article">
+       articles L. 181-14
+      </a>
+      et
+      <a data-group_id="1" data-parent_reference="19" data-spec="section_reference" data-start_num="R181-45" data-type="article">
+       R. 181-45
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="19" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      (sans passage au CODERST) :
+     </div>
+     <div data-number="87" data-spec="alinea">
+      l'
+      <a data-parent_reference="20" data-spec="section_reference" data-start_num="4.1.2" data-tag_id="22" data-type="article">
+       article 4.1.2.
+      </a>
+      de l'
+      <a data-parent_reference="21" data-spec="section_reference" data-start_num="2" data-tag_id="20" data-type="article">
+       article 2
+      </a>
+      de l'
+      <a data-date="2000-08-02" data-spec="document_reference" data-tag_id="21" data-type="arrete-prefectoral">
+       arrêté préfectoral du
+       <time data-spec="date" datetime="2000-08-02">
+        02/08/2000
+       </time>
+      </a>
+      <span data-direction="rtl" data-has_operand="true" data-keyword="complété" data-operand="23" data-operation_type="add" data-references="22" data-spec="operation">
+       est
+       <b>
+        complété
+       </b>
+       comme suit :
+      </span>
+     </div>
+     <div data-number="88" data-spec="alinea">
+      <blockquote data-tag_id="23">
+       <p>
+        Aucun puits ne peut être effectué à proximité d'une installation susceptible d'altérer la qualité des eaux souterraines.
+       </p>
+       <p>
+        En particulier, ils ne peuvent être situés à moins de :
+       </p>
+       <ul>
+        <li>
+         - 35 mètres des ouvrages d'assainissement collectif ou non collectif, des canalisations d'eaux usées ou transportant des matières susceptibles d'altérer la qualité des eaux souterraines ;
+        </li>
+        <li>
+         - 35 mètres des stockages d'hydrocarbures, de produits chimiques, de produits phytosanitaires ou autres produits susceptibles d'altérer la qualité des eaux souterraines.
+        </li>
+       </ul>
+       <p>
+        L'évacuation des eaux de ruissellement autour des puits est maîtrisée et permet d'éviter toute accumulation de celles-ci dans un périmètre de 35 mètres autour des têtes des puits.
+       </p>
+       <p>
+        Les distances mentionnées ci-dessus peuvent être réduites, sous réserve que les technologies utilisées ou les mesures de réalisation mises en œuvre procurent un niveau équivalent de protection des eaux souterraines.
+       </p>
+       <p>
+        Un capot de fermeture ou tout autre dispositif approprié de fermeture équivalent est installé sur la tête du puits. Il doit permettre un parfait isolement du puits des inondations et de toute pollution par les eaux superficielles. En dehors des périodes d'exploitation ou d'intervention, l'accès à l'intérieur du puits est interdit par un dispositif de sécurité.
+       </p>
+      </blockquote>
+     </div>
+     <div data-number="89" data-spec="alinea">
+      Inspecteur
+     </div>
+     <div data-number="90" data-spec="alinea">
+      L'inspecteur de l'environnement
+     </div>
+     <div data-number="91" data-spec="alinea">
+      <img alt="img-0.jpeg" src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCADnANADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKQ0AMknSIZaohept3bHC+uKqXbF59vYcVfSNREExxiknqauMYpNktFFFMyCiiigAooooAKKKKACijNGaACikzS0AFFFFABRRRQAUUUUAFFFFABRRRQAUh6UtIelAGV966we71qVlof9LH+9/WtWpibVugtFFFUYhRRRQAUUUE4FAASAMngVi+IvFeieFrL7VrN/HbIfuqeWc+iqOTWL8R/H9r4E0H7RhZdQuMpawE9WH8R/2R/9avNfBnwt1Dxxc/8ACVeO7ieQXOJIbXO1mU8gn+6voo5/qAXtQ/aIgkuDb6B4dur5uzTPtz77VBNVP+FufEmYbrfwLhOo3Wk5/UEV7VpWhaXodutvpdhbWcQ42wxhc/j1P41oY5zQB4L/AMLv8Zad82seCGVB1ZVli/Uhq6Pw/wDH3wvqkqQ6jFc6XK3G6Vd8ef8AeHI/EV6uVzXKeJPhv4W8Twut9pMCTN0uIFEcgPrkdfxzQB0treW19bR3NpNHPBINySRsGVh6gip6+cZo/E/wK16N455NR8M3UgBDdPpj+FwPwNe/6Nq9nruk2upWEoltbiPejD+R9+ooAv0UUUAFFFFABRRRQAUUUUAFIeaWkoAyj8t19H/rWp2rLuBtum+ua0s/us+1THqbVdVFklFFFUYhRRRQAUjYCkk4GOTS1z3jrUm0jwJrd/G22SGzkKH0YjA/U0AeMaPbH4tfGm81G7Hm6LpJ/dofusqnCD/gRyx9QK+hlQL0AA9BXkv7PWlpaeA578riS9u2+b1VAFH67q9coAKKKKACkIyKWkJoAzPEGh2niLQrzSr5A8FzGVPHIPZh7jivIv2fdSubefX/AAzPIZI7KXzIznhTkq2PY4B/Ou3+JPxG0/wRo0qCVZNWmQi3twckE/xN6Afriud+BXhO90fRLzXNSRku9WcOquMERjJBI7Eknj6UAeuUUUUAFFFFABRRRQAUUUUAFJS0lAGdfDEwPqKsLJmx3e2KZfrlFb3xVdZMWzR5/iz+FRszoS5oI1aKKKs5wooooAK434sRtL8LfECp1Ftu/AMCf0FdlWdr+mjWPDuo6acf6VbSRc+rKQKAOH+BUiv8KtPVcZjmnVvr5jH+RFek14l+zvqhTTNZ8PTnbPaXPnBG64b5W/IqPzr2zNAC0mR60yWeKGJpZZFjjUZZ3YAAfWvKPF/xz0bSJGsfD8R1fUD8qlMiFW7c4y/0H50Aep3l7bWFpJc3c8cEEY3PJI21QPrXjHiv42T315/YvgOzkvr2QlRdeWSB/uL3+p4rLtfAPjz4nXKX/jHUJNO0/O5LXGD/AMBjBwv1bmvYvC/gnQvB9mLfSLJI2I+ed/mkkPqW/wAOKAPOfA/wbnOor4i8b3Bv9UZhKLd23qrdcuf4j7dK9lVAvTgUoBHeloAKKDXJXfxF8PWfjWDwrLcP/aMpC5C5RWIyFJ7E/wBaAOtopAc+1LQAUUUUAFFFFAAaSlooAguk3WzeoGayuScde1bbgFSD0rzn4g+I9Y8MaKl/pGlpf7Zf35YErHGOc8VEtzooytFo9HoooqznCiiigApDwKNwrF8TeK9G8J6Y17rF2kMf8CdXkI7KO5oA8V1st8MfjrDq4BTR9XOZCPu4c4f8mw3413njP4y+HfC6tb2kg1TUeght3BRD/tP0H0GT/OvFviN471T4hQrcrpq2ehWcxEMkikszkdC/qw/hHpntmuq+AWm+FNTN093ZJNr9s29TcfOpi7Mg6Ag8Hv0/AASLQfiN8XZFudZuTpGiMdyxFSilf9lOrduWOK9X8IfDTw34NjVrG0Wa7x813cDfIfp2X8K1PGOq3GieDtX1S1CG4tLZ5Y965G4DjivDPAfxs1mx1ONPFsz3OmXZIS7aMAxNnrwBlc9R2oA+kAORS1Xs721v7aO5tLiOeCRdySRsGVh6girGaACikzWPrnirQvDluZtW1S2tRjIV3+Zvoo5NAEniTW4PD3hvUNWuADHawtJtJ+8ccL+JwPxr5U+HlnqPjH4r2N3KzyzfajfXco7BW3E/icD8a6T4o/F5PGFmdA0O2lWweRS88ow8xByAF7DOPevYPhh8PrbwPoQ3Yk1O7RWupSMY9EX0Az+JoA7sDmloxRQAUUUZFABRSZrH1vxXoPh2Lfq2q2tp6JJIA7fRep/KgDYyKMivF9c/aE0xJPsvhzSrnUpzwryjy1J7YXlj+QrE/s/4wfEX/j8mbQ9Ofqpzbgj/AHRlz+OBQB6h4u+J3hjwrBLHdagk94B8trbkO+ffBwv4mvHLrV/GXxfnay021bTtCziRznaR/tN/EfYV2+h/BDw5oUkU2ovJq14CCxmG2MfRB1/EmvR7azjjsykMSRonCIihVH0AqGzeEbK7NmiiirMAJxSE8c0E4Ga8y+K3xLHhK1XSNIxNrt4uI1UZMKngMR/eJ6CgCz8RvipYeC4jY2qi81p1+S3HKx+hfH6Dqa4fwt8MNc8dakniXx/czeXIA8VmTtdl6gED7i+w5+lbvwx+FH2CRfEvipTd61cHzUim+byM92/vP/KvXwMGgDm9b8E6Pq/g+bw4tlBBZ+XiBY0wInA+Vh7g/nXyVp1zrHgTxk81spjvtLmZJV6BgDgg+xFfbRr54+MulReG/iJpPic2wlsL793exEfK+PlcH/eQ4/CgD0LWvE1j4w+C+s6tYNlZdPkEiZ5icA5Uj1B/OuU+E/hPSPGHwiFjq9sJkS9mMcina8TYXlT2rhvEthqvwsutQg092u/DOv2zLEzH5WVl4z6MuRz3H149R/Z7bPw3kHcX8oP/AHyh/rQBz8vwJ8Q6PO7+GPF8tvFnKqzPEw+pQ4P5Cm/8IB8ZIOIvGKyD/bvpD/NDXvPWjFAHgx+GnxZvxsv/ABr5cZ67L2Uj8gBWhpH7POnLMLnxBrV1qEpOWSMeWp+rElj+le04oJB4oA+cNU0DSrn496N4a0rT4bew04RmSONcbioMrFj3PQc19HjjrXgnwwxrPxz8Vay5DLD5wRj2BkCj/wAdXFeo698R/CfhvcmoazbiZf8AlhCTI/8A3yucfjigDqs0bhXhupfH+a+uTZ+FPDlxeTHgPPkn/v2uT+tUv7B+MXjnnVNQ/sayf/llvEXH+4mWP/AjQB7Brvjfw14bU/2trFrbuBnyt+5z/wABXJrzPWf2hLLzjbeG9Eur+c8I02UBPsoyx/Srehfs9+HrJhNrV7c6pNnLKP3MZ/AEk/nXpej+GdF8Pw+VpOmWtmvcxRgE/U9TQB4pt+M/jrkk6HYyDkAfZxj9ZDWvon7PWnLKLnxFq9zqM5OXSL5FJ92OWP6V7Rt5pcUAYuieEdA8NxBdI0m1tD3dE+c/VjyfxNbJwoJ9KdVa8kKQ4HU0hpXdihLIZJWb16Vo28e2BVxWfbx+ZMq9hzWtjFTFam1d2tFC0UUVZgc9428VW3g/wteavPhnjXbDET/rJD90f4+wryz4PeDrjXtSm8f+JB591cys9msg7g4MmPbovpiqvxbmn8ZfE/QvBFu58mNlabH95uWJ+iDP417rY2cGn2UFnaoI4IEWONB0CgYFAFgLiloooADnBx1rgPjH4f8A7e+HN+ETdPZEXcfr8v3h+Klq7+oriJLi2khlUNHIhRgehBGCKAPGPDl7a+L/ANnq8h1BFuJtOtpYm3DlWjG5GHoQu3n2rzv4V/EW68DXIgvo5H0C8lIdgvEUmBll/DbkelbXgSSXw7efEHwfMWx9juHiBHeMMOnupB/CjwC3g+6+EWo6f4r1C3tkN67wEsDKj7FwyL1/DocUAfR1pd297axXVrMk0EyB45EOQynoQan3DGc8V8keEvivq/gOC902waPUtO3n7N9oDKIzn7wHUA9dvr+vZW2hfFX4l28d3qGrrpmlTjcqpLsVlPoicn/gRoA9c8Q/Efwp4ZDLqOsQCcf8sIT5kn5L0/HFeY6p8fL/AFOV7Xwl4cmmfBHnXALEe+xOn510Ph/4B+FtMKy6m8+q3HVvNOyP/vkcn8Sa7q/0+w0HwpqS6ZZW9nHFaSsEgjCDhD6UAfMvw88EeIfHb6nJp+rDTrXzALxtzAyE5YAKOvfqfSvYdB+AXhTS9smpNcarMOvmtsjz/ur/AFJrL/ZvjA8KavMOrXwT8ox/jXtVAFHTdG03R7cW+m2FtaQjokEQQfpV0ClooAKKKKACiiigANZd3JvmI7Dir88vlxM3espVLuB3NTJ9DejH7TLtjHgFz1PFXaZGgRAo7Cn00jKUuZ3Cg9KKD0pkngnhQC6/aZ12WfmSITeXn2CqD/3zxXvQ6jivn/4gpcfD34yWHjOOFm0692ifaO+3Y4+uAGHvXu2naja6rp8F/ZTLNbTIHjdTkEUAW6TIqK6u7eztnuLqaOGBBueSRgqqPcmvI/FPx4021mNh4WtH1e9Y7VlwRED7AfM36D3oA9elnihjaSWRY415ZnO0AfU15r4n+OHhTQS8NnM2q3Y42Wv+rB936flmuIh8BfEb4kyrc+LNSfTNPY5Fuy4OPaIdPqxzXpnhf4S+FPC4SSGwW8vFx/pN387fgDwPwFAHzR4q8QaxqnimfxG9lJo76jGVUqrKrps2Ngn72R1+tdt8HPhjonjLTrrVdXkuJBbz+UtvG+1T8oOSevftiuy/aH0L7V4UsNXjQbrGfy3IHSN8Dn8QPzp37OIx4O1M8c33/si0AdrqXww8KX/huXRY9ItrWFhlJYIwsiOOjBsZJ+teT6F4h1z4LeIz4f8AEQe58PztmCdRwo/vp7eq/iPf6JIyMVh+KfC2meLdEm0zVIQ8b8o4+9G/ZlPY/wA6ANOyvrbUbOK7s5knt5VDxyIchlPcVn+LW2+DNcb0sJz/AOQ2rwrSNZ174IeJTo2tq934duH3RSqCQB/fT0Pqv+T7Tr+oWmrfDzV72xnSe2m0ydkkTkEeWaAOC/ZxGPAmoH11Fv8A0WlexV49+zmf+KDvx/1EnH/kOOvYaACiiigAooooADSUpqOWQRxlj6UAld2KV7JukCA8ClsotzGQjpwKq4aR/Usc1rRII4wo7VC1dzom+SFkPpaKKs5wpD0painuIraJ5ZpFjjRSzu5wFA6kmgDN8ReHdO8UaLPpeqQCW3lHXoyHsynsRXzaviXWPg14putI07VLTV9PJ3GEvuUHtux9xx3xXW+KviRrvj3WH8LeAo5vs7ZWa9TKll7nP8Ke/U12PgX4OaJ4XiW61FI9T1Rgd8ky7o0J6hQev1NAHk+iprXxq15013xNBZ20bblslbBI9I4+h/3iSa978K+AfDng+3CaXYIJ8Ya4l+eVvqT0/DFcb4s+BGi6vM19oU7aRfZ3BUGYi3rjqv4H8K5WPX/ir8Nf3OrWP9t6VHwJmzKAPaQfMP8AgQoA+ghz0II9qdXlnh/48+EtWCpqDz6VP0InXcmfZl/qBXomn63pWrRCTT9StLpD0MEyv/I0AO1bSbPW9KudM1CETWlwmyRCcZH9DVHwv4V0vwhpI0zSYmjtw5kO9yzMxxkkn6CtrNLQAUHkUUZoAx/EnhnTPFWjTaZqluJYZOQR95G9VPY1883cviL4O3Go6Beq174f1OCVIX6A7lI3D+6w7jv1r6dPQ8fhXmPxn8R+HbLwbfaXfmC51G4TbbWwIZ0cjiT/AGcdffGO9AGV+zkceCNSGD/yEm5x/wBMo69jzXyv4D8T6/8ACySxn1WwmHh/WAJtpH4b19DjHB6gg+lfT2naha6pYQX1lOk9tOu9JEOQwoAt0UUUAFFBooAKz72XLiMdutXJZBHGW9Kyvmlkx/ExqZdjajHXmZZsosuZCOBwKv0yJBGiqO1SU0rGc5czuFJmjNIzKo5OKZIp6V4Z8X9e1LxH4qsfh5ojlWnKtdMDjdkZwcfwgfMa90NfP3j5p/AXxw0/xjPA0mm3IAZwM4/d+W4+oUgj1oA9c8GeC9M8FaJHp9hGDIfmnuCPmmfuT/QdBXSY5zVLStWsNb0+HUNNuY7i1lGUkQ8H2+tXcgmgBSMim7eCD0NOooA5LXfhn4R8RFnvtGtxO3WaAeU5+pXGfxzXn9/+zvZxyNNoXiG9sn7LKA2P+BLg17bRQB4Kvw8+Lujf8gzxeLmNfuq925/RwRQR8ebDqIrkDvmB8/yNe845ox9KAPBv7e+Oq/KdHjY+vkR/40hvPjzdHizjhz/swLj8zXvdJjnrQB4KfBXxl14BNU8SrZQt95VuQvH0iXn866Hwv8B9F0m6jv8AWryXWLxTu2yDbFnOeRyW/E/hXrPTmjIFAGN4i8Mab4n0KXSNSgV7Zx8u0YMZ7Mp7EV4boesax8E/FjaHrbPceHbpy0MwBwoP8ajsem5fyz3+izgjFc5418Jaf4y8OT6beqFfBaCf+KGTsw/qO4oA37e4huoI54JFlikUMjqchlIyCDUteK/ADX7ya01XwzdN5qaY4MEgOQFJIKg+mRkfWvaqACk70pqKaURRlu/ai4Wu7IpXsoZtmeB1+tSWUX/LQjr0qqitLLjBJbk4rRWN9oVSEX8zUbu50TfLHlRKXCjJOBUDXadEDOfYU/7Mmctlz6sc1IEA6ACr1MdCrm6lPAVB9aBZOxzJKTVyilbuPnfQDyKy9d0DTvEmly6bqtqlxaydVPBU9iCOhFalFMg8EvvhJ4v8GXst/wCAdbkeFjk20jhX+hz8j/U4/OmRfGXxr4XKw+LfCrtjrNsaAt+OCp/CvfcU1o0dSrqGU9QRQB5Np/7QnhG62/bLfULNu++JXA/FTXR23xh8B3QG3xBFGfSWKRcfmuK2L/wJ4U1Mlrvw7psjHq32dVJ/EDNc/dfBTwHdEk6OYj/0yndcfrQBtRfEXwZMPk8T6V9GulU/kTVkeNvCzDK+ItLI9RdJ/jXEy/s/eCZPu/2lF7Jcj+qmq5/Z18Hnpe6yP+28f/xugD0D/hNPC/8A0MOmf+BSf41E/jvwlH9/xLpK/wC9eIP61wf/AAzp4P8A+f7Wf+/8f/xupF/Z48Gr1uNXb63Cf0SgDr5PiV4Ki+94n0w/7s4b+VU5vi74Dg+94jtz/uRyN/JaxY/gD4HTG6G+k/3rk/0Aq5D8EPAUOP8AiUO/+/cyH+tAEc/x08CQ/c1C4m/652z/ANQKxLz9orwzFlbXTdTuSO5VEH6n+ldhB8J/A1uQV8OWjEf89NzfzNbFp4P8NWJBtdA0yIjoyWiAj8cUAePS/HnxFq7eX4d8IO7HhWYvMfyUAVDJoPxg+IAMOsXQ0fTn+9ExEQx/uL8zfRjXv6RRxALGioo7KAKdwMUAcl4C8A6d4C0pra0cz3M2DcXLjBkI6ADsoyeK63NRyTKmByWPRR1NCBz8z8eijtQh2JM8VmXU3mS4H3Vq3dzeXHgfePSqdtCZpAD0HJNRJ30Nqa5feZas4dq7yOT+gq3SAY4papKxjKXM7hRRRTEFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRSHpRmgANVZrkhvLi5emXNyS3lxnPYkVLbW4iTcRljS3NFHlV5CwQeX8zHLnqaldwiFj0FOrOvJ97bFPyg8+9D0FGLnIhd2nmzjr0rSghEMYUdepNQWVvt/eN1PSrtKK6l1ZX91bCUtFFUYhRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAIeBVa6nMa7F+8f0qyxwM1mKGubo56H+VJs0pxu7vYms7f/low69Pf3q7SABQAOg4qC4uRECF5b0oWiE25sbdXGxdi/eP6VWtYDK+5vuj9aSGJriTJzjPJrTVAigKMCp3Zo2qa5VuLjGKWk70tWYBRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFADJQTEwHUiqlmAis7cHpRRUvc0htYJ70D5Yxz6moYoGnOWPHrRRRa+5o/cWhoogRQqjAp9FFUc4UUUUAFFFFABRRRQAUUUUAf/Z"/>
+     </div>
+     <div data-number="92" data-spec="alinea">
+      Signature numérique de Elodie MOUROUX elodie.mouroux Date:2020.10.26 09:39:22 +01'00'
+     </div>
+     <div data-number="93" data-spec="alinea">
+      Vérificateur / Approbateur
+     </div>
+     <div data-number="94" data-spec="alinea">
+      L'adjoint au chef de l'unité interdépartementale
+     </div>
+     <div data-number="95" data-spec="alinea">
+      <img alt="img-1.jpeg" src="data:image/jpeg;base64,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"/>
+     </div>
+     <div data-number="96" data-spec="alinea">
+      Signature numérique de Boris VALLAT Date:2020.10.30 15:19:17 +01'00'
+     </div>
+    </section>
+   </section>
+  </main>
+ </body>
+</html>

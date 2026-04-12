@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2005-01-05_arrêté préfectoral_Prescription Complémentaire.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     DIRECTION DES ACTIONS DE L'ÉTAT
+Bureau de l'Environnement
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE PREFECTORAL du
+     <time data-spec="date" datetime="2005-01-05">
+      5 janvier 2005
+     </time>
+     portant prescription d'une évaluation simplifiée des risques et d'une expertise des conditions de suivi des eaux souterraines du Centre d'Enfouissement Technique (CET) de Hochfelden de la société SITA Alsace
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     LE PREFET DE LA RÉGION ALSACE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PREFET DU BAS-RHIN
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , livre V, titre 1er,
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-type="decret">
+     décret n° 77-1133 du
+     <time data-spec="date" datetime="1977-09-21">
+      21 septembre 1977
+     </time>
+    </a>
+    et notamment son
+    <a data-spec="section_reference" data-start_num="18" data-type="article">
+     article 18
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1997-09-09" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel modifié du
+     <time data-spec="date" datetime="1997-09-09">
+      9 septembre 1997
+     </time>
+    </a>
+    relatif aux installations de stockage de déchets ménagers et assimilés,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2000-12-04" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2000-12-04">
+      4 décembre 2000
+     </time>
+    </a>
+    autorisant l'extension du CET de Hochfelden,
+   </div>
+   <div data-spec="visa">
+    VU le rapport du 15 octobre 2004 de la Direction régionale de l'industrie, de la recherche et de l'environnement d'Alsace (DRIRE d'Alsace) chargée de l'inspection des installations classées,
+   </div>
+   <div data-spec="visa">
+    VU l'avis du Conseil Départemental d'Hygiène au cours de sa séance du 2 décembre 2004,
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que depuis 1969 des déchets ont été déposés sur le site de la décharge de Hochfelden sans que celle-ci soit équipée des dispositifs d'étanchéité prescrits depuis 1997 pour la prévention des pollutions des sols et des eaux souterraines,
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que ces conditions passées d'enfouissement des déchets sont susceptibles d'induire des impacts sur l'environnement, en particulier les eaux souterraines,
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT les impacts révélés par les analyses des prélèvements d'eaux souterraines effectués dans la formation géologique supérieure du site,
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'il convient, au regard de ce qui précède, de prescrire à la société SITA Alsace, les études et travaux suivants concernant son site de Hochfelden :
+    <ul>
+     <li>
+      - expertise des conditions actuelles de suivi des eaux souterraines portant sur la pertinence de l'implantation, le nombre et la profondeur des divers puits de prélèvement ainsi que sur les paramètres de suivi,
+      <a data-page_index="1" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        2
+       </div>
+      </div>
+     </li>
+     <li>
+      - en fonction des résultats de cette expertise, la réalisation des travaux qu'elle pourra préconiser,
+     </li>
+     <li>
+      - réalisation du diagnostic initial et de l'évaluation simplifiée des risques concernant les parties non étanchées du site.
+     </li>
+    </ul>
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition de Monsieur le Secrétaire Général de la Préfecture du Bas-Rhin,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société SITA Alsace, 22, rue de Cherbourg (l'exploitant) se conforme dans les délais prescrits aux prescriptions des
+     <a data-group_id="1" data-spec="section_reference" data-start_num="2" data-type="article">
+      articles 2
+     </a>
+     ,
+     <a data-group_id="1" data-spec="section_reference" data-start_num="3" data-type="article">
+      3
+     </a>
+     et
+     <a data-group_id="1" data-spec="section_reference" data-start_num="4" data-type="article">
+      4
+     </a>
+     ci-après qui concernent le CET qu'elle exploite à Hochfelden.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="EXPERTISE DES CONDITIONS DE SUIVI DES IMPACTS SUR LE SOUS-SOL" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 – EXPERTISE DES CONDITIONS DE SUIVI DES IMPACTS SUR LE SOUS-SOL
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant fait réaliser et transmet dans un délai de trois mois à la DRIRE d'Alsace une expertise des conditions de suivi des impacts sur le sous-sol portant sur la pertinence de l'implantation, le nombre et la profondeur des divers puits de prélèvement des eaux souterraines ainsi que sur la fréquence et les paramètres de suivi.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Cette expertise est effectuée par un organisme qualifié indépendant de l'exploitant et de ceux ayant proposé les implantations des puits ainsi que les paramètres de suivi. Elle se fonde sur une étude hydrogéologique précise du secteur concerné.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Elle concerne aussi bien le suivi des zones en exploitation que celui des parties anciennes du site.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Elle doit déboucher, le cas échéant, sur des propositions concrètes d'amélioration des conditions de suivi dont le coût de réalisation est indiqué.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="DIAGNOSTIC INITIAL, EVALUATION SIMPLIFIÉE DES RISQUES (ESR)" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 – DIAGNOSTIC INITIAL, EVALUATION SIMPLIFIÉE DES RISQUES (ESR)
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant réalise et transmet dans un délai de neuf mois à la DRIRE d'Alsace un diagnostic initial et une évaluation simplifiée des risques en se référant à la dernière version (à la signature du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     ) du guide méthodologique conjointement élaboré par le BRGM et le Ministère en charge de l'environnement. Ce diagnostic et cette ESR concernent les parties du site non équipées en étanchéité de fond de casier dont une cartographie précise est établie.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Sont intégrés pour la réalisation de ces études, les éléments ressortant de l'expertise prescrite ci-dessus. Si de nouveaux puits de contrôle sont préconisés, ils devront être exploités pour l'évaluation simplifiée des risques.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="PUBLICITE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 – PUBLICITE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="21" data-type="article">
+      article 21
+     </a>
+     du
+     <a data-date="1977-09-21" data-spec="document_reference" data-tag_id="1" data-type="decret">
+      décret du
+      <time data-spec="date" datetime="1977-09-21">
+       21 septembre 1977
+      </time>
+     </a>
+     modifié, un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     énumérant les conditions auxquelles l'autorisation est accordée et faisant connaître qu'une copie en est déposée aux archives de la mairie de Hochfelden et mise à la disposition de tout intéressé, sera affichée dans ladite mairie. Un extrait semblable sera inséré aux frais de l'exploitant, dans deux journaux locaux ou régionaux.
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      3
+     </div>
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="FRAIS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 – FRAIS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les frais inhérents à l'application des prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sont à la charge de la société SITA Alsace.
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="DROIT DES TIERS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6 – DROIT DES TIERS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les droits des tiers sont et demeurent expressément réservés.
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="SANCTIONS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 7 – SANCTIONS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En cas de non-respect des prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , il pourra être fait application des sanctions administratives et pénales définies aux sections 1 et 2 du chapitre IV du livre V, titre 1er, du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-title="EXECUTION E AMPLIATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 8 – EXECUTION E AMPLIATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - Le Secrétaire général de la Préfecture du Bas-Rhin,
+      </li>
+      <li>
+       - le Secrétaire Général Adjoint chargé de l'arrondissement chef-lieu,
+      </li>
+      <li>
+       - le Maire de Hochfelden,
+      </li>
+      <li>
+       - le Commandant du Groupement de gendarmerie du Bas-Rhin,
+      </li>
+      <li>
+       - les inspecteurs des installations classées de la DRIRE, sont chargés, chacun en ce qui le concerne, de l'exécution du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       dont ampliation sera notifiée à la société SITA Alsace.
+      </li>
+     </ul>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     LE PREFET,
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Délais et voie de recours (
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="L514-6" data-type="article">
+      article L 514-6
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     )
+    </div>
+    <div data-number="4" data-spec="alinea">
+     La présente décision peut être déférée au tribunal administratif :
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <ul>
+      <li>
+       - par l'exploitant, dans un délai de deux mois à compter du jour où elle a été notifiée,
+      </li>
+      <li>
+       - par les tiers, les communes intéressées ou leurs groupements (...), dans un délai de quatre ans à compter de sa publication ou de son affichage.
+      </li>
+     </ul>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>
