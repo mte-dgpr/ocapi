@@ -30,6 +30,7 @@ import json
 import sys
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -141,6 +142,74 @@ def _available_aiots() -> list[str]:
     return sorted(d.name for d in _GROUND_TRUTH_DIR.iterdir() if d.is_dir())
 
 
+@dataclass
+class AiotResult:
+    aiot: str
+    gt_count: int
+    detected_count: int
+    tp: int
+    fp: int
+    fn: int
+    scores: Scores
+
+
+def _write_xlsx(
+    results: list[AiotResult],
+    overall: Scores,
+    total_tp: int,
+    total_fp: int,
+    total_fn: int,
+    model_key: str,
+    output_path: Path,
+) -> None:
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Résultats"
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    pct_fmt = "0.0%"
+
+    headers = ["AIOT", "Ground-truth", "Détectées", "TP", "FP", "FN", "Precision", "Recall", "F1"]
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    for row_idx, r in enumerate(results, 2):
+        ws.cell(row=row_idx, column=1, value=r.aiot)
+        ws.cell(row=row_idx, column=2, value=r.gt_count)
+        ws.cell(row=row_idx, column=3, value=r.detected_count)
+        ws.cell(row=row_idx, column=4, value=r.tp)
+        ws.cell(row=row_idx, column=5, value=r.fp)
+        ws.cell(row=row_idx, column=6, value=r.fn)
+        ws.cell(row=row_idx, column=7, value=r.scores.precision).number_format = pct_fmt
+        ws.cell(row=row_idx, column=8, value=r.scores.recall).number_format = pct_fmt
+        ws.cell(row=row_idx, column=9, value=r.scores.f1).number_format = pct_fmt
+
+    total_row = len(results) + 2
+    total_font = Font(bold=True)
+    ws.cell(row=total_row, column=1, value="TOTAL").font = total_font
+    ws.cell(row=total_row, column=4, value=total_tp).font = total_font
+    ws.cell(row=total_row, column=5, value=total_fp).font = total_font
+    ws.cell(row=total_row, column=6, value=total_fn).font = total_font
+    ws.cell(row=total_row, column=7, value=overall.precision).number_format = pct_fmt
+    ws.cell(row=total_row, column=7).font = total_font
+    ws.cell(row=total_row, column=8, value=overall.recall).number_format = pct_fmt
+    ws.cell(row=total_row, column=8).font = total_font
+    ws.cell(row=total_row, column=9, value=overall.f1).number_format = pct_fmt
+    ws.cell(row=total_row, column=9).font = total_font
+
+    for col in range(1, len(headers) + 1):
+        ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = 14
+
+    wb.save(output_path)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Evaluate LLM operation detection against ground-truth.",
@@ -154,6 +223,14 @@ def main(argv: list[str] | None = None) -> int:
         "--aiot",
         nargs="*",
         help="AIOT(s) to evaluate (default: all available ground-truth AIOTs)",
+    )
+    parser.add_argument(
+        "--xlsx",
+        type=Path,
+        nargs="?",
+        const=None,
+        default=False,
+        help="Export results to XLSX (optional path; default: eval_<model>_<date>.xlsx)",
     )
     parser.add_argument(
         "-v",
@@ -175,6 +252,7 @@ def main(argv: list[str] | None = None) -> int:
     _LOGGER.info(f"AIOTs: {', '.join(aiots)}")
 
     total_tp, total_fp, total_fn = 0, 0, 0
+    results: list[AiotResult] = []
 
     for aiot in aiots:
         _LOGGER.info(f"\n{'=' * 50}")
@@ -190,6 +268,8 @@ def main(argv: list[str] | None = None) -> int:
 
         tp, fp, fn = compare_operations(detected_keys, gt_keys)
         scores = compute_scores(tp, fp, fn)
+
+        results.append(AiotResult(aiot, len(gt_keys), len(detected_keys), tp, fp, fn, scores))
 
         print(f"\n--- {aiot} ---")
         print(f"  Ground-truth: {len(gt_keys)}  |  Detected: {len(detected_keys)}")
@@ -210,6 +290,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Precision: {overall.precision:.3f}")
     print(f"  Recall:    {overall.recall:.3f}")
     print(f"  F1:        {overall.f1:.3f}")
+
+    if args.xlsx is not False:
+        xlsx_path = args.xlsx
+        if xlsx_path is None:
+            ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+            xlsx_path = _PROJECT_ROOT / f"eval_{model_key}_{ts}.xlsx"
+        _write_xlsx(results, overall, total_tp, total_fp, total_fn, model_key, xlsx_path)
+        print(f"\nResults exported to {xlsx_path}")
 
     return 0
 
