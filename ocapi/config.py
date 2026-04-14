@@ -121,7 +121,17 @@ class LLMConfig(BaseSettings):
         description="OpenAI endpoint URL",
     )
 
-    @field_validator("piag_api_key", "mistral_api_key", "openai_api_key")
+    # Google API (optional)
+    google_api_key: str | None = Field(
+        default=None,
+        description="API key for Google (Gemini)",
+    )
+    google_api_url: str = Field(
+        default="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        description="Google Gemini endpoint URL (OpenAI-compatible)",
+    )
+
+    @field_validator("piag_api_key", "mistral_api_key", "openai_api_key", "google_api_key")
     @classmethod
     def validate_api_key(cls, v: str | None) -> str | None:
         """Validate that API keys are not empty when provided."""
@@ -129,7 +139,7 @@ class LLMConfig(BaseSettings):
             raise ValueError("API key cannot be empty")
         return v
 
-    @field_validator("piag_api_url", "mistral_api_url", "openai_api_url")
+    @field_validator("piag_api_url", "mistral_api_url", "openai_api_url", "google_api_url")
     @classmethod
     def validate_api_url(cls, v: str) -> str:
         """Validate that the URL is well-formed."""
