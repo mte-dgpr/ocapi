@@ -308,6 +308,139 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
     assert "MAIN B" not in html
 
 
+def test_make_permit_other_includes_modifying_arretes_with_operation_messages() -> None:
+    """Modifying arrêtés appear with operation result messages in source articles."""
+    ap_initial = _make_testing_arrete_file(
+        arrete_id="2020-01-01",
+        aiot="0001",
+        filename="ap_initial",
+        html=(
+            '<html><body data-arretify_version="0.1.0"><main data-spec="main">'
+            "</main></body></html>"
+        ),
+    )
+    modifying = _make_testing_arrete_file(
+        arrete_id="2022-01-01",
+        aiot="0001",
+        filename="modifying",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <div data-spec="identification">ID MOD</div>
+ <div data-spec="arrete_title">TITLE MOD</div>
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><p>Source article</p></section>
+ </main>
+</body></html>
+""",
+    )
+    op = Operation(
+        id="op-1",
+        source_id=NodeId(arrete_id="2022-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
+        operation_type=OperationType.REPLACE,
+    )
+    history: ArticleHistory = {
+        NodeId(arrete_id="2020-01-01", article_id="3"): [
+            {"version": 0, "content": "old", "operation_id": None},
+            {"version": 1, "content": "new", "operation_id": "op-1"},
+        ],
+    }
+
+    html = make_permit_other([ap_initial, modifying], [op], history=history)
+
+    assert 'data-spec="permit_modifying"' in html
+    assert "ID MOD" in html
+    assert "TITLE MOD" in html
+    assert "Opération de consolidation résolue" in html
+    assert "l'article 3 de l'arrêté 2020-01-01" in html
+
+
+def test_make_permit_other_shows_unresolved_message_for_failed_operation() -> None:
+    """Unresolved operations get a reason in source article messages."""
+    ap_initial = _make_testing_arrete_file(
+        arrete_id="2020-01-01",
+        aiot="0001",
+        filename="ap_initial",
+        html=(
+            '<html><body data-arretify_version="0.1.0"><main data-spec="main">'
+            "</main></body></html>"
+        ),
+    )
+    modifying = _make_testing_arrete_file(
+        arrete_id="2022-01-01",
+        aiot="0001",
+        filename="modifying",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <div data-spec="identification">ID MOD</div>
+ <div data-spec="arrete_title">TITLE MOD</div>
+ <main data-spec="main">
+  <section data-spec="section" data-number="2"><p>Source</p></section>
+ </main>
+</body></html>
+""",
+    )
+    op = Operation(
+        id="op-err",
+        source_id=NodeId(arrete_id="2022-01-01", article_id="2"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="5"),
+        operation_type=OperationType.REMOVE,
+    )
+    history: ArticleHistory = {
+        NodeId(arrete_id="2020-01-01", article_id="5"): [
+            {"version": 0, "content": "old", "operation_id": None},
+            {
+                "version": 1,
+                "content": "old",
+                "operation_id": "op-err",
+                "status_code": StatusCode.ERROR_FINDING_SUBTARGET,
+            },
+        ],
+    }
+
+    html = make_permit_other([ap_initial, modifying], [op], history=history)
+
+    assert "Opération de consolidation non résolue" in html
+    assert "l'article 5 de l'arrêté 2020-01-01" in html
+    assert "sous-cible" in html
+
+
+def test_make_permit_other_skips_abrogated_modifying_arrete() -> None:
+    """Abrogated modifying arrêtés are not displayed."""
+    ap_initial = _make_testing_arrete_file(
+        arrete_id="2020-01-01",
+        aiot="0001",
+        filename="ap_initial",
+        html=(
+            '<html><body data-arretify_version="0.1.0"><main data-spec="main">'
+            "</main></body></html>"
+        ),
+    )
+    abrogated = _make_testing_arrete_file(
+        arrete_id="2022-01-01",
+        aiot="0001",
+        filename="abrogated",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><p>Gone</p></section>
+ </main>
+</body></html>
+""",
+        status=False,
+    )
+    op = Operation(
+        id="op-1",
+        source_id=NodeId(arrete_id="2022-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+    )
+
+    html = make_permit_other([ap_initial, abrogated], [op], history={})
+
+    assert html == ""
+
+
 def test_make_section_version_sets_default_attrs_when_article_not_in_history() -> None:
     section = BeautifulSoup(
         '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
@@ -620,7 +753,7 @@ def test_step_rendering_returns_permis(
 
     mock_content.assert_called_once_with(history, arretes, operations)
     mock_header.assert_called_once_with(arretes)
-    mock_other.assert_called_once_with(arretes, operations=operations)
+    mock_other.assert_called_once_with(arretes, operations=operations, history=history)
 
     assert isinstance(result, Permis)
     assert result.header == "<header/>"
