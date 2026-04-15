@@ -33,18 +33,7 @@ Le pipeline OCAPI se décompose en 4 étapes principales :
 
 ### Filtrage des articles superflus
 
-Lors du rendering, les articles dont le titre correspond exactement (comparaison insensible à la casse et aux accents) à l'un des titres suivants sont automatiquement exclus du permis consolidé :
-
-- MODIFICATIONS ET COMPLÉMENTS APPORTÉS AUX PRESCRIPTIONS DES ACTES ANTÉRIEURS
-- MODALITÉS D'EXÉCUTION
-- FRAIS
-- SANCTIONS
-- DIFFUSION
-- TRANSMISSION À L'EXPLOITANT
-- EXÉCUTION
-- DÉLAIS ET VOIES DE RECOURS
-
-Les articles retirés sont tracés dans les logs (`INFO`). Le module correspondant est `ocapi/step_rendering/article_filter.py`.
+Lors du rendering, les articles dont le titre correspond exactement (comparaison insensible à la casse et aux accents) à un titre qui n'intéresse pas la consolidation (e.g. frais, publication, sanctions…) sont automatiquement exclus du permis consolidé.
 
 ## 📦 Installation
 
