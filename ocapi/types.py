@@ -201,6 +201,46 @@ class OperationType(Enum):
     REPLACE = "REPLACE"
 
 
+STATUS_CODE_MESSAGES: dict[StatusCode, str] = {
+    StatusCode.ERROR_EXTRACTING_OPERAND: (
+        "Le contenu de l'opération n'a pas pu être extrait de l'arrêté modificatif"
+    ),
+    StatusCode.ERROR_EXTRACTING_TARGET: (
+        "L'article cible de l'opération n'a pas pu être extrait de l'arrêté concerné"
+    ),
+    StatusCode.ERROR_FINDING_SUBTARGET: (
+        "La sous-cible de l'opération n'a pas pu être trouvée dans l'article cible"
+    ),
+    StatusCode.COMPLEX_SUBTARGET: (
+        "La sous-cible de l'opération est trop complexe pour être résolue automatiquement"
+    ),
+    StatusCode.PROPAGATED_ERROR: (
+        "Une erreur sur une opération précédente empêche l'application de cette opération"
+    ),
+}
+
+DEFAULT_STATUS_CODE_MESSAGE = "Opération non résolue automatiquement"
+
+
+def status_code_reason(status_code: "StatusCode | None") -> str | None:
+    """Return the human-readable reason for a non-resolved *status_code*.
+
+    Returns ``None`` for ``RESOLVED`` or ``None`` inputs (no error to display).
+    """
+    if status_code is None or status_code == StatusCode.RESOLVED:
+        return None
+    return STATUS_CODE_MESSAGES.get(status_code, DEFAULT_STATUS_CODE_MESSAGE)
+
+
+def operation_type_label(operation_type: "OperationType") -> str:
+    """Return a French label for the given operation type."""
+    if operation_type == OperationType.REPLACE:
+        return "modification"
+    if operation_type == OperationType.REMOVE:
+        return "abrogation"
+    return "ajout"
+
+
 class RawOperationType(Enum):
     ADD = "ADD"
     REMOVE = "REMOVE"

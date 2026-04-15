@@ -33,39 +33,11 @@ from ocapi.types import (
     SubTargetType,
     article_display_number,
     article_id_sort_tuple,
+    operation_type_label,
+    status_code_reason,
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-_STATUS_CODE_MESSAGES: dict[StatusCode, str] = {
-    StatusCode.ERROR_EXTRACTING_OPERAND: (
-        "Le contenu de l'opération n'a pas pu être extrait de l'arrêté modificatif"
-    ),
-    StatusCode.ERROR_EXTRACTING_TARGET: (
-        "L'article cible de l'opération n'a pas pu être extrait de l'arrêté concerné"
-    ),
-    StatusCode.ERROR_FINDING_SUBTARGET: (
-        "La sous-cible de l'opération n'a pas pu être trouvée dans l'article"
-    ),
-    StatusCode.COMPLEX_SUBTARGET: (
-        "La sous-cible de l'opération est trop complexe pour être résolue automatiquement"
-    ),
-    StatusCode.PROPAGATED_ERROR: (
-        "Une erreur sur une opération précédente empêche l'application de cette opération"
-    ),
-}
-
-_DEFAULT_STATUS_CODE_MESSAGE = "Opération non résolue automatiquement"
-
-
-def _status_code_reason(status_code: StatusCode | None) -> str | None:
-    """Return the human-readable reason for a non-resolved *status_code*.
-
-    Returns ``None`` for ``RESOLVED`` or ``None`` inputs (no error to display).
-    """
-    if status_code is None or status_code == StatusCode.RESOLVED:
-        return None
-    return _STATUS_CODE_MESSAGES.get(status_code, _DEFAULT_STATUS_CODE_MESSAGE)
 
 
 def make_permit_content(
@@ -285,25 +257,19 @@ def _build_section_history_html(
     last_status_code = last_version.get("status_code")
     last_operation_id = last_version.get("operation_id")
     last_operation = operation_by_id.get(str(last_operation_id)) if last_operation_id else None
-    last_reason = _status_code_reason(last_status_code)
+    last_reason = status_code_reason(last_status_code)
     if last_operation and last_reason is not None:
         last_text = (
-            f"Opération non résolue {_operation_label(last_operation)} de l'article "
-            f"{last_operation.source_id.article_id} de l'arrêté "
+            f"Opération non résolue {operation_type_label(last_operation.operation_type)} "
+            f"de l'article {last_operation.source_id.article_id} de l'arrêté "
             f"{last_operation.source_id.arrete_id}"
             f" (raison : {last_reason})"
         )
     elif last_operation:
-        last_operation_label = (
-            "modification"
-            if last_operation.operation_type == OperationType.REPLACE
-            else (
-                "abrogation" if last_operation.operation_type == OperationType.REMOVE else "ajout"
-            )
-        )
         last_text = (
             "Version actuelle après "
-            f"{last_operation_label} par l'article {last_operation.source_id.article_id} "
+            f"{operation_type_label(last_operation.operation_type)} "
+            f"par l'article {last_operation.source_id.article_id} "
             f"de l'arrêté {last_operation.source_id.arrete_id}"
         )
     else:
@@ -315,19 +281,20 @@ def _build_section_history_html(
         status_code = version.get("status_code")
         operation_id = version.get("operation_id")
         operation = operation_by_id.get(str(operation_id)) if operation_id else None
-        reason = _status_code_reason(status_code)
+        reason = status_code_reason(status_code)
         if index == 0 and not operation:
             text = "Version de l'arrêté initial"
         elif operation and reason is not None:
             text = (
-                f"Opération non résolue {_operation_label(operation)} de l'article "
+                f"Opération non résolue "
+                f"{operation_type_label(operation.operation_type)} de l'article "
                 f"{operation.source_id.article_id} de l'arrêté {operation.source_id.arrete_id}"
                 f" (raison : {reason})"
             )
         elif operation:
-            operation_label = _operation_label(operation)
             text = (
-                f"Version après {operation_label} par l'article "
+                f"Version après {operation_type_label(operation.operation_type)} "
+                f"par l'article "
                 f"{operation.source_id.article_id} de l'arrêté {operation.source_id.arrete_id}"
             )
         else:
@@ -400,11 +367,3 @@ def _is_abrogated(
     if sub_target.type != SubTargetType.FULL_SECTION:
         return False
     return sub_target.description in _FULL_REMOVAL_DESCRIPTIONS
-
-
-def _operation_label(operation: Operation) -> str:
-    return (
-        "modification"
-        if operation.operation_type == OperationType.REPLACE
-        else ("abrogation" if operation.operation_type == OperationType.REMOVE else "ajout")
-    )
