@@ -121,6 +121,16 @@ class LLMConfig(BaseSettings):
         description="OpenAI endpoint URL",
     )
 
+    # Anthropic API (optional)
+    anthropic_api_key: str | None = Field(
+        default=None,
+        description="API key for Anthropic",
+    )
+    anthropic_api_url: str = Field(
+        default="https://api.anthropic.com/v1/messages",
+        description="Anthropic endpoint URL",
+    )
+
     # Google API (optional)
     google_api_key: str | None = Field(
         default=None,
@@ -131,7 +141,9 @@ class LLMConfig(BaseSettings):
         description="Google Gemini endpoint URL (OpenAI-compatible)",
     )
 
-    @field_validator("piag_api_key", "mistral_api_key", "openai_api_key", "google_api_key")
+    @field_validator(
+        "piag_api_key", "mistral_api_key", "openai_api_key", "anthropic_api_key", "google_api_key"
+    )
     @classmethod
     def validate_api_key(cls, v: str | None) -> str | None:
         """Validate that API keys are not empty when provided."""
@@ -139,7 +151,9 @@ class LLMConfig(BaseSettings):
             raise ValueError("API key cannot be empty")
         return v
 
-    @field_validator("piag_api_url", "mistral_api_url", "openai_api_url", "google_api_url")
+    @field_validator(
+        "piag_api_url", "mistral_api_url", "openai_api_url", "anthropic_api_url", "google_api_url"
+    )
     @classmethod
     def validate_api_url(cls, v: str) -> str:
         """Validate that the URL is well-formed."""
@@ -335,6 +349,10 @@ class AppConfig(BaseSettings):
             data["llm"]["mistral_api_key"] = "***MASKED***"
         if data.get("llm", {}).get("openai_api_key"):
             data["llm"]["openai_api_key"] = "***MASKED***"
+        if data.get("llm", {}).get("anthropic_api_key"):
+            data["llm"]["anthropic_api_key"] = "***MASKED***"
+        if data.get("llm", {}).get("google_api_key"):
+            data["llm"]["google_api_key"] = "***MASKED***"
         return data
 
 
