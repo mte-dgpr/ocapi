@@ -210,6 +210,8 @@ def _provider_api_config(provider: str) -> tuple[str | None, str]:
         return settings.llm.mistral_api_key, str(settings.llm.mistral_api_url)
     if provider == "openai":
         return settings.llm.openai_api_key, str(settings.llm.openai_api_url)
+    if provider == "google":
+        return settings.llm.google_api_key, str(settings.llm.google_api_url)
     raise LLMConfigError(f"Unsupported LLM provider: {provider}")
 
 
@@ -242,6 +244,14 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
         if model.temperature is not None:
             payload["temperature"] = model.temperature
         return payload
+
+    if model.provider == "google":
+        return {
+            "model": model.model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+            "n": 1,
+        }
 
     raise LLMConfigError(f"Unsupported LLM provider: {model.provider}")
 

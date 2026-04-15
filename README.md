@@ -35,8 +35,9 @@ Le pipeline OCAPI se décompose en 4 étapes principales :
 
 ### Prérequis
 
-- Python 3.10+
+- Python 3.12+
 - pip
+- [Arrêtify](https://github.com/mte-dgpr/arretify) (installé automatiquement)
 
 ### Installation standard
 
@@ -48,11 +49,11 @@ cd ocapi
 # Créer un environnement virtuel
 
 # Windows
-py -3.10 -m venv venv
+py -3.12 -m venv venv
 .\venv\Scripts\Activate.ps1
 
 # Linux
-python3.10 -m venv venv
+python3.12 -m venv venv
 source venv/bin/activate
 
 # Installer OCAPI

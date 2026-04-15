@@ -38,11 +38,19 @@ LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 # Supported Arrêtify version
 # OCAPI relies on the semantic HTML format produced by Arrêtify.
-# Only version 0.1.X is currently supported (0.1.0, 0.1.1, etc.)
+# The supported major.minor must match the installed arretify package.
 # Different major/minor versions may introduce breaking changes to the HTML format
 # (data-spec attributes, CSS classes, document structure).
-SUPPORTED_ARRETIFY_VERSION = "0.1.X"
-SUPPORTED_ARRETIFY_VERSION_PATTERN = r"^0\.1\.\d+$"
+try:
+    from importlib.metadata import version as _pkg_version
+
+    _ARRETIFY_VERSION = _pkg_version("arretify")
+    _major, _minor, *_ = _ARRETIFY_VERSION.split(".")
+    SUPPORTED_ARRETIFY_VERSION = f"{_major}.{_minor}.X"
+    SUPPORTED_ARRETIFY_VERSION_PATTERN = rf"^{_major}\.{_minor}\.\d+$"
+except Exception:
+    SUPPORTED_ARRETIFY_VERSION = "0.1.X"
+    SUPPORTED_ARRETIFY_VERSION_PATTERN = r"^0\.1\.\d+$"
 
 
 class FullSectionName(str, Enum):
@@ -113,7 +121,17 @@ class LLMConfig(BaseSettings):
         description="OpenAI endpoint URL",
     )
 
-    @field_validator("piag_api_key", "mistral_api_key", "openai_api_key")
+    # Google API (optional)
+    google_api_key: str | None = Field(
+        default=None,
+        description="API key for Google (Gemini)",
+    )
+    google_api_url: str = Field(
+        default="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        description="Google Gemini endpoint URL (OpenAI-compatible)",
+    )
+
+    @field_validator("piag_api_key", "mistral_api_key", "openai_api_key", "google_api_key")
     @classmethod
     def validate_api_key(cls, v: str | None) -> str | None:
         """Validate that API keys are not empty when provided."""
@@ -121,7 +139,7 @@ class LLMConfig(BaseSettings):
             raise ValueError("API key cannot be empty")
         return v
 
-    @field_validator("piag_api_url", "mistral_api_url", "openai_api_url")
+    @field_validator("piag_api_url", "mistral_api_url", "openai_api_url", "google_api_url")
     @classmethod
     def validate_api_url(cls, v: str) -> str:
         """Validate that the URL is well-formed."""
