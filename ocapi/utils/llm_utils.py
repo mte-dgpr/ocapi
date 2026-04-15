@@ -629,7 +629,7 @@ def query_llm_for_subtarget(
         operand_block = f"\n\nNouveau contenu à intégrer :\n\n{operand}"
 
     preamble = (
-        f"{source_block}Vous aidez à consolider des arrêtés ICPE."
+        f"Vous aidez à consolider des arrêtés ICPE."
         f" Vous recevez l'article **cible**{article_label} en HTML."
     )
     output_instruction = (
@@ -650,7 +650,7 @@ def query_llm_for_subtarget(
 
         {target_content}
 
-        Description du sous-emplacement à remplacer :
+        {source_block}Description du sous-emplacement à remplacer :
 
         {sub_target}{operand_block}
         """
@@ -668,7 +668,7 @@ def query_llm_for_subtarget(
 
         {target_content}
 
-        Description de l'emplacement d'insertion :
+        {source_block}Description de l'emplacement d'insertion :
 
         {sub_target}{operand_block}
         """
@@ -686,7 +686,7 @@ def query_llm_for_subtarget(
 
         {target_content}
 
-        Description du segment à supprimer :
+        {source_block}Description du segment à supprimer :
 
         {sub_target}
         """
