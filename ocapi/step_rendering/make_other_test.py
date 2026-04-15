@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from ocapi.step_rendering.make_other import has_not_out_ops, make_permit_other
 from ocapi.types import ArreteFile, ArticleHistory, NodeId, Operation, OperationType, StatusCode
@@ -114,7 +114,8 @@ def test_make_permit_other_includes_modifying_arretes_with_operation_messages() 
     # Message should appear after the title, not at the end
     soup = BeautifulSoup(html, "html.parser")
     section = soup.find("section", attrs={"data-spec": "section"})
-    children = [c for c in section.children if getattr(c, "name", None)]
+    assert section is not None
+    children = [c for c in section.children if isinstance(c, Tag) and c.name]
     assert children[0].name == "h3"
     assert children[1].get("data-spec") == "operation_result"
 
