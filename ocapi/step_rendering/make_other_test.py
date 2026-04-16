@@ -18,7 +18,7 @@
 #
 from bs4 import BeautifulSoup, Tag
 
-from ocapi.step_rendering.make_other import has_not_out_ops, make_permit_other
+from ocapi.step_rendering.make_other import has_unresolved_or_zero_ops, make_permit_other
 from ocapi.types import ArreteFile, ArticleHistory, NodeId, Operation, OperationType, StatusCode
 
 
@@ -73,7 +73,7 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
     assert "ID COMPLEMENT A" in html
     assert "TITLE COMPLEMENT A" in html
     assert "MAIN A" in html
-    assert "MAIN B" not in html
+    assert "MAIN B" in html
 
 
 def test_make_permit_other_includes_modifying_arretes_with_operation_messages() -> None:
@@ -255,18 +255,18 @@ def test_target_new_article_strips_prefix() -> None:
 
 
 # ---------------------------------------------------------------------------
-# has_not_out_ops
+# has_unresolved_or_zero_ops
 # ---------------------------------------------------------------------------
 
 
-def test_has_not_out_ops_returns_true_without_operation() -> None:
+def test_has_unresolved_or_zero_ops_returns_true_without_operation() -> None:
     arrete_file = _make_arrete(
         "2021-01-01", '<html><body data-arretify_version="0.1.0"></body></html>'
     )
-    assert has_not_out_ops(arrete_file, []) is True
+    assert has_unresolved_or_zero_ops(arrete_file, []) is True
 
 
-def test_has_not_out_ops_returns_true_when_operations_apply_to_other_arrete() -> None:
+def test_has_unresolved_or_zero_ops_returns_true_when_operations_apply_to_other_arrete() -> None:
     arrete_file = _make_arrete(
         "2021-01-01", '<html><body data-arretify_version="0.1.0"></body></html>'
     )
@@ -278,31 +278,59 @@ def test_has_not_out_ops_returns_true_when_operations_apply_to_other_arrete() ->
             operation_type=OperationType.REPLACE,
         )
     ]
-    assert has_not_out_ops(arrete_file, operations) is True
+    assert has_unresolved_or_zero_ops(arrete_file, operations) is True
 
 
-def test_has_not_out_ops_returns_false_with_multiple_operations() -> None:
-    arrete_file = _make_arrete(
-        "2021-01-01", '<html><body data-arretify_version="0.1.0"></body></html>'
-    )
-    operations = [
+def test_returns_true_with_unresolved_outgoing_ops() -> None:
+    arrete = _make_arrete("2021-01-01", _EMPTY_AP)
+    ops = [
         Operation(
             id="op-1",
-            source_id=NodeId(arrete_id="2020-01-01", article_id="1"),
-            target_id=NodeId(arrete_id="2019-01-01", article_id="1"),
-            operation_type=OperationType.REPLACE,
-        ),
-        Operation(
-            id="op-2",
             source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
             target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
             operation_type=OperationType.ADD,
         ),
+    ]
+    assert has_unresolved_or_zero_ops(arrete, ops) is True
+
+
+def test_returns_false_when_all_outgoing_ops_resolved() -> None:
+    arrete = _make_arrete("2021-01-01", _EMPTY_AP)
+    ops = [
         Operation(
-            id="op-3",
+            id="op-1",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
+            operation_type=OperationType.REPLACE,
+            status_code=StatusCode.RESOLVED,
+        ),
+        Operation(
+            id="op-2",
             source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
             target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
             operation_type=OperationType.REMOVE,
+            status_code=StatusCode.RESOLVED,
         ),
     ]
-    assert has_not_out_ops(arrete_file, operations) is False
+    assert has_unresolved_or_zero_ops(arrete, ops) is False
+
+
+def test_returns_true_when_some_ops_have_errors() -> None:
+    arrete = _make_arrete("2021-01-01", _EMPTY_AP)
+    ops = [
+        Operation(
+            id="op-1",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
+            operation_type=OperationType.REPLACE,
+            status_code=StatusCode.RESOLVED,
+        ),
+        Operation(
+            id="op-2",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
+            operation_type=OperationType.ADD,
+            status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
+        ),
+    ]
+    assert has_unresolved_or_zero_ops(arrete, ops) is True

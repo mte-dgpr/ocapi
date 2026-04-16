@@ -29,11 +29,12 @@ def step_resolution(
     arrete_files: list[ArreteFile],
     *,
     enable_llm: bool = True,
-) -> tuple[ArticleHistory, list[ArreteFile]]:
+) -> tuple[ArticleHistory, list[ArreteFile], list[Operation]]:
     """Build the article history by applying the detected operations.
 
     Builds the operations graph, then applies each operation in chronological
-    order. Updates the status of abrogated arrêtés.
+    order. Updates the status of abrogated arrêtés and writes back the
+    resolved ``status_code`` onto each operation.
 
     Parameters
     ----------
@@ -52,13 +53,25 @@ def step_resolution(
         indexed by ``NodeId(arrete_id, article_id)``.
     list[ArreteFile]
         Updated arrêtés (``status`` set to ``False`` for abrogated ones).
+    list[Operation]
+        Operations with their resolved ``status_code``.
     """
     _LOGGER.info(f"Resolution: {len(operations)} operation(s) to process")
     operations_graph, arrete_files, skipped_ops_graph = build_graph(operations, arrete_files)
-    history, skipped_ops_apply = apply_all_ops(
+    history, skipped_ops_apply, resolved_status = apply_all_ops(
         operations_graph,
         arrete_files,
         enable_llm=enable_llm,
     )
+
+    updated_ops = [
+        (
+            op.model_copy(update={"status_code": resolved_status[op.id]})
+            if op.id in resolved_status
+            else op
+        )
+        for op in operations
+    ]
+
     _LOGGER.info(f"Resolution: {len(history)} article(s) in history")
-    return history, arrete_files
+    return history, arrete_files, updated_ops

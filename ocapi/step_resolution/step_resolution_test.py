@@ -35,9 +35,9 @@ def test_step_resolution_returns_history_and_arretes(
     fake_history: ArticleHistory = {NodeId(arrete_id="2020-01-01", article_id="1"): []}
     fake_arretes = cast(list[ArreteFile], [MagicMock(id="2020-01-01")])
     mock_build_graph.return_value = (MagicMock(), fake_arretes, [])
-    mock_apply_all_ops.return_value = (fake_history, [])
+    mock_apply_all_ops.return_value = (fake_history, [], {})
 
-    history, arretes = step_resolution([], fake_arretes)
+    history, arretes, _ops = step_resolution([], fake_arretes)
 
     mock_build_graph.assert_called_once_with([], fake_arretes)
     mock_apply_all_ops.assert_called_once()
@@ -52,9 +52,9 @@ def test_step_resolution_empty_history(
     mock_apply_all_ops: MagicMock,
 ) -> None:
     mock_build_graph.return_value = (MagicMock(), [], [])
-    mock_apply_all_ops.return_value = ({}, [])
+    mock_apply_all_ops.return_value = ({}, [], {})
 
-    history, arretes = step_resolution([], cast(list[ArreteFile], []))
+    history, arretes, _ops = step_resolution([], cast(list[ArreteFile], []))
 
     assert history == {}
     assert arretes == []
@@ -95,7 +95,7 @@ def test_step_resolution_replace_all_marks_target_arrete_abrogated() -> None:
         ),
     ]
 
-    history, updated_arrete_files = step_resolution(operations, arrete_files)
+    history, updated_arrete_files, _ops = step_resolution(operations, arrete_files)
 
     arrete_2020 = next(af for af in updated_arrete_files if af.id == "2020-04-20")
     assert arrete_2020.status is False
