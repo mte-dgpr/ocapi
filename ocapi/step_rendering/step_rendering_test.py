@@ -57,6 +57,7 @@ def _make_testing_arrete_file(
     filename: str,
     html: str,
     status: bool = True,
+    file_type: FileType | None = None,
 ) -> ArreteFile:
     return ArreteFile(
         id=arrete_id,
@@ -64,6 +65,7 @@ def _make_testing_arrete_file(
         filename=filename,
         soup=BeautifulSoup(html, "html.parser"),
         status=status,
+        file_type=file_type,
     )
 
 
@@ -462,8 +464,8 @@ def test_make_permit_content_prefers_last_ap_autorisation_as_initial() -> None:
  </main>
 </body></html>
 """,
+        file_type=FileType.AP_COMPLEMENTAIRE,
     )
-    ap_complement_old.file_type = FileType.AP_COMPLEMENTAIRE
 
     ap_refonte = _make_testing_arrete_file(
         arrete_id="2022-01-01",
@@ -476,8 +478,8 @@ def test_make_permit_content_prefers_last_ap_autorisation_as_initial() -> None:
  </main>
 </body></html>
 """,
+        file_type=FileType.AP_AUTORISATION,
     )
-    ap_refonte.file_type = FileType.AP_AUTORISATION
 
     history: ArticleHistory = {}
     html = make_permit_content(
