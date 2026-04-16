@@ -27,6 +27,7 @@ from ocapi.types import (
     ArreteFile,
     ArticleHistory,
     ArticleVersion,
+    FileType,
     NodeId,
     Operation,
     OperationType,
@@ -41,6 +42,21 @@ from ocapi.types import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _select_initial_ap(arrete_files: list[ArreteFile]) -> ArreteFile:
+    """Pick the arrêté to use as the consolidation base.
+
+    Prefers the most recent non-abrogated AP_AUTORISATION (typically the
+    latest refonte).  Falls back to the first non-abrogated arrêté.
+    """
+    active = [af for af in arrete_files if af.status]
+    ap_autorisations = [af for af in active if af.file_type == FileType.AP_AUTORISATION]
+    if ap_autorisations:
+        return ap_autorisations[-1]
+    if active:
+        return active[0]
+    return arrete_files[0]
+
+
 def make_permit_content(
     history: ArticleHistory, arrete_files: list[ArreteFile], operations: list[Operation]
 ) -> str:
@@ -51,8 +67,7 @@ def make_permit_content(
     2. For each article of that AP, applies the latest version from history
     3. Returns the consolidated HTML (without header)
     """
-    # Retrieve the first non-abrogated AP (refonte: initial arrêté may have status=False)
-    ap_initial = next((af for af in arrete_files if af.status), arrete_files[0])
+    ap_initial = _select_initial_ap(arrete_files)
     ap_initial_id = ap_initial.id
 
     # Clone the soup to avoid mutating the original
