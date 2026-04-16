@@ -443,6 +443,7 @@ def _apply_single_edge(
 
         creation = _is_new_article_full_section_add(op)
 
+        # Retrieve current content (latest version) of the target article
         if tgt not in history:
             if not creation:
                 initial_content = subG.nodes[tgt].get("content", "")
@@ -461,9 +462,13 @@ def _apply_single_edge(
         else:
             current_content = history[tgt][-1]["content"]
 
+        # HTML of the source article (arrêté modifiant), for LLM consolidation prompts.
         raw_src = subG.nodes[src].get("content", "") or ""
         source_html = raw_src if isinstance(raw_src, str) else str(raw_src)
 
+        # Propagate an earlier error unless the operation is unambiguous
+        # (i.e. it replaces/removes the full article and does not rely on
+        # the current — potentially corrupted — content).
         previous_status = history[tgt][-1].get("status_code") if tgt in history else None
         previous_has_error = previous_status is not None and previous_status != StatusCode.RESOLVED
 

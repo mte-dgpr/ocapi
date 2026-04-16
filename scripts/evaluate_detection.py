@@ -37,6 +37,9 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
+from openpyxl import Workbook  # noqa: E402
+from openpyxl.styles import Alignment, Font, PatternFill  # noqa: E402
+
 from ocapi.step_chunking.step_chunking import step_chunking  # noqa: E402
 from ocapi.step_detection import step_detection as step_detection_module  # noqa: E402
 from ocapi.step_detection.step_detection import step_detection  # noqa: E402
@@ -59,20 +62,20 @@ _VALID_OP_TYPES = {"ADD", "REPLACE", "REMOVE"}
 
 # Cost per 1M tokens (USD): {model_id: (input_cost, output_cost)}
 _COST_PER_1M_TOKENS: dict[str, tuple[float, float]] = {
-    "mistral-medium-latest": (2.00, 5.50),
-    "mistral-large-latest": (2.00, 6.00),
+    "mistral-medium-latest": (0.40, 2.00),
+    "mistral-large-latest": (0.50, 1.50),
     "gpt-4o": (2.50, 10.00),
     "gpt-5": (1.25, 10.00),
-    "gpt-5-mini": (0.25, 1.00),
-    "gpt-5-nano": (0.05, 0.20),
+    "gpt-5-mini": (0.25, 2.00),
+    "gpt-5-nano": (0.05, 0.40),
     "gpt-5.4": (2.50, 15.00),
-    "gpt-5.4-mini": (0.25, 1.00),
-    "gpt-5.4-nano": (0.05, 0.20),
+    "gpt-5.4-mini": (0.75, 4.50),
+    "gpt-5.4-nano": (0.20, 1.25),
     "claude-sonnet-4-20250514": (3.00, 15.00),
     "claude-haiku-4-20250414": (0.80, 4.00),
     "claude-opus-4-6": (5.00, 25.00),
-    "gemini-3.1-flash-lite-preview": (0.00, 0.00),
-    "gemini-3.1-pro-preview": (0.00, 0.00),
+    "gemini-3.1-flash-lite-preview": (0.25, 1.50),
+    "gemini-3.1-pro-preview": (4.00, 18.00),
 }
 
 
@@ -196,8 +199,6 @@ def _write_xlsx(
     model_key: str,
     output_path: Path,
 ) -> None:
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Font, PatternFill
 
     wb = Workbook()
     ws = wb.active
