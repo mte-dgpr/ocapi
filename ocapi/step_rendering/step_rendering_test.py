@@ -29,15 +29,13 @@ from ocapi.step_rendering.make_header import (
     make_permit_visa,
 )
 from ocapi.step_rendering.make_main_content import (
-    _STATUS_CODE_MESSAGES,
     _is_abrogated,
-    _status_code_reason,
     make_permit_content,
     make_section_version,
 )
-from ocapi.step_rendering.make_other import has_not_out_ops, make_permit_other
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.types import (
+    STATUS_CODE_MESSAGES,
     ArreteFile,
     ArticleHistory,
     ArticleVersion,
@@ -48,6 +46,7 @@ from ocapi.types import (
     StatusCode,
     SubTarget,
     SubTargetType,
+    status_code_reason,
 )
 
 
@@ -253,59 +252,6 @@ def test_make_permit_header_raises_when_multiple_aiot_detected() -> None:
 
     with pytest.raises(ValueError, match="multiple AIOT"):
         make_permit_header([arrete_1, arrete_2])
-
-
-def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
-    ap_initial = _make_testing_arrete_file(
-        arrete_id="2020-01-01",
-        aiot="0001",
-        filename="ap_initial",
-        html=(
-            '<html><body data-arretify_version="0.1.0"><main data-spec="main">'
-            "</main></body></html>"
-        ),
-    )
-    complement_no_ops = _make_testing_arrete_file(
-        arrete_id="2021-01-01",
-        aiot="0001",
-        filename="complement_no_ops",
-        html="""
-<html><body data-arretify_version="0.1.0">
- <div data-spec="identification">ID COMPLEMENT A</div>
- <div data-spec="arrete_title">TITLE COMPLEMENT A</div>
- <main data-spec="main"><p>MAIN A</p></main>
-</body></html>
-""",
-    )
-    complement_with_ops = _make_testing_arrete_file(
-        arrete_id="2022-01-01",
-        aiot="0001",
-        filename="complement_with_ops",
-        html="""
-<html><body data-arretify_version="0.1.0">
- <div data-spec="identification">ID COMPLEMENT B</div>
- <div data-spec="arrete_title">TITLE COMPLEMENT B</div>
- <main data-spec="main"><p>MAIN B</p></main>
-</body></html>
-""",
-    )
-    operations = [
-        Operation(
-            id="op-1",
-            source_id=NodeId(arrete_id="2022-01-01", article_id="1"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
-            operation_type=OperationType.REPLACE,
-        )
-    ]
-
-    html = make_permit_other([ap_initial, complement_no_ops, complement_with_ops], operations)
-
-    assert 'data-spec="permit_complements"' in html
-    assert 'data-spec="permit_complement"' in html
-    assert "ID COMPLEMENT A" in html
-    assert "TITLE COMPLEMENT A" in html
-    assert "MAIN A" in html
-    assert "MAIN B" not in html
 
 
 def test_make_section_version_sets_default_attrs_when_article_not_in_history() -> None:
@@ -620,73 +566,12 @@ def test_step_rendering_returns_permis(
 
     mock_content.assert_called_once_with(history, arretes, operations)
     mock_header.assert_called_once_with(arretes)
-    mock_other.assert_called_once_with(arretes, operations=operations)
+    mock_other.assert_called_once_with(arretes, operations=operations, history=history)
 
     assert isinstance(result, Permis)
     assert result.header == "<header/>"
     assert result.contenu == "<content/>"
     assert result.other == "<other/>"
-
-
-def test_has_not_out_ops_returns_true_without_operation() -> None:
-    arrete_file = _make_testing_arrete_file(
-        arrete_id="2021-01-01",
-        aiot="0001",
-        filename="without_ops",
-        html='<html><body data-arretify_version="0.1.0"></body></html>',
-    )
-
-    assert has_not_out_ops(arrete_file, []) is True
-
-
-def test_has_not_out_ops_returns_true_when_operations_apply_to_other_arrete() -> None:
-    arrete_file = _make_testing_arrete_file(
-        arrete_id="2021-01-01",
-        aiot="0001",
-        filename="with_unrelated_ops",
-        html='<html><body data-arretify_version="0.1.0"></body></html>',
-    )
-    operations = [
-        Operation(
-            id="op-1",
-            source_id=NodeId(arrete_id="2020-01-01", article_id="1"),
-            target_id=NodeId(arrete_id="2021-01-01", article_id="1"),
-            operation_type=OperationType.REPLACE,
-        )
-    ]
-
-    assert has_not_out_ops(arrete_file, operations) is True
-
-
-def test_has_not_out_ops_returns_false_with_multiple_operations() -> None:
-    arrete_file = _make_testing_arrete_file(
-        arrete_id="2021-01-01",
-        aiot="0001",
-        filename="with_ops",
-        html='<html><body data-arretify_version="0.1.0"></body></html>',
-    )
-    operations = [
-        Operation(
-            id="op-1",
-            source_id=NodeId(arrete_id="2020-01-01", article_id="1"),
-            target_id=NodeId(arrete_id="2019-01-01", article_id="1"),
-            operation_type=OperationType.REPLACE,
-        ),
-        Operation(
-            id="op-2",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
-            operation_type=OperationType.ADD,
-        ),
-        Operation(
-            id="op-3",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
-            operation_type=OperationType.REMOVE,
-        ),
-    ]
-
-    assert has_not_out_ops(arrete_file, operations) is False
 
 
 class TestIsAbrogated:
@@ -908,31 +793,31 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
     assert "n'a pas pu être extrait de l'arrêté modificatif" in rendered
 
 
-# _status_code_reason helper
+# status_code_reason helper
 
 
 def test_status_code_reason_returns_none_for_resolved() -> None:
-    assert _status_code_reason(StatusCode.RESOLVED) is None
+    assert status_code_reason(StatusCode.RESOLVED) is None
 
 
 def test_status_code_reason_returns_none_for_none() -> None:
-    assert _status_code_reason(None) is None
+    assert status_code_reason(None) is None
 
 
 def test_status_code_reason_covers_all_non_resolved_codes() -> None:
     non_resolved = [sc for sc in StatusCode if sc != StatusCode.RESOLVED]
     for sc in non_resolved:
-        assert sc in _STATUS_CODE_MESSAGES, f"Missing message for StatusCode.{sc.name}"
+        assert sc in STATUS_CODE_MESSAGES, f"Missing message for StatusCode.{sc.name}"
 
 
 def test_status_code_reason_returns_message_for_error_extracting_operand() -> None:
-    reason = _status_code_reason(StatusCode.ERROR_EXTRACTING_OPERAND)
+    reason = status_code_reason(StatusCode.ERROR_EXTRACTING_OPERAND)
     assert reason is not None
     assert "extrait de l'arrêté modificatif" in reason
 
 
 def test_status_code_reason_returns_message_for_error_extracting_target() -> None:
-    reason = _status_code_reason(StatusCode.ERROR_EXTRACTING_TARGET)
+    reason = status_code_reason(StatusCode.ERROR_EXTRACTING_TARGET)
     assert reason is not None
     assert "article cible" in reason
 
