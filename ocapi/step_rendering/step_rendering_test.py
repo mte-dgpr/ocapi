@@ -39,6 +39,7 @@ from ocapi.types import (
     ArreteFile,
     ArticleHistory,
     ArticleVersion,
+    FileType,
     NodeId,
     Operation,
     OperationType,
@@ -446,6 +447,47 @@ def test_make_permit_content_starts_from_first_non_abrogated_arrete() -> None:
     assert "Article 1 refonte" in html
     assert "Article 2 refonte" in html
     assert "Article 1 ancien" not in html
+
+
+def test_make_permit_content_prefers_last_ap_autorisation_as_initial() -> None:
+    """When an old complementary AP comes first, the latest AP_AUTORISATION is used."""
+    ap_complement_old = _make_testing_arrete_file(
+        arrete_id="2018-01-01",
+        aiot="0001",
+        filename="ap_complement_old",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><p>Old complement</p></section>
+ </main>
+</body></html>
+""",
+    )
+    ap_complement_old.file_type = FileType.AP_COMPLEMENTAIRE
+
+    ap_refonte = _make_testing_arrete_file(
+        arrete_id="2022-01-01",
+        aiot="0001",
+        filename="ap_refonte",
+        html="""
+<html><body data-arretify_version="0.1.0">
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><p>Refonte content</p></section>
+ </main>
+</body></html>
+""",
+    )
+    ap_refonte.file_type = FileType.AP_AUTORISATION
+
+    history: ArticleHistory = {}
+    html = make_permit_content(
+        history=history,
+        arrete_files=[ap_complement_old, ap_refonte],
+        operations=[],
+    )
+
+    assert "Refonte content" in html
+    assert "Old complement" not in html
 
 
 def test_make_permit_content_renders_full_main_with_section_versions() -> None:
