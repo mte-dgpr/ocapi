@@ -22,6 +22,7 @@ import logging
 from bs4 import BeautifulSoup, Tag
 
 from ocapi.config import FullSectionName
+from ocapi.step_rendering.article_filter import filter_superfluous_sections
 from ocapi.types import (
     ArreteFile,
     ArticleHistory,
@@ -64,8 +65,11 @@ def make_permit_content(
 
     # Find all sections (articles) in the main element
     sections = main.find_all("section", attrs={"data-spec": "section"})
+    filter_superfluous_sections(sections)
     operation_by_id = {operation.id: operation for operation in operations}
 
+    # Re-query after filtering (decomposed sections are gone from the tree)
+    sections = main.find_all("section", attrs={"data-spec": "section"})
     for section in sections:
         article_id = section.get("data-number")
         if not article_id or not isinstance(article_id, str):

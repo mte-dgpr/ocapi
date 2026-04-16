@@ -31,6 +31,10 @@ Le pipeline OCAPI se décompose en 4 étapes principales :
 3. **Resolution** : Résout les conflits et construit l'historique des versions
 4. **Rendering** : Génère le permis consolidé HTML final
 
+### Filtrage des articles superflus
+
+Lors du rendering, les articles dont le titre correspond exactement (comparaison insensible à la casse et aux accents) à un titre qui n'intéresse pas la consolidation (e.g. frais, publication, sanctions…) sont automatiquement exclus du permis consolidé.
+
 ## 📦 Installation
 
 ### Prérequis

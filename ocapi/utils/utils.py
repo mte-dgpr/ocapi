@@ -33,6 +33,15 @@ def make_id(counter: IdCounter) -> str:
     return str(counter.value)
 
 
+def strip_accents(text: str) -> str:
+    """Remove diacritical marks (é→e, à→a, …)."""
+    return unicodedata.normalize("NFD", text).encode("ascii", "ignore").decode("ascii")
+
+
+def normalize_section_title(text: str) -> str:
+    return re.sub(r"\s+", " ", strip_accents(text)).strip().lower()
+
+
 def minify_html_fragment(html: str) -> str:
     """Light minification and Unicode normalisation for an HTML fragment.
 
