@@ -389,6 +389,8 @@ def _article_version_to_json_dict(version: ArticleVersion) -> dict[str, Any]:
         "content": version["content"],
         "operation_id": version["operation_id"],
     }
+    if "title" in version:
+        out["title"] = version["title"]
     if "status_code" in version:
         out["status_code"] = version["status_code"].value
     return out

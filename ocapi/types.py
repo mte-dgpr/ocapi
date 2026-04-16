@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Optional, TypedDict
 
+import roman
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, field_validator
 from typing_extensions import NotRequired
@@ -36,7 +37,7 @@ AiotId = str
 ImageMap = Dict[str, str]  # mapping token -> original src
 
 
-_NUMERIC_ID_PATTERN = re.compile(r"^\d+(\.\d+)*$")
+_NUMERIC_ID_PATTERN = re.compile(r"^\d+([.\-]\d+)*$")
 
 
 def parse_article_id(article_id: str) -> str:
@@ -77,10 +78,29 @@ def article_display_number(article_id: str) -> str:
     return article_id
 
 
+def _parse_segment(token: str) -> int:
+    """Convert a single article-id segment to an integer for sorting.
+
+    Tries, in order: plain integer, Roman numeral, single letter A–H.
+    Falls back to a high sentinel so unknown tokens sort last.
+    """
+    try:
+        return int(token)
+    except ValueError:
+        pass
+    try:
+        return int(roman.fromRoman(token.upper()))
+    except roman.InvalidRomanNumeralError:
+        pass
+    if len(token) == 1 and "A" <= token.upper() <= "H":
+        return ord(token.upper()) - ord("A") + 1
+    return 999_999
+
+
 def article_id_sort_tuple(article_id: str) -> tuple[int, ...]:
     """Lexicographic order key for dotted article ids (e.g. ``4.1`` < ``4.2`` < ``10``)."""
     s = article_display_number(article_id)
-    return tuple(int(x) for x in s.split("."))
+    return tuple(_parse_segment(tok) for tok in re.split(r"[.\-]", s))
 
 
 def parse_arrete_id(v: str) -> str:
@@ -187,6 +207,7 @@ class StatusCode(str, Enum):
 
 class ArticleVersion(TypedDict):
     version: int
+    title: Content
     content: Content
     operation_id: str | None
     status_code: NotRequired[StatusCode]

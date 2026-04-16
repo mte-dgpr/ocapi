@@ -22,6 +22,7 @@ import logging
 from bs4 import BeautifulSoup, Tag
 
 from ocapi.config import FullSectionName
+from ocapi.exceptions import InvalidArticleIdError
 from ocapi.step_rendering.article_filter import filter_superfluous_sections
 from ocapi.types import (
     ArreteFile,
@@ -201,9 +202,19 @@ def make_section_version(
     - data-is_modified
     - data-date_version
     """
-    key = NodeId(arrete_id=ap_initial_id, article_id=article_id)
-
     section["data-spec"] = "section_version"
+
+    try:
+        key = NodeId(arrete_id=ap_initial_id, article_id=article_id)
+    except (InvalidArticleIdError, ValueError):
+        _LOGGER.info(
+            "Skipping section with non-standard article_id=%r (arrêté %s)",
+            article_id,
+            ap_initial_id,
+        )
+        section["data-is_modified"] = "false"
+        section["data-date_version"] = ap_initial_id
+        return
 
     if key not in history:
         section["data-is_modified"] = "false"
@@ -224,8 +235,12 @@ def make_section_version(
     section["data-is_modified"] = "true"
     section["data-date_version"] = latest_date_version
 
-    section_title = section.find(attrs={"data-spec": "section_title"})
-    title_html = str(section_title) if section_title else ""
+    latest_title = latest_version.get("title", "")
+    if latest_title:
+        title_html = latest_title
+    else:
+        section_title = section.find(attrs={"data-spec": "section_title"})
+        title_html = str(section_title) if section_title else ""
 
     section.clear()
 

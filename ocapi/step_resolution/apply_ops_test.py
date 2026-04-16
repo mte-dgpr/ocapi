@@ -149,10 +149,10 @@ def test_apply_subgraph_operations(
     )
     history: ArticleHistory = {
         NodeId(arrete_id="1980-01-01", article_id="1"): [
-            {"version": 0, "content": "original content", "operation_id": None}
+            {"version": 0, "title": "", "content": "original content", "operation_id": None}
         ],
         NodeId(arrete_id="1980-01-01", article_id="2"): [
-            {"version": 0, "content": "original content 2", "operation_id": None}
+            {"version": 0, "title": "", "content": "original content 2", "operation_id": None}
         ],
     }
     output_history, _skipped = apply_subgraph_operations(G, history)
@@ -189,7 +189,7 @@ def test_complex_subtarget_on_operation_still_applies_replace(mock_replace: mock
         ),
     )
     history: ArticleHistory = {
-        target: [{"version": 0, "content": "content v0", "operation_id": None}],
+        target: [{"version": 0, "title": "", "content": "content v0", "operation_id": None}],
     }
     output_history, skipped_ops = apply_subgraph_operations(G, history)
 
@@ -222,6 +222,7 @@ def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) ->
         target: [
             {
                 "version": 0,
+                "title": "",
                 "content": "content v0",
                 "operation_id": None,
                 "status_code": StatusCode.RESOLVED,
@@ -234,6 +235,7 @@ def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) ->
     mock_replace.assert_not_called()
     assert output_history[target][-1] == {
         "version": 1,
+        "title": "",
         "content": "content v0",
         "operation_id": "op-unresolved",
         "status_code": StatusCode.ERROR_EXTRACTING_OPERAND,
@@ -262,13 +264,14 @@ def test_subtarget_not_found_sets_error_finding_subtarget(mock_replace: mock.Moc
     )
 
     history: ArticleHistory = {
-        target: [{"version": 0, "content": "content v0", "operation_id": None}]
+        target: [{"version": 0, "title": "", "content": "content v0", "operation_id": None}]
     }
     output_history, skipped_ops = apply_subgraph_operations(G, history)
 
     assert skipped_ops == []
     assert output_history[target][-1] == {
         "version": 1,
+        "title": "",
         "content": "content v0",
         "operation_id": "op-subtarget-missing",
         "status_code": StatusCode.ERROR_FINDING_SUBTARGET,
@@ -301,6 +304,7 @@ def test_initialize_history_from_graph_node_content(mock_replace: mock.Mock) -> 
     assert skipped_ops == []
     assert output_history[target][0] == {
         "version": 0,
+        "title": "",
         "content": initial_content,
         "operation_id": None,
     }
@@ -347,16 +351,19 @@ def test_multiple_operations_same_target_preserve_single_initial_version(
     assert len(output_history[target]) == 3
     assert output_history[target][0] == {
         "version": 0,
+        "title": "",
         "content": initial_content,
         "operation_id": None,
     }
     assert output_history[target][1] == {
         "version": 1,
+        "title": "",
         "content": "updated once",
         "operation_id": "op-1",
     }
     assert output_history[target][2] == {
         "version": 2,
+        "title": "",
         "content": "updated twice",
         "operation_id": "op-2",
     }
@@ -475,7 +482,7 @@ def test_error_extracting_target_keeps_content_and_stores_status(
         ),
     )
     history: ArticleHistory = {
-        target: [{"version": 0, "content": "", "operation_id": None}],
+        target: [{"version": 0, "title": "", "content": "", "operation_id": None}],
     }
     output_history, skipped_ops = apply_subgraph_operations(G, history)
 
@@ -560,9 +567,10 @@ def test_propagated_error_when_previous_version_has_error(mock_replace: mock.Moc
 
     history: ArticleHistory = {
         target: [
-            {"version": 0, "content": "v0", "operation_id": None},
+            {"version": 0, "title": "", "content": "v0", "operation_id": None},
             {
                 "version": 1,
+                "title": "",
                 "content": "v0",
                 "operation_id": "op-prev",
                 "status_code": StatusCode.ERROR_EXTRACTING_OPERAND,
@@ -601,9 +609,10 @@ def test_propagated_error_chains_from_previous_propagated_error(mock_replace: mo
 
     history: ArticleHistory = {
         target: [
-            {"version": 0, "content": "v0", "operation_id": None},
+            {"version": 0, "title": "", "content": "v0", "operation_id": None},
             {
                 "version": 1,
+                "title": "",
                 "content": "v0",
                 "operation_id": "op-prev",
                 "status_code": StatusCode.PROPAGATED_ERROR,
@@ -640,9 +649,10 @@ def test_replace_all_bypasses_propagation(mock_replace: mock.Mock) -> None:
 
     history: ArticleHistory = {
         target: [
-            {"version": 0, "content": "v0", "operation_id": None},
+            {"version": 0, "title": "", "content": "v0", "operation_id": None},
             {
                 "version": 1,
+                "title": "",
                 "content": "v0",
                 "operation_id": "op-prev",
                 "status_code": StatusCode.ERROR_EXTRACTING_OPERAND,
@@ -688,9 +698,10 @@ def test_replace_all_with_extraction_error_records_own_error_not_propagated(
 
     history: ArticleHistory = {
         target: [
-            {"version": 0, "content": "v0", "operation_id": None},
+            {"version": 0, "title": "", "content": "v0", "operation_id": None},
             {
                 "version": 1,
+                "title": "",
                 "content": "v0",
                 "operation_id": "op-prev",
                 "status_code": StatusCode.ERROR_EXTRACTING_OPERAND,
@@ -727,9 +738,10 @@ def test_remove_all_bypasses_propagation(mock_remove: mock.Mock) -> None:
 
     history: ArticleHistory = {
         target: [
-            {"version": 0, "content": "v0", "operation_id": None},
+            {"version": 0, "title": "", "content": "v0", "operation_id": None},
             {
                 "version": 1,
+                "title": "",
                 "content": "v0",
                 "operation_id": "op-prev",
                 "status_code": StatusCode.ERROR_EXTRACTING_OPERAND,
@@ -811,85 +823,74 @@ def test_new_article_full_section_history_is_single_version_with_op_id() -> None
 
 
 def test_strip_duplicate_section_title_removes_matching_title() -> None:
-    target_content = (
-        '<section data-spec="section" data-number="1.1">'
-        "<h2>Article 1.1. Dispositions générales</h2>"
-        "<p>old content</p></section>"
-    )
+    target_title = "<h2>Article 1.1. Dispositions générales</h2>"
     operand = (
         '<section data-spec="section" data-number="1.1">'
         "<h2>Article 1.1. Dispositions générales</h2>"
         "<p>new content</p></section>"
     )
-    result = _strip_duplicate_section_title(operand, "1.1", target_content)
+    result = _strip_duplicate_section_title(operand, "1.1", target_title)
     assert "<h2>" not in result
     assert "<section" not in result
     assert "new content" in result
 
 
 def test_strip_duplicate_section_title_ignores_different_title() -> None:
-    target_content = (
-        '<section data-spec="section" data-number="1.1">'
-        "<h2>Article 1.1. Dispositions générales</h2>"
-        "<p>old</p></section>"
-    )
+    target_title = "<h2>Article 1.1. Dispositions générales</h2>"
     operand = (
         '<section data-spec="section" data-number="1.1">'
         "<h2>Article 1.1. Autre titre</h2>"
         "<p>new</p></section>"
     )
-    result = _strip_duplicate_section_title(operand, "1.1", target_content)
+    result = _strip_duplicate_section_title(operand, "1.1", target_title)
     assert "<h2>" in result
     assert "Autre titre" in result
 
 
 def test_strip_duplicate_section_title_ignores_no_section() -> None:
-    target_content = "<h2>Article 1.1. Titre</h2><p>old</p>"
+    target_title = "<h2>Article 1.1. Titre</h2>"
     operand = "<p>just content</p>"
-    result = _strip_duplicate_section_title(operand, "1.1", target_content)
+    result = _strip_duplicate_section_title(operand, "1.1", target_title)
     assert result == operand
 
 
 def test_strip_duplicate_section_title_ignores_different_data_number() -> None:
-    target_content = (
-        '<section data-spec="section" data-number="1.1">'
-        "<h2>Article 1.1. Titre</h2><p>old</p></section>"
-    )
+    target_title = "<h2>Article 1.1. Titre</h2>"
     operand = (
         '<section data-spec="section" data-number="2.3">'
         "<h2>Article 1.1. Titre</h2><p>new</p></section>"
     )
-    result = _strip_duplicate_section_title(operand, "1.1", target_content)
+    result = _strip_duplicate_section_title(operand, "1.1", target_title)
     assert "<h2>" in result
 
 
 def test_strip_duplicate_section_title_normalizes_whitespace() -> None:
-    target_content = (
-        '<section data-number="4.2"><h2>Article  4.2.  Émissions</h2><p>old</p></section>'
-    )
+    target_title = "<h2>Article  4.2.  Émissions</h2>"
     operand = '<section data-number="4.2"><h2>Article 4.2. Émissions</h2><p>new</p></section>'
-    result = _strip_duplicate_section_title(operand, "4.2", target_content)
+    result = _strip_duplicate_section_title(operand, "4.2", target_title)
     assert "<h2>" not in result
     assert "new" in result
 
 
 def test_strip_duplicate_section_title_applied_in_replace() -> None:
-    """Full integration: REPLACE + FULL_SECTION with duplicate title in operand."""
+    """Full integration: REPLACE + FULL_SECTION with duplicate title in operand.
+
+    Titles are stored separately, so the resolved content must not contain any heading.
+    """
     G = nx.MultiDiGraph()
     src = NodeId(arrete_id="2020-01-01", article_id="6")
     tgt = NodeId(arrete_id="2010-01-01", article_id="1.1.1.1")
-    target_html = (
-        '<section data-spec="section" data-number="1.1.1.1">'
-        "<h2>Article 1.1.1.1. Conditions</h2>"
-        "<p>old body</p></section>"
+    target_title = "<h2>Article 1.1.1.1. Conditions</h2>"
+    target_content = (
+        '<section data-spec="section" data-number="1.1.1.1">' "<p>old body</p></section>"
     )
     operand_html = (
         '<section data-spec="section" data-number="1.1.1.1">'
         "<h2>Article 1.1.1.1. Conditions</h2>"
         "<p>new body</p></section>"
     )
-    add_node(G, src, "<section>source</section>")
-    add_node(G, tgt, target_html)
+    add_node(G, src, node_content="<section>source</section>")
+    add_node(G, tgt, node_content=target_content, node_title=target_title)
     add_edge(
         G,
         Operation(
@@ -906,7 +907,9 @@ def test_strip_duplicate_section_title_applied_in_replace() -> None:
     assert skipped == []
     content = out[tgt][-1]["content"]
     titles = BeautifulSoup(content, "html.parser").find_all(["h1", "h2", "h3", "h4", "h5", "h6"])
-    assert (
-        len(titles) == 1
-    ), f"Expected 1 title, got {len(titles)}: {[t.get_text() for t in titles]}"
+    assert len(titles) == 0, (
+        f"Expected 0 titles in content (title stored separately), "
+        f"got {len(titles)}: {[t.get_text() for t in titles]}"
+    )
     assert "new body" in content
+    assert out[tgt][-1].get("title") == target_title

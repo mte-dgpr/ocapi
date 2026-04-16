@@ -100,6 +100,23 @@ def test_article_id_sort_tuple_orders_dotted_numbers() -> None:
     assert article_id_sort_tuple("NEW_ARTICLE:3.1") == article_id_sort_tuple("3.1")
 
 
+def test_article_id_sort_tuple_roman_numerals() -> None:
+    assert article_id_sort_tuple("IV") == (4,)
+    assert article_id_sort_tuple("III") < article_id_sort_tuple("IV")
+    assert article_id_sort_tuple("2.IX") == (2, 9)
+
+
+def test_article_id_sort_tuple_letters_a_to_h() -> None:
+    assert article_id_sort_tuple("A") == (1,)
+    assert article_id_sort_tuple("H") == (8,)
+    assert article_id_sort_tuple("3.B") == (3, 2)
+    assert article_id_sort_tuple("a") == (1,)
+
+
+def test_article_id_sort_tuple_unknown_falls_back_to_sentinel() -> None:
+    assert article_id_sort_tuple("ZZZ") == (999_999,)
+
+
 class TestParseArreteId:
 
     def test_valid_date(self) -> None:
