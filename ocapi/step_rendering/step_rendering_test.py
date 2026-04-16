@@ -796,27 +796,27 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
 # status_code_reason helper
 
 
-def teststatus_code_reason_returns_none_for_resolved() -> None:
+def test_status_code_reason_returns_none_for_resolved() -> None:
     assert status_code_reason(StatusCode.RESOLVED) is None
 
 
-def teststatus_code_reason_returns_none_for_none() -> None:
+def test_status_code_reason_returns_none_for_none() -> None:
     assert status_code_reason(None) is None
 
 
-def teststatus_code_reason_covers_all_non_resolved_codes() -> None:
+def test_status_code_reason_covers_all_non_resolved_codes() -> None:
     non_resolved = [sc for sc in StatusCode if sc != StatusCode.RESOLVED]
     for sc in non_resolved:
         assert sc in STATUS_CODE_MESSAGES, f"Missing message for StatusCode.{sc.name}"
 
 
-def teststatus_code_reason_returns_message_for_error_extracting_operand() -> None:
+def test_status_code_reason_returns_message_for_error_extracting_operand() -> None:
     reason = status_code_reason(StatusCode.ERROR_EXTRACTING_OPERAND)
     assert reason is not None
     assert "extrait de l'arrêté modificatif" in reason
 
 
-def teststatus_code_reason_returns_message_for_error_extracting_target() -> None:
+def test_status_code_reason_returns_message_for_error_extracting_target() -> None:
     reason = status_code_reason(StatusCode.ERROR_EXTRACTING_TARGET)
     assert reason is not None
     assert "article cible" in reason
