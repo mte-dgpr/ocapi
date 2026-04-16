@@ -233,12 +233,7 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
     subtarget_type = _ensure_subtarget_type(subtarget.type)
 
     if subtarget_type == SubTargetType.FULL_SECTION:
-        # Replace all content except the title (h1–h6)
-        # TODO: verify whether the title should be preserved
-        title = soup.find(["h1", "h2", "h3", "h4", "h5", "h6"])
         soup.clear()
-        if title:
-            soup.append(title)
         if hasattr(operand_fragment, "children"):
             children = list(operand_fragment.children)
         else:

@@ -29,7 +29,23 @@ from ocapi.types import (
     SubTargetType,
 )
 
-from .build_op_graph import _is_abrogation_arrete, build_graph
+from .build_op_graph import _is_abrogation_arrete, add_node, build_graph, update_node
+
+
+def test_update_node_sets_content_and_title() -> None:
+    import networkx as nx
+
+    G = nx.MultiDiGraph()
+    node = NodeId(arrete_id="2020-01-01", article_id="1")
+    add_node(G, node, node_content="<p>old</p>", node_title="<h2>Title</h2>")
+
+    update_node(G, node, node_content="<p>new</p>")
+    assert G.nodes[node]["content"] == "<p>new</p>"
+    assert G.nodes[node]["title"] == "<h2>Title</h2>"
+
+    update_node(G, node, node_title="<h2>New Title</h2>")
+    assert G.nodes[node]["content"] == "<p>new</p>"
+    assert G.nodes[node]["title"] == "<h2>New Title</h2>"
 
 
 def test_build_graph() -> None:

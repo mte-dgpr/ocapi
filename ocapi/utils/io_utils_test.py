@@ -260,8 +260,8 @@ class TestSaveHistory:
         node_id = NodeId(arrete_id="2020-01-01", article_id="1")
         history: ArticleHistory = {
             node_id: [
-                ArticleVersion(version=0, content="<p>original</p>", operation_id=None),
-                ArticleVersion(version=1, content="<p>modified</p>", operation_id="op1"),
+                ArticleVersion(version=0, title="", content="<p>original</p>", operation_id=None),
+                ArticleVersion(version=1, title="", content="<p>modified</p>", operation_id="op1"),
             ]
         }
         save_history(history, tmp_path)
@@ -276,10 +276,10 @@ class TestSaveHistory:
     def test_multiple_articles_are_all_saved(self, tmp_path: Path) -> None:
         history: ArticleHistory = {
             NodeId(arrete_id="2020-01-01", article_id="1"): [
-                ArticleVersion(version=0, content="A", operation_id=None)
+                ArticleVersion(version=0, title="", content="A", operation_id=None)
             ],
             NodeId(arrete_id="2020-01-01", article_id="2"): [
-                ArticleVersion(version=0, content="B", operation_id=None)
+                ArticleVersion(version=0, title="", content="B", operation_id=None)
             ],
         }
         save_history(history, tmp_path)
@@ -293,6 +293,7 @@ class TestSaveHistory:
             node_id: [
                 ArticleVersion(
                     version=0,
+                    title="",
                     content="<p>x</p>",
                     operation_id=None,
                     status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
@@ -501,12 +502,19 @@ def test_article_history_to_json_dict_matches_save_history_shape() -> None:
     node_id = NodeId(arrete_id="2020-01-01", article_id="1")
     v: ArticleVersion = {
         "version": 0,
+        "title": "",
         "content": "c",
         "operation_id": None,
         "status_code": StatusCode.RESOLVED,
     }
     assert article_history_to_json_dict({node_id: [v]}) == {
         "2020-01-01#1": [
-            {"version": 0, "content": "c", "operation_id": None, "status_code": "resolved"}
+            {
+                "version": 0,
+                "title": "",
+                "content": "c",
+                "operation_id": None,
+                "status_code": "resolved",
+            }
         ]
     }

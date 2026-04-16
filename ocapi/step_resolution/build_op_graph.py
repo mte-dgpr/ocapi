@@ -34,7 +34,12 @@ from ocapi.utils.logging_utils import get_logger
 _LOGGER = get_logger(__name__)
 
 
-def add_node(G: nx.MultiDiGraph, node_id: NodeId, node_content: Content | None = None) -> None:
+def add_node(
+    G: nx.MultiDiGraph,
+    node_id: NodeId,
+    node_content: Content | None = None,
+    node_title: Content | None = None,
+) -> None:
     """Add a node to the graph if it does not already exist.
 
     Parameters
@@ -44,15 +49,30 @@ def add_node(G: nx.MultiDiGraph, node_id: NodeId, node_content: Content | None =
     node_id : NodeId
         Identifier of the node to add.
     node_content : Content | None
-        Optional HTML content to attach to the node.
+        Optional HTML content to attach to the node (without title).
+    node_title : Content | None
+        Optional HTML of the section heading.
     """
     if not G.has_node(node_id):
-        node_data = {"content": node_content} if node_content is not None else {}
+        node_data: dict[str, Content] = {}
+        if node_content is not None:
+            node_data["content"] = node_content
+        if node_title is not None:
+            node_data["title"] = node_title
         G.add_node(node_id, **node_data)
 
 
-def update_node_content(G: nx.MultiDiGraph, node_id: NodeId, node_content: Content) -> None:
-    G.nodes[node_id]["content"] = node_content
+def update_node(
+    G: nx.MultiDiGraph,
+    node_id: NodeId,
+    node_content: Content | None = None,
+    node_title: Content | None = None,
+) -> None:
+    """Update an existing node's content and/or title."""
+    if node_content is not None:
+        G.nodes[node_id]["content"] = node_content
+    if node_title is not None:
+        G.nodes[node_id]["title"] = node_title
 
 
 def add_edge(G: nx.MultiDiGraph, operation: Operation) -> None:
@@ -77,15 +97,30 @@ def add_edge(G: nx.MultiDiGraph, operation: Operation) -> None:
     G.add_edge(operation.source_id, operation.target_id, **edge_data)
 
 
-def get_node_content(node: NodeId, soup: BeautifulSoup) -> str:
-    """Retrieve the HTML content of an article from its NodeId."""
+def split_section_title(section_html: str) -> Tuple[str, str]:
+    """Split section HTML into ``(title_html, content_html_without_title)``.
+
+    The title is the first ``h1``–``h6`` element found in the section.
+    """
+    section_soup = BeautifulSoup(section_html, "html.parser")
+    title_tag = section_soup.find(["h1", "h2", "h3", "h4", "h5", "h6"])
+    if title_tag is None:
+        return "", section_html
+    title_html = str(title_tag)
+    title_tag.decompose()
+    return title_html, str(section_soup)
+
+
+def get_node_content(node: NodeId, soup: BeautifulSoup) -> Tuple[str, str]:
+    """Retrieve the ``(title, content)`` of an article from its NodeId.
+
+    Title is the section heading (h1–h6), content is the section HTML without it.
+    """
     arrete_id, article_id = node.arrete_id, node.article_id
 
-    # Special case: NEW_ARTICLE (article does not yet exist, will be created by the operation)
     if article_id.startswith("NEW_ARTICLE"):
-        return ""
+        return "", ""
 
-    # If article_id starts with APPENDIX, look inside the appendix footer
     if article_id.startswith("APPENDIX"):
         article_id = article_id.split("APPENDIX:", 1)[1]
         appendix_tag = soup.select_one('footer[data-spec="appendix"]')
@@ -99,12 +134,12 @@ def get_node_content(node: NodeId, soup: BeautifulSoup) -> str:
                 raise SectionNotFoundError(
                     f"Section {article_id} not found in Appendix of arrete {arrete_id}"
                 )
-            return str(section_tag)
+            return split_section_title(str(section_tag))
 
     section_tag = soup.select_one(f'section[data-spec="section"][data-number="{article_id}"]')
     if section_tag is None:
         raise SectionNotFoundError(f"Section {article_id} not found in arrete {arrete_id}")
-    return str(section_tag)
+    return split_section_title(str(section_tag))
 
 
 def build_graph(
@@ -137,7 +172,7 @@ def build_graph(
                 continue
 
             try:
-                target_content = get_node_content(op.target_id, target_soup)
+                target_title, target_content = get_node_content(op.target_id, target_soup)
             except SectionNotFoundError:
                 _LOGGER.warning(
                     "Operation %s: target section %s not found — "
@@ -145,13 +180,13 @@ def build_graph(
                     op.id,
                     op.target_id,
                 )
-                target_content = ""
+                target_title, target_content = "", ""
                 op = op.model_copy(update={"status_code": StatusCode.ERROR_EXTRACTING_TARGET})
 
             source_soup = soups[op.source_id.arrete_id]
-            source_content = get_node_content(op.source_id, source_soup)
-            add_node(G, op.source_id, source_content)
-            add_node(G, op.target_id, target_content)
+            source_title, source_content = get_node_content(op.source_id, source_soup)
+            add_node(G, op.source_id, node_content=source_content, node_title=source_title)
+            add_node(G, op.target_id, node_content=target_content, node_title=target_title)
             add_edge(G, op)
         except Exception as e:
             error_msg = f"Operation {op.id} skipped: {str(e)}"

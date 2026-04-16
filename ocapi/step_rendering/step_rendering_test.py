@@ -278,6 +278,28 @@ def test_make_section_version_sets_default_attrs_when_article_not_in_history() -
     assert "Texte initial" in str(section)
 
 
+def test_make_section_version_skips_invalid_article_id() -> None:
+    """Non-standard article_id (e.g. containing spaces) is gracefully skipped."""
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="bad id!"><p>Content</p></section>',
+        "html.parser",
+    ).find("section")
+    assert section is not None
+
+    make_section_version(
+        section=section,
+        article_id="bad id!",
+        history={},
+        ap_initial_id="2020-01-01",
+        operation_by_id={},
+    )
+
+    assert section["data-spec"] == "section_version"
+    assert section["data-is_modified"] == "false"
+    assert section["data-date_version"] == "2020-01-01"
+    assert "Content" in str(section)
+
+
 def test_make_section_version_marks_removed_article() -> None:
     section = BeautifulSoup(
         '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',

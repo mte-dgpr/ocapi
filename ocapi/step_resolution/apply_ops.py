@@ -35,6 +35,7 @@ import networkx as nx
 from bs4 import BeautifulSoup
 
 from ocapi.exceptions import OperationError, SubtargetNotFoundError
+from ocapi.step_resolution.build_op_graph import split_section_title
 from ocapi.types import (
     ArreteFile,
     ArreteId,
@@ -143,14 +144,13 @@ def _normalize_title_text(text: str) -> str:
 
 
 def _strip_duplicate_section_title(
-    operand: str, target_data_number: str, target_content: str
+    operand: str, target_data_number: str, target_title_html: str
 ) -> str:
     """Remove section envelope and title from operand when they duplicate the target's.
 
-    When the detection step includes the section wrapper in the operand,
-    applying a REPLACE creates duplicate titles (the existing title is kept by
-    ``replace_subtarget`` and the operand adds another one).  This strips the
-    redundant ``<section>`` + title before application.
+    Titles are stored separately from content; this strips the redundant
+    ``<section>`` wrapper + heading from the operand so they don't leak into
+    the content.
     """
     operand_soup = BeautifulSoup(operand, "html.parser")
     section = operand_soup.find("section", attrs={"data-number": target_data_number})
@@ -161,8 +161,11 @@ def _strip_duplicate_section_title(
     if operand_title is None:
         return operand
 
-    target_soup = BeautifulSoup(target_content, "html.parser")
-    target_title = target_soup.find(["h1", "h2", "h3", "h4", "h5", "h6"])
+    if not target_title_html:
+        return operand
+
+    target_title_soup = BeautifulSoup(target_title_html, "html.parser")
+    target_title = target_title_soup.find(["h1", "h2", "h3", "h4", "h5", "h6"])
     if target_title is None:
         return operand
 
@@ -449,13 +452,14 @@ def apply_subgraph_operations(
                 if tgt not in history:
                     if not creation:
                         initial_content = subG.nodes[tgt].get("content", "")
-                        history[tgt] = [
-                            ArticleVersion(
-                                version=0,
-                                content=initial_content,
-                                operation_id=None,
-                            )
-                        ]
+                        initial_title = subG.nodes[tgt].get("title", "")
+                        version_0: ArticleVersion = ArticleVersion(
+                            version=0,
+                            title=initial_title,
+                            content=initial_content,
+                            operation_id=None,
+                        )
+                        history[tgt] = [version_0]
 
                 if tgt not in history:
                     current_content = subG.nodes[tgt].get("content", "") or ""
@@ -491,10 +495,15 @@ def apply_subgraph_operations(
                             article_status_code = op.status_code
                         elif op.operation_type == OperationType.REPLACE:
                             if op.operand:
+                                target_title_html = (
+                                    history[tgt][-1].get("title", "")
+                                    if tgt in history
+                                    else subG.nodes[tgt].get("title", "")
+                                )
                                 cleaned = _strip_duplicate_section_title(
                                     op.operand,
                                     article_display_number(op.target_id.article_id),
-                                    current_content,
+                                    target_title_html,
                                 )
                                 if cleaned != op.operand:
                                     op = op.model_copy(update={"operand": cleaned})
@@ -525,9 +534,11 @@ def apply_subgraph_operations(
                         article_status_code = StatusCode.ERROR_FINDING_SUBTARGET
 
                 if creation:
+                    created_title, created_content = split_section_title(new_content)
                     new_version = ArticleVersion(
                         version=0,
-                        content=new_content,
+                        title=created_title,
+                        content=created_content,
                         operation_id=op.id,
                     )
                     if article_status_code != StatusCode.RESOLVED:
@@ -535,9 +546,11 @@ def apply_subgraph_operations(
                     history[tgt] = [new_version]
                     continue
 
-                # Append the new version to the history
+                # Carry the title forward from the previous version
+                prev_title = history[tgt][-1]["title"]
                 new_version = ArticleVersion(
                     version=len(history[tgt]),
+                    title=prev_title,
                     content=new_content,
                     operation_id=op.id,
                 )
@@ -611,5 +624,6 @@ def build_next_subgraph(
         if node in history and len(history[node]) > 0:
             latest_version = history[node][-1]
             new_graph.nodes[node]["content"] = latest_version["content"]
+            new_graph.nodes[node]["title"] = latest_version["title"]
 
     return new_graph
