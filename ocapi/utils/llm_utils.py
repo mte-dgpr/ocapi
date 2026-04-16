@@ -210,6 +210,8 @@ def _provider_api_config(provider: str) -> tuple[str | None, str]:
         return settings.llm.mistral_api_key, str(settings.llm.mistral_api_url)
     if provider == "openai":
         return settings.llm.openai_api_key, str(settings.llm.openai_api_url)
+    if provider == "anthropic":
+        return settings.llm.anthropic_api_key, str(settings.llm.anthropic_api_url)
     if provider == "google":
         return settings.llm.google_api_key, str(settings.llm.google_api_url)
     raise LLMConfigError(f"Unsupported LLM provider: {provider}")
@@ -245,6 +247,14 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
             payload["temperature"] = model.temperature
         return payload
 
+    if model.provider == "anthropic":
+        return {
+            "model": model.model_name,
+            "max_tokens": 4096,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": model.temperature if model.temperature is not None else 0,
+        }
+
     if model.provider == "google":
         return {
             "model": model.model_name,
@@ -256,7 +266,13 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
     raise LLMConfigError(f"Unsupported LLM provider: {model.provider}")
 
 
-def _make_headers(api_key: str | None) -> dict[str, str]:
+def _make_headers(api_key: str | None, provider: str = "") -> dict[str, str]:
+    if provider == "anthropic":
+        return {
+            "x-api-key": api_key or "",
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
     return {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -335,7 +351,7 @@ def _execute_model_call(
 ) -> str:
     max_attempts = _to_int_or_default(strategy.get("max_attempts"), default=1, minimum=1)
     payload = _build_payload(model, prompt)
-    headers = _make_headers(model.api_key)
+    headers = _make_headers(model.api_key, model.provider)
 
     for attempt in range(1, max_attempts + 1):
         try:
@@ -349,11 +365,13 @@ def _execute_model_call(
             response.raise_for_status()
             data: Any = response.json()
             try:
+                if model.provider == "anthropic":
+                    return str(data["content"][0]["text"])
                 return str(data["choices"][0]["message"]["content"])
             except (TypeError, KeyError, IndexError) as exc:
                 _LOGGER.error(
                     f"Invalid LLM API response ({model.model_name}): "
-                    f"choices/message/content key not found. Raw response: {data}"
+                    f"unexpected response format. Raw response: {data}"
                 )
                 raise LLMResponseError("Invalid LLM response format") from exc
         except requests.exceptions.RequestException as exc:
