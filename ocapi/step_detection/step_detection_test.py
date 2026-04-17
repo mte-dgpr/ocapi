@@ -152,6 +152,45 @@ def test_convert_raw_operation_replace_all_refonte() -> None:
     assert operation.operand is None
 
 
+@patch("ocapi.step_detection.step_detection.parse_subtarget")
+def test_all_with_non_full_section_subtarget_sets_error(
+    mock_parse_subtarget: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """target_article=ALL with a COMPLEX sub-target → ERROR_EXTRACTING_TARGET."""
+    mock_parse_subtarget.return_value = SubTarget(
+        type=SubTargetType.COMPLEX, description="annexe 1"
+    )
+    raw_op = RawOperation(
+        operation_type=RawOperationType.REPLACE,
+        source_article="5",
+        target_arrete="2006-12-14",
+        target_article="ALL",
+        sub_target="annexe 1",
+    )
+    with caplog.at_level("WARNING"):
+        op = convert_raw_operation_to_operation("<section/>", raw_op, "2025-02-10", {})
+
+    assert op.status_code == StatusCode.ERROR_EXTRACTING_TARGET
+    assert any("not fully defined" in msg for msg in caplog.messages)
+
+
+def test_all_with_full_section_subtarget_converts_to_remove() -> None:
+    """target_article=ALL with FULL_SECTION sub-target is valid → REMOVE."""
+    raw_op = RawOperation(
+        operation_type=RawOperationType.REPLACE,
+        source_article="1",
+        target_arrete="2020-04-20",
+        target_article="ALL",
+        sub_target=None,
+    )
+    op = convert_raw_operation_to_operation("<section/>", raw_op, "2021-09-24", {})
+
+    assert op.operation_type == OperationType.REMOVE
+    assert op.status_code is None
+    assert op.operand is None
+
+
 def test_prompt_detection_includes_replace_all_schema() -> None:
     """The detection prompt must allow REPLACE with target_article ALL (refonte)."""
     html_block = "<html>test</html>"
