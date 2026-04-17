@@ -99,8 +99,8 @@ def test_make_permit_other_includes_modifying_arretes_with_operation_messages() 
     )
     history: ArticleHistory = {
         NodeId(arrete_id="2020-01-01", article_id="3"): [
-            {"version": 0, "content": "old", "operation_id": None},
-            {"version": 1, "content": "new", "operation_id": "op-1"},
+            {"version": 0, "title": "", "content": "old", "operation_id": None},
+            {"version": 1, "title": "", "content": "new", "operation_id": "op-1"},
         ],
     }
 
@@ -143,9 +143,10 @@ def test_make_permit_other_shows_unresolved_message_for_failed_operation() -> No
     )
     history: ArticleHistory = {
         NodeId(arrete_id="2020-01-01", article_id="5"): [
-            {"version": 0, "content": "old", "operation_id": None},
+            {"version": 0, "title": "", "content": "old", "operation_id": None},
             {
                 "version": 1,
+                "title": "",
                 "content": "old",
                 "operation_id": "op-err",
                 "status_code": StatusCode.ERROR_FINDING_SUBTARGET,
@@ -209,8 +210,8 @@ def test_target_all_shows_arrete_only() -> None:
     )
     history: ArticleHistory = {
         NodeId(arrete_id="2020-01-01", article_id="ALL"): [
-            {"version": 0, "content": "", "operation_id": None},
-            {"version": 1, "content": "x", "operation_id": "op-all"},
+            {"version": 0, "title": "", "content": "", "operation_id": None},
+            {"version": 1, "title": "", "content": "x", "operation_id": "op-all"},
         ],
     }
 
@@ -243,7 +244,7 @@ def test_target_new_article_strips_prefix() -> None:
     )
     history: ArticleHistory = {
         NodeId(arrete_id="2020-01-01", article_id="NEW_ARTICLE:4.1"): [
-            {"version": 0, "content": "new", "operation_id": "op-new"},
+            {"version": 0, "title": "", "content": "new", "operation_id": "op-new"},
         ],
     }
 
