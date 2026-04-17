@@ -239,7 +239,7 @@ STATUS_CODE_MESSAGES: dict[StatusCode, str] = {
     StatusCode.PROPAGATED_ERROR: (
         "Une erreur sur une opération précédente empêche l'application de cette opération"
     ),
-    StatusCode.DISABLED_LLM_CALL: ("La résolution des opérations complexes par LLM est désactivée"),
+    StatusCode.DISABLED_LLM_CALL: ("La résolution des opérations complexes par IA est désactivée"),
 }
 
 DEFAULT_STATUS_CODE_MESSAGE = "Opération non résolue automatiquement"

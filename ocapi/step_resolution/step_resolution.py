@@ -44,6 +44,14 @@ def step_resolution(
     enable_llm : bool
         When ``False``, complex sub-targets that require LLM consolidation
         are skipped with ``DISABLED_LLM_CALL`` instead of calling the LLM.
+
+    Returns
+    -------
+    ArticleHistory
+        Complete version history of each modified article,
+        indexed by ``NodeId(arrete_id, article_id)``.
+    list[ArreteFile]
+        Updated arrêtés (``status`` set to ``False`` for abrogated ones).
     """
     _LOGGER.info(f"Resolution: {len(operations)} operation(s) to process")
     operations_graph, arrete_files, skipped_ops_graph = build_graph(operations, arrete_files)
