@@ -823,6 +823,41 @@ def test_new_article_full_section_history_is_single_version_with_op_id() -> None
 
 
 # ---------------------------------------------------------------------------
+# enable_llm=False → DISABLED_LLM_CALL
+# ---------------------------------------------------------------------------
+
+
+def test_disabled_llm_returns_unchanged_content_and_status() -> None:
+    """Complex sub-targets return DISABLED_LLM_CALL when enable_llm=False."""
+    G = nx.MultiDiGraph()
+    source = NodeId(arrete_id="1981-01-01", article_id="2")
+    target = NodeId(arrete_id="1980-01-01", article_id="1")
+    add_node(G, source, "<section>source</section>")
+    add_node(G, target, "<section>target</section>")
+    add_edge(
+        G,
+        Operation(
+            id="op-complex-disabled",
+            source_id=source,
+            target_id=target,
+            operation_type=OperationType.REPLACE,
+            operand="<p>new</p>",
+            sub_target=SubTarget(type=SubTargetType.COMPLEX, description="ligne 3"),
+            status_code=StatusCode.COMPLEX_SUBTARGET,
+        ),
+    )
+    history: ArticleHistory = {
+        target: [{"version": 0, "title": "", "content": "content v0", "operation_id": None}],
+    }
+    output_history, skipped = apply_subgraph_operations(G, history, enable_llm=False)
+
+    assert skipped == []
+    last = output_history[target][-1]
+    assert last["content"] == "content v0"
+    assert last["status_code"] == StatusCode.DISABLED_LLM_CALL
+
+
+# ---------------------------------------------------------------------------
 # _strip_duplicate_section_title
 # ---------------------------------------------------------------------------
 

@@ -196,10 +196,27 @@ def apply_replace(
     Simple sub-targets are resolved via regex; complex or ambiguous ones fall
     back to the LLM.
 
+    Parameters
+    ----------
+    operation : Operation
+        REPLACE operation; must have both ``sub_target`` and ``operand``.
+    soup_input : Content | BeautifulSoup
+        Current HTML content of the target article.
+    source_content : str | None
+        Optional HTML of the source article (arrêté modifiant), passed to the LLM
+        when regex resolution fails or the sub-target is complex.
+    enable_llm : bool
+        When ``False``, return ``DISABLED_LLM_CALL`` instead of calling the LLM.
+
     Returns
     -------
     tuple[StatusCode, Content]
         Resolution status and HTML content after replacement.
+
+    Raises
+    ------
+    OperationError
+        If ``sub_target`` or ``operand`` is missing from the operation.
     """
     if operation.sub_target is None or operation.operand is None:
         raise OperationError("REPLACE operations require sub_target and operand.")
@@ -209,9 +226,11 @@ def apply_replace(
             modified_soup = replace_subtarget(soup, operation.sub_target, operation.operand)
             return StatusCode.RESOLVED, str(modified_soup)
         except ValueError:
+            # Ambiguity detected, fall back to LLM
             _llm_consolidation_log(operation, "replace")
     else:
         _llm_consolidation_log(operation, "replace")
+    # Complex or ambiguous case: use the LLM (or skip if disabled)
     if not enable_llm:
         return StatusCode.DISABLED_LLM_CALL, str(soup)
     prompt = query_llm_for_subtarget(
@@ -238,10 +257,26 @@ def apply_remove(
     Simple sub-targets are resolved via regex; complex or ambiguous ones fall
     back to the LLM.
 
+    Parameters
+    ----------
+    operation : Operation
+        REMOVE operation; must have ``sub_target``.
+    soup_input : Content | BeautifulSoup
+        Current HTML content of the target article.
+    source_content : str | None
+        Optional HTML of the source article (arrêté modifiant).
+    enable_llm : bool
+        When ``False``, return ``DISABLED_LLM_CALL`` instead of calling the LLM.
+
     Returns
     -------
     tuple[StatusCode, Content]
         Resolution status and HTML content after removal.
+
+    Raises
+    ------
+    OperationError
+        If ``sub_target`` is missing from the operation.
     """
     if operation.sub_target is None:
         raise OperationError("REMOVE operations require sub_target.")
@@ -255,6 +290,7 @@ def apply_remove(
             _llm_consolidation_log(operation, "remove")
     else:
         _llm_consolidation_log(operation, "remove")
+    # Complex or ambiguous case: use the LLM (or skip if disabled)
     if not enable_llm:
         return StatusCode.DISABLED_LLM_CALL, str(soup)
     prompt = query_llm_for_subtarget(
@@ -323,10 +359,26 @@ def apply_add(
     - Other simple sub-targets: insert operand after the matched fragment (regex).
     - ``COMPLEX`` sub-target: LLM-assisted insertion.
 
+    Parameters
+    ----------
+    operation : Operation
+        ADD operation; must have both ``sub_target`` and ``operand``.
+    soup_input : Content | BeautifulSoup
+        Current HTML content of the target article.
+    source_content : str | None
+        Optional HTML of the source article (arrêté modifiant).
+    enable_llm : bool
+        When ``False``, return ``DISABLED_LLM_CALL`` instead of calling the LLM.
+
     Returns
     -------
     tuple[StatusCode, Content]
         Resolution status and HTML content after insertion.
+
+    Raises
+    ------
+    OperationError
+        If ``sub_target`` or ``operand`` is missing from the operation.
     """
     if operation.operand is None:
         raise OperationError("ADD operations require operand.")
@@ -351,6 +403,7 @@ def apply_add(
         modified = insert_content_after_subtarget(soup, sub_target, operation.operand)
         return StatusCode.RESOLVED, str(modified)
 
+    # Complex sub-target: use the LLM (or skip if disabled)
     _llm_consolidation_log(operation, "add")
     if not enable_llm:
         return StatusCode.DISABLED_LLM_CALL, str(soup)
