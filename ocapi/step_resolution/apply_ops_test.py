@@ -118,9 +118,9 @@ def test_apply_subgraph_operations(
     Builds a sub-graph with a REPLACE and an ADD, mocks the application functions,
     and verifies that the history contains the contents returned by the mocks.
     """
-    mock_add.return_value = "new content after add"
-    mock_remove.return_value = ""
-    mock_replace.return_value = "new content after replace"
+    mock_add.return_value = (StatusCode.RESOLVED, "new content after add")
+    mock_remove.return_value = (StatusCode.RESOLVED, "")
+    mock_replace.return_value = (StatusCode.RESOLVED, "new content after replace")
 
     G = nx.MultiDiGraph()
     add_node(G, NodeId(arrete_id="1980-01-01", article_id="1"))
@@ -160,17 +160,17 @@ def test_apply_subgraph_operations(
     history_content_1 = output_history[NodeId(arrete_id="1980-01-01", article_id="1")][-1][
         "content"
     ]
-    assert history_content_1 == mock_replace.return_value
+    assert history_content_1 == mock_replace.return_value[1]
     history_content_2 = output_history[NodeId(arrete_id="1980-01-01", article_id="2")][-1][
         "content"
     ]
-    assert history_content_2 == mock_add.return_value
+    assert history_content_2 == mock_add.return_value[1]
 
 
 @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
 def test_complex_subtarget_on_operation_still_applies_replace(mock_replace: mock.Mock) -> None:
     """COMPLEX_SUBTARGET marks LLM consolidation; it must not block application."""
-    mock_replace.return_value = "consolidated"
+    mock_replace.return_value = (StatusCode.RESOLVED, "consolidated")
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1981-01-01", article_id="2")
     target = NodeId(arrete_id="1980-01-01", article_id="1")
@@ -280,7 +280,7 @@ def test_subtarget_not_found_sets_error_finding_subtarget(mock_replace: mock.Moc
 
 @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
 def test_initialize_history_from_graph_node_content(mock_replace: mock.Mock) -> None:
-    mock_replace.return_value = "updated content"
+    mock_replace.return_value = (StatusCode.RESOLVED, "updated content")
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1981-01-01", article_id="2")
     target = NodeId(arrete_id="1980-01-01", article_id="1")
@@ -315,7 +315,10 @@ def test_initialize_history_from_graph_node_content(mock_replace: mock.Mock) -> 
 def test_multiple_operations_same_target_preserve_single_initial_version(
     mock_replace: mock.Mock,
 ) -> None:
-    mock_replace.side_effect = ["updated once", "updated twice"]
+    mock_replace.side_effect = [
+        (StatusCode.RESOLVED, "updated once"),
+        (StatusCode.RESOLVED, "updated twice"),
+    ]
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1981-01-01", article_id="2")
     target = NodeId(arrete_id="1980-01-01", article_id="1")
@@ -380,9 +383,9 @@ def test_apply_all_operations(
     Builds a complete graph with 4 operations across 3 arrêtés and verifies
     that the final history contains multiple versions for each target article.
     """
-    mock_add.return_value = "new content after add"
-    mock_remove.return_value = ""
-    mock_replace.return_value = "new content after replace"
+    mock_add.return_value = (StatusCode.RESOLVED, "new content after add")
+    mock_remove.return_value = (StatusCode.RESOLVED, "")
+    mock_replace.return_value = (StatusCode.RESOLVED, "new content after replace")
 
     G = nx.MultiDiGraph()
     add_node(G, NodeId(arrete_id="1980-01-01", article_id="1"))
@@ -629,7 +632,7 @@ def test_propagated_error_chains_from_previous_propagated_error(mock_replace: mo
 @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
 def test_replace_all_bypasses_propagation(mock_replace: mock.Mock) -> None:
     """REPLACE FULL_SECTION is applied even when the previous version had an error."""
-    mock_replace.return_value = "replaced all content"
+    mock_replace.return_value = (StatusCode.RESOLVED, "replaced all content")
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1982-01-01", article_id="2")
     target = NodeId(arrete_id="1980-01-01", article_id="1")
@@ -719,7 +722,7 @@ def test_replace_all_with_extraction_error_records_own_error_not_propagated(
 @mock.patch("ocapi.step_resolution.apply_ops.apply_remove")
 def test_remove_all_bypasses_propagation(mock_remove: mock.Mock) -> None:
     """REMOVE FULL_SECTION is applied even when the previous version had an error."""
-    mock_remove.return_value = ""
+    mock_remove.return_value = (StatusCode.RESOLVED, "")
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1982-01-01", article_id="2")
     target = NodeId(arrete_id="1980-01-01", article_id="1")
@@ -766,7 +769,8 @@ def test_apply_add_full_section_new_article_wraps_operand() -> None:
         operand="<p>Corps neuf</p>",
         sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="contenu entier"),
     )
-    out = apply_add(op, BeautifulSoup("", "html.parser"))
+    status, out = apply_add(op, BeautifulSoup("", "html.parser"))
+    assert status == StatusCode.RESOLVED
     assert 'data-number="4.1"' in out
     assert "Corps neuf" in out
     assert 'data-spec="section"' in out
@@ -786,7 +790,8 @@ def test_apply_add_simple_inserts_after_table() -> None:
         operand="<p>Suite</p>",
         sub_target=SubTarget(type=SubTargetType.TABLEAU, position=None, description="le tableau"),
     )
-    out = apply_add(op, BeautifulSoup(html, "html.parser"))
+    status, out = apply_add(op, BeautifulSoup(html, "html.parser"))
+    assert status == StatusCode.RESOLVED
     assert out.index("<table") < out.index("Suite")
 
 

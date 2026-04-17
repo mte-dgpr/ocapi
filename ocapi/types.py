@@ -203,6 +203,7 @@ class StatusCode(str, Enum):
     COMPLEX_SUBTARGET = "complex_subtarget"
     ERROR_EXTRACTING_TARGET = "error_extracting_target"
     PROPAGATED_ERROR = "propagated_error"
+    DISABLED_LLM_CALL = "disabled_llm_call"
 
 
 class ArticleVersion(TypedDict):
@@ -238,6 +239,7 @@ STATUS_CODE_MESSAGES: dict[StatusCode, str] = {
     StatusCode.PROPAGATED_ERROR: (
         "Une erreur sur une opération précédente empêche l'application de cette opération"
     ),
+    StatusCode.DISABLED_LLM_CALL: ("La résolution des opérations complexes par LLM est désactivée"),
 }
 
 DEFAULT_STATUS_CODE_MESSAGE = "Opération non résolue automatiquement"

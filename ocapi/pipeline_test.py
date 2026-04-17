@@ -148,7 +148,7 @@ def test_run_pipeline_with_preloaded_operations(
     assert ops == preloaded
     assert mock_chunking.call_count == 0
     assert mock_detection.call_count == 0
-    mock_resolution.assert_called_once_with(preloaded, arretes)
+    mock_resolution.assert_called_once_with(preloaded, arretes, enable_llm=True)
 
 
 @patch("ocapi.pipeline.step_detection", return_value=[])

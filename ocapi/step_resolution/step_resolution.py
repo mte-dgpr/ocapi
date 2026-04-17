@@ -25,7 +25,10 @@ _LOGGER = get_logger(__name__)
 
 
 def step_resolution(
-    operations: list[Operation], arrete_files: list[ArreteFile]
+    operations: list[Operation],
+    arrete_files: list[ArreteFile],
+    *,
+    enable_llm: bool = True,
 ) -> tuple[ArticleHistory, list[ArreteFile]]:
     """Build the article history by applying the detected operations.
 
@@ -38,20 +41,16 @@ def step_resolution(
         Operations detected by ``step_detection``.
     arrete_files : list[ArreteFile]
         Available arrêtés, sorted chronologically.
-
-    Returns
-    -------
-    ArticleHistory
-        Complete version history of each modified article,
-        indexed by ``NodeId(arrete_id, article_id)``.
-    list[ArreteFile]
-        Updated arrêtés (``status`` set to ``False`` for abrogated ones).
+    enable_llm : bool
+        When ``False``, complex sub-targets that require LLM consolidation
+        are skipped with ``DISABLED_LLM_CALL`` instead of calling the LLM.
     """
     _LOGGER.info(f"Resolution: {len(operations)} operation(s) to process")
     operations_graph, arrete_files, skipped_ops_graph = build_graph(operations, arrete_files)
     history, skipped_ops_apply = apply_all_ops(
         operations_graph,
         arrete_files,
+        enable_llm=enable_llm,
     )
     _LOGGER.info(f"Resolution: {len(history)} article(s) in history")
     return history, arrete_files

@@ -31,6 +31,7 @@ def run_pipeline(
     start_date: str | None = None,
     enable_detection: bool = True,
     enable_rendering: bool = True,
+    enable_llm: bool = True,
     operations: list[Operation] | None = None,
 ) -> tuple[list[Operation], ArticleHistory, list[ArreteFile], Permis | None]:
     """Run the full OCAPI pipeline.
@@ -99,7 +100,7 @@ def run_pipeline(
     _LOGGER.info("STEP 3: RESOLUTION")
     _LOGGER.info("=" * 60)
 
-    history, arrete_files = step_resolution(ops, arrete_files)
+    history, arrete_files = step_resolution(ops, arrete_files, enable_llm=enable_llm)
     if history:
         _LOGGER.info(f"{len(history)} articles with history")
     else:
