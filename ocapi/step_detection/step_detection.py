@@ -36,6 +36,7 @@ from ocapi.types import (
     RawOperation,
     RawOperationType,
     StatusCode,
+    SubTargetType,
     parse_article_id,
 )
 from ocapi.utils.llm_utils import (
@@ -275,6 +276,22 @@ def convert_raw_operation_to_operation(
     raw_op_type = raw_operation.operation_type
     op_type_value = getattr(raw_op_type, "value", raw_op_type)
     op_type = OperationType(op_type_value)
+
+    # target_article=ALL with a non-FULL_SECTION sub-target is incoherent:
+    # the LLM tried to target something specific inside "all articles".
+    if raw_operation.target_article == "ALL" and sub_target is not None:
+        st = (
+            sub_target.type
+            if isinstance(sub_target.type, SubTargetType)
+            else SubTargetType(sub_target.type)
+        )
+        if st != SubTargetType.FULL_SECTION:
+            _LOGGER.warning(
+                f"Operation {operation_id}: target_article=ALL with "
+                f"sub_target={sub_target.type} is not fully defined "
+                f"(target_arrete={raw_operation.target_arrete})"
+            )
+            op_status_code = StatusCode.ERROR_EXTRACTING_TARGET
 
     # A full-arrêté REPLACE (target_article=ALL) is in practice an abrogation.
     if op_type == OperationType.REPLACE and raw_operation.target_article == "ALL":
