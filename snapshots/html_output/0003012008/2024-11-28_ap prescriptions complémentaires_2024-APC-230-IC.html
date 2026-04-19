@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2024-11-28_ap prescriptions complémentaires_2024-APC-230-IC.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DE LA MARNE
+Liberté
+Égalité
+Fraternité
+
+Direction régionale de l’environnement, de l’aménagement et du logement Grand Est
+Unité départementale de la Marne
+Direction départementale des territoires
+    </div>
+   </div>
+   <div>
+    AP n° 2024-APC-230-IC
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ PRÉFECTORAL COMPLÉMENTAIRE Établissement VEUVE CLICQUOT PONSARDIN à SAINT-LÉONARD, - installations de préparation et conditionnement de vins - installations, ouvrages, travaux et activités « Loi sur l’eau » SOCIÉTÉ MHCS ZAC de SAINT-LÉONARD 51500 SAINT-LÉONARD
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet de la Marne
+    </div>
+    <div>
+     Chevalier de la Légion d’Honneur
+    </div>
+    <div>
+     Officier de l’Ordre National du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l’environnement
+    </a>
+    , en particulier ses
+    <a data-end_num="L512-7-7" data-group_id="1" data-spec="section_reference" data-start_num="L512-7" data-type="article">
+     articles L.512-7 à L.512-7-7
+    </a>
+    ,
+    <a data-end_num="R512-46-30" data-group_id="1" data-spec="section_reference" data-start_num="R512-46-1" data-type="article">
+     R.512-46-1 à R.512-46-30
+    </a>
+    pour ce qui concerne les installations classées pour la protection de l’environnement et L.181-1 à L.181-4, L.181-14, L.211-1, L.214-4 à L.214-6, L.214-8 et R.214-1 à R.214-56 pour ce qui concerne la loi sur l’eau ;
+   </div>
+   <div data-spec="visa">
+    Vu l’
+    <a data-date="2012-11-26" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2012-11-26">
+      26 novembre 2012
+     </time>
+    </a>
+    relatif aux prescriptions générales applicables aux installations relevant du régime de l’enregistrement au titre de la rubrique n° 2251 (préparation, conditionnement de vins) de la nomenclature des installations classées pour la protection de l’environnement ;
+   </div>
+   <div data-spec="visa">
+    Vu l’arrêté préfectoral d’enregistrement n° 2016-E-70-IC en date du 21 avril 2016 ;
+   </div>
+   <div data-spec="visa">
+    Vu l’
+    <a data-num="40-2016-LE" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 40-2016-LE
+    </a>
+    portant autorisation au titre de l’
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="L214-3" data-type="article">
+     article L.214-3
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     Code de l’environnement
+    </a>
+    en date du 1er août 2016 ;
+   </div>
+   <div data-spec="visa">
+    Vu la demande de modification du projet COMETE de la société MHCS pour son site Veuve Clicquot Ponsardin (VCP) déposé le 14 mars 2023, complétée par courrier électronique en date du 21 novembre 2023 ;
+   </div>
+   <div data-spec="visa">
+    Vu l’avis consultatif de l’Unité Politique de l’eau du Service environnement de la Direction départementale des territoires de la Marne en date du 20 septembre 2023 ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport de l’inspection chargée des installations classées en date du 7 octobre 2024 ;
+   </div>
+   <div data-spec="visa">
+    Vu le courrier transmis à l’exploitant le 28 octobre 2024 pour lui permettre de formuler ses observations éventuelles sur le projet d’arrêté préfectoral complémentaire ;
+   </div>
+   <div data-spec="visa">
+    Vu l’absence d’observations, qui vaut accord tacite, de la part du demandeur.
+   </div>
+   <div data-spec="motifs">
+    Considérant que la demande de modifications justifie du respect des prescriptions générales susvisées et que le respect de celles-ci permet de garantir la protection des intérêts mentionnés à l’
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     article L.511-1
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+     Code de l’environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que les modifications projetées ne modifient pas la nature des installations et les rubriques de la nomenclature des installations classées pour la protection de l’environnement (ICPE) du site ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que les modifications projetées ne remettent pas en cause les effets, les mesures et les conclusions du dossier de demande d’enregistrement initial de 2015 ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que le redimensionnement des bassins d’infiltration est plus grand que pour le dossier initial de demande d’enregistrement ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que les prescriptions du
+    <a data-spec="document_reference" data-type="self">
+     présent arrêté
+    </a>
+    permettent de garantir une gestion globale et équilibrée de la ressource en eau ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     40, boulevard Anatole France - CS 60554
+51037 Châlons-en-Champagne Cedex
+Tel : 03 26 70 80 00
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    Considérant que la demande de modification du projet COMETE est considérée notable mais non substantielle ;
+   </div>
+   <div data-spec="motifs">
+    Considérant qu'il y a lieu de mettre à jour les prescriptions des arrêtés préfectoraux
+    <a data-num="2016-E-70-IC" data-spec="document_reference" data-type="arrete-prefectoral">
+     n° 2016-E-70-IC
+    </a>
+    et
+    <a data-num="40-2016-LE." data-spec="document_reference" data-type="arrete-prefectoral">
+     n° 40-2016-LE.
+    </a>
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition de Monsieur le Directeur départemental des territoires de la Marne.
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="PORTÉE, CONDITIONS GÉNÉRALES" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     TITRE 1. PORTÉE, CONDITIONS GÉNÉRALES
+    </h2>
+    <section data-number="1.1" data-spec="section" data-title="BÉNÉFICIAIRE ET PORTÉE" data-type="chapitre">
+     <h3 data-level="1" data-spec="section_title">
+      CHAPITRE 1.1. BÉNÉFICIAIRE ET PORTÉE
+     </h3>
+     <section data-number="1.1.1" data-spec="section" data-title="EXPLOITANT, DURÉE, PÉREMPTION" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.1.1 : EXPLOITANT, DURÉE, PÉREMPTION
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les installations de la société MHCS (Etablissement VEUVE CLICQUOT PONSARDIN) dont le siège social est situé
+       <address data-spec="address">
+        9 avenue de Champagne
+       </address>
+       – 51200 EPERNAY, faisant l'objet de la demande susvisée du 10 mars 2023, sont modifiées comme suit :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Ces installations sont localisées sur le territoire de la commune de SAINT-LÉONARD, à l'adresse : ZAC de SAINT-LÉONARD – 51500 SAINT-LÉONARD. Elles sont détaillées au tableau de l'
+       <a data-parent_reference="3" data-spec="section_reference" data-start_num="1.2.1" data-type="article">
+        article 1.2.1
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="3" data-type="self">
+        présent arrêté
+       </a>
+       .
+      </div>
+      <div data-number="3" data-spec="alinea">
+       <span data-direction="rtl" data-has_operand="true" data-keyword="abrogées" data-operation_type="delete" data-spec="operation">
+        Les prescriptions de l'arrêté préfectoral d'enregistrement n° 2016-E-70-IC en date du 21 avril 2016 sont
+        <b>
+         abrogées
+        </b>
+        , à l'exception de l'
+       </span>
+       <a data-spec="section_reference" data-start_num="1.1.1" data-type="article">
+        article 1.1.1.
+       </a>
+      </div>
+      <div data-number="4" data-spec="alinea">
+       Les prescriptions de l'
+       <a data-num="40-2016-LE" data-spec="document_reference" data-type="arrete-prefectoral">
+        arrêté préfectoral n° 40-2016-LE
+       </a>
+       portant autorisation au titre de l'
+       <a data-parent_reference="4" data-spec="section_reference" data-start_num="L214-3" data-tag_id="13" data-type="article">
+        article L.214-3
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+        Code de l'environnement
+       </a>
+       <span data-direction="rtl" data-has_operand="true" data-keyword="abrogées" data-operation_type="delete" data-references="13" data-spec="operation">
+        en date du 1 août 2016 sont
+        <b>
+         abrogées
+        </b>
+        , à l'exception du
+       </span>
+       <a data-parent_reference="5" data-spec="section_reference" data-start_num="1" data-type="alinea">
+        paragraphe 1
+       </a>
+       de l'
+       <a data-spec="section_reference" data-start_num="1" data-tag_id="5" data-type="article">
+        article 1
+       </a>
+       .
+      </div>
+     </section>
+    </section>
+    <section data-number="1.2" data-spec="section" data-title="NATURE ET LOCALISATION DES INSTALLATIONS" data-type="chapitre">
+     <h3 data-level="1" data-spec="section_title">
+      CHAPITRE 1.2. NATURE ET LOCALISATION DES INSTALLATIONS
+     </h3>
+     <section data-number="1.2.1" data-spec="section" data-title="LISTE DES INSTALLATIONS CONCERNÉES PAR UNE RUBRIQUE DE LA NOMENCLATURE DES INSTALLATIONS CLASSÉES – ICPE" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.2.1 : LISTE DES INSTALLATIONS CONCERNÉES PAR UNE RUBRIQUE DE LA NOMENCLATURE DES INSTALLATIONS CLASSÉES – ICPE
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          Rubrique
+         </th>
+         <th>
+          Intitulé
+         </th>
+         <th>
+          Régime
+         </th>
+         <th>
+          Quantité /unité
+         </th>
+        </tr>
+        <tr>
+         <td>
+          2251-1
+         </td>
+         <td>
+          Préparation, conditionnement de vins
+          <br/>
+          La capacité de production étant supérieure à 20 000 hl/an
+         </td>
+         <td>
+          E
+         </td>
+         <td>
+          210 000 hl/an
+          <br/>
+          Vinification : 172 675 hl
+          <br/>
+          - Cuverie 1 : 120 265 hl
+          <br/>
+          - Cuverie vin rouge : 3 100 hl
+          <br/>
+          - Cuverie 2 : 49 310 hl
+          <br/>
+          Pressurage vin rouge : 1 500 hl
+          <br/>
+          Tirage : 210 000 hl
+          <br/>
+          Dégorgement : 198 750 hl
+         </td>
+        </tr>
+       </table>
+      </div>
+      <a data-page_index="2" data-spec="page_separator">
+      </a>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <td>
+          2910-A
+         </td>
+         <td>
+          Combustion, à l'exclusion des installations visées par les rubriques 2770 et 2771.
+          <br/>
+          Lorsque l'installation consomme exclusivement, seuls ou en mélange, du gaz naturel, des gaz de pétrole liquéfiés, du fioul domestique, du charbon, des fiouls lourds ou de la biomasse, à l'exclusion des installations visées par d'autres rubriques de la nomenclature pour lesquelles la combustion participe à la fusion, la cuisson ou au traitement, en mélange avec les gaz de combustion, des matières entrantes, si la puissance thermique maximale de l'installation est supérieure à 2 MW mais inférieure à 20 MW.
+         </td>
+         <td>
+          DC
+         </td>
+         <td>
+          8,44 MW
+          <br/>
+          2 chaufferies (LT1 et LT2) contenant chacune 2 chaudières gaz de 2 000 kW
+          <br/>
+          Un groupe électrogène (LT5) fioul de 440 kW
+         </td>
+        </tr>
+        <tr>
+         <td>
+          4735-1.b
+         </td>
+         <td>
+          Ammoniac.
+          <br/>
+          La quantité susceptible d'être présente dans l'installation étant, pour les récipients de capacité unitaire supérieure à 50 kg, supérieure ou égale à 150 kg mais inférieure à 1,5 t.
+         </td>
+         <td>
+          XX*
+         </td>
+         <td>
+          XX t*
+         </td>
+        </tr>
+       </table>
+       <br/>
+       E : Enregistrement ; DC : Déclaration avec contrôle périodique
+       <br/>
+       * Informations communicables sur demande écrite à la Direction départementale des territoires de la Marne - Service environnement – Unité procédures Environnementale – 40, boulevard Anatole France – 51037 Châlons-en-Champagne cedex.
+      </div>
+     </section>
+     <section data-number="1.2.2" data-spec="section" data-title="LISTE DES ACTIVITÉS, INSTALLATIONS ET USAGES DE L'EAU - IOTA" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       ARTICLE 1.2.2. LISTE DES ACTIVITÉS, INSTALLATIONS ET USAGES DE L'EAU - IOTA
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       La rubrique définie au tableau de l'
+       <a data-parent_reference="6" data-spec="section_reference" data-start_num="R214-1" data-type="article">
+        article R.214-1
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="6" data-title="Code de l'environnement" data-type="code">
+        Code de l'Environnement
+       </a>
+       concernée par le site est définie ci-dessous :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          RUBRIQUE
+         </th>
+         <th>
+          INTITULÉ
+         </th>
+         <th>
+          RÉGIME
+         </th>
+        </tr>
+        <tr>
+         <td>
+          2.1.5.0.
+         </td>
+         <td>
+          Rejet d'eaux pluviales dans les eaux douces superficielles ou sur le sol ou dans le sous-sol, la surface totale du projet, augmentée de la surface correspondant à la partie du bassin naturel dont les écoulements sont interceptés par le projet :
+          <br/>
+          1° Supérieure ou égale à 20 ha (A)
+         </td>
+         <td>
+          Autorisation (44,12 ha)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          3.2.3.0.
+         </td>
+         <td>
+          Plans d'eau, permanents ou non :
+          <br/>
+          1° dont la superficie est supérieure ou égale à 3 ha (A) ;
+          <br/>
+          2° dont la superficie est supérieure à 0,1 ha mais inférieure à 3 ha (D).
+         </td>
+         <td>
+          Déclaration (2,73 ha)
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+     <section data-number="1.2.3" data-spec="section" data-title="SITUATION DE L'ÉTABLISSEMENT" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.2.3. SITUATION DE L'ÉTABLISSEMENT
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les installations autorisées sont situées sur les communes, parcelles et lieux-dits suivants :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          Commune
+         </th>
+         <th>
+          Lieu-dit
+         </th>
+         <th>
+          Parcelle
+         </th>
+        </tr>
+        <tr>
+         <td>
+          SAINT-LÉONARD
+         </td>
+         <td>
+          ZAC Saint Léonard
+         </td>
+         <td>
+          Section W, parcelles 1, 2, 3, 8, 9, 10 et 11
+         </td>
+        </tr>
+        <tr>
+         <td colspan="2">
+         </td>
+         <td>
+          Total de 441 200 m²
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Les installations mentionnées aux
+       <a data-group_id="2" data-parent_reference="7" data-spec="section_reference" data-start_num="1.2.1" data-type="article">
+        articles 1.2.1
+       </a>
+       et
+       <a data-group_id="2" data-parent_reference="7" data-spec="section_reference" data-start_num="1.2.2" data-type="article">
+        1.2.2.
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="7" data-type="self">
+        présent arrêté
+       </a>
+       sont reportées avec leurs références sur un plan de situation de l'établissement tenu à jour et tenu en permanence à la disposition de l'inspection des installations classées.
+      </div>
+      <a data-page_index="3" data-spec="page_separator">
+      </a>
+     </section>
+     <section data-number="1.2.4" data-spec="section" data-title="GESTION DES EAUX PLUVIALES ET CARACTÉRISTIQUES DES OUVRAGES HYDRAULIQUES" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.2.4. GESTION DES EAUX PLUVIALES ET CARACTÉRISTIQUES DES OUVRAGES HYDRAULIQUES
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Le projet comprend les surfaces de voiries et bâtiments suivantes :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          Types de surfaces
+         </th>
+         <th>
+          Dimensions
+         </th>
+        </tr>
+        <tr>
+         <td>
+          Surface totale de la parcelle
+         </td>
+         <td>
+          44,12 ha
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Bâtiments
+         </td>
+         <td>
+          3,84 ha
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Voiries
+         </td>
+         <td>
+          5,92 ha
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Espaces verts
+         </td>
+         <td>
+          31,77 ha
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Bassins d’infiltration
+         </td>
+         <td>
+          1,92 ha
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Bassins rétention-incendie
+         </td>
+         <td>
+          0,75 ha
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Les eaux pluviales sont gérées par des bassins d’infiltration.
+      </div>
+      <div data-number="4" data-spec="alinea">
+       La parcelle est découpée en 3 zones correspondant aux 3 bassins versants pour lesquels 3 bassins d’infiltration sont mis en place (1 par bassin versant).
+      </div>
+      <div data-number="5" data-spec="alinea">
+       Le principe de gestion des eaux pluviales est le suivant :
+      </div>
+      <div data-number="6" data-spec="alinea">
+       <ul>
+        <li>
+         - collecte des eaux pluviales de voiries et de bâtiments dans les mêmes collecteurs ;
+        </li>
+        <li>
+         - acheminement vers des bassins d’infiltration ;
+        </li>
+        <li>
+         - traitement des hydrocarbures par phytoremédiation dans les 3 bassins d’infiltration (à ciel ouvert).
+        </li>
+       </ul>
+      </div>
+      <div data-number="7" data-spec="alinea">
+       Les bassins d’infiltration sont dimensionnés pour contenir les volumes d’eau suivants :
+      </div>
+      <div data-number="8" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+         </th>
+         <th>
+          Surface du bassin (m²)
+         </th>
+         <th>
+          Volume utile, hors zone phytoremédiation (m³)
+         </th>
+         <th>
+          Volume réel de stockage avant débordement (m³)
+         </th>
+        </tr>
+        <tr>
+         <td>
+          Bassin d’infiltration A
+         </td>
+         <td>
+          1546
+         </td>
+         <td>
+          2100
+         </td>
+         <td>
+          9140
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Bassin d’infiltration B
+         </td>
+         <td>
+          7173
+         </td>
+         <td>
+          4853
+         </td>
+         <td>
+          26771
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Bassin d’infiltration C
+         </td>
+         <td>
+          4760
+         </td>
+         <td>
+          3180
+         </td>
+         <td>
+          8640
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="9" data-spec="alinea">
+       Les bassins A, B et C sont équipés de phytoremédiation.
+      </div>
+      <div data-number="10" data-spec="alinea">
+       Les volumes utiles des bassins A et C permettent de retenir la pluie centennale.
+      </div>
+      <div data-number="11" data-spec="alinea">
+       Le volume réel de stockage avant débordement du bassin B permet de retenir la pluie centennale.
+      </div>
+     </section>
+    </section>
+    <section data-number="1.3" data-spec="section" data-title="CONFORMITÉ AU DOSSIER" data-type="chapitre">
+     <h3 data-level="1" data-spec="section_title">
+      CHAPITRE 1.3. CONFORMITÉ AU DOSSIER
+     </h3>
+     <section data-number="1.3.1" data-spec="section" data-title="CONFORMITÉ AUX DOSSIERS ET MODIFICATIONS" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.3.1. CONFORMITÉ AUX DOSSIERS ET MODIFICATIONS
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Volet ICPE :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Les installations et leurs annexes, objet du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       , sont disposées, aménagées et exploitées conformément aux plans et données techniques contenus dans le dossier déposé par l’exploitant, accompagnant sa demande du 3 décembre 2015 modifié par le porter à connaissance déposé le 14 mars 2023 et complété le 21 novembre 2023.
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Elles respectent les dispositions des arrêtés ministériels de prescriptions générales applicables.
+      </div>
+      <a data-page_index="4" data-spec="page_separator">
+      </a>
+      <div data-number="4" data-spec="alinea">
+       Volet IOTA (loi sur l'eau) :
+      </div>
+      <div data-number="5" data-spec="alinea">
+       Les installations, ouvrages, travaux ou activités, objets de la présente autorisation, sont situés, installés et exploités conformément aux plans et contenu du dossier de demande d'autorisation, complété par le porter à connaissance déposé le 14 mars 2023, sans préjudice des dispositions de la présente autorisation.
+      </div>
+      <div data-number="6" data-spec="alinea">
+       Toute modification apportée aux ouvrages, installations, à leur mode d'utilisation, à la réalisation des travaux ou à l'aménagement en résultant, à l'exercice des activités ou à leur voisinage et entraînant un changement notable des éléments du dossier de demande d'autorisation doit être portée, avant sa résiliation à la connaissance du Préfet, conformément aux dispositions de l'
+       <a data-parent_reference="8" data-spec="section_reference" data-start_num="L181-14" data-type="article">
+        article L.181-14
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="8" data-title="Code de l'environnement" data-type="code">
+        Code de l'environnement
+       </a>
+       .
+      </div>
+     </section>
+    </section>
+    <section data-number="1.4" data-spec="section" data-title="MISE À L'ARRÊT DÉFINITIF" data-type="chapitre">
+     <h3 data-level="1" data-spec="section_title">
+      CHAPITRE 1.4. MISE À L'ARRÊT DÉFINITIF
+     </h3>
+     <section data-number="1.4.1" data-spec="section" data-title="MISE À L'ARRÊT DÉFINITIF" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.4.1. MISE À L'ARRÊT DÉFINITIF
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Après l'arrêt définitif des installations, le site est remis en état suivant le descriptif de la demande d'enregistrement, pour un usage industriel.
+      </div>
+     </section>
+    </section>
+    <section data-number="1.5" data-spec="section" data-title="PRESCRIPTIONS TECHNIQUES APPLICABLES" data-type="chapitre">
+     <h3 data-level="1" data-spec="section_title">
+      CHAPITRE 1.5. PRESCRIPTIONS TECHNIQUES APPLICABLES
+     </h3>
+     <section data-number="1.5.1" data-spec="section" data-title="ARRÊTÉS MINISTÉRIELS DE PRESCRIPTIONS GÉNÉRALES – VOLET ICPE" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.5.1. ARRÊTÉS MINISTÉRIELS DE PRESCRIPTIONS GÉNÉRALES – VOLET ICPE
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       S'appliquent à l'établissement les prescriptions des textes mentionnés ci-dessous :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <ul>
+        <li>
+         - arrêté ministériel de prescriptions générales du 26 novembre 2012, relatif aux prescriptions générales applicables aux installations relevant du régime de l'enregistrement au titre de la rubrique n° 2251 (préparation, conditionnement de vins) de la nomenclature des installations classées pour la protection de l'environnement ;
+        </li>
+        <li>
+         - arrêté ministériel de prescriptions générales du 25 juillet 1997, relatif aux prescriptions générales applicables aux installations relevant du régime de la déclaration au titre de la rubrique n° 2910 de la nomenclature des installations classées pour la protection de l'environnement ;
+        </li>
+        <li>
+         - arrêté ministériel de prescriptions générales du 19 novembre 2009, relatif aux prescriptions générales applicables aux installations relevant du régime de la déclaration au titre de la rubrique n° 4735 de la nomenclature des installations classées pour la protection de l'environnement.
+        </li>
+       </ul>
+      </div>
+     </section>
+     <section data-number="1.5.2" data-spec="section" data-title="PRESCRIPTIONS PARTICULIÈRES – VOLET IOTA (LOI SUR L'EAU)" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.5.2. PRESCRIPTIONS PARTICULIÈRES – VOLET IOTA (LOI SUR L'EAU)
+      </h4>
+      <section data-number="1.5.2.1" data-spec="section" data-title="mesures de surveillance et d'autosurveillance" data-type="article">
+       <h5 data-level="3" data-spec="section_title">
+        article 1.5.2.1 mesures de surveillance et d'autosurveillance
+       </h5>
+       <div data-number="1" data-spec="alinea">
+        Des puisards sont réalisés au fond des bassins de phytoremédiation A, B et C pour permettre le prélèvement d'échantillons en vue du suivi des rejets. Une mesure annuelle est réalisée en sortie de chacun de ces ouvrages avant infiltration sur les paramètres suivants : DBO5, DCO, COT, MES, toutes les formes de l'azote, hydrocarbures totaux, HAP, bore, cadmium, chrome, mercure, nickel, plomb, chlorures et sulfates.
+       </div>
+       <div data-number="2" data-spec="alinea">
+        L'ensemble des résultats des mesures de qualité des rejets aqueux sont saisis sur le site de télédéclaration du ministère (GIDAF) dans le mois qui suit la réception des résultats.
+       </div>
+       <a data-page_index="5" data-spec="page_separator">
+       </a>
+       <div data-spec="page_header">
+        <div>
+         6
+        </div>
+       </div>
+      </section>
+      <section data-number="1.5.2.2" data-spec="section" data-title="prescriptions en phase travaux" data-type="article">
+       <h5 data-level="3" data-spec="section_title">
+        article 1.5.2.2 prescriptions en phase travaux
+       </h5>
+       <div data-number="1" data-spec="alinea">
+        Les précautions habituelles sont prises lors des phases travaux :
+       </div>
+       <div data-number="2" data-spec="alinea">
+        <ul>
+         <li>
+          - assainissement du chantier ;
+         </li>
+         <li>
+          - aires spécifiques pour le stationnement et l'entretien des engins de travaux ;
+         </li>
+         <li>
+          - dispositifs de sécurité liés au stockage de carburant, huiles et matières dangereuses ;
+         </li>
+         <li>
+          - nettoyage régulier des engins ;
+         </li>
+         <li>
+          - consignation des mesures de protection spécifiques au chantier dans le dossier de consultation des entreprises.
+         </li>
+        </ul>
+       </div>
+      </section>
+      <section data-number="1.5.2.3" data-spec="section" data-title="surveillance, entretien des ouvrages et moyens d'intervention en cas d'accident" data-type="article">
+       <h5 data-level="3" data-spec="section_title">
+        article 1.5.2.3 surveillance, entretien des ouvrages et moyens d'intervention en cas d'accident
+       </h5>
+       <div data-number="1" data-spec="alinea">
+        <ul>
+         <li>
+          a) Surveillance et entretien des ouvrages
+         </li>
+        </ul>
+       </div>
+       <div data-number="2" data-spec="alinea">
+        Les diverses opérations de contrôle sont à la charge du maître d'ouvrage.
+       </div>
+       <div data-number="3" data-spec="alinea">
+        Une surveillance visuelle des bassins est réalisée afin de détecter d'éventuelles zones de colmatage avec réduction de l'infiltration au moment des pluies.
+       </div>
+       <div data-number="4" data-spec="alinea">
+        L'entretien des bassins de phytoremédiation est le suivant :
+       </div>
+       <div data-number="5" data-spec="alinea">
+        <ul>
+         <li>
+          - 1 fois par an : fauchage à 30 cm de hauteur à l'automne (faucardage) et retrait des roseaux fauchés au printemps ;
+         </li>
+         <li>
+          - tous les 5 ans : éclaircissement des roseaux. Les rhizomes doivent être broyés avant épandage en saison sèche pour éviter leur prolifération.
+         </li>
+        </ul>
+       </div>
+       <div data-number="6" data-spec="alinea">
+        Un changement de la couche superficielle de graviers est réalisé dès que les capacités des bassins sont réduites et au plus tard 15 ans après leur mise en service.
+       </div>
+       <div data-number="7" data-spec="alinea">
+        Les matières en suspension sont alors évacuées conformément à la réglementation.
+       </div>
+       <div data-number="8" data-spec="alinea">
+        Le tableau ci-dessous synthétise l'ensemble des opérations à effectuer :
+       </div>
+       <div data-number="9" data-spec="alinea">
+        <table>
+         <tr>
+          <th>
+           Installation
+          </th>
+          <th>
+           Opération
+          </th>
+          <th>
+           Fréquence minimum
+          </th>
+         </tr>
+         <tr>
+          <td rowspan="2">
+           Dispositifs de collecte et de rétention
+          </td>
+          <td rowspan="2">
+           Visite de contrôle
+          </td>
+          <td>
+           Après chaque orage ou averse importante
+          </td>
+         </tr>
+         <tr>
+          <td>
+           1 fois par mois
+          </td>
+         </tr>
+         <tr>
+          <td>
+           Phytoremédiation
+          </td>
+          <td>
+           Fauchage
+          </td>
+          <td>
+           1 fois par an
+          </td>
+         </tr>
+        </table>
+       </div>
+       <div data-number="10" data-spec="alinea">
+        Ces opérations sont consignées dans un registre que le maître d'ouvrage tient à disposition des services de contrôle.
+       </div>
+       <div data-number="11" data-spec="alinea">
+        <ul>
+         <li>
+          b) Mesures pour la gestion des eaux usées du site et d'une pollution accidentelle
+         </li>
+        </ul>
+       </div>
+       <div data-number="12" data-spec="alinea">
+        Les effluents industriels sont traités par une station de neutralisation avant rejet dans le réseau d'assainissement de la Communauté urbaine du Grand Reims selon les modalités de l'autorisation de rejet qui sera transmise à l'inspection des installations classées.
+       </div>
+       <div data-number="13" data-spec="alinea">
+        La cuverie dispose d'un dispositif de rétention.
+       </div>
+       <a data-page_index="6" data-spec="page_separator">
+       </a>
+       <div data-number="14" data-spec="alinea">
+        Les aires de dépotage des citernes sont raccordées au réseau des eaux usées industrielles lors des opérations de dépotage. Une vanne d'arrêt d'urgence est placée sur le réseau en cas de déversement accidentel lors de l'opération de dépotage. Une rétention déportée permet de recueillir le volume d'une citerne.
+       </div>
+       <div data-number="15" data-spec="alinea">
+        L'aire de rinçage des citernes est raccordée au réseau des eaux usées industrielles lors des opérations de rinçage des citernes. En dehors de ces opérations, cette aire est raccordée aux eaux pluviales.
+       </div>
+       <div data-number="16" data-spec="alinea">
+        L'ensemble des stockages de produits pouvant engendrer une pollution (produits œnologiques, glycol, fuel etc.) est stocké sur rétention dans les locaux eux-mêmes étanches au sol.
+       </div>
+       <div data-number="17" data-spec="alinea">
+        Les aires de stockage des déchets sont recouvertes.
+       </div>
+       <div data-number="18" data-spec="alinea">
+        L'ensemble des eaux de voiries, après pollution accidentelle, est collecté par le réseau des eaux pluviales vers les bassins d'infiltration.
+       </div>
+       <div data-number="19" data-spec="alinea">
+        En cas de pollution accidentelle, une vanne de barrage, située sur le réseau des eaux pluviales en amont des bassins, permet d'orienter le réseau de collecte vers les bassins rétention-incendie.
+       </div>
+      </section>
+     </section>
+    </section>
+   </section>
+   <section data-number="2" data-spec="section" data-title="DISPOSITIONS GÉNÉRALES" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     TITRE 2. DISPOSITIONS GÉNÉRALES
+    </h2>
+    <section data-number="2.1" data-spec="section" data-title="CARACTÈRE DE L'AUTORISATION – VOLET IOTA" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      ARTICLE 2.1. CARACTÈRE DE L'AUTORISATION – VOLET IOTA
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      L'autorisation est accordée à titre personnel, précaire et révocable sans indemnité de l'État exerçant ses pouvoirs de police.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Conformément à l'
+      <a data-parent_reference="9" data-spec="section_reference" data-start_num="R214-45" data-type="article">
+       article R.214-45
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="9" data-title="Code de l'environnement" data-type="code">
+       Code de l'environnement
+      </a>
+      , si le bénéfice de l'autorisation est transmis à une autre personne que la société MHCS, le ou les nouveaux bénéficiaires en fait la déclaration au Préfet dans les 3 mois qui suivent la prise de travaux, des aménagements ou le début de l'exercice de l'activité.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Si, à quelque époque que ce soit, l'administration décidait dans un but général, notamment d'un point de vue de la lutte contre la pollution des eaux et leur régénération dans le but de satisfaire ou de concilier les exigences de salubrité publique, de la police et de la répartition des eaux, de modifier d'une manière temporaire ou définitive l'usage des dispositions concédées par
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      , le permissionnaire ne pourra réclamer aucune indemnité. Toutefois, si ces modifications venaient à changer substantiellement les conditions de l'autorisation (notamment le changement de milieu récepteur des eaux pluviales ou des besoins en prélèvement supplémentaire dans la nappe phréatique), elles ne pourraient être décidées qu'après accomplissement de formalités semblables à celles qui ont précédé
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="4" data-spec="alinea">
+      L'autorisation est retirée à l'initiative de l'administration, en cas d'inexécution des prescriptions du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      . Faute pour le permissionnaire de se conformer dans le délai fixé aux dispositions prescrites, l'administration pourra prononcer la déchéance de la présente autorisation et prendre les mesures nécessaires pour faire disparaître aux frais du permissionnaire tout dommage provenant de son fait, ou pour prévenir ces dommages dans l'intérêt de l'environnement, de la sécurité et de la santé publique, sans préjudice de l'application des dispositions pénales relatives aux infractions au
+      <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+       Code de l'environnement
+      </a>
+      .
+     </div>
+     <a data-page_index="7" data-spec="page_separator">
+     </a>
+     <div data-number="5" data-spec="alinea">
+      Il en sera de même dans le cas où, après s'être conformé aux mesures prescrites, le permissionnaire changerait ensuite l'état des lieux fixé par cette présente autorisation, sans y être préalablement autorisé, ou s'il ne maintenait pas constamment les installations en état normal de bon fonctionnement.
+     </div>
+    </section>
+    <section data-number="2.2" data-spec="section" data-title="DÉCLARATION DES INCIDENTS OU ACCIDENTS" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      ARTICLE 2.2. DÉCLARATION DES INCIDENTS OU ACCIDENTS
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant est tenu de déclarer, dès qu'il en a connaissance, au Préfet les accidents ou incidents intéressant les installations, ouvrages, travaux ou activités faisant l'objet de la présente autorisation, qui sont de nature à porter atteinte aux intérêts mentionnés à l'
+      <a data-parent_reference="10" data-spec="section_reference" data-start_num="L211-1" data-type="article">
+       article L.211-1
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="10" data-title="Code de l'environnement" data-type="code">
+       Code de l'environnement
+      </a>
+      . Sans préjudice des mesures que pourra prescrire le Préfet, l'exploitant devra prendre ou faire prendre les dispositions nécessaires pour mettre fin aux causes de l'incident ou accident, pour évaluer ses conséquences et y remédier.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      L'exploitant demeure responsable des accidents ou dommages qui seraient les conséquences de l'activité ou de l'exécution des travaux et de l'aménagement.
+     </div>
+    </section>
+    <section data-number="2.3" data-spec="section" data-title="ACCÈS AUX INSTALLATIONS" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      ARTICLE 2.3. ACCÈS AUX INSTALLATIONS
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      Les agents de la police de l'eau et des milieux aquatiques ainsi que ceux de l'inspection des installations classée ont accès libre aux installations, ouvrages ou activités autorisés par
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      , dans les conditions fixées par le
+      <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      .
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Ils peuvent demander communication de toute pièce utile au contrôle de la bonne exécution du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+    </section>
+   </section>
+   <section data-number="3" data-spec="section" data-title="MODALITÉS D'EXÉCUTION, VOIES DE RECOURS" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     TITRE 3. MODALITÉS D'EXÉCUTION, VOIES DE RECOURS
+    </h2>
+    <section data-number="3.1" data-spec="section" data-title="DÉLAIS ET VOIES DE RECOURS" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      ARTICLE 3.1. DÉLAIS ET VOIES DE RECOURS
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      En application de l'
+      <a data-parent_reference="11" data-spec="section_reference" data-start_num="R514-3-1" data-type="article">
+       article R.514-3-1
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="11" data-title="Code de l'environnement" data-type="code">
+       Code de l'environnement
+      </a>
+      , la présente décision peut être déférée devant le Tribunal administratif de Châlons-en-Champagne - 25, rue du Lycée - 51036 Châlons-en-Champagne cedex : (soit par courrier soit par le biais du site de téléprocédures www.telerecours.fr)
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        1° - par les pétitionnaires ou exploitants dans un délai de deux mois à compter de la date à laquelle la décision leur a été notifiée ;
+       </li>
+       <li>
+        2° par les tiers intéressés en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts mentionnés aux
+        <a data-group_id="3" data-spec="section_reference" data-start_num="L211-1" data-type="article">
+         articles L.211-1
+        </a>
+        et
+        <a data-group_id="3" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+         L.511-1
+        </a>
+        dans un délai de deux mois à compter du premier jour de la publication et de l'affichage de ces décisions.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Le délai court à compter de la dernière formalité accomplie. Si l'affichage constitue cette dernière formalité, le délai court à compter du premier jour de l'affichage.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Conformément à l'
+      <a data-parent_reference="12" data-spec="section_reference" data-start_num="L411-2" data-type="article">
+       article L.411-2
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="12" data-title="Code des relations entre le public et l'administration" data-type="code">
+       Code des relations entre le public et l'administration
+      </a>
+      , toute décision administrative peut faire l'objet, dans le délai imparti pour l'introduction d'un recours contentieux, d'un recours gracieux ou hiérarchique qui interrompt le cours de ce délai.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Lorsque dans le délai initial du recours contentieux ouvert à l'encontre de la décision, sont exercés contre cette décision un recours gracieux et un recours hiérarchique, le délai du recours contentieux,
+     </div>
+     <a data-page_index="8" data-spec="page_separator">
+     </a>
+     <div data-number="6" data-spec="alinea">
+      prorogé par l'exercice de ces recours administratifs, ne recommence à courir à l'égard de la décision initiale que lorsqu'ils ont été l'un et l'autre rejetés.
+     </div>
+    </section>
+    <section data-number="3.2" data-spec="section" data-title="DROITS DES TIERS" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      ARTICLE 3.2. DROITS DES TIERS
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      Les droits des tiers sont et demeurent expressément réservés.
+     </div>
+    </section>
+    <section data-number="3.3" data-spec="section" data-title="EXÉCUTION ET DIFFUSION" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      ARTICLE 3.3. EXÉCUTION ET DIFFUSION
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      Monsieur le Secrétaire général de la préfecture de la Marne, Monsieur le Directeur régional de l'environnement, de l'aménagement et du logement Grand Est, Monsieur le Directeur départemental des territoires de la Marne et l'inspection des installations classées sont chargés, chacun en ce qui le concerne, de l'exécution du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      , dont une copie sera adressée pour information, à la Délégation territoriale Marne de l'Agence régionale de santé, au Service interministériel de défense et de protection civile, à la Direction départementale des territoires – service urbanisme, à la Direction départementale des services d'incendie et secours, à la Direction de l'Agence de l'eau ainsi qu'à Monsieur le maire de Saint-Léonard qui en donnera communication à son conseil municipal.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Notification en sera faite à Monsieur le Directeur de la Société MHCS, établissement Veuve Clicquot Ponsardin, dont le siège social est situé
+      <address data-spec="address">
+       9 avenue de Champagne
+      </address>
+      – 51200 EPERNAY.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Monsieur le Maire de Saint-Léonard procédera à l'affichage en mairie de l'arrêté pendant un mois. A l'issue de ce délai, il dressera un procès-verbal des formalités d'affichage et une copie de l'arrêté sera conservée en mairie aux fins d'information de toute personne intéressée qui, par ailleurs, pourra en obtenir une copie sur demande adressée à la Direction départementale des territoires de la Marne.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Cet arrêté sera publié sur le site internet des services de l'État dans le département de la Marne pendant une durée minimale de 4 mois.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Châlons-en-Champagne, le 28 NOV. 2024
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Pour le Préfet et par délégation,
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Le Secrétaire général
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Raymond YEDDOU
+     </div>
+     <a data-page_index="9" data-spec="page_separator">
+     </a>
+     <div data-number="9" data-spec="alinea">
+      ^{}[]
+     </div>
+    </section>
+   </section>
+  </main>
+ </body>
+</html>

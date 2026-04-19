@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2025-07-09_ap prescriptions complémentaires_20250709 APC SLM- Montauban.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DE TARN-ET-GARONNE
+Liberté
+Égalité
+Fraternité
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Direction de la coordination interministérielle et de l'appui territorial
+    </div>
+    <div>
+     Mission des politiques environnementales AP n° 82-2025-07 - 09 - 00001
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ PRÉFECTORAL COMPLÉMENTAIRE SOCIÉTÉ LAITIÈRE DE MONTAUBAN 25 impasse de Maastricht ZI Albasud 82000 MONTAUBAN actualisation de la situation administrative d'une unité de traitement et de transformation du lait
+    </h1>
+   </div>
+   <div data-spec="entity">
+    <div>
+     installations classées pour la protection de l'Environnement
+    </div>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le préfet de Tarn-et-Garonne,
+    </div>
+    <div>
+     Chevalier de la Légion d'Honneur,
+    </div>
+    <div>
+     Chevalier de l'Ordre National du Mérite,
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="1996-04-02" data-num="96.0344" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 96.0344 du
+     <time data-spec="date" datetime="1996-04-02">
+      2 avril 1996
+     </time>
+     modifié
+    </a>
+    et complété par les arrêtés préfectoraux complémentaires des 3 août 2004, 14 décembre 2006, 21 septembre 2011, 20 juin 2022, 23 février 2023, 27 juillet 2023 et 10 février 2025 autorisant la société Laitière de Montauban à exercer ses activités relevant de la nomenclature des installations classées à ZI Albasud – 25 Impasse de Maastricht sur le territoire de la commune de Montauban ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2006-12-14" data-num="06-2189" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 06-2189 du
+     <time data-spec="date" datetime="2006-12-14">
+      14 décembre 2006
+     </time>
+     modifié
+    </a>
+    et complété par l'
+    <a data-date="2022-06-20" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire du
+     <time data-spec="date" datetime="2022-06-20">
+      20 juin 2022
+     </time>
+    </a>
+    , relatif à l'exploitation d'une station d'épuration mixte par la société Laitière de Montauban sur le territoire de la commune de Montauban ;
+   </div>
+   <div data-spec="visa">
+    Vu le porté à connaissance du 1er octobre 2024, complété le 24 février 2025 décrivant le projet d'amélioration des installations de refroidissement, de la zone de dépotage des produits lessiviels stockées en vrac et du local de charge des batteries présents sur le site ;
+   </div>
+   <div data-spec="visa">
+    Vu le porté à connaissance du 21 février 2025 décrivant la modification de la chaufferie et des stockages des produits pétroliers présents sur le site ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport de l'inspection des installations classées du 13 mai 2025 proposant d'encadrer ces modifications par arrêté préfectoral complémentaire ;
+   </div>
+   <div data-spec="visa">
+    Vu le projet d'arrêté préfectoral complémentaire porté à la connaissance du demandeur le 26 mai 2025 ;
+   </div>
+   <div data-spec="visa">
+    Vu le courriel de l'exploitant en date du 4 juillet 2025 ;
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     2/4
+    </div>
+   </div>
+   <div data-spec="motifs">
+    Considérant que les projets de modifications susvisés ne constituent pas une modification substantielle de l'autorisation environnementale au sens de l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="R181-46-1" data-type="article">
+     article R.181-46-1
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     Code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    Considérant qu'il y a lieu d'actualiser le tableau de classement au titre des rubriques de la nomenclature des installations classées auxquelles l'établissement est soumis ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que les modifications envisagées ne sont de pas de nature à modifier les inconvénients et les dangers existants et que les prescriptions contenues au sein des arrêtés préfectoraux susvisés sont de nature à garantir la protection des intérêts visés à l'
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     article L.511-1
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+     Code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que la nature et l'ampleur des projets de modifications ne rendent pas nécessaires la consultation de Conseil départemental de l'Environnement et des Risques Sanitaires et Technologiques (CODERST) ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition de Madame la Secrétaire Générale de la Préfecture de Tarn-et-Garonne ;
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1ER :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le tableau de l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="1" data-tag_id="5" data-type="article">
+      article 1
+     </a>
+     de l'
+     <a data-date="1996-04-02" data-spec="document_reference" data-tag_id="3" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="1996-04-02">
+       2 avril 1996
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacé" data-operand="6" data-operation_type="replace" data-references="5" data-spec="operation">
+      susvisé est
+      <b>
+       remplacé
+      </b>
+      par le tableau suivant :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="6">
+      <tr>
+       <th>
+        N° de Rubrique
+       </th>
+       <th>
+        Installations et activités concernées
+       </th>
+       <th>
+        Éléments caractéristiques
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2752
+       </td>
+       <td>
+        Stations d'épuration mixte
+       </td>
+       <td>
+        18300 eq.hab.
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        3643
+       </td>
+       <td>
+        Traitement et transformation du lait
+       </td>
+       <td>
+        800 t de produits finis/jour
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4130-2
+       </td>
+       <td>
+        Toxicité aiguë catégorie 3 pour les voies d'exposition par inhalation :
+        <br/>
+        2- Substances et mélanges liquides.
+        <br/>
+        La quantité totale susceptible d'être présente dans l'installation étant :
+        <br/>
+        a) Supérieure ou égale à 10 t
+       </td>
+       <td>
+        39 t
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1510-2-b
+       </td>
+       <td>
+        Stockage de matières, produits ou substances combustibles dans des entrepôts couverts
+        <br/>
+        2. Autres installations que celles définies au 1, le volume des entrepôts étant :
+        <br/>
+        b) Supérieur ou égal à 50 000 m³ mais inférieur à 900 000 m³
+       </td>
+       <td>
+        178 122 m³
+       </td>
+       <td>
+        E
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1435-2
+       </td>
+       <td>
+        Stations-service : installations, ouvertes ou non au public, où les carburants sont transférés de réservoirs de stockage fixes dans les réservoirs à carburant de véhicules
+        <br/>
+        2. Supérieur à 100 m³ d'essence ou 500 m³ au total, mais inférieur ou égal à 20 000 m³
+       </td>
+       <td>
+        950 m³/an
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1532-2
+       </td>
+       <td>
+        Stockage de bois ou de matériaux combustibles analogues
+        <br/>
+        2. Autres installations que celles définies au 1, à l'exception des installations classées au titre de la rubrique 1510, le volume susceptible d'être stocké étant :
+        <br/>
+        b) Supérieur à 1 000 m³ mais inférieur ou égal à 20 000 m³
+       </td>
+       <td>
+        1350 m³
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        2661-1-c
+       </td>
+       <td>
+        Transformation de polymères
+        <br/>
+        1. Par des procédés exigeant des conditions particulières de température ou de pression (extrusion, injection, moulage, segmentation à chaud, vulcanisation, etc.), la quantité de matière susceptible d'être traitée étant :
+        <br/>
+        c) Supérieure ou égale à 1 t/j, mais inférieure à 10 t/j
+       </td>
+       <td>
+        6 t/j
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2662-2
+       </td>
+       <td>
+        Stockage de polymères
+        <br/>
+        2. Supérieur ou égal à 100 m³ mais inférieur à 1 000 m³
+       </td>
+       <td>
+        140 m³
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2910-A-2
+       </td>
+       <td>
+        Combustion
+       </td>
+       <td>
+        18,271 MW
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2925-1
+       </td>
+       <td>
+        Accumulateurs dont la charge produit de l'hydrogène
+       </td>
+       <td>
+        104 kW
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2940-2-b
+       </td>
+       <td>
+        Application colle
+        <br/>
+        2. Lorsque l'application est faite par tout procédé autre que le « trempé » (pulvérisation, enduction, autres procédés), la quantité maximale de produits susceptible d'être mise en œuvre étant :
+        <br/>
+        b) Supérieure à 10 kg/j, mais inférieure ou égale à 100 kg/j
+       </td>
+       <td>
+        50 kg/j
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4441-2
+       </td>
+       <td>
+        Liquides comburants catégorie 1, 2 ou 3
+        <br/>
+        2. Supérieure ou égale à 2 t mais inférieure à 50 t
+       </td>
+       <td>
+        3,36 t
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4734-2-c
+       </td>
+       <td>
+        Produits pétroliers spécifiques
+        <br/>
+        2. Pour les autres stockages :
+        <br/>
+        c) Supérieure ou égale à 50 t au total, mais inférieure à 100 t d'essence et inférieure à 500 t au total
+       </td>
+       <td>
+        84,72 t
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Régime : A (Autorisation), E (Enregistrement), DC (déclaration avec contrôle périodique), D (déclaration)
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Par ailleurs, les installations relèvent des rubriques IOTA suivantes :
+    </div>
+    <div data-number="6" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        N° de Rubrique
+       </th>
+       <th>
+        Installations et activités concernées
+       </th>
+       <th>
+        Éléments caractéristiques
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td>
+        1.1.1.0
+       </td>
+       <td>
+        Sondage, forage (...)
+       </td>
+       <td>
+        4 piézomètres réalisés en septembre 2020
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2.1.5.0-2
+       </td>
+       <td>
+        Rejet d'eaux pluviales dans les eaux douces superficielles
+       </td>
+       <td>
+        Superficie de 7,0913 ha
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        3.1.2.0-2
+       </td>
+       <td>
+        Installation conduisant à modifier le profil en long du lit mineur
+       </td>
+       <td>
+        Rejet eaux pluviales dans le Tarn
+        <br/>
+        Rejet eaux usées épurées dans le Miroulet
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        3.2.2.0-2
+       </td>
+       <td>
+        Installations, ouvrages, remblais dans le lit majeur d'un cours d'eau
+       </td>
+       <td>
+        Surface soustraite : 4 125 m²
+        <br/>
+        Le site de production est hors zone inondable. En revanche, la station d'épuration est située en zone inondable PPRI
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1.3.1.0
+       </td>
+       <td>
+        A l'exception des prélèvements faisant l'objet d'une convention avec l'attributaire du débit affecté prévu par l'
+        <a data-spec="section_reference" data-start_num="L214-9" data-type="article">
+         article L. 214-9
+        </a>
+        , ouvrages, installations, travaux permettant un prélèvement total d'eau dans une zone où des mesures permanentes de répartition quantitative instituées, notamment au titre de l'
+        <a data-spec="section_reference" data-start_num="L211-2" data-type="article">
+         article L. 211-2
+        </a>
+        , ont prévu l'abaissement des seuils
+       </td>
+       <td>
+        32 m³/h
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément aux dispositions de l'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="R181-45" data-type="article">
+      article R.181-45
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     ,
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     est publié sur le site internet des services de l'État dans le département de Tarn-et-Garonne pendant une durée minimale de quatre mois.
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      4/4
+     </div>
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La secrétaire générale de la préfecture de Tarn-et-Garonne, le directeur régional de l’environnement, de l’aménagement et du logement (DREAL) d’Occitanie, chargé de l’inspection des installations classées, sont chargés, chacun en ce qui le concerne, de veiller à l’exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     qui sera publié sur le registre des actes administratifs de la préfecture de Tarn-et-Garonne et dont une copie sera transmise à la maire de Montauban et notifiée à la Société Laitière de Montauban.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Fait à Montauban, le — 9 JUIL. 2025
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le préfet
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le Préfet et par délégation
+    </div>
+    <div data-number="5" data-spec="alinea">
+     la Secrétaire Générale
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Edwige DARRACQ
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Délais et voies de recours
+    </div>
+    <div data-number="8" data-spec="alinea">
+     En application des dispositions inscrites au
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      Code de l’environnement
+     </a>
+     et notamment son
+     <a data-spec="section_reference" data-start_num="L171-11" data-type="article">
+      article L.171-11
+     </a>
+     ,
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     est soumis à un contentieux de pleine juridiction.
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Conformément au
+     <a data-spec="document_reference" data-title="Code de justice administrative" data-type="code">
+      Code de justice administrative
+     </a>
+     , il peut être déféré au tribunal administratif de Toulouse (
+     <address data-spec="address">
+      68 rue Raymond IV
+     </address>
+     – 31000 TOULOUSE – Tél : 05.62.73.57.57), par la personne qui en fait l’objet, par voie de recours formée contre une décision, dans les deux mois à partir de la notification ou de la publication de la décision attaquée.
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Le tribunal administratif peut également être saisi par l’application informatique
+     <q>
+      Télé-recours citoyens
+     </q>
+     accessible par le site internet
+     <q>
+      www.telerecours.fr
+     </q>
+     .
+    </div>
+    <div data-number="11" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     peut aussi faire l’objet d’un recours gracieux ou hiérarchique dans le délai de deux mois :
+    </div>
+    <div data-number="12" data-spec="alinea">
+     <ul>
+      <li>
+       - soit d’un recours gracieux auprès du préfet de Tarn-et-Garonne –
+       <address data-spec="address">
+        2 Allée de l’Empereur
+       </address>
+       – 82000 Montauban. Le recours doit être écrit et exposer les arguments et faits nouveaux. Une copie de la décision contestée doit être jointe à votre recours ;
+      </li>
+      <li>
+       - soit d’un recours hiérarchique auprès du ministre de la transition écologique de la biodiversité, de la forêt, de la mer et de la pêche – Grande Arche de la Défense – Paroi sud / Tour Séquoia – 92055 LA DÉFENSE. Le recours doit être écrit et exposer les arguments et faits nouveaux. Une copie de la décision contestée doit être jointe à votre recours.
+      </li>
+     </ul>
+    </div>
+    <div data-number="13" data-spec="alinea">
+     Ce recours administratif prolonge de deux mois le délai sus-mentionné.
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

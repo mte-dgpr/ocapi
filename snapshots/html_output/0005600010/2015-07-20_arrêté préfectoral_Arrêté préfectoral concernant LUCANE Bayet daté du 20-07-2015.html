@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2015-07-20_arrêté préfectoral_Arrêté préfectoral concernant LUCANE Bayet daté du 20-07-2015.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PREFET DE L'ALLIER
+    </div>
+    <div>
+     DIRECTION RÉGIONALE DE L'ENVIRONNEMENT, DE L'AMÉNAGEMENT ET DU LOGEMENT
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ N° 1867/15 Arrêté préfectoral autorisant la société LUCANE à procéder à des essais d'incinération de lixiviats non dangereux externes sur l'usine d'incinération de BAYET
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le préfet de l'Allier
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2002-09-20" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2002-09-20">
+      20 septembre 2002
+     </time>
+     modifié
+    </a>
+    relatif aux installations d'incinération et de co-incinération de déchets non dangereux et aux installations incinérant des déchets d'activités de soins à risques infectieux ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2008-04-11" data-num="1688/08" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 1688/08 du
+     <time data-spec="date" datetime="2008-04-11">
+      11 avril 2008
+     </time>
+     modifié
+    </a>
+    autorisant la société LUCANE à poursuivre l'exploitation d'un centre de valorisation énergétique de déchets à BAYET ;
+   </div>
+   <div data-spec="visa">
+    Vu la demande présentée le 9 juin 2015 relative à la mise en œuvre d'un essai de co-incinération de lixiviats de l'installation de stockage de déchets non dangereux de Saint-Marcellin-en-Forez, incluant le protocole d'essai d'injection de lixiviats d'une installation de stockage de déchets non dangereux du 07/06/2015 ;
+   </div>
+   <div data-spec="visa">
+    Vu le dossier déposé à l'appui de cette demande ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport et les propositions en date du 26/06/2015 de l'inspection des installations classées ;
+   </div>
+   <div data-spec="visa">
+    Vu l'avis en date du 09/07/2015 du conseil départemental de l'environnement et des risques sanitaires et technologiques au cours duquel le demandeur a eu la possibilité d'être entendu ;
+   </div>
+   <div data-spec="visa">
+    Vu le projet d'arrêté porté le 10 juillet à la connaissance du demandeur ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que la société LUCANE à BAYET est autorisée à traiter des déchets d'ordures ménagères et assimilés et des déchets hospitaliers ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les lixiviats de l'installation de stockage de déchets non dangereux de Saint-Marcellin-en-Forez constituent des déchets non dangereux au sens de la nomenclature des déchets ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT les systèmes de traitement des rejets atmosphériques fonctionnant sur l'usine de BAYET ;
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    CONSIDERANT qu'il est nécessaire d'imposer des prescriptions complémentaires à la société LUCANE à BAYET pour la mise en œuvre d'un essai de co-incinération de lixiviats de l'installation de stockage de déchets non dangereux de Saint-Marcellin-en-Forez dans le cadre d'une étude de faisabilité relative à une nouvelle solution de traitement des lixiviats ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition du Secrétaire Général de la Préfecture de l'Allier :
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1ER
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     complémentaire, prises en application de l'
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="R512-31" data-type="article">
+      article R. 512-31
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     sont applicables à la société LUCANE dont le siège social est situé au lieu-dit
+     <q>
+      Les Bouillots
+     </q>
+     03500 BAYET pour l'exploitation de l'usine d'incinération des ordures ménagères de BAYET.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="APPLICATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 : APPLICATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant est autorisé à procéder à des essais de co-incinération de lixiviats d'une installation de stockage de déchets non dangereux sur les 2 lignes d'incinération de l'usine, pour une durée d'une semaine, renouvelable une fois à compter de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les lixiviats proviennent exclusivement de l'installation de stockage de déchets non dangereux Trémoulin Batailloux de Saint-Marcellin-en-Forez (42).
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le volume de lixiviats traité durant les essais représentera au maximum 50 m³.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     L'exploitant informe le Préfet et l'inspection des installations classées des résultats des analyses journalières relatives au fonctionnement des deux lignes d'incinération à l'issu de chaque essai, et des dates exactes de déroulement de ces essais avant leur démarrage.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Les dispositions de l'
+     <a data-date="2008-04-11" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2008-04-11">
+       11 avril 2008
+      </time>
+      modifié
+     </a>
+     demeurent applicables, à l'exception des dispositions contraires à celles du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="MODALITÉS PARTICULIÈRES POUR LES ESSAIS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 : MODALITÉS PARTICULIÈRES POUR LES ESSAIS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Au cours des essais, seuls les lixiviats classés sous la rubrique 19 07 03 de la nomenclature des déchets peuvent être incinérés. Les tests prouvant ce classement devront être tenus à disposition de l'inspection des installations classées.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les lixiviats seront incinérés avec un mélange des autres types de déchets traités sur le site (ordures ménagères, déchets industriels banals et déchets d'activité de soins à risques infectieux).
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Tout au long de l'essai, un suivi des paramètres de fonctionnement sera réalisé, avec notamment un contrôle :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - des tonnages incinérés ;
+      </li>
+      <li>
+       - de la consommation des réactifs ;
+      </li>
+      <li>
+       - de la production moyenne de vapeur ;
+      </li>
+      <li>
+       - de la température de combustion ;
+      </li>
+      <li>
+       - du débit d'injection d'eaux recyclées dans les fours.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="SURVEILLANCE DES REJETS ATMOSPHÉRIQUES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4 : SURVEILLANCE DES REJETS ATMOSPHÉRIQUES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En plus des contrôles des rejets prévus au chapitre 3.2 de l'
+     <a data-date="2008-04-11" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2008-04-11">
+       11 avril 2008
+      </time>
+     </a>
+     , l'exploitant complétera les mesures en continu par les analyses des paramètres dioxines et métaux lourds et corrélées avec la réalisation de mesures par un organisme agréé (organisme
+     <a data-page_index="2" data-spec="page_separator">
+     </a>
+     accrédité par le Comité français d'accréditation (COFRAC) ou par un organisme signataire de l'accord multilatéral pris dans le cadre de la coordination européenne des organismes d'accréditation ou par un organisme agréé par le ministère en charge de l'inspection des installations classées, s'il existe) sur une durée similaire aux campagnes de mesures semestrielles.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Une campagne de mesures sera réalisée pour chaque campagne d'essais.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="SUIVI DE LA QUALITÉ DES MÂCHEFERS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5 : SUIVI DE LA QUALITÉ DES MÂCHEFERS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-date="2011-11-18" data-spec="document_reference" data-type="arrete">
+      arrêté du
+      <time data-spec="date" datetime="2011-11-18">
+       18 novembre 2011
+      </time>
+     </a>
+     , les mâchefers feront l'objet d'analyses afin de vérifier la non incidence de l'essai sur la qualité des mâchefers.
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="TRANSMISSION DES RÉSULTATS DE SUIVI ET DE SURVEILLANCE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 6 : TRANSMISSION DES RÉSULTATS DE SUIVI ET DE SURVEILLANCE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     À l'issue de chaque essai et après réception des résultats d'analyses, l'exploitant transmettra à l'inspection un rapport de synthèse présentant les résultats des surveillances détaillées dans les
+     <a data-end_num="5" data-spec="section_reference" data-start_num="3" data-type="article">
+      articles 3 à 5
+     </a>
+     , ainsi que le déroulement de ces essais.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Ce rapport devra être accompagné de commentaires qualitatifs et d'interprétation au regard des conditions techniques de fonctionnement des lignes lors des essais. Les explications des éventuels dépassements observés et les mesures correctives entreprises devront être présentées.
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="AFFICHAGE ET PUBLICITÉ" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 7 : AFFICHAGE ET PUBLICITÉ
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sera déposée à la mairie de BAYET pour y être consultée par toute personne intéressée.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Un extrait de l'arrêté énumérant notamment les prescriptions auxquelles l'installation est soumise, sera affiché en mairie pendant une durée minimale d'un mois. Le procès verbal de l'accomplissement de ces formalités sera établi par le maire.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le même extrait sera affiché en permanence et de façon visible dans l'établissement par les soins du bénéficiaire de l'autorisation.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Un avis sera inséré par les soins de monsieur le préfet de l'Allier et aux frais de l'exploitant dans deux journaux locaux ou régionaux diffusés dans le département concerné par l'exploitation.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     est notifiée à l'exploitant. Ce document doit, en permanence, être en sa possession et pouvoir être présenté à toute réquisition.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     L'extrait de cet arrêté est affiché en permanence, de façon visible, dans l'établissement, par l'exploitant.
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-title="DELAIS ET VOIES DE RECOURS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 8 : DELAIS ET VOIES DE RECOURS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est soumis à un contentieux de pleine juridiction.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Il peut être déféré auprès du Tribunal administratif de Clermont-Ferrand :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       1° par les tiers, personnes physiques ou morales, les communes intéressées ou leurs groupements, en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts mentionnés aux
+       <a data-group_id="1" data-spec="section_reference" data-start_num="L211-1" data-type="article">
+        articles L. 211-1
+       </a>
+       et
+       <a data-group_id="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+        L. 511-1
+       </a>
+       dans un délai d'un an à compter de la publication ou de l'affichage de la présente décision.
+      </li>
+      <li>
+       2° par les demandeurs ou exploitants, dans un délai de deux mois à compter de la date à laquelle la décision leur a été notifiée.
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les tiers qui n'ont acquis ou pris à bail des immeubles ou n'ont élevé des constructions dans le voisinage d'une installation classée que postérieurement à l'affichage ou à la publication de l'arrêté autorisant l'ouverture de cette installation ou atténuant les prescriptions primitives ne sont pas recevables à déférer ledit arrêté à la juridiction administrative.
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="9" data-spec="section" data-title="EXECUTION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 9: EXECUTION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est notifié à la société LUCANE.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le Secrétaire Général de la Préfecture de l'Allier, le maire de la commune de Bayet et l'inspection des installations classées pour la protection de l'environnement sont chargés chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie sera adressée à :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - monsieur le directeur départemental des territoires,
+      </li>
+      <li>
+       - monsieur le directeur de l'Agence Régionale de Santé – délégation territoriale de l'Allier,
+      </li>
+      <li>
+       - monsieur le directeur départemental des services d'incendie et de secours,
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Fait à Moulins, le 20 JUIL. 2015
+    </div>
+    <div data-number="5" data-spec="alinea">
+     LE PRÉFET,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Pour le Préfet et par délégation,
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Le Secrétaire Général par intérim,
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Le Sous-Préfet de Montluçon,
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Eddie BOUTTERA
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 4
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2013-12-03_arrêté préfectoral_Arrêté préfectoral concernant CHATREIX - VIGNOUX-AIX VHU daté du 03-12-2013.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+PRÉFET DU CHER
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Direction Départementale de la Cohésion Sociale et de la Protection des Populations Sous
+    </div>
+    <div>
+     Direction de la Protection des Populations
+    </div>
+    <div>
+     Service de la Protection des Populations Installation classée soumise à autorisation n° 5543 Exploitant : SARL CHATREIX
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté préfectoral complémentaire n° 2013-DDCSPP-193 D'actualisation de l'agrément « Centre VHU (Véhicules Hors d'Usage) » Pour la dépollution et le démontage de véhicules hors d'usage
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet du cher,
+    </div>
+    <div>
+     Chevalier de la Légion d'Honneur
+    </div>
+    <div>
+     Chevalier de l'Ordre National du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    et notamment ses titres 1er et IV du livre V ;
+   </div>
+   <div data-spec="visa">
+    VU la nomenclature des installations classées annexée à l'
+    <a data-spec="section_reference" data-start_num="R511" data-type="article">
+     article R.511
+    </a>
+    .9 du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-date="2012-11-26" data-num="2012-1304" data-spec="document_reference" data-type="decret">
+     décret n° 2012-1304 du
+     <time data-spec="date" datetime="2012-11-26">
+      26 novembre 2012
+     </time>
+    </a>
+    modifiant la nomenclature des installations classées ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2012-05-02" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2012-05-02">
+      2 mai 2012
+     </time>
+    </a>
+    relatif aux agréments des exploitants des centre VHU et aux agréments des exploitants des installations de broyage de véhicules hors d'usage ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2008-11-05" data-num="2008.1.1413" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n°2008.1.1413 du
+     <time data-spec="date" datetime="2008-11-05">
+      5 novembre 2008
+     </time>
+    </a>
+    mettant à jour les prescriptions applicables à l'établissement exploité par la SARL CHATREIX, sis 19 rue d'Auron, sur le territoire de la commune de Vignoux sous les Aix ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2012-05-09" data-num="2012-DDCSPP-073" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire n°2012-DDCSPP-073 du
+     <time data-spec="date" datetime="2012-05-09">
+      9 mai 2012
+     </time>
+    </a>
+    portant renouvellement d'agrément « centre VHU » et d'actualisation de la situation administrative du site exploité par la SARL CHATREIX sur le territoire de la commune de Vignoux sous les AIX ;
+   </div>
+   <div data-spec="visa">
+    VU le courrier de la SARL CHATREIX en date du 3 septembre 2013 ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l'inspection des installations classées en date du 6 novembre 2013 ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis du Conseil Départemental de l'Environnement et des Risques Sanitaires et Technologiques en date du 14 novembre 2013 au cours duquel le demandeur a été entendu ;
+   </div>
+   <div data-spec="visa">
+    VU la communication du projet d'arrêté faite au directeur de la SARL CHATREIX en date du 15 novembre 2013 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les installations exploitées par la SARL CHATREIX ne sont pas modifiées ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que l'exploitant, dans son courrier du 3 septembre 2013 susvisé, s'engage à respecter le cahier des charges « centre VHU » annexé à l'
+    <a data-date="2012-05-02" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2012-05-02">
+      2 mai 2012
+     </time>
+    </a>
+    susvisé ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     DDCSPP du Cher-Cité administrative Condé-2, rue Victor Hugo- CS 50 001 -18013 BOURGES Cedex - Tél. 02.48.67.36.95
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     2
+    </div>
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que la demande d'actualisation de l'agrément présentée le 3 septembre 2013 comporte l'ensemble des renseignements mentionnés à l'
+    <a data-spec="section_reference" data-start_num="5" data-type="article">
+     article 5
+    </a>
+    de l'arrêté ministériel du 2 mai 20123 susvisé ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que le seuil de classement de la rubrique 2712 (Installation d'entreposage, dépollution, démontage ou découpage de véhicules hors d'usage ou de différents moyens de transports hors d'usage) a été modifié et que l'établissement relève désormais du régime de l'autorisation sous la rubrique 2712-1a ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT qu'il y a lieu d'en prendre acte ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que le projet d'arrêté a été soumis à l'exploitant qui n'a formulé aucune observation,
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition de Monsieur le Directeur Départemental de la Cohésion Sociale et de la Protection des Populations ;
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-date="2008-11-05" data-num="2008.1.1413" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral n°2008.1.1413 du
+      <time data-spec="date" datetime="2008-11-05">
+       5 novembre 2008
+      </time>
+      modifié
+     </a>
+     susvisé mettant à jour les prescriptions applicables à l'établissement exploité par la SARL CHATREIX, sis
+     <address data-spec="address">
+      19 rue d'Auron
+     </address>
+     , sur le territoire de la commune de VIGNOUX SOUS LES AIX, dont le siège social est situé à la même adresse, est complété et modifié comme suit.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions de l'
+     <a data-spec="section_reference" data-start_num="1.2.1" data-type="article">
+      article 1.2.1
+     </a>
+     (liste des installations concernées par une rubrique de la nomenclature des installations classées) de l'
+     <a data-date="2008-11-05" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2008-11-05">
+       5 novembre 2008
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operation_type="replace" data-references="2" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <div data-error_codes="unbalanced_quote" data-spec="error">
+      <a data-spec="section_reference" data-start_num="1.2.1" data-type="article">
+       Article 1.2.1
+      </a>
+      - Liste des installations concernées par une rubrique de la nomenclature des installations classées
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Rubrique
+       </th>
+       <th>
+        Alinéa
+       </th>
+       <th>
+        A ,NC
+       </th>
+       <th>
+        Libellé de la rubrique (activité)
+       </th>
+       <th>
+        Nature de l'installation
+       </th>
+       <th>
+        Critère de classement
+       </th>
+       <th>
+        Seuil du critère
+       </th>
+       <th>
+        Unité du critère
+       </th>
+       <th>
+        Volume autorisé
+       </th>
+       <th>
+        Unités du volume autorisé
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2712
+       </td>
+       <td>
+        1a
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        Installation de stockage, dépollution, démontage, découpage de véhicules hors d'usage ou de différents moyens de transport hors d'usage
+        <br/>
+        1. Dans le cas de véhicules terrestres hors d'usage
+       </td>
+       <td>
+        Véhicules hors d'usage
+       </td>
+       <td>
+        Surface de stockage
+       </td>
+       <td>
+        ≥ 30 000
+       </td>
+       <td>
+        m²
+       </td>
+       <td>
+        54 000
+       </td>
+       <td>
+        m²
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1185
+       </td>
+       <td>
+        2
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Chlorofluorocarbures, halons et autres carbures et hydrocarbures halogénés : Composants et appareils clos en exploitation
+       </td>
+       <td>
+        Fluides trigorigènes issus des VHU
+       </td>
+       <td>
+        Quantité de fluide susceptible d'être présente dans l'installation
+       </td>
+       <td>
+        &lt; 80
+       </td>
+       <td>
+        I
+       </td>
+       <td>
+        22,7
+       </td>
+       <td>
+        I
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1432
+       </td>
+       <td>
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Liquides inflammables (stockage en réservoirs manufacturés de) : Stockage de liquides inflammables visés à la rubrique 1430
+       </td>
+       <td>
+        Cuve d'huile usagée
+       </td>
+       <td>
+        Capacité équivalente totale
+       </td>
+       <td>
+        &lt; 10
+       </td>
+       <td>
+        m³
+       </td>
+       <td>
+        0,2
+       </td>
+       <td>
+        m³
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2663
+       </td>
+       <td>
+        2
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Pneumatiques et produits dont 50 % au moins de la masse totale unitaire est composée de polymères (matières plastiques, caoutchoucs, élastomères, résines et adhésifs synthétiques) (stockage de) : Dans les autres cas et pour les pneumatiques
+       </td>
+       <td>
+        Pneumatiques
+       </td>
+       <td>
+        Volume susceptible d'être stocké
+       </td>
+       <td>
+        &lt; 1000
+       </td>
+       <td>
+        m³
+       </td>
+       <td>
+        40
+       </td>
+       <td>
+        m³
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     A (Autorisation) ou NC (Non Classé)
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Volume autorisé : éléments caractérisant la consistance, le rythme de fonctionnement, le volume des installations ou les capacités maximales autorisées.
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      3
+     </div>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     En outre, les installations présentes sur le site sont classables au titre de la nomenclature relative à la loi sur l'eau (
+     <a data-date="2006-07-17" data-num="2006-881" data-spec="document_reference" data-type="decret">
+      décret n° 2006-881 du
+      <time data-spec="date" datetime="2006-07-17">
+       17 juillet 2006
+      </time>
+     </a>
+     modifiant le
+     <a data-date="1993-03-29" data-num="93-743" data-spec="document_reference" data-type="decret">
+      décret n° 93-743 du
+      <time data-spec="date" datetime="1993-03-29">
+       29 mars 1993
+      </time>
+     </a>
+     relatif à la nomenclature des opérations soumises à autorisation ou à déclaration en application de l'
+     <a data-spec="section_reference" data-start_num="10" data-type="article">
+      article 10
+     </a>
+     de la loi n° 92-3 du 3 janvier 1992 sur l'eau et le
+     <a data-date="1994-04-29" data-num="94-354" data-spec="document_reference" data-type="decret">
+      décret n° 94-354 du
+      <time data-spec="date" datetime="1994-04-29">
+       29 avril 1994
+      </time>
+     </a>
+     relatif aux zones de répartition des eaux) selon la liste suivante :
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        numéro de rubrique
+       </th>
+       <th>
+        Libellé de la rubrique
+       </th>
+       <th>
+        classement
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2.1.5.0
+       </td>
+       <td>
+        Rejet d'eaux pluviales dans les eaux douces superficielles ou sur le sol ou dans le sous-sol, la surface totale du projet, augmentée de la surface correspondant à la partie du bassin naturel dont les écoulements sont interceptés par le projet, étant supérieure à 1 ha mais inférieure à 20 ha.
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     &amp;gt;
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'intitulé du chapitre 8.1 de l'
+     <a data-date="2008-11-05" data-spec="document_reference" data-tag_id="3" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2008-11-05">
+       5 novembre 2008
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacé" data-operand="4" data-operation_type="replace" data-references="3" data-spec="operation">
+      susvisé est
+      <b>
+       remplacé
+      </b>
+      par l'intitulé suivant :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="4">
+      <p>
+       Chapitre 8.1 - Prescriptions particulières applicables aux stockage et activités de récupération de déchets métalliques (rubrique n°2712)
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions du chapitre 8.2 (Agrément pour l'exploitation d'une installation de dépollution et de démontage de véhicules hors d'usage) de l'
+     <a data-date="2008-11-05" data-spec="document_reference" data-tag_id="5" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2008-11-05">
+       5 novembre 2008
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operation_type="replace" data-references="5" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <div data-error_codes="unbalanced_quote" data-spec="error">
+      Chapitre 8.2 – Agrément « centre VHU »
+     </div>
+    </div>
+    <section data-number="8.2.1" data-spec="section" data-title="DUREE DE VALIDITE" data-type="article">
+     <h4 data-error_codes="non_contiguous_titles" data-level="2" data-spec="section_title">
+      ARTICLE 8.2.1 - DUREE DE VALIDITE
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      La société CHATREIX est agréée pour effectuer la dépollution et le démontage des véhicules hors d'usage sous le numéro PR 18 0001 D (
+      <q>
+       centre VHU
+      </q>
+      ), pour le site qu'elle exploite au
+      <address data-spec="address">
+       19 rue d'Auron
+      </address>
+      , sur la commune de Vignoux sous les Aix.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      L'agrément est valable jusqu'au 22 mai 2018.
+     </div>
+    </section>
+    <section data-number="8.2.2" data-spec="section" data-title="AFFICHAGE" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      ARTICLE 8.2.2 - AFFICHAGE
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      La société CHATREIX est tenue d'afficher de façon visible à l'entrée de son installation son numéro d'agrément et la date de fin de validité de celui-ci.
+     </div>
+    </section>
+    <section data-number="8.2.3" data-spec="section" data-title="RESPECT DU CAHIER DES CHARGES" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      ARTICLE 8.2.3 - RESPECT DU CAHIER DES CHARGES
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      La société CHATREIX est tenue, dans l'activité pour laquelle elle est agréée à l'
+      <a data-parent_reference="1" data-spec="section_reference" data-start_num="8.2.1" data-type="article">
+       article 8.2.1
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="1" data-type="self">
+       présent arrêté
+      </a>
+      , de satisfaire à toutes les obligations mentionnées dans le cahier des charges annexé au
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+    </section>
+    <section data-number="8.2.4" data-spec="section" data-title="ORIGINE DES VEHICULES HORS D'USAGE ET QUANTITE MAXIMALE SUR SITE" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      ARTICLE 8.2.4 - ORIGINE DES VEHICULES HORS D'USAGE ET QUANTITE MAXIMALE SUR SITE
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      Les véhicules hors d'usage sont majoritairement remis par des compagnies d'assurance, des concessionnaires et des particuliers. Les véhicules hors d'usage proviennent du département du Cher et d'autres départements.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      La quantité annuelle admise maximale est limitée à 2 000 véhicules hors d'usage.
+     </div>
+    </section>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     ARTICLE 5
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions de l'
+     <a data-date="2012-05-09" data-spec="document_reference" data-tag_id="6" data-type="arrete-prefectoral">
+      arrêté préfectoral complémentaire du
+      <time data-spec="date" datetime="2012-05-09">
+       9 mai 2012
+      </time>
+     </a>
+     <span data-direction="rtl" data-keyword="abrogées" data-operation_type="delete" data-references="6" data-spec="operation">
+      susvisé sont
+      <b>
+       abrogées
+      </b>
+     </span>
+     .
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 6
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les infractions ou l'inobservation des conditions légales fixées par
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     entraîneront l'application des sanctions pénales et administratives prévues par le
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      4
+     </div>
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 7
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Indépendamment de ces prescriptions, l'administration se réserve le droit d'imposer ultérieurement, toutes celles que nécessiterait l'intérêt général.
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 8
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sera déposée à la mairie de Vignoux sous les Aix où elle pourra y être consultée.
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     devra être affiché en permanence de façon visible dans l'installation par les soins de la SARL CHATREIX.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     énumérant notamment les motifs qui ont fondé la décision ainsi que les prescriptions auxquelles l'installation est soumise et faisant connaître qu'une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     est tenue à la disposition de tout intéressé qui en fera la demande, sera affiché à la porte de la mairie de Vignoux sous les Aix pendant une durée minimale d'un mois. Le même extrait est publié sur le site Internet de la préfecture qui a délivré l'acte pour une durée identique.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Un certificat constatant l'accomplissement des formalités sera adressé à la DDCSPP du Cher (Direction Départementale de la Cohésion Sociale et de la Protection des Populations- Pôle de la Protection des Populations- Service de la Protection de l'Environnement)- Cité administrative Condé- 2, rue Victor Hugo- CS 50 001- 18003 BOURGES CEDEX.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Un avis sera inséré par les soins du Directeur Départemental de la Cohésion Sociale et de la Protection des Populations et aux frais de la société dans deux journaux locaux diffusés dans tout le département.
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 9
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La présente décision est soumise à un contentieux de pleine juridiction. Elle peut être déférée auprès du Tribunal Administratif d'Orléans (28, rue de la Bretonnerie, 45054 Orléans Cedex 1) :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - par le demandeur ou l'exploitant dans un délai de 2 mois à compter de la date de notification du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       .
+      </li>
+      <li>
+       - par les tiers, personnes physiques ou morales, les communes intéressées ou leurs groupements en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts mentionnés aux
+       <a data-group_id="1" data-spec="section_reference" data-start_num="L211-1" data-type="article">
+        articles L. 211-1
+       </a>
+       et
+       <a data-group_id="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+        L.511-1
+       </a>
+       dans un délai d'un an à compter de la publication ou de l'affichage dudit acte.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Toutefois, si la mise en service de l'installation n'est pas intervenue six mois après la publication ou l'affichage de cette décision, le délai de recours continue à courir jusqu'à l'expiration d'une période de six mois après cette mise en service.
+    </div>
+   </section>
+   <section data-number="10" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 10
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     M. le Secrétaire Général, M. le Directeur Départemental de la Cohésion Sociale et de la Protection des Populations, M. le Maire de Vignoux sous les Aix, M. le Responsable de l'Unité Territoriale de la Direction Régionale de l'Environnement, de l'Aménagement et du Logement et M. l'Inspecteur des Installations Classées sont chargés, chacun en ce qui le concerne de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie leur sera adressée ainsi qu'au pétitionnaire.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Bourges, le 3 décembre 2013
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le Préfet,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le Préfet et par délégation,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Pour le Directeur départemental et par délégation,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Le Directeur départemental adjoint,
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Signé
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

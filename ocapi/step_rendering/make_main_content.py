@@ -156,13 +156,15 @@ def _insert_new_article_sections(
         if not isinstance(latest_content, str) or not latest_content.strip():
             continue
 
-        frag = BeautifulSoup(latest_content, "html.parser")
-        section_el = frag.find("section", attrs={"data-spec": "section"})
-        if section_el is None:
-            section_el = frag.find("section")
-        if section_el is None:
-            _LOGGER.warning("Could not find <section> element for new article %s", disp)
-            continue
+        latest_title = latest.get("title", "")
+        section_html = (
+            f'<section data-spec="section" data-number="{disp}"'
+            f' data-type="article">'
+            f"{latest_title}{latest_content}</section>"
+        )
+        frag = BeautifulSoup(section_html, "html.parser")
+        section_el = frag.find("section")
+        assert section_el is not None
 
         pred = _find_predecessor_display_id(disp, set(pool))
         if pred is None:

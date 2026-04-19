@@ -1,0 +1,1795 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2019-05-23_ap d'autorisation_2019_05_23_AP.pdf.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFET DE LA SEINE-MARITIME
+    </div>
+    <div>
+     DIRECTION RÉGIONALE DE L'ENVIRONNEMENT, DE L'AMÉNAGEMENT ET DU LOGEMENT DE NORMANDIE
+    </div>
+    <div>
+     Unité Départementale Rouen Dieppe
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté du
+     <time data-spec="date" datetime="2019-05-23">
+      23 MAI 2019
+     </time>
+     autorisant la Société Centrale Éolienne de La Houssaye à exploiter un parc éolien terrestre sur les communes de La Houssaye-Béranger et de Fresnay-le-Long
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le préfet de la région Normandie, préfet de la Seine-Maritime,
+    </div>
+    <div>
+     Officier de la Légion d'honneur,
+    </div>
+    <div>
+     Officier de l'Ordre National du Mérite,
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'énergie" data-type="code">
+     code de l'énergie
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'urbanisme" data-type="code">
+     code de l'urbanisme
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu l'ordonnance n° 2017-80 du 26 janvier 2017 relatif à l'autorisation environnementale et notamment son
+    <a data-spec="section_reference" data-start_num="15" data-type="article">
+     article 15
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu l'ordonnance n° 2014-355 du 20 mars 2014 relative à l'expérimentation d'une autorisation unique en matière d'installations classées pour la protection de l'environnement ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="2014-05-02" data-num="2014-450" data-spec="document_reference" data-type="decret">
+     décret n° 2014-450 du
+     <time data-spec="date" datetime="2014-05-02">
+      2 mai 2014
+     </time>
+    </a>
+    modifié relatif à l'expérimentation d'une autorisation unique en matière d'installations classées pour la protection de l'environnement ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2001-05-17" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2001-05-17">
+      17 mai 2001
+     </time>
+     modifié
+    </a>
+    fixant les conditions techniques auxquelles doivent satisfaire les distributions d'énergie électrique ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="2004-04-29" data-num="2004-374" data-spec="document_reference" data-type="decret">
+     décret n° 2004-374 du
+     <time data-spec="date" datetime="2004-04-29">
+      29 avril 2004
+     </time>
+    </a>
+    modifié relatif aux pouvoirs des préfets, à l'organisation et à l'action des services de l'État dans les régions et les départements ;
+   </div>
+   <div data-spec="visa">
+    Vu le décret du Président de la République du 1er avril 2019 nommant M. Pierre-André DURAND, préfet de la région Normandie, préfet de la Seine-Maritime ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2019-04-23" data-num="19-76" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 19-76 du
+     <time data-spec="date" datetime="2019-04-23">
+      23 avril 2019
+     </time>
+    </a>
+    portant délégation de signature à M. Yvan CORDIER, secrétaire général de la préfecture de la Seine-Maritime ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2011-08-26" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2011-08-26">
+      26 août 2011
+     </time>
+     modifié
+    </a>
+    relatif aux installations de production d'électricité utilisant l'énergie mécanique du vent au sein d'une installation soumise à autorisation au titre de la rubrique 2980 de la nomenclature des installations classées ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2011-08-26" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2011-08-26">
+      26 août 2011
+     </time>
+    </a>
+    relatif à la remise en état et à la constitution des garanties financières pour les installations de production d'électricité utilisant l'énergie mécanique du vent ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     1/12
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2013-01-14" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2013-01-14">
+      14 janvier 2013
+     </time>
+     modifié
+    </a>
+    relatif aux modalités du contrôle technique des ouvrages des réseaux publics d'électricité, des ouvrages assimilables à ces réseaux publics et des lignes directes prévu par l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="13" data-type="article">
+     article 13
+    </a>
+    du
+    <a data-date="2011-12-01" data-num="2011-1697" data-spec="document_reference" data-tag_id="1" data-type="decret">
+     décret n° 2011-1697 du
+     <time data-spec="date" datetime="2011-12-01">
+      1er décembre 2011
+     </time>
+    </a>
+    relatif aux ouvrages des réseaux publics d'électricité et des autres réseaux d'électricité et au dispositif de surveillance et de contrôle des ondes électromagnétiques ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2018-04-23" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2018-04-23">
+      23 avril 2018
+     </time>
+    </a>
+    relatif à la réalisation du balisage des obstacles à la navigation aérienne ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="1990-07-25" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="1990-07-25">
+      25 juillet 1990
+     </time>
+    </a>
+    relatif aux installations dont l'établissement à l'extérieur des zones grevées de servitudes aéronautiques de dégagement est soumis à autorisation ;
+   </div>
+   <div data-spec="visa">
+    Vu le Plan Local d'Urbanisme de la commune de La Houssaye-Béranger, approuvé le 23 septembre 2010 et révisé le 24 août 2015 ;
+   </div>
+   <div data-spec="visa">
+    Vu les dispositions générales de l'
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="L111-1-2-2" data-type="article">
+     article L111-1-2-2
+    </a>
+    ° du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'urbanisme" data-type="code">
+     code de l'Urbanisme
+    </a>
+    (RNU) applicables sur la commune de Fresnay-le-Long, en l'absence de document d'urbanisme opposable ;
+   </div>
+   <div data-spec="visa">
+    Vu la demande déposée le 28 février 2017 sous le format de l'expérimentation de l'autorisation unique et complétée à deux reprises les 22 juin et 30 octobre 2017, par laquelle la société Centrale Éolienne de La Houssaye sollicite l'autorisation d'exploiter une installation de production d'électricité à partir de l'énergie mécanique du vent comportant 7 aérogénérateurs d'une puissance maximale totale de 23,8 MW et 2 postes de livraison électrique ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport de l'inspection des installations classées et son avis sur le caractère complet et régulier du dossier en date du 20 novembre 2017 ;
+   </div>
+   <div data-spec="visa">
+    Vu l'avis de la Mission Régionale d'Autorité Environnementale de Normandie émis le 24 mai 2018 et la réponse du demandeur datée du 3 juillet 2018 ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2018-09-11" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2018-09-11">
+      11 septembre 2018
+     </time>
+    </a>
+    ordonnant l'organisation d'une enquête publique du 22 octobre au 3 décembre 2018 inclus ;
+   </div>
+   <div data-spec="visa">
+    Vu le registre d'enquête, le rapport, son erratum et l'avis du commissaire enquêteur daté du 3 janvier 2019 ;
+   </div>
+   <div data-spec="visa">
+    Vu les avis exprimés par les différents services et organismes consultés et notamment celui de l'Armée de l'air (DSAE) en date du 2 octobre 2018 et de la DGAC en date du 22 août 2017 ;
+   </div>
+   <div data-spec="visa">
+    Vu les avis émis par les conseils municipaux des communes d'Auffay, des Authieux-Ratiéville, de Clères, de Grugny et de Saint Victor l'Abbaye ;
+   </div>
+   <div data-spec="visa">
+    Vu la transmission du projet d'arrêté faite au pétitionnaire par courriel le 4 février 2019 ;
+   </div>
+   <div data-spec="visa">
+    Vu les observations sur ce projet d'arrêté présentées par le demandeur par courriel en date du 15 février 2019 ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport de l'inspectrice de l'environnement à la commission départementale de la nature, des paysages et des sites daté du 22 mars 2019 ;
+   </div>
+   <div data-spec="visa">
+    Vu la lettre de convocation à la commission départementale de la nature, des paysages et des sites en date du 4 avril 2019 ;
+   </div>
+   <div data-spec="visa">
+    Vu la délibération de la commission départementale de la nature, des paysages et des sites, au projet d'arrêté préfectoral et de prescriptions, du 11 avril 2019 ;
+   </div>
+   <div data-spec="visa">
+    Vu la transmission du projet d'arrêté au pétitionnaire, par courrier recommandé avec avis de réception, le 3 mai 2019 et ses observations du 15 mai 2019 ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     2/12
+    </div>
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div>
+    CONSIDÉRANT
+   </div>
+   <div data-spec="motifs">
+    - que l'installation faisant l'objet de la demande est soumise à autorisation préfectorale unique au titre du chapitre 1er de l'ordonnance n°2014-355 du 20 mars 2014 susvisée et au titre de la rubrique 2980 de la nomenclature des installations classées pour la protection de l'environnement ;
+   </div>
+   <div data-spec="motifs">
+    - que le projet de liaisons souterraines et de postes de livraison présenté permet de raccorder les éoliennes au réseau public d'électricité ;
+   </div>
+   <div data-spec="motifs">
+    - que le pétitionnaire s'engage à ce que ce projet d'ouvrages électriques respecte les dispositions de l'
+    <a data-date="2001-05-17" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2001-05-17">
+      17 mai 2001
+     </time>
+     modifié
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    - que le projet de liaisons souterraines inter-éoliennes et de postes de livraison présenté n'apparaît pas incompatible ou redondant avec les missions confiées aux gestionnaires de réseaux publics d'électricité en application du livre III du
+    <a data-spec="document_reference" data-title="Code de l'énergie" data-type="code">
+     code de l'énergie
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    - que les prescriptions des arrêtés ministériels susvisés nécessitent d'être complétées, au regard des spécificités du contexte local, de dispositions visant à protéger les enjeux environnementaux locaux ;
+   </div>
+   <div data-spec="motifs">
+    - qu'il est nécessaire, dans le cadre des garanties financières et afin d'être en mesure de répondre aux objectifs des
+    <a data-end_num="R515-104" data-parent_reference="3" data-spec="section_reference" data-start_num="R515-101" data-type="article">
+     articles R. 515-101 à R. 515-104
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , de fixer le montant forfaitaire prévu par l'
+    <a data-parent_reference="4" data-spec="section_reference" data-start_num="1" data-type="annexe">
+     annexe I
+    </a>
+    de l'
+    <a data-date="2011-08-26" data-spec="document_reference" data-tag_id="4" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2011-08-26">
+      26 août 2011
+     </time>
+    </a>
+    relatif à la remise en état et à la constitution des garanties financières pour les installations de production d'électricité utilisant l'énergie mécanique du vent ;
+   </div>
+   <div data-spec="motifs">
+    - que le guide sur l'application de la réglementation relative aux espèces protégées pour les parcs éoliens terrestres édité le 4 mars 2014 indique la nécessité de mettre en place préventivement des mesures de réduction, proportionnées aux enjeux et aux sensibilités respectives des espèces, sans attendre que les suivis d'implantation confirment la présence d'impact ;
+   </div>
+   <div data-spec="motifs">
+    - que le commissaire enquêteur dans ses conclusions du 3 janvier 2019 formule un avis favorable à la réalisation du projet ;
+   </div>
+   <div data-spec="motifs">
+    - que les mesures imposées à l'exploitant, notamment le fonctionnement optimisé des aérogénérateurs, sont de nature à prévenir les éventuelles nuisances sonores et à réduire l'impact sur la biodiversité ;
+   </div>
+   <div data-spec="motifs">
+    - que les conditions d'aménagement et d'implantation prévues dans le dossier de demande d'autorisation permettent de limiter autant que possible l'impact visuel ;
+   </div>
+   <div data-spec="motifs">
+    - que les conditions légales de délivrance de l'autorisation sont réunies,
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition du secrétaire général de la préfecture de la Seine-Maritime,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     3/12
+    </div>
+   </div>
+   <a data-page_index="3" data-spec="page_separator">
+   </a>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     Titre 1er
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dispositions générales
+    </div>
+    <section data-number="1" data-spec="section" data-title="Domaine d'application" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 1 - Domaine d'application
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La présente autorisation unique tient lieu :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - d'autorisation d'exploiter au titre de l'
+        <a data-parent_reference="5" data-spec="section_reference" data-start_num="L512-1" data-type="article">
+         article L.512-1
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="5" data-title="Code de l'environnement" data-type="code">
+         code de l'environnement
+        </a>
+        ;
+       </li>
+       <li>
+        - de permis de construire au titre de l'
+        <a data-parent_reference="6" data-spec="section_reference" data-start_num="L421-1" data-type="article">
+         article L.421-1
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="6" data-title="Code de l'urbanisme" data-type="code">
+         code de l'urbanisme
+        </a>
+        ;
+       </li>
+       <li>
+        - d'approbation au titre de l'
+        <a data-parent_reference="7" data-spec="section_reference" data-start_num="L323-11" data-type="article">
+         article L.323-11
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="7" data-title="Code de l'énergie" data-type="code">
+         code de l'énergie
+        </a>
+        .
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="2" data-spec="section" data-title="Exploitant titulaire de l'autorisation" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 2 - Exploitant titulaire de l'autorisation
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La Société Centrale Éolienne de La Houssaye, dont le siège social est situé au
+      <address data-spec="address">
+       1350 avenue Albert Einstein
+      </address>
+      - PAT Bât. 2 - 34 000 MONTPELLIER, est tenue de respecter les prescriptions ci-annexées pour les installations détaillées dans les
+      <a data-group_id="1" data-spec="section_reference" data-start_num="3" data-type="article">
+       articles 3
+      </a>
+      et
+      <a data-group_id="1" data-spec="section_reference" data-start_num="4" data-type="article">
+       4
+      </a>
+      suivants.
+     </div>
+    </section>
+    <section data-number="3" data-spec="section" data-title="Liste des installations concernées par une rubrique de la nomenclature des installations classées" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 3 - Liste des installations concernées par une rubrique de la nomenclature des installations classées
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         Rubrique
+        </th>
+        <th>
+         Alinéa
+        </th>
+        <th>
+         Régime(*)
+        </th>
+        <th>
+         Libellé de la rubrique (activité)
+        </th>
+        <th>
+         Activité/Volume autorisé
+        </th>
+       </tr>
+       <tr>
+        <td>
+         2980
+        </td>
+        <td>
+         1
+        </td>
+        <td>
+         A
+        </td>
+        <td>
+         Installation terrestre de production d'électricité à partir de l'énergie mécanique du vent et regroupant un ou plusieurs aérogénérateurs
+         <br/>
+         1. Comprenant au moins un aérogénérateur dont le mât a une hauteur supérieure ou égale à 50 m.
+        </td>
+        <td>
+         7 aérogénérateurs + 2 postes de livraison
+         <br/>
+         – puissance unitaire maximale 3,4 MW ;
+         <br/>
+         – puissance totale installée maximale 23,8 MW ;
+         <br/>
+         – Diamètre de rotor maximal de 104 mètres ;
+         <br/>
+         – Hauteur de mât au moyeu maximale de 84 mètres ;
+         <br/>
+         – Hauteur totale maximale de 130 mètres.
+        </td>
+       </tr>
+      </table>
+      <br/>
+      *A : installation soumise à autorisation
+     </div>
+    </section>
+    <section data-number="4" data-spec="section" data-title="Situation de l'établissement" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 4 - Situation de l'établissement
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les installations autorisées sont situées sur les communes et parcelles suivantes :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <table>
+       <tr>
+        <th rowspan="2">
+         Installation
+        </th>
+        <th colspan="2">
+         Coordonnées RGF Lambert 93 (en m)
+        </th>
+        <th rowspan="2">
+         Commune
+        </th>
+        <th rowspan="2">
+         Lieu-dit
+        </th>
+        <th rowspan="2">
+         Parcelles cadastrales (section et numéro)
+        </th>
+       </tr>
+       <tr>
+        <th>
+         X
+        </th>
+        <th>
+         Y
+        </th>
+       </tr>
+       <tr>
+        <td>
+         CEHOU01
+        </td>
+        <td>
+         561392
+        </td>
+        <td>
+         6951490
+        </td>
+        <td>
+         Fresnay-le-Long
+        </td>
+        <td>
+         Plaine du Moulin
+        </td>
+        <td>
+         ZH 61
+        </td>
+       </tr>
+       <tr>
+        <td>
+         CEHOU02
+        </td>
+        <td>
+         561606
+        </td>
+        <td>
+         6950878
+        </td>
+        <td>
+         La Houssaye-Béranger
+        </td>
+        <td>
+         Plaine du Moulin de la Houssaye
+        </td>
+        <td>
+         ZD 46
+        </td>
+       </tr>
+       <tr>
+        <td>
+         CEHOU03
+        </td>
+        <td>
+         561705
+        </td>
+        <td>
+         6950597
+        </td>
+        <td>
+         La Houssaye-Béranger
+        </td>
+        <td>
+         Plaine du Moulin de la Houssaye
+        </td>
+        <td>
+         ZD 23
+        </td>
+       </tr>
+       <tr>
+        <td>
+         CEHOU04
+        </td>
+        <td>
+         561976
+        </td>
+        <td>
+         6950562
+        </td>
+        <td>
+         La Houssaye-Béranger
+        </td>
+        <td>
+         La Croix Val
+        </td>
+        <td>
+         ZD 21
+        </td>
+       </tr>
+       <tr>
+        <td>
+         CEHOU05
+        </td>
+        <td>
+         562245
+        </td>
+        <td>
+         6950515
+        </td>
+        <td>
+         La Houssaye-Béranger
+        </td>
+        <td>
+         Fond chemin de Beauchifol
+        </td>
+        <td>
+         ZE 2
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       4/12
+      </div>
+     </div>
+     <a data-page_index="4" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       5/12
+      </div>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         CEHOU06
+        </th>
+        <th>
+         562898
+        </th>
+        <th>
+         6950557
+        </th>
+        <th>
+         La Houssaye-Béranger
+        </th>
+        <th>
+         Fond chemin de Beauchifol
+        </th>
+        <th>
+         ZE 13
+        </th>
+       </tr>
+       <tr>
+        <th>
+         CEHOU07
+        </th>
+        <th>
+         563162
+        </th>
+        <th>
+         6950410
+        </th>
+        <th>
+         La Houssaye-Béranger
+        </th>
+        <th>
+         Fond chemin de Beauchifol
+        </th>
+        <th>
+         ZE 18
+        </th>
+       </tr>
+       <tr>
+        <th>
+         Poste de livraison 1
+        </th>
+        <th>
+         562207
+        </th>
+        <th>
+         6951728
+        </th>
+        <th>
+         Fresnay-le-Long
+        </th>
+        <th>
+         Le Bourg
+        </th>
+        <th>
+         ZK 137
+        </th>
+       </tr>
+       <tr>
+        <th>
+         Poste de livraison 2
+        </th>
+        <th>
+         562212
+        </th>
+        <th>
+         6951720
+        </th>
+        <th>
+         Fresnay-le-Long
+        </th>
+        <th>
+         Le Bourg
+        </th>
+        <th>
+         ZK 137
+        </th>
+       </tr>
+      </table>
+     </div>
+    </section>
+    <section data-number="5" data-spec="section" data-title="Conformité au dossier de demande d'autorisation" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 5 - Conformité au dossier de demande d'autorisation
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Sauf disposition contraire mentionnée dans
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      , les installations et les postes de livraison, objet du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      , sont construits, disposés, aménagés et exploités conformément aux plans et données techniques contenus dans le dossier joint à la demande d'autorisation unique déposé par le demandeur. Ils respectent par ailleurs, les dispositions du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      et les réglementations en vigueur.
+     </div>
+    </section>
+    <section data-number="6" data-spec="section" data-title="Montant des garanties financières" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 6 - Montant des garanties financières
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les garanties financières définies dans
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      s'appliquent pour les activités visées à l'
+      <a data-spec="section_reference" data-start_num="3" data-type="article">
+       article 3
+      </a>
+      .
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Le montant initial des garanties financières à constituer en application des
+      <a data-end_num="R515-104" data-parent_reference="8" data-spec="section_reference" data-start_num="R515-101" data-type="article">
+       articles R. 515-101 à R. 515-104
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="8" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      par la Société Centrale Éolienne de La Houssaye s'élève à :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      M_n = N \times C_u \times \frac{\text{Index}_n}{\text{Index}_0} \times \frac{1 + TVA}{1 + TVA_0} = 387\,244\text{Euros}
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Où
+     </div>
+     <div data-number="5" data-spec="alinea">
+      <ul>
+       <li>
+        - M_n est le montant exigible à l'année n.
+       </li>
+       <li>
+        - N est le nombre d'aérogénérateurs
+       </li>
+       <li>
+        - C_u est le coût unitaire forfaitaire correspondant au démantèlement d'une unité, à la remise en état des terrains, à l'élimination ou à la valorisation des déchets générés. Ce coût est fixé à 50 000 euros
+       </li>
+       <li>
+        - Index_n est l'indice TP01 en vigueur à la date d'actualisation du montant de la garantie.
+       </li>
+       <li>
+        - Index₀ est l'indice TP01 en vigueur au 1er janvier 2011 (667,7).
+       </li>
+       <li>
+        - TVA est le taux de la taxe sur la valeur ajoutée applicable aux travaux de construction à la date d'actualisation de la garantie (20 %) .
+       </li>
+       <li>
+        - TVA₀ est le taux de la taxe sur la valeur ajoutée au 1er janvier 2011, soit 19,60 %
+       </li>
+      </ul>
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Ce montant a été calculé en tenant compte des indices TP01 et des taux de TVA suivants :
+     </div>
+     <div data-number="7" data-spec="alinea">
+      <ul>
+       <li>
+        - Index_n = 6,5345 x110,9 = 724,68 (Indice TP01 d'octobre 2018)
+       </li>
+       <li>
+        - N est égal à 7 aérogénérateurs
+       </li>
+       <li>
+        - TVA = 20 % (en janvier 2019)
+       </li>
+      </ul>
+     </div>
+     <div data-number="8" data-spec="alinea">
+      La mise en service de l'installation est subordonnée à la constitution des garanties financières. Dès la mise en service de l'installation, l'exploitant transmet au préfet l'ensemble des justificatifs attestant la constitution des garanties financières.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      L'exploitant réactualise le montant susvisé de la garantie financière, par application de la formule mentionnée à l'
+      <a data-spec="section_reference" data-start_num="2" data-type="annexe">
+       annexe II
+      </a>
+      et suivant la fréquence définie à l'
+      <a data-parent_reference="9" data-spec="section_reference" data-start_num="3" data-type="article">
+       article 3
+      </a>
+      de l'
+      <a data-date="2011-08-26" data-spec="document_reference" data-tag_id="9" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="2011-08-26">
+        26 août 2011
+       </time>
+      </a>
+      relatif à la remise en état et à la constitution des garanties financières pour les installations de production d'électricité utilisant l'énergie mécanique du vent.
+     </div>
+     <a data-page_index="5" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       6/12
+      </div>
+     </div>
+    </section>
+   </section>
+   <section data-number="II" data-spec="section" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     Titre II
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dispositions particulières relatives à l'autorisation d'exploiter au titre de l'
+     <a data-parent_reference="10" data-spec="section_reference" data-start_num="L512-1" data-type="article">
+      article L.512-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="10" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+    </div>
+    <section data-number="7" data-spec="section" data-title="Mesures spécifiques liées à la phase travaux" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 7 - Mesures spécifiques liées à la phase travaux
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      I.- Protection de l'avifaune
+     </div>
+     <div data-number="2" data-spec="alinea">
+      En dehors de la période allant du 15 août au 1er mars de l'année suivante, le démarrage des travaux de terrassement n'est autorisé qu'après justification auprès de l'inspection des installations classées, par un organisme ou une personne compétente dans le domaine de l'ornithologie, de l'absence d'impact pour l'avifaune et plus particulièrement, de l'absence de risque de perturbation sur des éventuelles nichées présentes à proximité des zones de chantier. La justification qui explicite la méthodologie mise en œuvre est tenue à disposition de l'inspection des installations classées.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      II.- Dates de chantier
+     </div>
+     <div data-number="4" data-spec="alinea">
+      L'exploitant transmet, à l'inspection des installations classées, les dates prévisionnelles de début et de fin de chantier au moins 15 jours avant la mise en œuvre de celui-ci.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      III.- Réalisation d'une étude géotechnique
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Une étude géotechnique est réalisée pour chacune des fondations des aérogénérateurs afin de préciser la stabilité du sol, les caractéristiques du sous-sol, la présence ou non de cavités, la présence d'aquifère superficiel. Cette étude conduit, le cas échéant, à la mise en œuvre des actions nécessaires afin d'éviter les risques associés à ces éléments.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Cette étude et les éléments documentaires faisant suite aux actions éventuellement mises en œuvre sont tenues à la disposition de l'inspection des installations classées.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      IV.- Gestion des eaux pluviales
+     </div>
+     <div data-number="9" data-spec="alinea">
+      La zone d'implantation des éoliennes, les aires de grutage, ainsi que les chemins d'accès à l'installation sont aménagés de façon à ne pas être à l'origine d'un ruissellement supplémentaire par rapport à l'état initial, de nature à entraîner ou à aggraver des problèmes d'inondation en aval.
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Les ouvrages de gestion des eaux pluviales visent prioritairement des techniques d'infiltration (noues, bassins d'infiltration) dimensionnées pour une période de retour centennale. En cas d'impossibilité de gestion par des organes d'infiltration adaptés, le dimensionnement des organes de gestion (basins de rétention...) prend en considération un débit de fuite vers le milieu naturel de 2 litres/seconde/hectare de surface imperméabilisée, établi sur la base d'une pluie centennale.
+     </div>
+     <div data-number="11" data-spec="alinea">
+      V.- Découverte fortuite d'éléments archéologiques
+     </div>
+     <div data-number="12" data-spec="alinea">
+      Lorsque, par suite de travaux ou d'un fait quelconque, des monuments, ruines, substructions, mosaïques, éléments de canalisation antique, vestiges d'habitation ou de sépultures anciennes, des inscriptions ou généralement des objets pouvant intéresser la préhistoire, l'histoire, l'art, l'archéologie ou la numismatique sont mis au jour, la réalisation des travaux en lien avec la présente autorisation est subordonnée à l'accomplissement préalable des mesures prévues au livre V du
+      <a data-spec="document_reference" data-title="Code du patrimoine" data-type="code">
+       code du patrimoine
+      </a>
+      .
+     </div>
+     <div data-number="13" data-spec="alinea">
+      VI.- Mesures spécifiques liées à la phase de travaux
+     </div>
+     <div data-number="14" data-spec="alinea">
+      L'exploitant prend les mesures adéquates afin d'éviter et de prévenir toute pollution de l'environnement. À cet effet, les produits dangereux pour l'environnement (huiles, essences...) sont placés sur des rétentions dûment dimensionnées.
+     </div>
+     <a data-page_index="6" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       7/12
+      </div>
+     </div>
+    </section>
+    <section data-number="8" data-spec="section" data-title="Mesures spécifiques liées à la préservation des enjeux environnementaux locaux (biodiversité)" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 8 - Mesures spécifiques liées à la préservation des enjeux environnementaux locaux (biodiversité)
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      I.- Suivi complémentaire de mortalité et de l'activité des chiroptères et de l'avifaune
+     </div>
+     <div data-number="2" data-spec="alinea">
+      L'exploitant met en place, dès la première année d'exploitation un suivi renforcé de l'activité et de la mortalité de l'avifaune et des chiroptères. Ce suivi comprend :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - un suivi de la mortalité sur l'ensemble des éoliennes (soit par suivi direct ou indirect). En cas de suivi direct, un minimum de 20 sorties sera réalisé au cours de la première année entre les semaines 20 et 43.
+       </li>
+       <li>
+        - un suivi renforcé de l'activité des chiroptères sur un point fixe à hauteur du moyeu, si possible à proximité de la voie ferrée (au total deux années de suivi, l'une avant et l'autre après l'implantation).
+       </li>
+       <li>
+        - un suivi renforcé de l'activité de l'avifaune en période de nidification et une étude de comportement des oiseaux en période de migration post-nuptiale.
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Ce suivi est réalisé suivant les dispositions du protocole de suivi environnemental des parcs éoliens terrestres approuvé par décision ministérielle du 5 avril 2018.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Ce suivi est réalisé suivant le protocole validé par le ministre en charge des installations classées.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      La réalisation de ce suivi contribue au suivi prévu à l'
+      <a data-parent_reference="11" data-spec="section_reference" data-start_num="12" data-type="article">
+       article 12
+      </a>
+      de l'
+      <a data-date="2011-08-26" data-spec="document_reference" data-tag_id="11" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="2011-08-26">
+        26 août 2011
+       </time>
+      </a>
+      relatif aux installations de production d'électricité utilisant l'énergie mécanique du vent au sein d'une installation soumise à autorisation au titre de la rubrique 2980 de la nomenclature des installations classées.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      II.- Mesures d'intégration
+     </div>
+     <div data-number="8" data-spec="alinea">
+      L'ensemble du réseau électrique lié au parc est enterré.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Afin de limiter l'impact esthétique, les postes de livraison seront bardés sur les 4 faces d'un bardage en bois naturel et posé à l'horizontale.
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Pour diminuer l'impact visuel, l'exploitant étudie la possibilité de mettre en place une plantation d'arbres ou d'arbustes dans les jardins (dans les emprises privées) sur demande des propriétaires qui le souhaitent et qui résident dans les villages où l'effet généré par le parc est le plus important.
+     </div>
+     <div data-number="11" data-spec="alinea">
+      III.- Plan de bridage acoustique des éoliennes
+     </div>
+     <div data-number="12" data-spec="alinea">
+      Afin de réduire les nuisances sonores induites par l'installation, l'exploitant met en place dès la mise en service du parc éolien, des plans de bridage et mesures nécessaires au respect des dispositions de l'
+      <a data-parent_reference="12" data-spec="section_reference" data-start_num="26" data-type="article">
+       article 26
+      </a>
+      de l'
+      <a data-date="2011-08-26" data-spec="document_reference" data-tag_id="12" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="2011-08-26">
+        26 août 2011
+       </time>
+      </a>
+      relatif aux installations de production d'électricité utilisant l'énergie mécanique du vent au sein d'une installation soumise à autorisation au titre de la rubrique 2980 de la législation des installations classées pour la protection de l'environnement.
+     </div>
+     <div data-number="13" data-spec="alinea">
+      Lors de la réception acoustique, les éoliennes pourront fonctionner ponctuellement en mode standard afin de définir un plan de bridage ajusté respectant les exigences réglementaires. Les évolutions des plans de bridage sont transmises, pour information, à l'inspection des installations classées.
+     </div>
+     <div data-number="14" data-spec="alinea">
+      IV.- Plan de bridage des éoliennes pour les chiroptères
+     </div>
+     <div data-number="15" data-spec="alinea">
+      Afin de réduire le risque de mortalité par collision des chiroptères, l'exploitant met en place dès la mise en service du parc éolien, un plan de bridage renforcé sur les éoliennes CEHOU 02, CEHOU 03 et CEHOU 06 dans les conditions climatiques et horaires réunies suivantes :
+     </div>
+     <div data-number="16" data-spec="alinea">
+      <ul>
+       <li>
+        - bridage au lever et au coucher du jour soit 4 h par nuit d'avril à fin octobre ;
+       </li>
+       <li>
+        - pour des vents inférieurs à 5,5 mètres/seconde (au moyeu à 100 m) ;
+       </li>
+       <li>
+        - pour des températures supérieures à 10 °C ;
+        <a data-page_index="7" data-spec="page_separator">
+        </a>
+       </li>
+       <li>
+        - en l'absence de précipitations.
+       </li>
+      </ul>
+     </div>
+     <div data-number="17" data-spec="alinea">
+      V.- Dispositions spécifiques aux différents plans de bridage :
+     </div>
+     <div data-number="18" data-spec="alinea">
+      Les différents plans d'optimisation / de bridage et / ou d'arrêt des éoliennes prévus par
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      , que ce soit pour les chiroptères ou pour les niveaux acoustiques, sont renforcés, ajustés ou supprimés au regard des résultats des mesures réalisées et après information de l'inspection des installations classées.
+     </div>
+     <div data-number="19" data-spec="alinea">
+      Le parc éolien est conçu de façon à fonctionner avec plusieurs plans de bridage simultanés (chiroptères, acoustique...) de façon à répondre à l'ensemble des problématiques considérées.
+     </div>
+     <div data-number="20" data-spec="alinea">
+      VI.- Dispositions relatives aux mesures d'adaptation du fonctionnement des éoliennes
+     </div>
+     <div data-number="21" data-spec="alinea">
+      L'exploitant est en mesure de justifier à tout moment de l'effectivité des différentes mesures de bridage définies dans
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      et proposées suite aux différents contrôles. Celui-ci tient à disposition de l'inspection des installations classées un enregistrement des paramètres de fonctionnement des aérogénérateurs. Ces paramètres permettent de justifier le mode de fonctionnement des installations.
+     </div>
+     <div data-number="22" data-spec="alinea">
+      L'inspection des installations classées, la Direction Générale de l'Aviation Civile, le SZIC35, ainsi que l'Armée de l'Air – Zone Aérienne de Défense Nord, sont tenus informés des dates de début et de fin des travaux, ainsi que des coordonnées exactes des aérogénérateurs, avec leur cote NGF à la base et au sommet.
+     </div>
+     <div data-number="23" data-spec="alinea">
+      VII.- Dispositions relatives aux mesures d'accompagnement
+     </div>
+     <div data-number="24" data-spec="alinea">
+      Dans les deux ans suivant le chantier de construction du parc éolien, l'exploitant met en place les dispositions de la convention établie avec la fédération de chasseurs de Seine-Maritime. Elles consistent notamment, à réaliser 4 000 mètres linéaires de bandes enherbées avec îlots arbustifs et 3 îlots arbustifs et/ou arborés de 10 à 15 m sur la commune du Bocasse ou tout autre aménagement techniquement et financièrement équivalent.
+     </div>
+     <div data-number="25" data-spec="alinea">
+      L'exploitant s'assure de l'efficacité des aménagements réalisés.
+     </div>
+    </section>
+    <section data-number="9" data-spec="section" data-title="Auto surveillance" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 9 - Auto surveillance
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      En complément des mesures d'auto surveillance décrites dans l'
+      <a data-date="2011-08-26" data-spec="document_reference" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="2011-08-26">
+        26 août 2011
+       </time>
+      </a>
+      relatif aux installations de production d'électricité utilisant l'énergie mécanique du vent, l'exploitant définit et met en œuvre sous sa responsabilité le programme d'auto surveillance complémentaire défini au présent article.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      I.- Auto surveillance des niveaux sonores
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Une mesure de la situation acoustique est effectuée dans un délai maximal de 12 mois à compter de la date de mise en service industrielle des installations, par un organisme ou une personne qualifiée. Ces contrôles visent à vérifier le respect des émergences réglementaires, conformément à l'
+      <a data-parent_reference="13" data-spec="section_reference" data-start_num="26" data-type="article">
+       article 26
+      </a>
+      de l'
+      <a data-date="2011-08-26" data-spec="document_reference" data-tag_id="13" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="2011-08-26">
+        26 août 2011
+       </time>
+      </a>
+      relatif aux installations de production d'électricité utilisant l'énergie mécanique du vent pour les différentes zones à émergences réglementées susceptibles d'être impactées par le projet.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les contrôles portent sur les directions et vitesses de vent à enjeux rencontrées sur le site et pouvant conduire à un non-respect des exigences réglementaires.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Ces contrôles sont effectués selon les dispositions de la norme NFS 31-114 dans sa version en vigueur. Ils sont effectués indépendamment des contrôles ultérieurs ponctuels que l'inspection des installations classées pourra demander.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Les résultats de l'étude acoustique sont tenus à la disposition de l'inspection des installations classées.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       8/12
+      </div>
+     </div>
+     <a data-page_index="8" data-spec="page_separator">
+     </a>
+     <div data-number="7" data-spec="alinea">
+      De plus, une mesure périodique du bruit au niveau du périmètre de mesure du bruit, défini aux
+      <a data-group_id="2" data-parent_reference="14" data-spec="section_reference" data-start_num="2" data-type="article">
+       articles 2
+      </a>
+      et
+      <a data-group_id="2" data-parent_reference="14" data-spec="section_reference" data-start_num="26" data-type="article">
+       26
+      </a>
+      de l'
+      <a data-date="2011-08-26" data-spec="document_reference" data-tag_id="14" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="2011-08-26">
+        26 août 2011
+       </time>
+      </a>
+      relatif aux installations de production d'électricité utilisant l'énergie mécanique du vent, est effectuée dans un délai maximal de 12 mois à compter de la date de mise en service industrielle des installations, puis tous les trois ans, par un organisme ou une personne qualifiée. Si ces mesures périodiques mettent en avant une évolution significative du bruit des éoliennes, un nouveau contrôle des émergences est effectué dans les zones à émergences réglementées telle que définie ci-dessus.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      II.- Suivi de l'avifaune et des chiroptères
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Le suivi de mortalité des chiroptères et de l'avifaune, ainsi que le suivi de l'activité des chiroptères et de l'avifaune, sont prévus à l'
+      <a data-parent_reference="15" data-spec="section_reference" data-start_num="8" data-type="article">
+       article 8
+      </a>
+      -1 du
+      <a data-spec="document_reference" data-tag_id="15" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Les résultats de ces suivis, les conclusions ainsi que, le cas échéant, les mesures envisagées, sont transmis à l'inspection des installations classées pour la protection de l'environnement.
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Conformément aux dispositions du protocole de suivi environnemental des parcs éoliens terrestres approuvé par décision ministérielle du 5 avril 2018 :
+     </div>
+     <div data-number="12" data-spec="alinea">
+      <ul>
+       <li>
+        - Si le suivi mis en œuvre conclut à l'absence d'impact significatif sur les chiroptères et sur les oiseaux, alors le prochain suivi sera effectué dans les 10 ans, conformément à l'
+        <a data-parent_reference="16" data-spec="section_reference" data-start_num="12" data-type="article">
+         article 12
+        </a>
+        de l'
+        <a data-date="2011-08-26" data-spec="document_reference" data-tag_id="16" data-type="arrete-ministeriel">
+         arrêté ministériel du
+         <time data-spec="date" datetime="2011-08-26">
+          26 août 2011
+         </time>
+        </a>
+        relatif aux installations de production d'électricité utilisant l'énergie mécanique du vent.
+       </li>
+       <li>
+        - Si le suivi met en évidence un impact significatif sur les chiroptères ou sur les oiseaux, alors des mesures correctives de réduction doivent être mises en place et un nouveau suivi doit être réalisé l'année suivante (ou à une date définie en concertation avec les services instructeurs dans les cas où la nature de la mesure de réduction mise en œuvre le nécessite) pour s'assurer de leur efficacité.
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="10" data-spec="section" data-title="Actions correctives" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 10 - Actions correctives
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      I.- Cas général
+     </div>
+     <div data-number="2" data-spec="alinea">
+      L'exploitant suit les résultats des mesures qu'il réalise en application des dispositions du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      , les analyse et les interprète. Il prend les actions correctives appropriées lorsque des résultats font présager des risques ou inconvénients significatifs pour l'environnement ou des écarts par rapport au respect des valeurs réglementaires définies dans l'
+      <a data-date="2011-08-26" data-spec="document_reference" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="2011-08-26">
+        26 août 2011
+       </time>
+      </a>
+      relatif aux installations de production d'électricité utilisant l'énergie mécanique du vent.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Pour toute action corrective menée sur le parc, l'exploitant précise sur un registre les actions réalisées et le tient à la disposition de l'inspection des installations classées. L'exploitant est en mesure de justifier l'effectivité des différentes mesures mises en place sur le parc éolien.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      II.- Disposition spécifique à la réception et aux mesures ultérieures des niveaux acoustiques
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Dans le cas de la réception acoustique du parc éolien ou de toute mesure ultérieure conduisant à constater un dépassement des valeurs d'émergences acoustiques et des niveaux sonores, l'exploitant fait le nécessaire pour rendre à nouveau son installation conforme. L'exploitant initie un nouveau contrôle pour justifier de la conformité des installations, dans un délai inférieur à 2 mois à compter du constat des dépassements et prend les actions correctives nécessaires suite à ce nouveau contrôle. Les résultats des mesures sont tenus à la disposition de l'inspection des installations classées.
+     </div>
+    </section>
+    <section data-number="11" data-spec="section" data-title="Récapitulatif des documents tenus à la disposition de l'inspection" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 11 - Récapitulatif des documents tenus à la disposition de l'inspection
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant établit et tient à jour un dossier comportant les documents suivants :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - le dossier de demande d'autorisation initial ;
+       </li>
+       <li>
+        - les plans tenus à jour ;
+        <a data-page_index="9" data-spec="page_separator">
+        </a>
+       </li>
+       <li>
+        - les arrêtés préfectoraux relatifs aux installations soumises à autorisation, pris en application de la législation relative aux installations classées pour la protection de l'environnement ;
+       </li>
+       <li>
+        - tous les documents, enregistrements, résultats de vérification et registres répertoriés dans
+        <a data-spec="document_reference" data-type="self">
+         le présent arrêté
+        </a>
+        et l'
+        <a data-date="2011-08-26" data-spec="document_reference" data-type="arrete">
+         arrêté du
+         <time data-spec="date" datetime="2011-08-26">
+          26 août 2011
+         </time>
+        </a>
+        relatif aux installations de production d'électricité utilisant l'énergie mécanique du vent. Ces documents peuvent être informatisés, mais dans ce cas des dispositions doivent être prises pour la sauvegarde des données.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Ce dossier est tenu à la disposition de l'inspection des installations classées durant 5 années au minimum.
+     </div>
+    </section>
+   </section>
+   <section data-number="III" data-spec="section" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     Titre III
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dispositions particulières relatives au permis de construire au titre de l'
+     <a data-parent_reference="17" data-spec="section_reference" data-start_num="L421-1" data-type="article">
+      article L.421-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="17" data-title="Code de l'urbanisme" data-type="code">
+      code de l'urbanisme
+     </a>
+    </div>
+    <section data-number="12" data-spec="section" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 12 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'autorisation unique est accordée au titre du
+      <a data-spec="document_reference" data-title="Code de l'urbanisme" data-type="code">
+       code de l'urbanisme
+      </a>
+      , sous réserve de respecter les prescriptions mentionnées aux articles ci-après :
+     </div>
+    </section>
+    <section data-number="13-1" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      13-1.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le balisage diurne et nocturne de chaque éolienne, en application de l'
+      <a data-date="1990-07-25" data-spec="document_reference" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="1990-07-25">
+        25 juillet 1990
+       </time>
+      </a>
+      relatif aux installations dont l'établissement à l'extérieur des zones grevées de servitudes aéronautiques de dégagement est soumis à autorisation, est conforme aux spécifications fixées par l'
+      <a data-date="2018-04-23" data-spec="document_reference" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="2018-04-23">
+        23 avril 2018
+       </time>
+      </a>
+      relatif à la réalisation du balisage des obstacles à la navigation aérienne.
+     </div>
+    </section>
+    <section data-number="13-2" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      13-2.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant informera le commandement de la Sous-Direction régionale de la circulation aérienne militaire Nord de Cinq-Mars-la-Pile et la direction de la sécurité de l'aviation civile Ouest (Brest) des éléments suivants :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        → les différentes étapes conduisant à la mise opérationnelle du parc éolien (déclaration d'ouverture et de fin de chantier) ;
+       </li>
+       <li>
+        → pour chacune des éoliennes, les positions géographiques exactes en coordonnées WGS 84 (degrés, minutes, secondes), l'altitude NGF du point d'implantation ainsi que leur hauteur hors tout (pales comprises).
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="13" data-spec="section" data-title="Taxe" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 13 - Taxe
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La présente autorisation est soumise à la taxe d'aménagement et à la redevance d'archéologie préventive.
+     </div>
+    </section>
+   </section>
+   <section data-number="IV" data-spec="section" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     Titre IV
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dispositions particulières relatives à l'approbation d'un projet d'ouvrage au titre de l'
+     <a data-parent_reference="18" data-spec="section_reference" data-start_num="L323-11" data-type="article">
+      article L.323-11
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="18" data-title="Code de l'énergie" data-type="code">
+      code de l'énergie
+     </a>
+    </div>
+    <section data-number="14" data-spec="section" data-title="Approbation" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 14 - Approbation
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le projet d'ouvrage consistant à la réalisation du réseau interne du parc éolien du Moulin de la Houssaye et à la création électrique de deux postes de livraison sur les communes de la Houssaye-Béranger et de Fresnay-le-Long est approuvé.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les travaux seront exécutés, sous la responsabilité de la société Centrale Éolienne de La Houssaye, conformément au dossier joint à la demande et dans le respect de la réglementation technique, des normes et des règles de l'art en vigueur.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       10/12
+      </div>
+     </div>
+     <a data-page_index="10" data-spec="page_separator">
+     </a>
+     <div data-number="3" data-spec="alinea">
+      Avant la mise en service de l'installation, l'exploitant fournit le tracé détaillé des canalisations électriques et assure l'enregistrement de cet ouvrage dans le guichet unique.
+     </div>
+    </section>
+    <section data-number="15" data-spec="section" data-title="Obligations relatives à la création d'un réseau électrique" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 15 - Obligations relatives à la création d'un réseau électrique
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      I.- Enregistrement des informations géographiques :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Conformément à l'
+      <a data-parent_reference="19" data-spec="section_reference" data-start_num="R323-40" data-type="article">
+       article R.323-40
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="19" data-title="Code de l'énergie" data-type="code">
+       code de l'énergie
+      </a>
+      , la société Centrale Éolienne de La Houssaye transmet les informations nécessaires au gestionnaire du réseau public de distribution pour satisfaire aux opérations d'enregistrement prévues à l'
+      <a data-parent_reference="20" data-spec="section_reference" data-start_num="R323-29" data-type="article">
+       article R.323-29
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="20" data-title="Code de l'énergie" data-type="code">
+       code de l'énergie
+      </a>
+      .
+     </div>
+     <div data-number="3" data-spec="alinea">
+      II.- Contrôle technique des ouvrages
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Conformément à l'
+      <a data-parent_reference="21" data-spec="section_reference" data-start_num="R323-30" data-type="article">
+       article R.323-30
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="21" data-title="Code de l'énergie" data-type="code">
+       code de l'énergie
+      </a>
+      , la société Centrale Éolienne de La Houssaye fait effectuer un contrôle technique des installations lors de la mise en service de l'ouvrage suivant les modalités fixées par l'
+      <a data-date="2013-01-14" data-spec="document_reference" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="2013-01-14">
+        14 janvier 2013
+       </time>
+       modifié
+      </a>
+      susvisé. Un exemplaire du compte-rendu du contrôle est adressé à réception à la direction régionale de l'environnement, de l'aménagement et du logement et au gestionnaire du réseau public de distribution.
+     </div>
+    </section>
+   </section>
+   <section data-number="V" data-spec="section" data-type="titre">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     Titre V
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dispositions diverses
+    </div>
+    <section data-number="16" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 16 - Délais et voies de recours
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Conformément à l'
+      <a data-parent_reference="22" data-spec="section_reference" data-start_num="L181-17" data-type="article">
+       article L.181-17
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="22" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      , la présente décision est soumise à un contentieux de pleine juridiction. Elle peut être déférée à la juridiction administrative compétente, dans les délais prévus à l'
+      <a data-spec="section_reference" data-start_num="R181-50" data-type="article">
+       article R. 181-50
+      </a>
+      du même code :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        1° par les pétitionnaires ou exploitants, dans un délai de deux mois à compter du jour où la décision leur a été notifiée ;
+       </li>
+       <li>
+        2° par les tiers intéressés en raison des inconvénients ou des dangers pour les intérêts mentionnés aux
+        <a data-group_id="3" data-spec="section_reference" data-start_num="L211-1" data-type="article">
+         articles L.211-1
+        </a>
+        et
+        <a data-group_id="3" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+         L.511-1
+        </a>
+        , dans un délai de quatre mois à compter du premier jour de la publication de la décision sur le site internet de la préfecture ou de l'affichage en mairie.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Le délai court à compter de la dernière formalité accomplie. Si l'affichage constitue cette dernière formalité, le délai court à compter du premier jour d'affichage de la décision.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      La présente décision peut faire l'objet d'un recours gracieux ou hiérarchique dans le délai de deux mois. Ce recours administratif prolonge de deux mois les délais mentionnés aux 1° et 2°.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Le tribunal administratif peut être saisi par l'application Télérecours citoyens, accessible par le site www.telerecours.fr.
+     </div>
+    </section>
+    <section data-number="17" data-spec="section" data-title="Publicité" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 17 - Publicité
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Conformément aux dispositions de l'
+      <a data-parent_reference="23" data-spec="section_reference" data-start_num="R181-44" data-type="article">
+       article R.181-44
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="23" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      , un extrait du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      mentionnant qu'une copie du texte intégral est déposée aux archives des mairies et mise à la disposition de toute personne intéressée, sera affiché en mairies de la Houssaye-Béranger et Fresnay-le-Long pendant une durée minimale d'un mois.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les maires feront connaître, par procès verbal adressé à la préfecture de la Seine-Maritime, l'accomplissement de cette formalité.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Le même extrait sera affiché en permanence et de façon visible dans l'installation, à la diligence de la société Centrale Éolienne de La Houssaye.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Une copie dudit arrêté sera également adressé à chaque conseil municipal consulté, à savoir :
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       11/12
+      </div>
+     </div>
+     <a data-page_index="11" data-spec="page_separator">
+     </a>
+     <div data-number="5" data-spec="alinea">
+      <table>
+       <tr>
+        <td>
+         Communauté de Communes des Trois Rivières
+        </td>
+        <td>
+         Auffay ; Beautot ; Bertrimont ; Calleville-les-Deux-Eglises ; Etaimpuis ; Fresnay-le-Long ; Gueutteville ; Montreuil-en-Caux ; Saint-Denis-Sur-Scie ; Saint-Maclou-de-Folleville ; Saint-Ouen-du-Breuil ; Saint-Vaast-du-Val ; Saint-Victor-l'Abbaye ; Tôtes ; Varneville-Bretteville ; Vassonville.
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Communautés de Communes des Portes Nord – Ouest de Rouen
+        </td>
+        <td>
+         Les Authieux-Ratiéville ; Claville-Motteville ; Clères ; Frichemesnil ; Grugny ; La Houssaye-Béranger ; Le Bocasse ; Sierville.
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Communauté de Communes d'Yerville – Plateau de Caux
+        </td>
+        <td>
+         Butot ; Hugleville-en-Caux.
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Communauté de Communes du Bosc d'Eawy
+        </td>
+        <td>
+         Bosc-le-Hard ; Bracquetuit ; Grigneuseville.
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-number="6" data-spec="alinea">
+      <a data-spec="document_reference" data-type="self">
+       Le présent arrêté
+      </a>
+      sera communiqué au commandement de la Sous-direction régionale de la circulation aérienne militaire Nord de Cinq-Mars-la-Pile.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      L'arrêté est publié sur le site internet de la préfecture de la Seine-Maritime pendant une durée minimale de quatre mois et sur ICPE Cedric (site internet des installations classées).
+     </div>
+    </section>
+    <section data-number="18" data-spec="section" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 18 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le secrétaire général de la préfecture de la Seine-Maritime, le sous-préfet de l'arrondissement de Dieppe, le directeur départemental des Territoires et de la Mer de Seine-Maritime (DDTM), le directeur régional de l'Environnement, de l'Aménagement et du Logement (DREAL), la directrice générale de l'Agence Régionale de Santé (ARS) et les maires des communes de La Houssaye-Béranger et de Fresnay-le-Long sont chargés, chacun en ce qui le concerne, de l'exécution du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Fait à ROUEN, le 23 MAI 2019
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Pour le préfet de la Seine-Maritime
+     </div>
+     <div data-number="4" data-spec="alinea">
+      et par délégation,
+     </div>
+     <div data-number="5" data-spec="alinea">
+      le secrétaire général,
+     </div>
+     <div data-number="6" data-spec="alinea">
+      <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Yvan CORDIER
+     </div>
+    </section>
+   </section>
+  </main>
+ </body>
+</html>

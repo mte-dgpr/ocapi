@@ -98,17 +98,26 @@ def add_edge(G: nx.MultiDiGraph, operation: Operation) -> None:
 
 
 def split_section_title(section_html: str) -> Tuple[str, str]:
-    """Split section HTML into ``(title_html, content_html_without_title)``.
+    """Extract ``(title_html, inner_content)`` from a ``<section>`` element.
 
-    The title is the first ``h1``–``h6`` element found in the section.
+    Returns the heading (h1–h6) as title, and the remaining inner content
+    of the section (without the ``<section>`` wrapper itself).
     """
     section_soup = BeautifulSoup(section_html, "html.parser")
-    title_tag = section_soup.find(["h1", "h2", "h3", "h4", "h5", "h6"])
-    if title_tag is None:
-        return "", section_html
-    title_html = str(title_tag)
-    title_tag.decompose()
-    return title_html, str(section_soup)
+    section_tag = section_soup.find("section")
+    if section_tag is None:
+        title_tag = section_soup.find(["h1", "h2", "h3", "h4", "h5", "h6"])
+        if title_tag is None:
+            return "", section_html
+        title_html = str(title_tag)
+        title_tag.decompose()
+        return title_html, str(section_soup)
+
+    title_tag = section_tag.find(["h1", "h2", "h3", "h4", "h5", "h6"], recursive=False)
+    title_html = str(title_tag) if title_tag else ""
+    if title_tag:
+        title_tag.decompose()
+    return title_html, str(section_tag.decode_contents())
 
 
 def get_node_content(node: NodeId, soup: BeautifulSoup) -> Tuple[str, str]:

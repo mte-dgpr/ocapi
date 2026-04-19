@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2016-11-10_ap prescriptions complémentaires_2016_11_10_apc.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté - Égalité - Fraternité
+RÉPUBLIQUE FRANÇAISE
+PRÉFET DES ARDENNES
+Direction Régionale de l'Environnement, de l'Aménagement et du Logement CHAMPAGNE-ARDENNE
+ARRIVÉ LE 06 DEC. 2016
+Enregistrement N°: 16.1026
+Unité territoriale de CHARLEVILLE-MÉZIÈRES
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     INSTALLATIONS CLASSÉES POUR LA PROTECTION DE L'ENVIRONNEMENT
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté préfectoral complémentaire réglementant le fonctionnement des installations exploitées par la Société UNILIN située sur le territoire de la commune de BAZEILLES
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet des Ardennes
+    </div>
+    <div>
+     Chevalier de la Légion d'honneur
+    </div>
+    <div>
+     Chevalier de l'ordre national du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="1999-06-03" data-num="4442" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 4442 du
+     <time data-spec="date" datetime="1999-06-03">
+      3 juin 1999
+     </time>
+    </a>
+    autorisant la société Unilin à exploiter des installations fabrication de panneaux de fibres de bois sur le territoire de la commune de Bazeilles,
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2002-07-26" data-num="4540" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 4540 du
+     <time data-spec="date" datetime="2002-07-26">
+      26 juillet 2002
+     </time>
+    </a>
+    autorisant la société Unilin à augmenter la capacité de ses unités de production de panneaux de fibres de bois MDF et à créer une unité de mélaminage sur le territoire de la commune de Bazeilles, et annulant les prescriptions de l'
+    <a data-date="1999-06-03" data-num="4442" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 4442 du
+     <time data-spec="date" datetime="1999-06-03">
+      3 juin 1999
+     </time>
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2007-02-28" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire du
+     <time data-spec="date" datetime="2007-02-28">
+      28 février 2007
+     </time>
+    </a>
+    concernant le déclassement de la rubrique 167c et la mise à jour d'autres prescriptions,
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2014-04-28" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire du
+     <time data-spec="date" datetime="2014-04-28">
+      28 avril 2014
+     </time>
+    </a>
+    relatif à l'autosurveillance et aux valeurs limite d'émissions à respecter par les rejets atmosphériques du site ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2016-11-07" data-num="2016-571" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 2016-571 du
+     <time data-spec="date" datetime="2016-11-07">
+      7 novembre 2016
+     </time>
+    </a>
+    portant délégation de signature à M. Frédéric CLOWEZ, secrétaire général de la préfecture des Ardennes,
+   </div>
+   <div data-spec="visa">
+    Vu le courrier de l'exploitant du 27 juillet 2012 demandant la modification de l'auto-surveillance des rejets atmosphériques de l'établissement,
+   </div>
+   <div data-spec="visa">
+    Vu la visite d'inspection du 16 décembre 2014,
+   </div>
+   <div data-spec="visa">
+    Vu le courrier de l'exploitant du 19 janvier 2015 faisant suite à la visite d'inspection du 16 décembre 2014 et demandant la réduction de la fréquence de surveillance du formaldéhyde à la cheminée et demandant la mise en place d'une surveillance environnementale pérenne pour le formaldéhyde ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport de l'inspection des installations classées, suite à cette visite d'inspection du 16 décembre 2014 ;
+   </div>
+   <div data-spec="visa">
+    Vu l'avis du conseil départemental de l'environnement et des risques sanitaires et technologiques du 20 septembre 2016
+   </div>
+   <div data-spec="visa">
+    Vu l'avis du conseil départemental de l'environnement et des risques sanitaires et technologiques réuni le 20 septembre 2016 au cours duquel le demandeur a été entendu ;
+   </div>
+   <div data-spec="visa">
+    Vu le projet d'arrêté porté à la connaissance de l'exploitant le 20 octobre 2016 ;
+   </div>
+   <div data-spec="visa">
+    Vu l'absence de remarques formulées par l'exploitant ;
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Arrêté préfectoral complémentaire du 10 novembre 2016
+    </div>
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que le site est soumis à la législation relative aux installations classées pour la protection de l'environnement, par l'
+    <a data-date="2002-07-26" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral d'autorisation du
+     <time data-spec="date" datetime="2002-07-26">
+      26 juillet 2002
+     </time>
+    </a>
+    ,
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que l'exploitant a demandé la réduction de la fréquence de la surveillance du formaldéhyde dans les rejets atmosphériques du site dans ses courriers du 27 juillet 2012 et 19 janvier 2015,
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que l'exploitant propose la réalisation d'une surveillance environnementale pérenne aux abords de son installation ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que la surveillance environnementale réalisée en 2014 met en évidence un niveau d'exposition au formaldéhyde équivalent à la ville de Reims ou une commune considérée comme non impactée par une source d'émission fixe ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'il convient de mettre à jour les dispositions de l'
+    <a data-date="2002-07-26" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral d'autorisation du
+     <time data-spec="date" datetime="2002-07-26">
+      26 juillet 2002
+     </time>
+    </a>
+    et l'
+    <a data-date="2014-04-28" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire du
+     <time data-spec="date" datetime="2014-04-28">
+      28 avril 2014
+     </time>
+    </a>
+    conformément à l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="R512-31" data-type="article">
+     article R. 512-31
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    .
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition de la directrice régionale de l'aménagement, de l'environnement et du logement Grand Est
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Objet" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1er – Objet
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société Unilin, située Zone Industrielle, sur le territoire de la commune de Bazeilles (08140), est tenue de se conformer aux prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , modifiant l'
+     <a data-date="2002-07-26" data-num="4540" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral n° 4540 du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     – et l'
+     <a data-date="2007-02-28" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2007-02-28">
+       28 février 2007
+      </time>
+     </a>
+     , portant autorisation d'exploiter des installations de fabrication de panneaux de fibres de bois.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Champ d’application" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 – Champ d’application
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     s'appliquent aux installations exploitées par la société Unilin dans l'enceinte de son établissement situé à Bazeilles.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="3" data-type="article">
+      article 3
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="2" data-type="self">
+      présent arrêté
+     </a>
+     préfectoral annule et remplace l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="3" data-type="article">
+      article 3
+     </a>
+     de l'
+     <a data-date="2014-04-28" data-spec="document_reference" data-tag_id="3" data-type="arrete-prefectoral">
+      arrêté préfectoral complémentaire du
+      <time data-spec="date" datetime="2014-04-28">
+       28 avril 2014
+      </time>
+     </a>
+     .
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="4" data-type="article">
+      article 4
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="4" data-type="self">
+      présent arrêté
+     </a>
+     préfectoral annule et remplace l'
+     <a data-parent_reference="5" data-spec="section_reference" data-start_num="11.6.3" data-type="article">
+      article 11.6.3
+     </a>
+     de l'
+     <a data-date="2002-07-26" data-spec="document_reference" data-tag_id="5" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     .
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le paragraphe spécifique au bilan matière journalier permettant de suivre les émissions de formaldéhyde de l'
+     <a data-parent_reference="6" data-spec="section_reference" data-start_num="11.6.1" data-tag_id="8" data-type="article">
+      article 11.6.1
+     </a>
+     de l'
+     <a data-date="2002-07-26" data-spec="document_reference" data-tag_id="6" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     <span data-direction="rtl" data-keyword="annulé" data-operation_type="delete" data-references="8" data-spec="operation">
+      est
+      <b>
+       annulé
+      </b>
+     </span>
+     .
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      Arrêté préfectoral complémentaire du 10 novembre 2016
+3/4
+     </div>
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Auto-surveillance des rejets atmosphériques" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 – Auto-surveillance des rejets atmosphériques
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le présent article annule et remplace l'
+     <a data-parent_reference="7" data-spec="section_reference" data-start_num="3" data-type="article">
+      article 3
+     </a>
+     de l'
+     <a data-date="2014-04-28" data-spec="document_reference" data-tag_id="7" data-type="arrete-prefectoral">
+      arrêté préfectoral complémentaire du
+      <time data-spec="date" datetime="2014-04-28">
+       28 avril 2014
+      </time>
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Fréquences
+       </th>
+       <th>
+        Auto-surveillance chaudières
+       </th>
+       <th>
+        Auto-surveillance séchoirs
+       </th>
+       <th>
+        Auto-surveillance électro-filtre humide
+       </th>
+       <th>
+        Filtre à manches
+       </th>
+      </tr>
+      <tr>
+       <td>
+        En continu avec enregistrement
+       </td>
+       <td>
+        Débit
+        <br/>
+        Oxygène
+        <br/>
+        Monoxyde de carbone
+       </td>
+       <td>
+        Débit
+        <br/>
+        Poussières
+        <br/>
+        COV totaux
+       </td>
+       <td>
+        -
+       </td>
+       <td>
+        -
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Mensuelle
+       </td>
+       <td>
+        -
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+        -
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Trimestrielle
+       </td>
+       <td>
+        Métaux lourds
+       </td>
+       <td>
+        Poussières
+        <br/>
+        Humidité
+       </td>
+       <td>
+       </td>
+       <td>
+        -
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Semestrielle
+       </td>
+       <td>
+        HAP
+        <br/>
+        CO
+        <br/>
+        Oxygène
+       </td>
+       <td>
+        Formaldéhyde
+       </td>
+       <td>
+        Poussières
+        <br/>
+        COV totaux
+        <br/>
+        Formaldéhyde
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Annuelle
+       </td>
+       <td>
+        NOx
+        <br/>
+        SO₂
+       </td>
+       <td>
+        HCl
+        <br/>
+        HF
+        <br/>
+        Dioxines-furanes
+        <br/>
+        COV totaux
+       </td>
+       <td>
+        -
+       </td>
+       <td>
+        Poussières totales
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Concernant la surveillance pour les composés HF et HCl, l'exploitant réalise une comparaison des résultats obtenus. Il doit justifier les évolutions des concentrations et flux mesurés par rapport aux résultats transmis en 2013 à savoir :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Équipements
+       </th>
+       <th>
+        HF (mg/Nm³)
+       </th>
+       <th>
+        HCl (mg/Nm³)
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Séchoir 1
+       </td>
+       <td>
+        ≤0,09
+       </td>
+       <td>
+        ≤0,17
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Séchoir 2
+       </td>
+       <td>
+        ≤0,10
+       </td>
+       <td>
+        ≤0,17
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Contrôle de l'impact des rejets atmosphériques sur l'environnement" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE . 4 – Contrôle de l'impact des rejets atmosphériques sur l'environnement
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - Surveillance de la qualité de l'air
+      </li>
+     </ul>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'exploitant réalise une surveillance de la qualité de l'air pour les paramètres suivants :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Paramètres
+       </th>
+       <th>
+        Fréquence
+       </th>
+      </tr>
+      <tr>
+       <td>
+        NOx
+       </td>
+       <td>
+        En permanence : 1 station fixe (P1 sur le plan)
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Ozone
+       </td>
+       <td>
+        En permanence : 1 station fixe (P1 sur le plan)
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Formaldéhyde
+       </td>
+       <td>
+        8 semaines réparties sur l'année (incluant 2 semaines de mesure par saison) : 1 station fixe (P1 sur le plan)
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     La station fixe de surveillance de la qualité de l'air est implantée conformément au plan joint en annexe au
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     préfectoral (P1 sur le plan).
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <ul>
+      <li>
+       - Surveillance environnementale
+      </li>
+     </ul>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     L'exploitant réalise une évaluation maximale de l'impact des émissions atmosphériques de son établissement sur les teneurs en formaldéhyde présentes dans l'atmosphère. Les points de mesures sont répartis selon la carte jointe en annexe au
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     préfectoral (P2 et P3 sur le plan)
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      Arrêté préfectoral complémentaire du 10 novembre 2016
+4/4
+     </div>
+    </div>
+    <div data-number="7" data-spec="alinea">
+     L'évaluation maximale de l'impact des émissions atmosphériques est réalisée pendant 6 semaines de mesure sur la période estivale. Elle inclut une période d'arrêt des installations et une période de production normale.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="DÉLAIS ET VOIES DE RECOURS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5 – DÉLAIS ET VOIES DE RECOURS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'art. R. 514-3-1 du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     , sans préjudice de l'application des
+     <a data-group_id="1" data-spec="section_reference" data-start_num="L515-27" data-type="article">
+      articles L. 515-27
+     </a>
+     et
+     <a data-group_id="1" data-spec="section_reference" data-start_num="L553-4" data-type="article">
+      L. 553-4
+     </a>
+     , les décisions mentionnées au I de l'
+     <a data-spec="section_reference" data-start_num="L514-6" data-type="article">
+      article L. 514-6
+     </a>
+     et aux
+     <a data-group_id="2" data-spec="section_reference" data-start_num="L211-6" data-type="article">
+      articles L. 211-6
+     </a>
+     ,
+     <a data-group_id="2" data-spec="section_reference" data-start_num="L214-10" data-type="article">
+      L. 214-10
+     </a>
+     et
+     <a data-group_id="2" data-spec="section_reference" data-start_num="L216-2" data-type="article">
+      L. 216-2
+     </a>
+     du même Code peuvent être déférées à la juridiction administrative de Chalons en Champagne :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - par les demandeurs ou exploitants, dans un délai de deux mois à compter de la date à laquelle la décision leur a été notifiée,
+      </li>
+      <li>
+       - par les tiers, personnes physiques ou morales, les communes intéressées ou leurs groupements, en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts mentionnés aux
+       <a data-group_id="3" data-spec="section_reference" data-start_num="L211-1" data-type="article">
+        articles L. 211-1
+       </a>
+       et
+       <a data-group_id="3" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+        L. 511-1
+       </a>
+       dans un délai d'un an à compter de la publication ou de l'affichage de ces décisions.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Toutefois, si la mise en service de l'installation n'est pas intervenue six mois après la publication ou l'affichage de ces décisions, le délai de recours continue à courir jusqu'à l'expiration d'une période de six mois après cette mise en service.
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="SANCTIONS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 6 – SANCTIONS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Faute pour l'intéressé de se conformer au
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , il pourra être fait application, indépendamment des sanctions pénales encourues, des sanctions administratives prévues à la section 2 du chapitre 1, titre VII, livre 1er de la partie législative du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      Code de l'Environnement
+     </a>
+     susvisé.
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="PUBLICITE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 7 – PUBLICITE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     fera l'objet d'une publication, sous forme d'avis, dans deux journaux locaux, par les soins du préfet et au frais de l'exploitant. Faute de se conformer à l'obligation de publicité, il pourra être procédé à la consignation de somme correspondant au montant de l'annonce légale.
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-title="EXECUTION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 8 – EXECUTION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le secrétaire générale de la préfecture des Ardennes et l'inspection des installations classées sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     qui sera notifié au directeur de la société UNILIN et dont copie sera transmise, pour information, au maire de Bazeilles.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Charleville-Mézières, le 10 novembre 2016
+    </div>
+    <div data-number="3" data-spec="alinea">
+     le préfet
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le Préfet,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le Secrétaire Général,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Frédérie CLOWEZ
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2019-08-08_arrêté préfectoral_APC n°4961-2019-29.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PREFET DES PYRENEES ATLANTIQUES
+    </div>
+    <div>
+     DIRECTION REGIONALE DE L'ENVIRONNEMENT DE L'AMENAGEMENT ET DU LOGEMENT NOUVELLE-AQUITAINE
+    </div>
+    <div>
+     UNITE DEPARTEMENTALE DES PYRENEES ATLANTIQUES
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ PRÉFECTORAL N°4961/2019/029 de prescriptions complémentaires portant sur la caractérisation des rejets atmosphériques de la société Arkema pour son établissement sur la plate-forme de Chem'pole 64
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet des Pyrénées-Atlantiques
+    </div>
+    <div>
+     Chevalier de la Légion d'Honneur
+    </div>
+    <div>
+     Chevalier de l'Ordre National du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'Environnement
+    </a>
+    , livre V, titre 1er relatif aux installations classées pour la protection de l'environnement ;
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2010" data-num="75" data-spec="document_reference" data-type="eu-directive">
+     directive 2010/75/UE
+    </a>
+    , dite « IED » relative aux émissions industrielles (prévention et réduction intégrées de la pollution), notamment son
+    <a data-spec="section_reference" data-start_num="13" data-type="article">
+     article 13
+    </a>
+    ,
+    <a data-spec="section_reference" data-start_num="5" data-type="unknown">
+     paragraphe 5
+    </a>
+    , et les documents de référence sur les meilleures technologies disponibles (BREF) qui y sont rattachés ;
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-date="2006" data-num="1907" data-spec="document_reference" data-type="eu-regulation">
+     règlement (CE) n° 1907/2006
+    </a>
+    , dit « REACH » et notamment son
+    <a data-spec="section_reference" data-start_num="31" data-type="article">
+     article 31
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-date="2008" data-num="1272" data-spec="document_reference" data-type="eu-regulation">
+     règlement (CE) n°1272/2008
+    </a>
+    , dit règlement « CLP », relatif à la classification, l'étiquetage et l'emballage des substances et des mélanges, et notamment son
+    <a data-spec="section_reference" data-start_num="6" data-type="annexe">
+     annexe VI
+    </a>
+    qui pour les classes de dangers « Cancérogénicité », « Mutagénicité sur les cellules germinales » et « Toxicité pour la reproduction » définie 3 catégories (1A, 1B et 2) ;
+   </div>
+   <div data-spec="visa">
+    VU les arrêtés préfectoraux réglementant les activités de la société ARKEMA sur la plate-forme Chem'pole 64 et notamment l'
+    <a data-date="2008-01-18" data-num="08/IC/007" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 08/IC/007 du
+     <time data-spec="date" datetime="2008-01-18">
+      18/01/2008
+     </time>
+    </a>
+    fixant des prescriptions relatives aux émissions atmosphériques de ses installations ;
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2004-03-29" data-spec="document_reference" data-type="circulaire">
+     circulaire du
+     <time data-spec="date" datetime="2004-03-29">
+      29 mars 2004
+     </time>
+    </a>
+    , relative aux installations classées, concernant la réduction des émissions fugitives des composés organiques volatils dans le secteur de la pétrochimie et de la chimie organique ;
+   </div>
+   <div data-spec="visa">
+    VU la proposition de hiérarchisation des 557 substances reprises dans l'avis de l'Anses du 22 juin 2018 relatif à l'identification, la catégorisation et la hiérarchisation de polluants actuellement non réglementés pour la surveillance de la qualité de l'air ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport INERIS-DRC-17-164559-10404A synthétisant des valeurs réglementaires pour les substances chimiques, en vigueur dans l'eau, les denrées alimentaires et dans l'air en France au 31 décembre 2017 ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport INERIS-DRC-17-163632-11568A du 24 janvier 2018 établissant le bilan des choix de valeurs toxicologiques de référence disponibles sur le portail des substances chimiques de l'INERIS ;
+   </div>
+   <div data-spec="visa">
+    VU la note d'information n° DGS/EA1/DGPR/2014/307 du 31/10/14 relative aux modalités de sélection des substances chimiques et de choix des valeurs toxicologiques de référence pour mener les évaluations des risques sanitaires dans le cadre des études d'impact et de la gestion des sites et sols pollués.
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Page 1 / 9
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Page 2 / 9
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU la mise à jour de l'évaluation des risques sanitaires de la zone industrielle de Lacq (rapport RACISO01027-06 du 17 février 2016) ;
+   </div>
+   <div data-spec="visa">
+    VU le courrier du 29 juin 2018 portant à la connaissance du Préfet un rapport de contrôle de rejets atmosphériques issus de l’unité AMS en date du 16 février 2018 ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l’inspection des installations classées du 1er juillet 2019 ;
+   </div>
+   <div data-spec="visa">
+    VU l’avis du Conseil Départemental de l’Environnement et des Risques Sanitaires et Technologiques (CODERST) en date du 18 juillet 2019.
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu’une torche n’est pas normalement appelée à fonctionner de façon continue (hormis la flamme « pilote ») dans la mesure où le recours à celle-ci ne doit être fait que pour des raisons de sécurité ou pour des conditions opérationnelles non routinières ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu’une torche constitue un instrument de sécurité complémentaire à toutes les dispositions déjà prises par les exploitants des unités de fabrication ou stockage et ne constitue pas un équipement de traitement d’effluents ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que le dossier de réexamen remis le 13/12/2017 n’est pas complet sur le traitement des effluents atmosphériques d’ARKEMA ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu’en vue de protéger les intérêts visés à l’
+    <a data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     article L. 511-1
+    </a>
+    , le préfet peut prescrire, conformément aux dispositions de l’
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="L512-20" data-type="article">
+     article L.512-20
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    , la réalisation des évaluations et la mise en œuvre des remèdes que rendent nécessaires, tout inconvénient portant ou menaçant de porter atteinte aux intérêts précités.
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition du Secrétaire général de la préfecture des Pyrénées-atlantiques ;
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Exploitant titulaire de l’autorisation" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1 : Exploitant titulaire de l’autorisation
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société Arkema France, dont le siège social est situé 420, rue d’Estienne d’Orves, 92700 Colombes, est tenue de respecter, pour ses installations exploitées sur la commune de Mourenx, les prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     qui vise à fixer des dispositions complémentaires aux émissions atmosphériques de ses installations sur la plate-forme Chem’pôle 64.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Exploitation" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 : Exploitation
+    </h2>
+    <section data-number="2.1" data-spec="section" data-title="Limitation des sources d’émissions" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.1. Limitation des sources d’émissions
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les installations sont conçues de manière à limiter les émissions polluantes dans l’environnement, notamment par la mise en œuvre de technologies propres, le développement de techniques de valorisation, la collecte sélective et le traitement des effluents et déchets en fonction de leurs caractéristiques, et la réduction des quantités rejetées.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les poussières, gaz polluants ou odeurs sont, dans la mesure du possible, captés à la source et canalisés.
+     </div>
+    </section>
+    <section data-number="2.2" data-spec="section" data-title="Utilisation de substances dangereuses" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.2. Utilisation de substances dangereuses
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Dans le cas de la mise en œuvre de substances dangereuses spécifiées au point 2 de l’
+      <a data-spec="section_reference" data-start_num="3.3" data-type="article">
+       article 3.3
+      </a>
+      en raison de leur teneur en COV, celles-ci sont remplacées, autant que possible, par des substances ou des mélanges moins nocifs, et ce dans les meilleurs délais possibles. Si ce remplacement n’est pas techniquement et économiquement possible à court terme, des dispositions particulières sont prises pour en limiter leurs émissions.
+     </div>
+     <a data-page_index="2" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       Page 3 / 9
+      </div>
+     </div>
+    </section>
+    <section data-number="2.3" data-spec="section" data-title="Positionnement sur les meilleures techniques disponibles" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.3. Positionnement sur les meilleures techniques disponibles
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant est tenu de mettre à jour son dossier de réexamen remis le 13/12/2017 en comparant le fonctionnement de son installation avec les meilleures technologies disponibles et les niveaux de ses rejets aux niveaux d'émission associés aux meilleures techniques disponibles figurant dans le BREF WGC, 1 an après la publication des conclusions sur les MTD de ce BREF.
+     </div>
+    </section>
+    <section data-number="2.4" data-spec="section" data-title="Gestion des signalements" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.4. Gestion des signalements
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant utilise l'ensemble des résultats issus de son programme d'autosurveillance de ses rejets et de la surveillance environnementale mise en place selon l'
+      <a data-parent_reference="2" data-spec="section_reference" data-start_num="8" data-type="article">
+       article 8
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="2" data-type="self">
+       présent arrêté
+      </a>
+      ainsi que l'ensemble des signalements émanant des riverains afin d'identifier les unités et les périodes de fonctionnement pouvant être à l'origine de nuisances dans l'environnement.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      À chaque signalement, l'exploitant est tenu de recenser a minima les éléments ci-dessous :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - l'origine du signalement (coordonnées de la personne à l'origine du signalement et localisation du ressenti de la nuisance) ;
+       </li>
+       <li>
+        - le contenu du signalement (dates de début et de fin, description de la nuisance : odeurs, effets physiologiques...) ;
+       </li>
+       <li>
+        - les données météorologiques utiles lors du signalement (température, vitesse et orientation du vent, pression atmosphérique,...) ;
+       </li>
+       <li>
+        - la vérification des paramètres pertinents sur site permettant de rendre compte de l'état de fonctionnement des équipements ou ateliers. Les paramètres contrôlés peuvent être :
+       </li>
+       <li>
+        - état de production de chacune des unités ;
+       </li>
+       <li>
+        - exécution d'une opération particulière susceptible d'émettre des émissions atmosphériques transitoires (incidents, arrêt/démarrage, dépotage/empotage, strippage, lavage, enfûtage, pour les procédés batch rejets aqueux d'effluents industriels,...) ;
+       </li>
+       <li>
+        - état des équipements de traitement des effluents ;
+       </li>
+       <li>
+        - l'utilisation éventuelle d'une torche de sécurité (débit de gaz commercial et débit des flux envoyés,...) ;
+       </li>
+       <li>
+        - remontée d'alarmes durant le signalement ;
+       </li>
+       <li>
+        - connaissance des produits contenus dans les bacs de stockage pouvant avoir un lien avec les signalements.
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Ces éléments sont recensés, enregistrés, analysés et tenus à la disposition de l'inspection des installations classées pendant 5 ans. L'exploitant peut mutualiser l'analyse faite sur ces signalements, avec les autres exploitants tenus par la même obligation. L'exploitant informe l'inspection des installations classées sans délai lorsque le signalement est lié au non-respect d'une obligation réglementaire, concernant ses rejets atmosphériques.
+     </div>
+    </section>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Caractérisation des rejets atmosphériques" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 : Caractérisation des rejets atmosphériques
+    </h2>
+    <section data-number="3.1" data-spec="section" data-title="Définitions" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.1. Définitions
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      <ul>
+       <li>
+        - émission canalisée : rejet gazeux final contenant des composés organiques volatils ou d'autres polluants et rejeté dans l'air par une cheminée ou par un équipement de traitement ou issu d'une opération de réduction des émissions atmosphériques ;
+       </li>
+       <li>
+        - émission diffuse : toute émission dans l'air, le sol et l'eau qui n'a pas lieu sous la forme d'émission canalisée. Ces émissions diffuses peuvent être ponctuelles, surfaciques ou linéaires, continues, intermittentes ou variables dans le temps ;
+       </li>
+       <li>
+        - émission fugitive : les émissions fugitives constituent un sous-ensemble des émissions diffuses. Elles regroupent les fuites issues d'équipements divers : les vannes automatiques ou manuelles, les pompes, les brides et autres connexions, les compresseurs.
+       </li>
+       <li>
+        - CMR : au sens du
+        <a data-spec="document_reference" data-type="self">
+         présent arrêté
+        </a>
+        et en application du règlement européen CLP, les agents chimiques dangereux comportant l'une des mentions de danger suivantes : H340, H350, H350i, H360, H360FD, H360D(f), H360F(d), H341, H351, H361, H361fd, H361f, H361d ou H362 ;
+        <a data-page_index="3" data-spec="page_separator">
+        </a>
+       </li>
+       <li>
+        - COV : tout composé organique, à l'exclusion du méthane, ayant une pression de vapeur de 0,01 kPa ou plus à une température de 293,15°K ou ayant une volatilité correspondante dans les conditions d'utilisation particulières;
+       </li>
+       <li>
+        - Points inaccessibles : au sens de l'
+        <a data-parent_reference="3" data-spec="section_reference" data-start_num="3.5" data-type="article">
+         article 3.5
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="3" data-type="self">
+         présent arrêté
+        </a>
+        , les points inaccessibles sont les points ou équipements dont l'accès est soumis à des contraintes logistiques trop fortes (décalorifugeage important, échafaudages, démontage de gaines isolantes...) ou de sécurité au regard des émissions présumées.
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="3.2" data-spec="section" data-title="Caractérisation des sources d'émissions constituant un rejet à l'atmosphère" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.2. Caractérisation des sources d'émissions constituant un rejet à l'atmosphère
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant réalise à partir des données disponibles, l'inventaire exhaustif de l'ensemble des sources d'émissions atmosphériques, canalisées et diffuses non fugitives, de toute nature sur l'emprise géographique de son établissement.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Pour chacune des sources canalisées ou diffuses non fugitives identifiées, l'exploitant précise leur localisation (sous forme descriptive, y compris en coordonnées Lambert 93 pour les sources canalisées, et cartographique pour les émissions diffuses), leurs caractéristiques (forme, diamètre, hauteur, débit nominal et moyen, substances susceptibles d'y être émises...), les unités ou équipements concernés et leur raccordement vers un traitement, lorsqu'il existe, ou vers une torche de sécurité.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Les émissions atmosphériques provenant d'effluents aqueux sont prises en compte dans ce recensement.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Ce recensement fera l'objet d'un document unique, remis à l'inspection des installations classées sous 2 mois à notification du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      et mis à jour lors de chaque modification notable des unités, ou à la demande de l'inspection.
+     </div>
+    </section>
+    <section data-number="3.3" data-spec="section" data-title="Identification des substances ou mélanges présents au rejet" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.3. Identification des substances ou mélanges présents au rejet
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Pour chacun des émissaires canalisés ou diffus non fugitifs recensés à l'
+      <a data-spec="section_reference" data-start_num="3.2" data-type="article">
+       article 3.2
+      </a>
+      , l'exploitant remet à l'inspection des installations classées sous 2 mois à notification du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      un inventaire détaillé des substances ou mélanges susceptibles d'être présents aux points de rejets. Cet inventaire est établi en tenant compte :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - de l'ensemble des substances ou mélanges chimiques utilisés, produits, acheminés par canalisation ou tuyauterie depuis ou vers une autre exploitation, rejetés ou fabriqués, y compris en tant qu'intermédiaire de synthèse, leurs caractéristiques physico-chimiques permettant de justifier s'il s'agit de COV, les mentions de dangers et les valeurs toxicologiques de référence (VTR) connues qui leur sont associées. Les gaz dirigés vers une éventuelle torche de sécurité feront l'objet d'une description analytique.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Une attention particulière sera portée aux substances dangereuses suivantes :
+     </div>
+     <div data-number="4" data-spec="alinea">
+      <ul>
+       <li>
+        - substances citées dans l'
+        <a data-spec="section_reference" data-start_num="3" data-type="annexe">
+         Annexe III
+        </a>
+        à l'
+        <a data-date="1998-02-02" data-spec="document_reference" data-type="arrete">
+         arrêté du
+         <time data-spec="date" datetime="1998-02-02">
+          2 février 1998
+         </time>
+        </a>
+        ;
+       </li>
+       <li>
+        - substances de mentions de danger H340, H350, H350i, H360FD, H360D(f) ou H360F(d) ;
+       </li>
+       <li>
+        - substances halogénées de mentions de danger H341 ou H351 ;
+       </li>
+       <li>
+        - substances présentant une des 10 classes de danger pour la santé au sens du règlement CLP (
+        <a data-date="2008" data-num="1272" data-spec="document_reference" data-type="eu-regulation">
+         règlement (CE) n°1272/2008
+        </a>
+        modifié) ;
+       </li>
+       <li>
+        - liste des 13 substances prioritaires (catégorie 1) parmi les polluants non réglementés citées dans l'avis de l'ANSES du 22 juin 2018 ;
+       </li>
+       <li>
+        - toute substance enregistrée en tant qu'intermédiaire isolé au sens du
+        <a data-date="2006" data-num="1907" data-spec="document_reference" data-type="eu-regulation">
+         règlement (CE) n° 1907/2006
+        </a>
+        , dit « REACH ».
+       </li>
+       <li>
+        - de l'identification des phases des procédés à l'origine des émissions.
+       </li>
+      </ul>
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       Page 4 / 9
+      </div>
+     </div>
+     <a data-page_index="4" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       Page 5 / 9
+      </div>
+     </div>
+    </section>
+    <section data-number="3.4" data-spec="section" data-title="Amélioration de la connaissance des rejets" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.4. Amélioration de la connaissance des rejets
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant quantifie les émissions canalisées et diffuses non fugitives associées aux sources caractérisées en application de l'
+      <a data-parent_reference="4" data-spec="section_reference" data-start_num="3.2" data-type="article">
+       article 3.2
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="4" data-type="self">
+       présent arrêté
+      </a>
+      . Les émissions fugitives font spécifiquement l'objet d'une quantification selon les dispositions détaillées à l'
+      <a data-parent_reference="5" data-spec="section_reference" data-start_num="3.5" data-type="article">
+       article 3.5
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="5" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Pour la réalisation de cette quantification, la réalisation de mesures directes est privilégiée. Un programme est mis en place pour déterminer la composition la plus complète possible de chaque effluent canalisé et diffus non fugitif. Ce programme détermine les méthodologies de prélèvement et d'analyse les plus performantes (chromatographie ou méthode équivalente) pouvant être utilisées. Ce programme sera communiqué à l'inspection des installations classées sous 8 mois après notification et sa mise en œuvre devra être initiée au plus tard sous 12 mois à notification, sauf demandes complémentaires de l'inspection.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      En cas d'impossibilité technique dûment justifiée pour la réalisation de ces mesures à l'émission, l'exploitant fournit une note détaillée sur la méthodologie alternative retenue et le résultat obtenu. Les propositions contenues dans ce programme pourront, à la demande de l'inspection des installations classées, faire l'objet d'une tierce expertise, conformément à l'
+      <a data-parent_reference="6" data-spec="section_reference" data-start_num="L181-13" data-type="article">
+       article L.181-13
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="6" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      .
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Il informe l'inspection des installations classées si une valeur limite d'émission (VLE) applicable à une substance est dépassée ou si un intermédiaire isolé en conditions strictement contrôlées est émis. Cette information est faite sans délai si la substance est CMR (selon la définition de l'
+      <a data-spec="section_reference" data-start_num="3.1" data-type="article">
+       article 3.1
+      </a>
+      ) ou toxique.
+     </div>
+    </section>
+    <section data-number="3.5" data-spec="section" data-title="Cas des émissions fugitives de COV" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.5. Cas des émissions fugitives de COV
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'ensemble des équipements de l'installation (unité de production, stockages associés, installations connexes) doit faire l'objet d'une surveillance par l'exploitant. Pour cela, il doit établir une base de données sur laquelle se fonde le programme de détection et de maintenance de l'installation. Dans cette base sont recensés les équipements (vannes, connexions, pompes, compresseurs) en contact avec des fluides contenant plus de 10% de COV situés sur des tuyauteries de diamètre supérieur ou égal à 0,5" soit 12,7 mm (peuvent être exclues les tuyauteries reliées à de l'instrumentation dès lors qu'elles présentent une technologie supérieure au standard permettant de minimiser les risques de fuite).
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Le flux global d'émissions fugitives émis par l'installation est évalué de la façon suivante :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - pour les points accessibles, on additionne les débits d'émission de chaque point ;
+       </li>
+       <li>
+        - pour les points inaccessibles on évalue pour chaque point les débits d'émission sur la base de facteurs d'émission définis sur les équipements accessibles de même nature présents dans l'installation, et on additionne les débits d'émission de chaque point.
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Chaque année, l'exploitant met en œuvre le programme de détection et de maintenance sur :
+     </div>
+     <div data-number="5" data-spec="alinea">
+      <ul>
+       <li>
+        - 100 % des points des équipements véhiculant des COV CMR ;
+       </li>
+       <li>
+        - au moins 20 % des points des autres équipements véhiculant des COV, de façon telle à ce que l'ensemble des équipements soit quantifié tous les 5 ans.
+       </li>
+      </ul>
+     </div>
+     <div data-number="6" data-spec="alinea">
+      La fréquence de réalisation de ces campagnes pourra être révisée en fonction des résultats de la première campagne de mesures complète, et après accord de l'inspection.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      L'exploitant devra tenir à jour et à disposition de l'inspection des installations classées un plan de résorption des fuites identifiées, qui permet de définir des priorités dans les actions à mener en fonction des flux et des risques accidentels ou chroniques des produits afin :
+     </div>
+     <div data-number="8" data-spec="alinea">
+      <ul>
+       <li>
+        - de prendre sans délai les mesures permettant de réduire les fuites majeures à un niveau acceptable d'une fuite mineure,
+       </li>
+       <li>
+        - pour les autres fuites :
+       </li>
+       <li>
+        - dans le cas d'un équipement non réparable unité en marche :
+        <a data-page_index="5" data-spec="page_separator">
+        </a>
+       </li>
+       <li>
+        - de réparer et /ou changer l’équipement dès qu’une opportunité se présente (arrêt de l’équipement pour d’autres travaux de maintenance...) ou au premier arrêt de l’unité permettant la réalisation de l’opération ;
+       </li>
+       <li>
+        - dans le cas d’un équipement réparable unité en marche :
+       </li>
+       <li>
+        - de réparer et /ou changer l’équipement dans les meilleurs délais qui ne peuvent excéder 6 mois à compter de la date de la mesure.
+       </li>
+      </ul>
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Ce plan de résorption définit notamment, en fonction de l’état de l’art et des méthodes de références, le terme
+      <q>
+       fuite
+      </q>
+      ,
+      <q>
+       fuite majeure impliquant une intervention
+      </q>
+      en fonction de la concentration et du flux.
+     </div>
+    </section>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Transmission d’un bilan et comparaison des valeurs mesurées" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 : Transmission d’un bilan et comparaison des valeurs mesurées
+    </h2>
+    <section data-number="4.1" data-spec="section" data-title="Bilan" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.1 .Bilan
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Un bilan commenté lié à l’amélioration de la connaissance des sources de rejets atmosphériques est établi et transmis à l’inspection sous 15 mois à notification du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Ce bilan comprendra a minima :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - l’inventaire exhaustif de l’ensemble des sources d’émissions atmosphériques prescrit à l’
+        <a data-spec="section_reference" data-start_num="3.2" data-type="article">
+         article 3.2
+        </a>
+        ;
+       </li>
+       <li>
+        - l’inventaire détaillé des substances ou mélanges susceptibles d’être présents aux points de rejets prescrit à l’
+        <a data-spec="section_reference" data-start_num="3.3" data-type="article">
+         article 3.3
+        </a>
+        ;
+       </li>
+       <li>
+        - le positionnement sur les scénarios d’exposition des fiches de données de sécurité étendue lorsqu’elles existent pour les substances identifiées à l’
+        <a data-spec="section_reference" data-start_num="3.3" data-type="article">
+         article 3.3
+        </a>
+        ;
+       </li>
+       <li>
+        - les résultats du programme analytique mis en place pour déterminer la composition la plus complète possible de chaque effluent canalisé et diffus non fugitif tel que prescrit à l’
+        <a data-spec="section_reference" data-start_num="3.4" data-type="article">
+         article 3.4
+        </a>
+        (liste des substances identifiées, détermination des flux correspondants, variabilité des rejets, ...);
+       </li>
+       <li>
+        - le bilan (nombre de fuites majeures et débit annuel) de la campagne de mesure des émissions fugitives de COV sur les points ou équipements véhiculant des COV CMR, identifiés en application de l’
+        <a data-spec="section_reference" data-start_num="3.5" data-type="article">
+         article 3.5
+        </a>
+        ;
+       </li>
+       <li>
+        - une analyse critique des résultats et une proposition sur l’opportunité de prolonger le programme analytique ou de procéder à un bilan matière de certaines substances émises en fonction des enjeux identifiés par l’exploitant ;
+       </li>
+       <li>
+        - le positionnement sur la nécessité d’actualisation de l’étude de risque sanitaire de l’exploitant ;
+       </li>
+       <li>
+        - la proposition d’un programme de surveillance complémentaire selon nécessité identifiée par l’exploitant. Le nombre et l’emplacement des points de mesure, les conditions dans lesquelles les systèmes de mesure sont installés et exploités et, de manière plus globale, la stratégie de surveillance sont décrits dans le programme de surveillance. L’implantation spatiale des points de mesure et le choix des matrices (air, retombées de poussières, végétaux, sols) analysées doivent être dûment justifiés au regard des modélisations disponibles des rejets (canalisés et diffus, polluants gazeux ou particulaires) de polluants atmosphériques et des conditions environnementales locales de façon à couvrir les zones de retombées maximales et les zones comprenant potentiellement des cibles sensibles. Un emplacement (propre à chaque polluant surveillé) positionné en dehors de la zone de l’impact du site et permettant de déterminer le bruit de fond est prévu dans le programme de surveillance ;
+       </li>
+       <li>
+        - le cas échéant, les travaux réalisés ou prévus permettant des réductions de rejets.
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="4.2" data-spec="section" data-title="Comparaison des valeurs mesurées" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.2 .Comparaison des valeurs mesurées
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Pour les substances identifiées dans ses rejets, l’exploitant compare les valeurs mesurées avec les valeurs limites d’émission (VLE) qui lui sont applicables (arrêtés préfectoraux, ministériels, réglementation communautaire, niveaux d’émissions associés aux meilleures techniques disponibles applicables). Pour les intermédiaires isolés en conditions strictement contrôlées, il justifie que des procédures et des techniques de contrôle sont utilisées pour réduire, autant que possible, les émissions et toute exposition en résultant, lorsque des émissions sont constatées.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       Page 6 / 9
+      </div>
+     </div>
+     <a data-page_index="6" data-spec="page_separator">
+     </a>
+     <div data-number="2" data-spec="alinea">
+      Conformément à l'
+      <a data-parent_reference="7" data-spec="section_reference" data-start_num="L514-8" data-type="article">
+       article L.514-8
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="7" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      et à l'
+      <a data-parent_reference="8" data-spec="section_reference" data-start_num="58" data-type="article">
+       article 58
+      </a>
+      de l'
+      <a data-date="1998-02-02" data-spec="document_reference" data-tag_id="8" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="1998-02-02">
+        2 février 1998
+       </time>
+      </a>
+      l'inspection des installations classées se réserve également la possibilité de faire procéder, aux frais de l'exploitant, à des mesures de contrôle au niveau des points de rejets par un organisme extérieur sur les substances identifiées par l'exploitant comme sur d'autres substances non encore réglementées par un arrêté préfectoral ou ministériel applicable à l'établissement.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Pour les substances identifiées à l'
+      <a data-spec="section_reference" data-start_num="3" data-type="article">
+       article 3
+      </a>
+      -3 présentant une des 10 classes de danger pour la santé au sens du règlement CLP (
+      <a data-date="2008" data-num="1272" data-spec="document_reference" data-type="eu-regulation">
+       règlement (CE) n°1272/2008
+      </a>
+      modifié), ou celles visées à l'
+      <a data-spec="section_reference" data-start_num="27" data-type="article">
+       article 27
+      </a>
+      7° b) ou c) de l'
+      <a data-date="1998-02-02" data-spec="document_reference" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="1998-02-02">
+        2 février 1998
+       </time>
+      </a>
+      , l'exploitant tient à disposition de l'inspection un bilan de matière de la substance considérée proposée en vertu du point 6 de l'
+      <a data-spec="section_reference" data-start_num="4.1" data-type="article">
+       article 4.1.
+      </a>
+      Ce bilan identifie les émissions dans l'environnement (eau, air, déchets) de la substance, il compare la quantité émise calculée avec des mesures à l'émission. L'exploitant informe sans délai l'inspection des installations classées lorsque toute incertitude est susceptible d'engendrer un dépassement de seuil réglementaire ou qu'une émission est susceptible d'avoir un impact sanitaire.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      A l'issue de cette phase de diagnostic et en fonction des résultats présentés dans le bilan, une révision de l'évaluation des impacts des activités de l'exploitant et une surveillance environnementale pourront être mises en œuvre sous prescription, par arrêté préfectoral complémentaire.
+     </div>
+    </section>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Valeurs limites d'émission et surveillance des rejets" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 : Valeurs limites d'émission et surveillance des rejets
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le tableau ci-après recense l'ensemble des points d'émission connus sur l'établissement :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Nom de conduit
+       </th>
+       <th>
+        Installations raccordées
+       </th>
+       <th>
+        Débit nominal (Nm3/h)
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Réseau d'events vers traitement Sobegi
+       </td>
+       <td>
+        Unité ATG – section préparation du sulfhydrate d'ammonium
+       </td>
+       <td>
+        10 à 15 kg/h
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Colonne de traitement à la soude CA 1901 (SAPEC)
+       </td>
+       <td>
+        Rejets eaux polluées de la section réaction ATG
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Unité de traitement par charbons actifs à l'aval de la colonne de traitement à la soude CA 4900
+       </td>
+       <td>
+        Évents de l'installation AMS
+       </td>
+       <td>
+        20 kg/h
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Colonne de traitement à la soude CA4530
+       </td>
+       <td>
+        Ballon de collecte des eaux usées de l'unité AMS
+       </td>
+       <td>
+        70
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Colonne de traitement du chlore CA 4601
+       </td>
+       <td>
+        Local dépotage et évaporation du chlore
+       </td>
+       <td>
+        3000 Nm³/h
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Colonne de traitement à l'eau CA4910
+       </td>
+       <td>
+        Disques de rupture de l'unité AMS – situations accidentelles
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Colonne de traitement à l'eau CA4700
+       </td>
+       <td>
+        Stockages HCl
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Colonne du local d'enfûtage CA6201
+       </td>
+       <td>
+        Local d'enfûtage : tous les produits fabriqués sur le site sont susceptibles d'être présents
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Colonne à l'eau CA 6711
+       </td>
+       <td>
+        Poste de chargement HCl
+       </td>
+       <td>
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les valeurs limites suivantes sont applicables au flux d'effluents gazeux issu de l'unité AMS :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - COV totaux : 110 mg/m³ ;
+      </li>
+      <li>
+       - COV halogénés auxquels sont attribuées les mentions de danger H341 ou H351 : 20 mg/m³ si le flux horaire maximal de l'ensemble de l'installation est supérieur ou égal à 100 g/h.
+      </li>
+     </ul>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Des analyses sur ces deux paramètres seront pratiquées trimestriellement à l'émission des évents de l'unité AMS, et semestriellement sur les autres points d'émission pour vérifier la conformité des rejets à ces valeurs limites.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     La composition des évents dirigés vers l'oxydateur sera analysée trimestriellement.
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="Réduction des impacts durant les phases de torchage" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6 : Réduction des impacts durant les phases de torchage
+    </h2>
+    <section data-number="6.1" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      6.1
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Arkema adresse à l'inspection avant le 30 avril 2020 une étude technico-économique visant à supprimer tout recours au torchage dans les conditions d'exploitation routinière, telles que la maintenance préventive, démarrages / arrêts. L'exploitant identifie notamment la possibilité de mise en place d'une unité de traitement complémentaire à l'oxydateur de SOBEGI, visant à
+      <div data-spec="page_footer">
+       <div>
+        Page 7/9
+       </div>
+      </div>
+      <a data-page_index="7" data-spec="page_separator">
+      </a>
+      réduire au maximum les périodes de torchage. Cette étude technico-économique pourra, à la demande de l'inspection des installations classées, faire l'objet d'une tierce expertise, conformément à l'
+      <a data-parent_reference="9" data-spec="section_reference" data-start_num="L181-13" data-type="article">
+       article L.181-13
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="9" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      .
+     </div>
+    </section>
+    <section data-number="6.2" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      6.2
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Dans l'attente de la fourniture des éléments visés à l'
+      <a data-parent_reference="10" data-spec="section_reference" data-start_num="6.1" data-type="article">
+       article 6.1
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="10" data-type="self">
+       présent arrêté
+      </a>
+      , l'usage de la torche hors situation d'accident ou incident impliquant un retour à la torche pour des raisons de sécurité est limité en cas d'indisponibilité totale de l'oxydateur thermique de SOBEGI à moins de 1 055 h cumulées par an.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      En dehors de ces périodes le recours à la torche n'est autorisé que pour les opérations de mise à disposition des équipements, pour les opérations d'arrêt et démarrage, dans le but d'assurer la sécurité des intervenants (décompression, balayage à l'azote, à la vapeur).
+     </div>
+    </section>
+   </section>
+   <section data-number="7" data-spec="section" data-title="Évaluation des impacts" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 7 : Évaluation des impacts
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Compte tenu de l'identification de la présence de composés organiques volatils halogénés dans les rejets atmosphériques de son atelier AMS, et compte tenu de la nécessité de recourir au torchage lors des phases d'arrêt / démarrage de ses unités d'AMS et d'ATG, la société Arkema, est tenue de remettre sous un mois une étude d'impact des rejets atmosphériques de ces ateliers, dans les conditions de fonctionnement normales et dans les phases transitoires (arrêt/démarrage) pouvant impliquer un recours au torchage pour des raisons de sécurité.
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-title="Surveillance de l'environnement" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 8 : Surveillance de l'environnement
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant propose sous 1 mois des modalités de surveillance environnementale des composés organiques volatils chlorés (chlorométhane et toutes autres substances pertinentes) sur et hors de la plate-forme Chem'pole 64. Après approbation de l'inspection des installations classées, il met en œuvre ce programme de surveillance des composés organiques volatils chlorés, sur et hors de la plate-forme Chem'pole 64 sous 1 mois.
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-title="Publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 9 : Publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En vue de l'information des tiers :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       1° Une copie de l'arrêté est déposée à la mairie de Mourenx et pourra y être consultée ;
+      </li>
+      <li>
+       2° Un extrait de l'arrêté est affiché à la mairie de Mourenx pendant une durée minimum d'un mois ; le procès-verbal de l'accomplissement de cette formalité est dressé par les soins du maire de Mourenx.
+      </li>
+      <li>
+       3° L'arrêté est publié sur le site internet de la préfecture des Pyrénées-Atlantiques pendant une durée de quatre mois.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="10" data-spec="section" data-title="Voies et délais de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 10 : Voies et délais de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="11" data-spec="section_reference" data-start_num="L181-17" data-type="article">
+      article L.181-17
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="11" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , la présente décision est soumise à un contentieux de pleine juridiction. Elle peut être déférée à la juridiction administrative compétente, le tribunal administratif de [ville] dans les délais prévus à l'
+     <a data-spec="section_reference" data-start_num="R181-50" data-type="article">
+      article R.181-50
+     </a>
+     du même code :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       1° Par le(s) pétitionnaire(s) ou exploitant(s) [retenir le bon terme], dans un délai de deux mois à compter du jour où la décision leur a été notifiée ;
+      </li>
+      <li>
+       2° Par les tiers intéressés en raison des inconvénients ou des dangers pour les intérêts mentionnés à l'
+       <a data-spec="section_reference" data-start_num="L181-3" data-type="article">
+        article L. 181-3
+       </a>
+       , dans un délai de quatre mois à compter de :
+      </li>
+      <li>
+       a) L'affichage en mairie dans les conditions prévues au 2° de l'
+       <a data-spec="section_reference" data-start_num="R181-44" data-type="article">
+        article R. 181-44
+       </a>
+       ;
+      </li>
+      <li>
+       b) La publication de la décision sur le site internet des services de l'État(préfecture) prévue au 4° du même article.
+      </li>
+     </ul>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 8 / 9
+     </div>
+    </div>
+    <a data-page_index="8" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     Le délai court à compter de la dernière formalité accomplie. Si l'affichage constitue cette dernière formalité, le délai court à compter du premier jour d'affichage de la décision.
+    </div>
+   </section>
+   <section data-number="11" data-spec="section" data-title="Sanctions" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 11 : Sanctions
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En cas d’inobservation des dispositions ci-dessus, les sanctions prévues à l’
+     <a data-parent_reference="12" data-spec="section_reference" data-start_num="L514-1" data-type="article">
+      article L.514-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="12" data-title="Code de l'environnement" data-type="code">
+      code de l’environnement
+     </a>
+     pourront être appliquées sans préjudice de sanctions pénales.
+    </div>
+   </section>
+   <section data-number="12" data-spec="section" data-title="Copie et exécution" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 12 : Copie et exécution
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le secrétaire général de la préfecture des Pyrénées-atlantiques, le maire de Mourenx, la directrice régionale de l’environnement, de l’aménagement et du logement, les inspecteurs de l’environnement placés sous son autorité, sont chargés, chacun en ce qui le concerne, de l’exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     qui sera notifié à la société Arkema.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Fait à Pau, le 08 AOUT 2019
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le Préfet,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le Préfet et par délégation,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le secrétaire général,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Eddie BOUTTERA
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 9 / 9
+     </div>
+    </div>
+    <a data-page_index="9" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      0185 180A 8 0
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

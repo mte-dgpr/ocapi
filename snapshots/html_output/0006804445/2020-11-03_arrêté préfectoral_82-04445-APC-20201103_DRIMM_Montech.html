@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2020-11-03_arrêté préfectoral_82-04445-APC-20201103_DRIMM_Montech.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DE TARN-ET-GARONNE
+Liberté
+Égalité
+Fraternité
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Pôle d'Animation Interministérielle
+    </div>
+    <div>
+     Mission Environnement A.P. n° 82-2020-11-03_002
+    </div>
+    <div>
+     Installations classées pour la protection de l'environnement
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE PREFECTORAL abrogeant l'arrêté préfectoral complémentaire n° 82-2020-03-25-010 du
+     <time data-spec="date" datetime="2020-03-25">
+      25 mars 2020
+     </time>
+     portant dérogation liée à la crise de la COVID-19 et relatif à l'installation de stockage de déchets non dangereux située sur le territoire des communes de Montech et d'Escatalens, exploitée par la SAS DRIMM
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet de Tarn-et-Garonne,
+    </div>
+    <div>
+     Chevalier de l'ordre national du mérite,
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code des relations entre le public et l'administration" data-type="code">
+     code des relations entre le public et l'administration
+    </a>
+    et notamment son
+    <a data-spec="section_reference" data-start_num="L242-2" data-type="article">
+     article L 242-2
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2016-02-15" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2016-02-15">
+      15 février 2016
+     </time>
+    </a>
+    relatif aux installations de stockage de déchets non dangereux et notamment son
+    <a data-spec="section_reference" data-start_num="3" data-type="article">
+     article 3
+    </a>
+    listant les déchets admis en installation de stockage de déchets non dangereux ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 82-2017-12-06-004 du
+     <time data-spec="date" datetime="2017-12-06">
+      6 décembre 2017
+     </time>
+    </a>
+    autorisant l'exploitation d'une installation de traitement et de stockage de déchets ménagers et d'activité économique ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2020-03-25" data-num="82-2020-03-25-010" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire n° 82-2020-03-25-010 du
+     <time data-spec="date" datetime="2020-03-25">
+      25 mars 2020
+     </time>
+    </a>
+    portant mesures dérogatoires liées à l'épidémie de la COVID-19 relatif à l'installation de stockage de déchets non dangereux située sur le territoire des communes de Montech et d'Escatalens, exploitée par la SAS. DRIMM ;
+   </div>
+   <div data-spec="visa">
+    Vu le courrier du préfet en date du 6 juillet 2020 demandant à la société DRIMM la possibilité de lever les mesures dérogatoires de l'
+    <a data-date="2020-03-25" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2020-03-25">
+      25 mars 2020
+     </time>
+    </a>
+    compte tenu d'un retour à la normale ;
+   </div>
+   <div data-spec="visa">
+    Vu la réponse affirmative de l'exploitant en date du 16 juillet 2020 ;
+   </div>
+   <div data-spec="visa">
+    Vu l'avis de l'inspection des installations classées en date du 28 septembre 2020 ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que la demande de dérogation relative au stockage de déchets valorisables collectés en mélanges avec les ordures ménagères était formulée en raison de la fermeture de certains centres de tri liée à la crise sanitaire de la COVID-19, les exploitants estimant ne pouvoir assurer la mise en place des mesures barrières pour la sécurité du personnel, notamment en maintenant une distance minimale de 1 m entre les personnes ;
+   </div>
+   <div>
+    Horaires d’ouverture et modalité d’accueil disponibles
+   </div>
+   <div>
+    sur le site : http://www.tarn-et-garonne.gouv.fr
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Préfecture de Tarn-et-Garonne – 2 Allée de l’Empereur – BP 10779 – Montauban CEDEX
+Tél. 05 63 22 82 00
+Fax 05 63 93 33 79
+Mél : prefecture@tarn-et-garonne.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    Considérant la réouverture des centres de tri exploités par le SYDED du Lot et leur fonctionnement normal ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que cette demande était regardée comme une demande d'adaptation des prescriptions de l'arrêté d'autorisation du site au sens de l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="R181-45" data-type="article">
+     article R. 181-45
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    Considérant le caractère temporaire de l'arrêté dérogatoire pris le 25 mars 2020 ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition du Secrétaire général de la préfecture,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Abrogation" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1er : Abrogation
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-date="2020-03-25" data-num="82-2020-03-25-010" data-spec="document_reference" data-tag_id="4" data-type="arrete-prefectoral">
+      arrêté préfectoral complémentaire n° 82-2020-03-25-010 du
+      <time data-spec="date" datetime="2020-03-25">
+       25 mars 2020
+      </time>
+     </a>
+     <span data-direction="rtl" data-keyword="abrogé" data-operation_type="delete" data-references="4" data-spec="operation">
+      portant mesures dérogatoires liées à l'épidémie de la COVID-19 relatif à l'installation de stockage de déchets non dangereux située sur le territoire des communes de Montech et d'Escatalens, et exploitée par la SAS DRIMM est
+      <b>
+       abrogé
+      </b>
+     </span>
+     .
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 : Publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément aux dispositions de l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="R181-44" data-type="article">
+      article R.181-44
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     est déposée à la mairie de Montech et à celle d'Escatalens pour y être consultée par toute personne intéressée.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Cet arrêté est affiché en mairie pendant une durée minimale d'un mois ; procès-verbal de l'accomplissement de cette formalité est dressé par les soins du maire et transmis à la préfecture de Tarn-et-Garonne.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'arrêté est publié sur le site Internet des services de l'État du Tarn-et-Garonne pendant une durée minimale de quatre mois.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Exécution" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 : Exécution
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le Secrétaire général de la préfecture de Tarn-et-Garonne, le Directeur régional de l'environnement, de l'aménagement et du logement (DREAL) chargé de l'inspection des installations classées pour la protection de l'environnement, sont chargés chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie sera adressée aux maires de Montech et de Escatalens et à la société DRIMM.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Montauban, le 03 NOV. 2020
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Peu de prétext et par délégation,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le secrétaire général,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Emmanuel MOULARD
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Délais et voies de recours
+    </div>
+    <div data-number="7" data-spec="alinea">
+     La présente décision est soumise à un contentieux de pleine juridiction. Elle peut être déférée à la juridiction administrative compétente, le tribunal administratif de Toulouse (
+     <address data-spec="address">
+      68 rue Raymond IV
+     </address>
+     – 31000 Toulouse – Tél : 05.62.73.57.57), : 1 - par l'exploitant dans le délai de deux mois à compter du jour où la décision lui a été notifiée ;
+    </div>
+    <div data-number="8" data-spec="alinea">
+     2 - par les tiers intéressés, en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts protégés par l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="L181-3" data-type="article">
+      article L 181-3
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , dans un délai de quatre mois à compter de la publication ou de l'affichage de la décision. Le délai court à compter de la dernière formalité accomplie. Si l'affichage constitue cette dernière formalité, le délai court à compter du premier jour d'affichage de la décision.
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Le tribunal administratif peut être saisi au moyen de l'application informatique télérecours moyen accessible par le biais du site
+     <q>
+      www.telerecours.fr
+     </q>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

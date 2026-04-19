@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2023-02-23_ap prescriptions complémentaires_apc sécheresse_société laitière montauban 2023.pdf.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DE TARN-ET-GARONNE
+Liberté
+Égalité
+Fraternité
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Direction de la coordination interministérielle et de l'appui territorial
+    </div>
+    <div>
+     Mission des politiques environnementales AP 82-2023-02-23_0002
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté préfectoral complémentaire SOCIÉTÉ LAITIÈRE DE MONTAUBAN 25 impasse de Maastricht ZI Albasud 82000 MONTAUBAN prescrivant la réalisation d'une étude technico-économique de réduction des prélèvements d'eaux en période de sécheresse
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     La Préfète de Tarn-et-Garonne,
+    </div>
+    <div>
+     Chevalier de la Légion d’Honneur,
+    </div>
+    <div>
+     Officier de l’Ordre National du Mérite,
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le titre 1er du livre V du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l’environnement
+    </a>
+    , relatif aux installations classées pour la protection de l’environnement ;
+   </div>
+   <div data-spec="visa">
+    VU les
+    <a data-group_id="1" data-parent_reference="1" data-spec="section_reference" data-start_num="L211-3" data-type="article">
+     articles L. 211-3
+    </a>
+    et
+    <a data-group_id="1" data-parent_reference="1" data-spec="section_reference" data-start_num="R211-66" data-type="article">
+     R. 211-66
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     Code de l’environnement
+    </a>
+    relatif aux mesures de limitation ou de suspension provisoire des usages de l’eau ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="1998-02-02" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="1998-02-02">
+      2 février 1998
+     </time>
+    </a>
+    relatif aux prélèvements et à la consommation d’eau ainsi qu’aux émissions de toute nature des installations classées pour la protection de l’environnement soumises à autorisation ;
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2011-05-18" data-spec="document_reference" data-type="circulaire">
+     circulaire du
+     <time data-spec="date" datetime="2011-05-18">
+      18 mai 2011
+     </time>
+    </a>
+    relative aux mesures exceptionnelles de limitation ou de suspension des usages de l’eau en période de sécheresse ;
+   </div>
+   <div data-spec="visa">
+    VU l’arrêté préfectoral cadre sécheresse définissant le plan départemental ainsi que les seuils de vigilance et les mesures de limitation des usages de l’eau en cas de sécheresse dans le département de Tarn-et-Garonne en date du 12 août 2019 ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     2, Allée de l’Empereur – BP 10779 – 82013 MONTAUBAN cedex
+Téléphone : 06.63.22.82.00 – Téléphone : 06.63.93.33.79 – M4I : prefectura@tarn-et-garonne.gouv.fr
+Horaires d’ouverture et modalités d’accueil disponibles sur le site des services de l’État : www.tarn-et-garonne.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1996-04-02" data-num="96-0344" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 96-0344 du
+     <time data-spec="date" datetime="1996-04-02">
+      2 avril 1996
+     </time>
+    </a>
+    complété par les arrêtés préfectoraux
+    <a data-date="2004-08-03" data-spec="document_reference" data-type="arrete-prefectoral">
+     du
+     <time data-spec="date" datetime="2004-08-03">
+      3 août 2004
+     </time>
+    </a>
+    et
+    <a data-date="2006-12-14" data-spec="document_reference" data-type="arrete-prefectoral">
+     <time data-spec="date" datetime="2006-12-14">
+      14 décembre 2006
+     </time>
+    </a>
+    ou autre acte administratif antérieur autorisant la SOCIÉTÉ LAITIÈRE DE MONTAUBAN à exercer ses activités relevant de la nomenclature des installations classées à ZI Est des Parages – rue des frères Montgolfier sur le territoire de la commune de Montauban ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport de l'inspection des installations classées daté du 10 avril 2020 ;
+   </div>
+   <div data-spec="visa">
+    Vu le projet d'arrêté préfectoral porté le 14 avril 2020 à la connaissance de l'exploitant pour observations éventuelles et l'absence de réponse de sa part ;
+   </div>
+   <div data-spec="visa">
+    Vu le courrier de relance de l'inspection des installations classées daté du 17 novembre 2022 suite à la visite du site le 15 novembre 2022 ;
+   </div>
+   <div data-spec="visa">
+    Vu l'absence de réponse de l'exploitant ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que l'établissement est autorisé à prélever pour les besoins de son fonctionnement dans une ressource en eau qui dans certaines conditions de sécheresse, doit être protégée ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les prélèvements de l'établissement appartiennent au secteur hydrographique identifié par l'arrêté cadre sécheresse du département de Tarn-et-Garonne ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'en cas de sécheresse, des mesures particulières et adaptées à la situation hydrologique, doivent être prises ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition de la secrétaire générale de la préfecture de Tarn-et-Garonne ;
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="PLAN DE RÉDUCTION DES PRÉLÈVEMENTS EN CAS DE SÉCHERESSE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1 – PLAN DE RÉDUCTION DES PRÉLÈVEMENTS EN CAS DE SÉCHERESSE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La SOCIÉTÉ LAITIÈRE DE MONTAUBAN ci-après désignée l'exploitant, sise ZI Est des Parages – rue des frères Montgolfier, 82 000 MONTAUBAN, est tenue d'établir et de transmettre au préfet de Tarn-et-Garonne, dans un délai de trois mois après la signature du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , un plan de réduction de ses prélèvements en eau en cas de sécheresse prévoyant :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     &amp;gt; Les mesures spécifiques aux processus de production à mettre en œuvre sur les installations lors du déclenchement de chacun des niveaux de limitation ou de restriction définis par l'arrêté cadre sécheresse en vigueur (les mesures sont cumulatives) :
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      2/6
+     </div>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - seuil de vigilance : aucune demande spécifique sauf actions volontaires
+      </li>
+      <li>
+       - seuil d’alerte : premières mesures de réduction des consommations d’eau en particulier sur les process
+      </li>
+      <li>
+       - seuil d’alerte renforcée : renforcement des mesures de réduction des consommations d’eau en particulier sur les process
+      </li>
+      <li>
+       - seuil de crise : arrêt total des prélèvements sauf enjeux mettant en péril l’installation (exemple : refroidissement d’un four)
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     &amp;gt; Pour exemple, les mesures retenues peuvent être :
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <ul>
+      <li>
+       - économies d’eau structurelles qui auront un impact positif en tout temps (étanchéité des réseaux...)
+      </li>
+      <li>
+       - recyclage des eaux traitées
+      </li>
+      <li>
+       - prélèvement dans une ressource moins sensible
+      </li>
+      <li>
+       - stockage des effluents (en fonction du débit du cours d’eau et du flux rejeté)
+      </li>
+      <li>
+       - report des opérations de lavage estivales
+      </li>
+      <li>
+       - stockage d’eau et récupération des eaux de pluie
+      </li>
+      <li>
+       - réduction ou arrêt des activités les plus consommatrices d’eau avec impact économique à préciser
+      </li>
+      <li>
+       - divers (arrêt des exercices de défense contre l’incendie, fermeture estivale, restrictions sur les arrosages et lavage...)
+      </li>
+     </ul>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     &amp;gt; Leurs modalités d’application et de mise en œuvre selon les niveaux de gestion sécheresse (vigilance, alerte, alerte renforcée, crise ;
+    </div>
+    <div data-number="7" data-spec="alinea">
+     &amp;gt; Le respect d’un débit maximum de prélèvement journalier selon les niveaux de gestion sécheresse (vigilance, alerte, alerte renforcée, crise ;
+    </div>
+    <div data-number="8" data-spec="alinea">
+     &amp;gt; L’estimation des gains de réduction journaliers de consommation attendus pour chacune des mesures proposées ;
+    </div>
+    <div data-number="9" data-spec="alinea">
+     &amp;gt; Un renforcement approprié du suivi de l’impact des rejets sur les milieux aquatiques.
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Ces mesures sont élaborées dans le respect prioritaire des règles de sécurité et de salubrité.
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Ce plan tiendra compte des meilleures techniques disponibles et des contraintes technico-économiques.
+    </div>
+    <div data-number="12" data-spec="alinea">
+     Deux tableaux (prélèvements et plan d’actions/mesures d’économie) à compléter sont joints en
+     <a data-parent_reference="2" data-spec="section_reference" data-type="annexe">
+      annexe
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="2" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="2" data-spec="section" data-title="MESURES DE PUBLICITÉ" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 – MESURES DE PUBLICITÉ
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En vue de l’information des tiers :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - Un extrait de cet arrêté complémentaire est affiché à la mairie de MONTAUBAN pendant une durée minimum d’un mois ; procès-verbal de l’accomplissement de cette formalité est dressé par les soins du maire et transmis à la préfecture ;
+      </li>
+      <li>
+       - L’arrêté est publié sur le site internet des services de l’État dans le département pendant une durée minimale de quatre mois.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="EXÉCUTION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 – EXÉCUTION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La secrétaire générale de la préfecture de Tarn-et-Garonne, le directeur régional de l’industrie, de la recherche et de l’environnement d’Occitanie et le maire de MONTAUBAN sont chargés, chacun en ce qui le concerne, de l’exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie est notifiée à l’exploitant.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     À Montauban, le 23 FEV. 2023
+    </div>
+    <div data-number="3" data-spec="alinea">
+     La Préfète,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     DÉLAIS ET VOIES DE RECOURS
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Conformément à l’
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="R181-50" data-type="article">
+      article R. 181-50
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+      Code de l’environnement
+     </a>
+     ,
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     peut être déféré à la juridiction administrative :
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <ul>
+      <li>
+       1° Par les pétitionnaires ou exploitants, dans un délai de deux mois à compter du jour où la décision leur a été notifiée ;
+      </li>
+      <li>
+       2° Par les tiers intéressés en raison des inconvénients ou des dangers pour les intérêts mentionnés à l’
+       <a data-spec="section_reference" data-start_num="L181-3" data-type="article">
+        article L. 181-3
+       </a>
+       , dans un délai de quatre mois à compter de l’affichage en mairie dans les conditions prévues au 2° de l’
+       <a data-spec="section_reference" data-start_num="R181-44" data-type="article">
+        article R. 181-44
+       </a>
+       et de la publication de la décision sur le site internet des services de l’État dans le département.
+      </li>
+     </ul>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Le délai court à compter de la dernière formalité accomplie. Si l’affichage constitue cette dernière formalité, le délai court à compter du premier jour d’affichage de la décision.
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Le tribunal administratif peut être saisi au moyen de l’application informatique télérecours citoyen accessible par le biais du site
+     <q>
+      www.telerecours.fr
+     </q>
+     .
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Les décisions mentionnées au
+     <a data-spec="section_reference" data-start_num="1" data-type="alinea">
+      premier alinéa
+     </a>
+     peuvent faire l’objet d’un recours gracieux ou hiérarchique dans le délai de deux mois. Ce recours administratif prolonge de deux mois les délais mentionnés aux 1° et 2°.
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      5/6
+     </div>
+    </div>
+    <div data-number="11" data-spec="alinea">
+     ANNEXES
+    </div>
+    <div data-number="12" data-spec="alinea">
+     Prélevements (tableau à remplir)
+    </div>
+    <div data-number="13" data-spec="alinea">
+     <table>
+      <tr>
+       <td rowspan="3">
+        Ressource(s) utilisée(s)
+        <br/>
+        (réseau AEP, réseau d'irrigation, cours d'eau et nappe d'accompagnement, eau souterraine)
+       </td>
+       <td rowspan="3">
+        Nom de la masse d'eau
+       </td>
+       <td rowspan="3">
+        Code SDAGB masse d'eau
+       </td>
+       <td rowspan="3">
+        Prélèvement annuel (m³) et mensuel en étiage (juillet, août, septembre)
+       </td>
+       <td colspan="5">
+        Débit de prélèvement maximal instantané (m³/s) et journalier (m³/jour)
+       </td>
+      </tr>
+      <tr>
+       <td colspan="5">
+        Niveau de gestion sécheresse
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Normal
+       </td>
+       <td>
+        Vigilance ⇒ limitations volontaires
+       </td>
+       <td>
+        Alerte ⇒ réduction visée de 30 %
+       </td>
+       <td>
+        Alerte renforcée ⇒ réduction visée de 50 %
+       </td>
+       <td>
+        Crise ⇒ arrêt sauf prioritaire
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+        xxx m³/s
+        <br/>
+        xxx m³/jour
+       </td>
+       <td>
+        xxx m³/s
+        <br/>
+        xxx m³/jour
+       </td>
+       <td>
+        xxx m³/s
+        <br/>
+        xxx m³/jour
+       </td>
+       <td>
+        xxx m³/s
+        <br/>
+        xxx m³/jour
+       </td>
+       <td>
+        xxx m³/s
+        <br/>
+        xxx m³/jour
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      6/6
+     </div>
+    </div>
+    <div data-number="14" data-spec="alinea">
+     Plan d'actions/mesures d'économie
+    </div>
+    <div data-number="15" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Niveau de gestion sécheresse
+       </th>
+       <th>
+        Mesures générales cumulatives de niveau en niveau non spécifiques ICPE à décliner/préciser pour l'établissement
+       </th>
+       <th>
+        Mesures spécifiques ICPE (process...)
+       </th>
+      </tr>
+      <tr>
+       <td>
+        <strong>
+         Vigilance
+        </strong>
+       </td>
+       <td>
+        • Rappel des mesures d'économie d'eau élémentaires au personnel de l'installation
+        <br/>
+        • Affichage de panneaux de sensibilisation à chaque point d'utilisation d'eau
+        <br/>
+        • Limitations volontaires des usages de l'eau
+       </td>
+       <td>
+        • À renseigner
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <strong>
+         Alerte
+        </strong>
+        <br/>
+        objectif visé de réduction de 30 % des prélèvements
+       </td>
+       <td>
+        • Arrosage des pelouses et espaces verts, interdit de 8 h à 20 h
+        <br/>
+        • Opérations de nettoyage (véhicules, voiries...) limitées aux nettoyages permettant de garantir la sécurité et la salubrité publique
+        <br/>
+        • Alimentation des points d'utilisation d'eau d'agréments interdits excepté en circuit fermé
+        <br/>
+        • Test des poteaux incendie et purge des réseaux d'eau interdit
+        <br/>
+        • Une surveillance accrue des rejets des stations d'épuration doit être réalisée
+        <br/>
+        • Mise à disposition des inspecteurs du registre de prélèvements journaliers
+       </td>
+       <td>
+        • À renseigner
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <strong>
+         Alerte renforcée
+        </strong>
+        <br/>
+        objectif visé de réduction de 50 % des prélèvements
+       </td>
+       <td>
+        • Arrosage des pelouses et espaces verts totalement interdit
+        <br/>
+        • ...
+       </td>
+       <td>
+        • À renseigner
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <strong>
+         Crise
+        </strong>
+        <br/>
+        arrêt de tous les prélèvements non prioritaires
+       </td>
+       <td>
+        •
+        <br/>
+        •
+        <br/>
+        •
+       </td>
+       <td>
+        • À renseigner
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

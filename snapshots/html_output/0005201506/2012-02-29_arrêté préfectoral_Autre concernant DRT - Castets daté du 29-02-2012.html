@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2012-02-29_arrêté préfectoral_Autre concernant DRT - Castets daté du 29-02-2012.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFET DES LANDES
+    </div>
+    <div>
+     DIRECTION DE LA RÉGLEMENTATION ET DES LIBERTES PUBLIQUES 1er
+    </div>
+    <div>
+     Bureau PR/DRLP/2012/ n° 114
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ PRÉFECTORAL COMPLÉMENTAIRE fixant des prescriptions complémentaires à la société DRT pour son établissement de CASTETS
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet des Landes
+    </div>
+    <div>
+     Chevalier de l’ordre national de la Légion d’honneur,
+    </div>
+    <div>
+     Chevalier de l’ordre national du Mérite,
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l’Environnement
+    </a>
+    , livre V, titre 1er relatif aux installations classées pour la Protection de l’Environnement ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="L515-15" data-type="article">
+     article L.515-15
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l’Environnement
+    </a>
+    sur les plans de préventions des risques technologiques (PPRT) ;
+   </div>
+   <div data-spec="visa">
+    VU la loi n° 2000-321 du 12 avril 2000 relative aux droits des citoyens dans leurs relations avec les administrations ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2000-05-10" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2000-05-10">
+      10 mai 2000
+     </time>
+     modifié
+    </a>
+    en dernier lieu le 14 décembre 2011 relatif à la prévention des accidents majeurs impliquant des substances ou préparations dangereuses présentes dans certaines catégories d’installations classées pour la protection de l’environnement soumises à autorisation ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2005-09-29" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2005-09-29">
+      29 septembre 2005
+     </time>
+    </a>
+    relatif à l’évaluation et à la prise en compte de la probabilité d’occurrence, de la cinétique, de l’intensité des effets et de la gravité des conséquences des accidents potentiels dans les études de dangers des installations classées soumises à autorisation ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2010-10-04" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2010-10-04">
+      4 octobre 2010
+     </time>
+    </a>
+    relatif à la prévention des risques accidentels au sein des installations classées pour la protection de l’environnement soumises à autorisation ;
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2010-05-10" data-spec="document_reference" data-type="circulaire">
+     circulaire du
+     <time data-spec="date" datetime="2010-05-10">
+      10 mai 2010
+     </time>
+    </a>
+    récapitulant les règles méthodologiques applicables aux études de dangers, à l’appréciation de la démarche de réduction du risque à la source et aux plans de prévention des risques technologiques (PPRT) dans les installations classées en application de la loi du 30 juin 2003,
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2010-05-11" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2010-05-11">
+      11 mai 2010
+     </time>
+    </a>
+    autorisant la société DRT à étendre ses installations de Chimie Fine sur le territoire de la commune de CASTETS et fixant des mesures de maîtrise des risques complémentaires à la suite de l’instruction de l’étude de dangers de l’établissement
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2011-06-01" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2011-06-01">
+      1er juin 2011
+     </time>
+    </a>
+    prescrivant la réalisation d’études complémentaires sur les phénomènes dangereux relatifs à l’acide chlorhydrique (HCl), au mono-chloro-acétate de méthyle (MCAM) et à l’acide péracétique aqueux (APAA),
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l’exploitant daté du 24 octobre 2011 relatif à l’APAA et au MCAM et son courrier daté du 25 octobre 2011 répondant à l’
+    <a data-date="2011-06-01" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2011-06-01">
+      1er juin 2011
+     </time>
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l’exploitant daté du 20 décembre 2011 relatif à l’aménagement du local chaudière,
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l’inspection des installations classées en date du 27 janvier 2012 ;
+   </div>
+   <div data-spec="visa">
+    VU l’avis émis par le Conseil Départemental de l’Environnement et des Risques Sanitaires et Technologiques dans sa réunion du 6 février 2012,
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que l’
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="R515-41" data-type="article">
+     article R515-41
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    prévoit qu’il peut être tenu compte de mesures prescrites dans un délai de réalisation inférieur à 5 ans pour délimiter les périmètres, zones et secteurs du PPRT,
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Préfecture des Landes - 40021 Mont de Marsan Cedex - Tél. 05 58 06 58 06 - Fax 05 58 75 83 81
+Adresse internet : http://www.landes.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     2
+    </div>
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que ces les dispositions du
+    <a data-spec="document_reference" data-type="self">
+     présent arrêté
+    </a>
+    prescrivent ces mesures,
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que ces mesures permettent de réduire notablement les aléas générés par les installations de DRT, notamment par :
+    <ul>
+     <li>
+      - le fait que le procédé mettant en œuvre du Formcell et du chlorure d'allyle à l'origine de zones d'effets toxiques irréversibles atteignant respectivement 263 et 471 m n'a jamais été mis en œuvre et ne le sera jamais,
+     </li>
+     <li>
+      - l'arrêt de l'utilisation d'acide chlorhydrique anhydre dont les zones d'effets irréversibles atteignent 728 m,
+     </li>
+     <li>
+      - l'exclusion du PPRT des phénomènes dangereux associés au MCAM et à l'APAA dont les zones d'effets irréversibles atteignent 539 m et 660 m,
+     </li>
+     <li>
+      - l'exclusion du PPRT des phénomènes dangereux associés à l'UVCE du local chaudière dont les zones d'effets indirects atteignent 405 m,
+     </li>
+    </ul>
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que le déplacement d'une partie de la clôture au sud du site permet de limiter les effets de surpression à l'extérieur du site en englobant une partie des aléas de surpression ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que la Société sus-nommée exploite des installations visées par l'
+    <a data-parent_reference="3" data-spec="section_reference" data-start_num="L515-8" data-type="article">
+     article L.515-8
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition de M. le Secrétaire Général de la Préfecture des Landes ;
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE La société DRT (Dérivés Résiniques et Terpéniques), dont le siège social est situé à DAX (40105) 30 rue Gambetta, est tenue de respecter les dispositions suivantes pour l'exploitation de son établissement de CASTETS,
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Installations mettant en œuvre de l'acide chlorhydrique" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1 – Installations mettant en œuvre de l'acide chlorhydrique
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Au plus tard le 1er janvier 2017, l'acide chlorhydrique anhydre, à l'origine de phénomènes dangereux dont les zones d'effets irréversibles atteignent 728 mètres, ne sera plus employé dans les installations de DRT.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     La cessation de cette activité devra se faire conformément aux dispositions en vigueur. Elle devra notamment faire l'objet d'une notification officielle au préfet et le cas échéant d'un dossier conformément à l'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="R512-39" data-type="article">
+      article R 512-39
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+      Code de l'Environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Installations mettant en œuvre du FORMCELL et du chlorure d'allyle" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 – Installations mettant en œuvre du FORMCELL et du chlorure d'allyle
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le procédé mettant en œuvre du Formcell et du chlorure d'allyle n'est pas mis en œuvre sur le site.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'
+     <a data-spec="section_reference" data-start_num="8.4.4" data-type="article">
+      article 8.4.4
+     </a>
+     relatif au stockage de chlorure d'allyle de l'
+     <a data-date="2010-05-11" data-spec="document_reference" data-tag_id="6" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2010-05-11">
+       11 mai 2010
+      </time>
+     </a>
+     <span data-direction="rtl" data-keyword="supprimé" data-operation_type="delete" data-references="6" data-spec="operation">
+      est
+      <b>
+       supprimé
+      </b>
+     </span>
+     .
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="MESURES COMPLEMENTAIRES sur les installations d'APAA" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 – MESURES COMPLEMENTAIRES sur les installations d'APAA
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les installations d'APAA sont équipées de l'ensemble des dispositions mentionnées dans le rapport du 24 octobre 2011 et de ses nœuds papillons.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Cela conduit à mettre en place, au plus tard d'ici le 31 décembre 2013, les mesures complémentaires suivantes sur chacun des bassins de bullage des unités 2 et 3 :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - alarme de niveau bas situé à 70 cm au-dessus de la canalisation de bullage déclenchant automatiquement le remplissage de ce dernier par de l'eau industrielle, dès que le volume d'APAA dans le stockeur est supérieur à 1,2 m³,
+      </li>
+      <li>
+       - alarme de niveau très bas situé à 60 cm au-dessus de la canalisation de bullage déclenchant automatiquement le remplissage de ce dernier par de l'eau incendie, dès que le volume d'APAA dans le stockeur est supérieur à 1,2 m³
+      </li>
+      <li>
+       - le remplissage du bassin est automatiquement arrêté dès qu'est atteint le niveau du bassin permettant de garantir l'efficacité du dispositif et n'empêchant pas, notamment par surpression, une évacuation correcte des effluents gazeux au sein du bassin. Ce niveau est fixé à 90 cm au-dessus de la canalisation de bullage.
+      </li>
+      <li>
+       - la mesure de ces niveaux est assurée par deux technologies différentes et les deux systèmes de traitement associés sont indépendants.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="MESURES COMPLEMENTAIRES sur les installations de MCAM" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 – MESURES COMPLEMENTAIRES sur les installations de MCAM
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les installations mettant en œuvre du MCAM sont situées sur l'unité 1 et équipées de l'ensemble des dispositions mentionnées dans le rapport du 24 octobre 2011 et de ses nœuds papillons.
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="2" data-spec="alinea">
+     Cela conduit à mettre en place, au plus tard d'ici le 31 décembre 2012, les mesures complémentaires suivantes au niveau du poste de dépotage et des installations de transfert associées :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - mesure de débit sur la ligne de transfert du MCAM de la citerne vers les installations déclenchant, sur débit bas et après une temporisation n'excédant pas 300 secondes, la fermeture des vannes de transfert et la décompression de l'isotank vers la colonne de traitement CL20,
+      </li>
+      <li>
+       - double détection incendie déclenchant l'arrosage automatique du poste de dépotage par les installations fixes d'extinction. La double détection incendie est assurée par deux technologies différentes.
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le MCAM n'est pas mis en œuvre sur l'unité 2.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="DEPLACEMENT DE LA Clôture" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 – DEPLACEMENT DE LA Clôture
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Avant le 31 décembre 2012, l'exploitant procède au déplacement de sa clôture conformément à la carte annexée au
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="UVCE du LOCAL CHAUDIERE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6 – UVCE du LOCAL CHAUDIERE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-parent_reference="5" data-spec="section_reference" data-start_num="3" data-tag_id="7" data-type="article">
+      article 3
+     </a>
+     de l'
+     <a data-date="2011-06-01" data-spec="document_reference" data-tag_id="5" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2011-06-01">
+       1er juin 2011
+      </time>
+     </a>
+     <span data-direction="rtl" data-keyword="abrogé" data-operation_type="delete" data-references="7" data-spec="operation">
+      imposant une distance maximale de 37 mètres pour les effets de surpression de l'UVCE du local chaudière est
+      <b>
+       abrogé
+      </b>
+     </span>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les mesures de maîtrise des risques destinées à prévenir ce phénomène dangereux sont a minima les suivantes :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - Le poste de détente de gaz naturel de 40 bars à 4 bars est équipé d'une soupape de sécurité conformément à la réglementation en vigueur sur ces installations. Bien que cette MMR n'appartienne pas à l'exploitant, ce dernier tiendra à la disposition de l'inspection des installations classées tous les éléments permettant de justifier du respect des 4 critères de cinétique, efficacité, testabilité et maintenance.
+      </li>
+      <li>
+       - En plus des MMR prescrites dans le chapitre 8.2 de l'
+       <a data-date="2010-05-11" data-spec="document_reference" data-tag_id="8" data-type="arrete-prefectoral">
+        arrêté préfectoral du
+        <time data-spec="date" datetime="2010-05-11">
+         11/05/10
+        </time>
+       </a>
+       <span data-direction="rtl" data-keyword="ajoutés" data-operation_type="add" data-references="8" data-spec="operation">
+        , sont
+        <b>
+         ajoutés
+        </b>
+       </span>
+       une nouvelle vanne de sécurité située à l'extérieur du local chaudière dont la fermeture est déclenchée par un nouveau dispositif de détection de gaz à l'intérieur du local chaudière (constitué à minima de deux détecteurs de gaz dont un est placé à la verticale de la tuyauterie d'alimentation en gaz naturel). Ces dispositifs sont mis en œuvre au plus tard le 01/09/13.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 7 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     ne peut être déféré qu'au tribunal administratif de Pau. Le délai de recours est de deux mois pour le titulaire à compter de la date où
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     lui a été notifié et de un an pour les tiers à compter de la date de publication ou d'affichage du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 8 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     M. le secrétaire général de la préfecture des Landes, M. le directeur régional de l'environnement, de l'aménagement et du logement, les inspecteurs des installations classées placés sous son autorité, M. le maire de la commune de CASTETS, sont chargés, chacun en ce qui le concerne, de l'application du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie leur sera adressée, ainsi qu'à la société DRT.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Fait à Mont de Marsan, le 29 Fév. 2012
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le préfet,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Alain ZABULON
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

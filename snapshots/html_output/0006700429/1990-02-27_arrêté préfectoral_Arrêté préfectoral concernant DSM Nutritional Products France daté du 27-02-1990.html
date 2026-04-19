@@ -1,0 +1,2316 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="1990-02-27_arrêté préfectoral_Arrêté préfectoral concernant DSM Nutritional Products France daté du 27-02-1990.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     REPUBLIQUE FRANÇAISE
+PREFECTURE DU HAUT-RHIN
+DIRECTION DES AFFAIRES
+DECENTRALISEES
+Bureau de l'urbanisme
+et du cadre de vie
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+   <div data-spec="identification">
+    <div>
+     N°92944 DU 27 FEV. 1990 portant
+    </div>
+   </div>
+   <div>
+    autorisation d'exploiter au titre des
+   </div>
+   <div>
+    installations classées.
+   </div>
+   <div data-spec="honorary">
+    <div>
+     LE PREFET DU HAUT-RHIN
+    </div>
+    <div>
+     Chevalier de la Légion d'Honneur
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU — la loi n° 76-663 du 19 juillet 1976 modifiée relative aux
+   </div>
+   <div data-spec="entity">
+    <div>
+     installations classées pour la protection de l'environnement ;
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU — le
+    <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-type="decret">
+     décret n° 77-1133 du
+     <time data-spec="date" datetime="1977-09-21">
+      21 septembre 1977
+     </time>
+    </a>
+    modifié pris pour
+   </div>
+   <div>
+    l'application de la loi susvisée et du titre 1er de la loi n° 64-
+   </div>
+   <div>
+    1245 du 16 décembre 1964 relative au régime et à la répartition
+   </div>
+   <div>
+    des eaux et à la lutte contre leur pollution ;
+   </div>
+   <div data-spec="visa">
+    VU — la demande présentée le 21 avril 1989 par la Société CHIMIQUE
+   </div>
+   <div>
+    ROCHE en vue d'être autorisée à augmenter la capacité de
+   </div>
+   <div>
+    fabrication d'additifs pour l'alimentation du bétail
+   </div>
+   <div>
+    commercialisés sous les noms de ROVIMIX et CAROPHYLL à VILLAGE-
+   </div>
+   <div>
+    NEUF ;
+   </div>
+   <div data-spec="visa">
+    VU — le dossier annexé à la demande et notamment les plans du projet ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que cette installation constitue un établissement classé
+   </div>
+   <div>
+    soumis à autorisation visé aux n°s 89/1 - 251 - et 261/B/ de la
+   </div>
+   <div>
+    nomenclature des installations classées ;
+   </div>
+   <div data-spec="visa">
+    VU — le procès-verbal de l'enquête publique à laquelle la demande
+   </div>
+   <div>
+    susvisée a été soumise pendant un mois du 12 juin au 12 juillet
+   </div>
+   <div>
+    1989 ;
+   </div>
+   <div data-spec="visa">
+    VU — l'
+    <a data-date="1989-10-17" data-num="91847" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n°91847 du
+     <time data-spec="date" datetime="1989-10-17">
+      17 octobre 1989
+     </time>
+    </a>
+    portant sursis à
+   </div>
+   <div>
+    statuer ;
+   </div>
+   <div data-spec="visa">
+    VU — les avis du commissaire-enquêteur, des conseils municipaux de
+   </div>
+   <div>
+    SAINT-LOUIS et VILLAGE-NEUF et des services techniques ;
+   </div>
+   <div data-spec="visa">
+    VU — le rapport du 12 janvier 1990 de la direction régionale de
+   </div>
+   <div>
+    l'industrie et de la recherche chargée de l'inspection des
+   </div>
+   <div>
+    installations classées ;
+   </div>
+   <div data-spec="visa">
+    VU — l'avis du 1er février 1990 du Conseil départemental d'Hygiène ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition du directeur régional de l'industrie et de la
+    </div>
+   </div>
+   <div>
+    recherche ;
+   </div>
+   <div>
+    .../...
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="I" data-spec="section" data-title="DISPOSITIONS GENERALES" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     TITRE I - DISPOSITIONS GENERALES
+    </h2>
+    <section data-number="I" data-spec="section" data-title="Dispositions administratives" data-type="chapitre">
+     <h3 data-level="1" data-spec="section_title">
+      CHAPITRE I - Dispositions administratives
+     </h3>
+     <section data-number="1.1.1" data-spec="section" data-title="Additifs alimentation bétail" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.1.1. - Additifs alimentation bétail
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. La société chimique ROCHE, dont le siège social est
+       <address data-spec="address">
+        52 boulevard du Parc
+       </address>
+       à NEUILLY/SEINE, est autorisée à augmenter de 4 900 tonnes par an la capacité de fabrication d'additifs pour l'alimentation du bétail sur le site de son usine à VILLAGE-NEUF. La capacité totale est ainsi portée aux valeurs suivantes (en tonnes/an) :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <ul>
+        <li>
+         - ROVIMIX : forme de base : 4 400 spray : 7 500
+        </li>
+        <li>
+         - CAROPHYLL : forme de base : 6 000.
+        </li>
+       </ul>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       2. Les activités exercées pour ces fabrications relèvent de la nomenclature des installations classées sous les rubriques :
+      </div>
+      <div data-number="4" data-spec="alinea">
+       89 : broyage, tamisage, mélange, pulvérisation, ensachage de produits organiques, la puissance installée de l'ensemble des machines concourant au fonctionnement de l'installation étant de 1 503 kW (autorisation) ;
+      </div>
+      <div data-number="5" data-spec="alinea">
+       251 : emploi de liquide halogéné ininflammable (chlorure de méthylène) pour la mise en solution de matières organiques, la quantité employée au maximum étant de 10 m³ (autorisation) ;
+      </div>
+      <div data-number="6" data-spec="alinea">
+       361 : installation de réfrigération n'utilisant pas de fluides inflammables ou toxiques d'une puissance absorbée de 1 220 kW (autorisation).
+      </div>
+      <div data-number="7" data-spec="alinea">
+       3. Cette augmentation de capacité conduira à l'agrandissement du bâtiment 15 (totalité production ROVIMIX + partiellement CAROPHYLL) et à la construction des bâtiments :
+      </div>
+      <div data-number="8" data-spec="alinea">
+       <ul>
+        <li>
+         - 02 : 3 200 t/an CAROPHYLL
+        </li>
+        <li>
+         - 03 : installation de réfrigération.
+        </li>
+       </ul>
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        .../...
+       </div>
+      </div>
+      <a data-page_index="2" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        - 2 -
+       </div>
+      </div>
+     </section>
+     <section data-number="1.1.2" data-spec="section" data-title="Chaufferie" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.1.2 - Chaufferie
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. La société chimique ROCHE est autorisée à augmenter la capacité de la chaufferie (bâtiment 24) par l'installation d'une chaudière de 18,5 MW (puissance thermique au foyer) à brûleur mixte fuel lourd-gaz naturel.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       2. La capacité totale de la chaufferie est ainsi portée à 56,6 MW (y compris la chaudière électrique).
+      </div>
+      <div data-number="3" data-spec="alinea">
+       3. Cette activité relève de la nomenclature des installations classées sous la rubrique :
+      </div>
+      <div data-number="4" data-spec="alinea">
+       153 bis : installations de combustion pouvant consommer du fuel lourd et du gaz naturel d'une puissance de 45,6 MW (autorisation). Chaudière électrique de 15 MW (non classable).
+      </div>
+      <div data-number="5" data-spec="alinea">
+       167 : incinération de déchets industriels provenant d'installations classées (autorisation).
+      </div>
+      <div data-number="6" data-spec="alinea">
+       4. L'augmentation de capacité entraînera l'extension du bâtiment 24.
+      </div>
+     </section>
+     <section data-number="1.1.3" data-spec="section" data-title="Chlorure d'hydrogène liquéfié" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.1.3 - Chlorure d'hydrogène liquéfié
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. La société chimique ROCHE est autorisée à stocker 4 récipients de 1,2 tonne de capacité maximale de chlorure d'hydrogène anhydre sous forme liquéfiée et à mettre en oeuvre ce produit dans le bâtiment 32. Un seul récipient sera mis en oeuvre simultanément.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       2. Cette activité relève de la nomenclature des installations classées sous la rubrique :
+      </div>
+      <div data-number="3" data-spec="alinea">
+       16 bis : mise en oeuvre et stockage d'acide chlorhydrique anhydre liquéfié ou récipients de capacité de 1,2 tonne (autorisation).
+      </div>
+     </section>
+     <section data-number="1.1.4" data-spec="section" data-title="Entrepôts" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.1.4 - Entrepôts
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. Il est donné acte à la société chimique ROCHE de ses déclarations d'exploitation de 2 entrepôts (courriers du 30 mars 1987 et du 11 février 1987) d'une surface de 1 200 m² (bâtiment 07) et d'une surface de 4 530 m² (bâtiment 10).
+      </div>
+      <div data-number="2" data-spec="alinea">
+       2. Cette activité relève de la nomenclature des installations classées sous la rubrique :
+      </div>
+      <div data-number="3" data-spec="alinea">
+       183 ter : stockage de produits combustibles, toxiques en volume maxi de 7 020 m³ pour le bâtiment 07 et de 23 000 m³ pour le bâtiment 10 (déclaration).
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        .../...
+       </div>
+      </div>
+      <a data-page_index="3" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        - 3 -
+       </div>
+      </div>
+     </section>
+     <section data-number="1.1.5" data-spec="section" data-title="Station d'épuration" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.1.5 - Station d'épuration
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Il est pris acte de la déclaration du projet d'adjonction d'un étage de traitement supplémentaire à la station d'épuration du site. Ce projet consiste en la construction d'un bassin supplémentaire de 410 m³ et des ouvrages annexes (cuves de caogulation et de floculation, fosse de relevage) pour la réduction des matières en suspension rejetées au milieu naturel.
+      </div>
+     </section>
+     <section data-number="1.1.6" data-spec="section" data-title="Déclarations" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.1.6 - Déclarations
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. Tout projet d'augmentation de capacité ou de modification notable des installations par rapport aux plans et dossiers remis au Préfet, à l'exception des modifications nécessaires pour l'application du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       , devra faire l'objet d'une déclaration ou d'une demande d'autorisation selon le cas.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       2. L'exploitant est tenu de déclarer dans les meilleurs délais au Préfet les accidents ou incidents survenus du fait du fonctionnement des installations et qui sont de nature à porter atteinte aux intérêts mentionnés à l'
+       <a data-spec="section_reference" data-start_num="1" data-type="article">
+        article 1er
+       </a>
+       de la loi du 19 juillet 1976.
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Devront être déclarés en particulier :
+      </div>
+      <div data-number="4" data-spec="alinea">
+       <ul>
+        <li>
+         - tout déversement accidentel de liquides polluants,
+        </li>
+        <li>
+         - tout incendie ou explosion,
+        </li>
+        <li>
+         - toute émission anormale de fumée, de gaz irritants, toxiques ou odorants,
+        </li>
+        <li>
+         - tout résultat d'une analyse ou d'un contrôle de la qualité des eaux rejetées, de la teneur en polluants des fumées mettant en évidence un mauvais fonctionnement des dispositifs d'épuration ou l'existence d'un danger.
+        </li>
+       </ul>
+      </div>
+     </section>
+    </section>
+    <section data-number="2" data-spec="section" data-title="Dispositions générales" data-type="chapitre">
+     <h3 data-level="1" data-spec="section_title">
+      Chapitre 2 - Dispositions générales
+     </h3>
+     <section data-number="1.2.1" data-spec="section" data-title="Bruit" data-type="article">
+      <h4 data-error_codes="non_contiguous_titles" data-level="2" data-spec="section_title">
+       Article 1.2.1 - Bruit
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. Les installations devront être construites, équipées et exploitées de façon que leur fonctionnement ne puisse être à l'origine de bruits ou de vibrations mécaniques susceptibles de compromettre la santé ou la sécurité du voisinage ou constituer une gêne pour sa tranquillité.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Les prescriptions de l'
+       <a data-date="1985-08-20" data-spec="document_reference" data-type="arrete-ministeriel">
+        arrêté ministériel du
+        <time data-spec="date" datetime="1985-08-20">
+         20/08/1985
+        </time>
+       </a>
+       relatif aux bruits aériens émis par les installations relevant de la loi sur les installations classées pour la protection de l'environnement leur sont applicables.
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        .../...
+       </div>
+      </div>
+      <a data-page_index="4" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        - 4 -
+       </div>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       2. Les véhicules de transport, les matériels de manutention et les engins de chantier, utilisés à l'intérieur de l'établissement, devront être conformes à la réglementation en vigueur (les engins de chantier au
+       <a data-date="1969-04-18" data-spec="document_reference" data-type="decret">
+        décret du
+        <time data-spec="date" datetime="1969-04-18">
+         18 avril 1969
+        </time>
+       </a>
+       ).
+      </div>
+      <div data-number="4" data-spec="alinea">
+       3. L'usage de tous appareils de communication par voie acoustique (sirènes, avertisseurs, hauts-parleurs, etc.) gênants pour le voisinage sera interdit, sauf si leur emploi est exceptionnel et réservé à la prévention ou au signalement d'incidents graves ou d'accidents.
+      </div>
+      <div data-number="5" data-spec="alinea">
+       4. Le contrôle des niveaux acoustiques dans l'environnement se fera en se référant au tableau ci-joint qui fixe les points de contrôle et les valeurs correspondantes des niveaux limites.
+      </div>
+      <div data-number="6" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          Point de mesure
+         </th>
+         <th>
+          Emplacement
+         </th>
+         <th>
+          Type de zone
+         </th>
+         <th colspan="3">
+          Niveaux limites de bruit en dB (A)
+         </th>
+        </tr>
+        <tr>
+         <td rowspan="2">
+          1
+         </td>
+         <td rowspan="2">
+          limite de propriété sud-est au droit des bâtiments 2 et 3
+         </td>
+         <td rowspan="2">
+          prédominance industrielle
+         </td>
+         <td>
+          jour
+         </td>
+         <td>
+          PI*
+         </td>
+         <td>
+          nuit
+         </td>
+        </tr>
+        <tr>
+         <td>
+          65
+         </td>
+         <td>
+          60
+         </td>
+         <td>
+          55
+         </td>
+        </tr>
+       </table>
+       <br/>
+       * PI : Période intermédiaire : 6 à 7 heures et 20 à 22 heures ainsi que dimanches et jours fériés.
+      </div>
+      <div data-number="7" data-spec="alinea">
+       5. Les niveaux limites prescrits à l'
+       <a data-parent_reference="1" data-spec="section_reference" data-start_num="1.2" data-type="article">
+        article 1.2
+       </a>
+       de l'
+       <a data-date="1985-10-01" data-num="80404" data-spec="document_reference" data-tag_id="1" data-type="arrete">
+        arrêté n° 80404 du
+        <time data-spec="date" datetime="1985-10-01">
+         1er octobre 1985
+        </time>
+       </a>
+       restent applicables.
+      </div>
+      <div data-number="8" data-spec="alinea">
+       6. La Direction régionale de l'industrie et de la recherche chargée de l'inspection des installations classées pourra demander que des contrôles de la situation acoustique ou vibratoire soient effectués par un organisme ou une personne qualifiés dont le choix sera soumis à son approbation. Les frais seront supportés par l'exploitant.
+      </div>
+      <div data-number="9" data-spec="alinea">
+       .../...
+      </div>
+      <a data-page_index="5" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        - 5 -
+       </div>
+      </div>
+     </section>
+     <section data-number="1.2.2" data-spec="section" data-title="Installations électriques" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.2.2. - Installations électriques
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. L'exploitant définira sous sa responsabilité les zones dans lesquelles pourront apparaître des atmosphères explosives :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <ul>
+        <li>
+         - soit de façon permanente ou semi-permanente dans le cadre du fonctionnement normal de l'établissement ;
+        </li>
+        <li>
+         - soit de manière épisodique avec une faible fréquence et une courte durée.
+        </li>
+       </ul>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Dans les zones ainsi définies, les installations électriques devront être réduites à ce qui est strictement nécessaire aux besoins de l'exploitation, tout autre appareil, machine ou matériel étant placé en dehors d'elles.
+      </div>
+      <div data-number="4" data-spec="alinea">
+       2. Les canalisations situées dans ces zones ne devront pas être une cause possible d'inflammation des atmosphères explosives éventuelles ; elles seront convenablement protégées contre les chocs, contre la propagation des flammes et contre l'action des produits qui sont utilisés ou fabriqués dans les zones en cause.
+      </div>
+      <div data-number="5" data-spec="alinea">
+       En outre, les canalisations dont la détérioration peut avoir des conséquences sur la sécurité générale de l'établissement feront l'objet d'une protection particulière définie par l'exploitant contre les risques provenant de ces zones.
+      </div>
+      <div data-number="6" data-spec="alinea">
+       3. Dans les zones où les atmosphères explosives peuvent apparaître de façon permanente ou semi-permanente :
+      </div>
+      <div data-number="7" data-spec="alinea">
+       les installations électriques devront être entièrement constituées de matériels utilisables dans les atmosphères explosives et répondre aux dispositions du
+       <a data-date="1978-07-17" data-num="78-779" data-spec="document_reference" data-type="decret">
+        décret n° 78-779 du
+        <time data-spec="date" datetime="1978-07-17">
+         17 juillet 1978
+        </time>
+       </a>
+       modifié par
+       <a data-date="1981-05-05" data-num="81-440" data-spec="document_reference" data-type="decret">
+        décret n° 81-440 du
+        <time data-spec="date" datetime="1981-05-05">
+         5 mai 1981
+        </time>
+       </a>
+       et de ses textes d'application.
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        .../...
+       </div>
+      </div>
+      <a data-page_index="6" data-spec="page_separator">
+      </a>
+      <div data-number="8" data-spec="alinea">
+       <ul>
+        <li>
+         - 6 -
+        </li>
+       </ul>
+      </div>
+      <div data-number="9" data-spec="alinea">
+       4. Dans les zones où les atmosphères explosives pourront apparaître de manière épisodique avec une faible fréquence et une courte durée :
+      </div>
+      <div data-number="10" data-spec="alinea">
+       les installations électriques devront soit répondre aux prescriptions de l'
+       <a data-spec="section_reference" data-start_num="3" data-type="alinea">
+        alinéa 3
+       </a>
+       , soit être constituées de matériel de bonne qualité industrielle qui, en service normal, n'engendre ni arc, ni étincelle, ni surface chaude susceptible de provoquer une explosion.
+      </div>
+      <div data-number="11" data-spec="alinea">
+       5. Dans les emplacements spéciaux définis par l'exploitant où le risque d'explosion sera prévenu par des mesures particulières telles la surpression interne, la dilution continue ou l'aspiration à la source, il est admis que le matériel soit de type normal.
+      </div>
+      <div data-number="12" data-spec="alinea">
+       Dans ce cas, la réalisation et l'exploitation de ces emplacements seront conçues suivant les règles de l'art et de telle manière que toute défaillance des mesures particulières les protégeant implique la mise en œuvre de mesures compensatrices permettant d'éviter les risques d'explosion.
+      </div>
+      <div data-number="13" data-spec="alinea">
+       6. Dans tous les cas, les matériels et les canalisations électriques devront être maintenus en bon état.
+      </div>
+      <div data-number="14" data-spec="alinea">
+       7. Les installations électriques satisferont au
+       <a data-date="1988-11-14" data-num="88-1096" data-spec="document_reference" data-type="decret">
+        décret n° 88-1096 du
+        <time data-spec="date" datetime="1988-11-14">
+         14 novembre 1988
+        </time>
+       </a>
+       et aux arrêtés et circulaires d'application concernant la protection des travailleurs dans les établissements mettant en œuvre des courants électriques.
+      </div>
+      <div data-number="15" data-spec="alinea">
+       Les installations électriques basse tension seront conformes à la norme C15-100.
+      </div>
+      <div data-number="16" data-spec="alinea">
+       8. Tous les appareils comportant des masses métalliques seront mis à la terre et reliés par des liaisons équipotentielles.
+      </div>
+     </section>
+     <section data-number="1.2.3" data-spec="section" data-title="Protection contre la foudre" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.2.3. - Protection contre la foudre
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Toutes les installations seront équipées de dispositifs de protection contre la foudre conformes aux dispositions de la norme française C17-100. En particulier, la résistance de chacune des mises à la terre devra être inférieure à 10 ohm.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       .../...
+      </div>
+      <a data-page_index="7" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        - 7 -
+       </div>
+      </div>
+     </section>
+     <section data-number="1.2.4" data-spec="section" data-title="Rétention générale du site" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 1.2.4. - Rétention générale du site
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. La totalité des terrains à usage industriel seront étanches. Tout écoulement de liquide d'une zone revêtue vers une zone non aménagée (gravier, herbe...) sera empêché par l'aménagement des pentes des surfaces revêtues et par des murets ou bordures étanches. Un soin particulier sera apporté à l'étanchéité de la liaison muret ou bordures-revêtement.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       2. La totalité des eaux ayant ruisselé sur ces surfaces ou sur les bâtiments industriels sera dirigée vers un bassin de rétention étanche.
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Tous les rejets directs de ces surfaces vers le milieu naturel (bassin du Quakeri, nappe phréatique, Rhin, canal de drainage) seront condamnés.
+      </div>
+      <div data-number="4" data-spec="alinea">
+       3. Les eaux de surface seront dirigées gravitairement (sans nécessité de relevage) vers le bassin de rétention à l'exception de la zone comprise entre les bâtiments 20, 15 et 10.
+      </div>
+      <div data-number="5" data-spec="alinea">
+       4. Le relevage de ces eaux sera assuré par 2 groupes moto pompes indépendants secourus par groupe électrogène.
+      </div>
+      <div data-number="6" data-spec="alinea">
+       5. La capacité de rétention du site sera de 4 000 m³ se répartissant dans le volume du bassin (3 000 m³) et celui des réseaux (1 000 m³).
+      </div>
+     </section>
+    </section>
+   </section>
+   <section data-number="II" data-spec="section" data-title="PRESCRIPTIONS APPLICABLES AUX INSTALLATIONS DE FABRICATION D'ADDITIFS POUR BETAIL" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     TITRE II - PRESCRIPTIONS APPLICABLES AUX INSTALLATIONS DE FABRICATION D'ADDITIFS POUR BETAIL
+    </h2>
+    <section data-number="2.1" data-spec="section" data-title="Dispositions administratives" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 2.1. - Dispositions administratives
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      1. Les arrêtés préfectoraux n° 15341 du 2 février 1970 et 18406 du 24 août 1970 sont abrogés.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      2. Les ateliers de fabrication d'additifs pour bétail seront installés et exploités conformément au dossier de demande d'extension en date du 21 avril 1989.
+     </div>
+    </section>
+    <section data-number="2.2" data-spec="section" data-title="Description de l'extension" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 2.2. - Description de l'extension
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      1. L'extension concernera la fabrication des produits de marques ROVIMIX et CAROPHYLL.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       .../...
+      </div>
+     </div>
+     <a data-page_index="8" data-spec="page_separator">
+     </a>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - 8 -
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      2. La capacité de production de ROVIMIX formes de base sera augmentée de 1 700 t/an et sera portée à 4 400 t/an. La capacité de production de ROVIMIX spray restera inchangée à 7 500 t/an.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      L'extension nécessitera l'agrandissement du bâtiment 15 sur 100 m² et sur 3 niveaux.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      L'extension de capacité sera obtenue essentiellement par le doublement de l'installation de séchage à lit fluidisé et de conditionnement.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      3. La capacité de production de CAROPHYLL formes de base sera augmentée de 3 200 t/an et sera portée à 6 000 t/an. Cette extension nécessitera la construction des bâtiments 02 (atelier de fabrication) et 03 (production d'eau froide).
+     </div>
+    </section>
+    <section data-number="2.3" data-spec="section" data-title="Conception du gros oeuvre" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 2.3 - Conception du gros oeuvre
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      1. Les bâtiments 02, 15 présenteront une surface au sol respective de 670 et de 2 320 m² et comporteront 6 niveaux et un sous-sol partiel.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      2. La structure de ces bâtiments sera constituée d'une charpente métallique habillée d'un bardage métallique. La couverture est réalisée par une dalle en béton équipée d'exutoires dont la surface n'est pas inférieure à 1 % de la surface au sol, dotés de commandes manuelles d'ouverture depuis le plancher à chaque niveau. Les éléments de construction seront disposés de manière à éviter la propagation d'un incendie.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      3. Le bâtiment 15 s'appuiera, à chaque extrémité et en son milieu, sur des structures en béton armé, stables au feu d'une durée de 2 heures. Le bâtiment 02 s'appuiera, à son extrémité sud-est, sur une structure similaire.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Ces structures permettront les déplacements verticaux dans le bâtiment.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      4. Le bâtiment 03 présentera une surface au sol de 210 m² et comportera 1 niveau. Sa structure sera en éléments métalliques. L'habillage du bâtiment devra être en mesure d'absorber l'énergie acoustique émise par les compresseurs, pompes et autres appareils afin de respecter les limites d'un niveau sonore prescrites à l'
+      <a data-parent_reference="2" data-spec="section_reference" data-start_num="1.2.1" data-type="article">
+       article 1.2.1.
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="2" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="6" data-spec="alinea">
+      .../...
+     </div>
+     <a data-page_index="9" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       - 9 -
+      </div>
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Les machines seront installées sur amortisseurs de vibration de telle sorte qu'il ne résulte pas d'inconvénients de ce type pour le voisinage.
+     </div>
+    </section>
+    <section data-number="2.4" data-spec="section" data-title="Utilisation de l'eau" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 2.4. - Utilisation de l'eau
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      1. Le procédé industriel entraînera un rejet d'eau supplémentaire de environ 110 m³/jour pour les bâtiments 02 et 15, ce qui portera l'ensemble des rejets d'eau nécessaires pour la production des poudres à environ 500 m³/jour. Les rejets d'eau industrielle proviendront essentiellement du lavage des appareils lors des changements de produits. L'industriel s'efforcera de réduire au maximum l'entraînement de produits organiques vers les eaux résiduaires. L'industriel s'efforcera de réduire au maximum les besoins en eaux de lavage par des procédés tels que nettoyage en cascades ou toute autre technique.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      2. Dans le bâtiment 03, les seuls rejets proviendront des opérations de nettoyage des sols.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      3. Les eaux de nettoyage des appareils de fabrication, les eaux de lavage des sols seront traitées par la station d'épuration du site. Les eaux sanitaires seront rejetées à l'égout communal pour traitement par la station du district.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      4. Les eaux pluviales seront collectées par un réseau séparatif et seront envoyées vers le milieu naturel (Rhin) sans traitement par la station d'épuration.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      5. Les flux et concentrations de chlorure de méthylène rejetés sont limités par la nécessité du bon fonctionnement de la station d'épuration et par les normes imposées au titre VI du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="6" data-spec="alinea">
+      6. Chaque mois, les rejets de chacun des bâtiments 02 et 15 feront l'objet au minimum d'une campagne de prélèvement et d'analyse de 4 jours consécutifs. Les paramètres mesurés chaque jour seront les MES et la DCO (ad2). Les débits d'eau résiduaire envoyés à la station seront mesurés chaque jour.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       .../...
+      </div>
+     </div>
+     <a data-page_index="10" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       - 10 -
+      </div>
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Les échantillons seront obtenus par prélèvement automatique asservi au débit rejeté.
+     </div>
+    </section>
+    <section data-number="2.5" data-spec="section" data-title="Rejet de poussières" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 2.5. - Rejet de poussières
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      1. Tous les postes ou parties d'installations susceptibles d'engendrer des émissions de poussières (celles situées à partir des tours d'atomisation ou des tours de séchage), seront pourvus de moyens de traitement de ces émissions. L'efficacité de ces dispositifs de traitement des poussières devra permettre d'obtenir sans dilution des rejets d'air à une concentration en poussières inférieure aux normes suivantes :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - pour les installations nouvelles du bâtiment 02 : 50 mg/Nm³ (débit : 72 000 m³/h) ;
+       </li>
+       <li>
+        - pour les installations ROVIMIX formes de base (bâtiment 15) : 50 mg/Nm³ (débit : 87 000 m³/h) ;
+       </li>
+       <li>
+        - pour les installations existantes CAROPHYLL formes de base (bâtiment 15) : 100 mg/Nm³ (87 000 m³/h) ;
+       </li>
+       <li>
+        - pour les installations existantes ROVIMIX spray (bâtiment 15) : 150 mg/Nm³ (67 000 m³/h).
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Ces normes sont données en milligrammes par normaux mètres cubes (ramenés aux conditions normales de pression et de température : 273 K et 1 015 h Pa).
+     </div>
+     <div data-number="4" data-spec="alinea">
+      2. Les caractéristiques des conduites d'évacuation de l'air traité devront être conformes aux dispositions de l'instruction ministérielle du 13 août 1971 relative à la construction des cheminées dans le cas des installations émettant des poussières fines et notamment pour ce qui concerne leur hauteur.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      3. La conception et la fréquence d'entretien des installations de rejet de l'air procédé devront permettre d'éviter les accumulations de poussières sur la couverture des bâtiments aux alentours des points de rejet.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      4. Une campagne de contrôle portant sur tous les points de rejet et pour chaque type de fabrication devra être réalisée dans un délai d'un an. Lors de cette campagne et sur les rejets des unités CAROPHYLL, l'exploitant procédera à la détermination de la concentration en chlorure de méthylène. Ultérieurement, la Direction régionale de l'industrie et de la recherche chargée de l'inspection des installations classées pourra demander à l'exploitant de procéder à tous contrôles particuliers d'émission ou à toute mesure de retombée au sol sur le site de l'usine ou dans son voisinage. Les contrôles et mesures seront à la charge de l'exploitant.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       .../...
+      </div>
+     </div>
+     <a data-page_index="11" data-spec="page_separator">
+     </a>
+     <div data-number="7" data-spec="alinea">
+      <ul>
+       <li>
+        - 11 -
+       </li>
+      </ul>
+     </div>
+     <div data-number="8" data-spec="alinea">
+      5. La forme et l'équipement des conduits d'évacuation devront être tels qu'ils permettent de respecter les prescriptions de la norme NF x 44052 (emplacement de la section de mesure, forme du conduit à proximité de cette section de mesure...).
+     </div>
+    </section>
+    <section data-number="2.7" data-spec="section" data-title="Sûreté des installations" data-type="article">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      Article 2.7. - Sûreté des installations
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      1. Tous les appareils comportant des masses métalliques seront mis à la terre et reliés entre eux par des liaisons équipotentielles. La qualité des mises à la terre (conformité au
+      <a data-date="1988-11-14" data-spec="document_reference" data-type="decret">
+       décret du
+       <time data-spec="date" datetime="1988-11-14">
+        14 novembre 1988
+       </time>
+      </a>
+      ) et la continuité des conducteurs de mise à la terre seront vérifiées au moins une fois par an.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      2. Les températures maximales pouvant être atteintes en cours de fabrication des produits (température d'évaporation du fluide thermique à pression d'utilisation) seront inférieures d'au moins 100°C à la température d'auto-inflammation des produits.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      3. Les capacités contenant des poussières (sécheurs, tours de pulvérisation, cyclones, filtres...) seront équipées de dispositifs de décharge (membrane de sécurité) dont les caractéristiques seront déterminées en fonction des règles VDI3673. Le rapport de la résistance à la pression des capacités à la pression de rupture de l'organe de sécurité sera d'au moins 3.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      4. Toutes les installations électriques employées dans les locaux de fabrication où sont mis en œuvre des produits organiques sous forme pulvérulente seront conformes aux dispositions de l'
+      <a data-parent_reference="3" data-spec="section_reference" data-start_num="3" data-type="alinea">
+       alinéa 3
+      </a>
+      de l'
+      <a data-parent_reference="4" data-spec="section_reference" data-start_num="1.2.2" data-tag_id="3" data-type="article">
+       article 1.2.2.
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="4" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Toutes les installations électriques seront contrôlées au moins annuellement par un technicien compétent ; les rapports de contrôle seront tenus à la disposition de l'inspecteur des installations classées.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      5. Les locaux industriels seront maintenus en parfait état de propreté. Devront être évitées les accumulations de poussières sur les structures. L'enlèvement de poussières par soufflage sera proscrit.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      6. Les instruments de mesure des paramètres clés de fabrication et de contrôle seront vérifiés à une fréquence qui sera déterminée par une consigne élaborée par l'exploitant et maintenue à la disposition de l'inspecteur des installations classées.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      .../...
+     </div>
+     <a data-page_index="12" data-spec="page_separator">
+     </a>
+     <div data-number="9" data-spec="alinea">
+      <ul>
+       <li>
+        - 12 -
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="2.8" data-spec="section" data-title="Mesures de protection" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 2.8. - Mesures de protection
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      1. Les tours de pulvérisation et le sécheur des 2 unités projetées seront équipées d'un dispositif de noyage par eau pulvérisée.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      2. Les locaux seront équipés d'extincteurs et de robinets d'incendie armés conformes aux dispositions des règles de l'APSAIRD (assemblée pleinière des sociétés d'assurances contre l'incendie et les risques divers).
+     </div>
+     <div data-number="3" data-spec="alinea">
+      3. Le personnel d'exploitation sera entraîné à l'utilisation des moyens de première intervention (RIA, extincteurs) par des exercices sur feux réels dont la fréquence est au moins annuelle.
+     </div>
+    </section>
+    <section data-number="2.9" data-spec="section" data-title="Déchets" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 2.9. - Déchets
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      1. Les emballages en bois, papier ou carton issus des ateliers de fabrication pourront être incinérés dans la chaudière dont l'exploitation est réglementée au titre IV du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="2" data-spec="alinea">
+      2. Les déchets en provenance des locaux de contrôle des installations ou des locaux sociaux seront considérés comme des ordures ménagères et devront être éliminés dans une installation autorisée.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Les produits solides pulvérulents issus du nettoyage des appareils seront considérés comme des ordures ménagères et éliminés dans une installation autorisée.
+     </div>
+    </section>
+   </section>
+   <section data-number="III" data-spec="section" data-title="UTILISATION DE CHLORURE D'HYDROGENE SOUS FORME LIQUEFIEE" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     TITRE III - UTILISATION DE CHLORURE D'HYDROGENE SOUS FORME LIQUEFIEE
+    </h2>
+    <section data-number="3.1" data-spec="section" data-title="Etude des dangers" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 3.1. - Etude des dangers
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      1. Une étude des dangers conforme à l'
+      <a data-parent_reference="5" data-spec="section_reference" data-start_num="3" data-type="article">
+       article 3
+      </a>
+      du
+      <a data-date="1977-09-21" data-spec="document_reference" data-tag_id="5" data-type="decret">
+       décret du
+       <time data-spec="date" datetime="1977-09-21">
+        21 septembre 1977
+       </time>
+      </a>
+      portant sur le stockage et l'utilisation de chlorure d'hydrogène sera remise au Préfet dans un délai de 8 mois. Cette étude comprendra en particulier :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      .../...
+     </div>
+     <a data-page_index="13" data-spec="page_separator">
+     </a>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - un descriptif des installations et des procédés où le produit est stocké et mis en oeuvre ;
+       </li>
+       <li>
+        - un recensement des accidents et incidents susceptibles d'intervenir ;
+       </li>
+       <li>
+        - la description de la nature et de l'extension des conséquences de ces accidents ou incidents ;
+       </li>
+       <li>
+        - la justification des mesures de prévention mises en oeuvre pour réduire la probabilité ou l'extension des accidents ou incidents.
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      2. Cette étude décrira en particulier les effets sur l'environnement et les populations de l'accident suivant : rupture franche du plus gros piquage du récipient en phase liquide et vidange complète du réservoir par cette ouverture.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      3. Un arrêté complémentaire déterminera, le cas échéant, la nature des aménagements rendus nécessaires compte tenu des risques que présente l'installation.
+     </div>
+    </section>
+   </section>
+   <section data-number="IV" data-spec="section" data-title="CHAUFFERIE" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     TITRE IV - CHAUFFERIE
+    </h2>
+    <section data-number="1" data-spec="section" data-title="Dispositions communes" data-type="chapitre">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      Chapitre 1 - Dispositions communes
+     </h3>
+     <section data-number="4.1.1" data-spec="section" data-title="Dispositions administratives" data-type="article">
+      <h4 data-error_codes="non_contiguous_titles" data-level="2" data-spec="section_title">
+       Article 4.1.1. - Dispositions administratives
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. La chaufferie comprendra les générateurs suivants :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <ul>
+        <li>
+         - 2 chaudières à tubes de fumées équipées de brûleur mixte fuel lourd-gaz naturel de puissance unitaire de 11,6 MW (chaudières 1 et 2) ;
+        </li>
+        <li>
+         - 1 chaudière électrique de 15 MW ;
+        </li>
+       </ul>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       .../...
+      </div>
+      <a data-page_index="14" data-spec="page_separator">
+      </a>
+      <div data-number="4" data-spec="alinea">
+       <ul>
+        <li>
+         - 14 -
+        </li>
+        <li>
+         - 1 chaudière à tubes d'eau équipée d'un brûleur au fuel lourd, d'un brûleur injecteur de produits liquides combustibles et d'une grille à gradins pour déchets solides d'une puissance de 3,9 MW (chaudière 3) ;
+        </li>
+        <li>
+         - 1 chaudière à tubes d'eau à brûleur mixte fuel lourd-gaz naturel de 18,5 MW (chaudière 4).
+        </li>
+       </ul>
+      </div>
+      <div data-number="5" data-spec="alinea">
+       2. L'arrêté préfectoral 21184 du 4 mai 1971 est abrogé.
+      </div>
+      <div data-number="6" data-spec="alinea">
+       3. Un dépôt de fuel lourd comprenant deux réservoirs de 1 350 m³ de capacité unitaire est associé à la chaufferie et autorisé par l'
+       <a data-date="1972-04-05" data-num="24841" data-spec="document_reference" data-type="arrete-prefectoral">
+        arrêté préfectoral n° 24841 du
+        <time data-spec="date" datetime="1972-04-05">
+         5 avril 1972
+        </time>
+       </a>
+       .
+      </div>
+      <div data-number="7" data-spec="alinea">
+       4. Les dispositions du présent titre ne s'appliquent pas à la chaudière électrique.
+      </div>
+      <div data-number="8" data-spec="alinea">
+       5. L'équipement des générateurs et leur exploitation seront conformes aux dispositions de l'
+       <a data-date="1975-06-20" data-spec="document_reference" data-type="arrete">
+        arrêté du
+        <time data-spec="date" datetime="1975-06-20">
+         20 juin 1975
+        </time>
+       </a>
+       relatif à l'équipement et à l'exploitation des installations thermiques en vue de réduire la pollution atmosphérique.
+      </div>
+     </section>
+     <section data-number="4.1.2" data-spec="section" data-title="Combustible utilisé" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 4.1.2. - Combustible utilisé
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       En cas d'utilisation de fuel lourd, celui-ci devra être de qualité TBTS (très basse teneur en soufre) dont la teneur en soufre est inférieure à 1 %.
+      </div>
+     </section>
+     <section data-number="4.1.3" data-spec="section" data-title="Equipement des générateurs et de la chaufferie" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 4.1.3. - Equipement des générateurs et de la chaufferie
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. Les chaudières 1, 2, 3 et 4 seront équipées des appareils suivants :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <ul>
+        <li>
+         - un indicateur de la température des gaz de combustion à la sortie du générateur,
+        </li>
+        <li>
+         - un enregistreur de pression de vapeur sur le collecteur de départ,
+        </li>
+        <li>
+         - un appareil de mesure en continu, directe ou indirecte, de l'indice de noircissement,
+        </li>
+       </ul>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       …/…
+      </div>
+      <a data-page_index="15" data-spec="page_separator">
+      </a>
+      <div data-number="4" data-spec="alinea">
+       <ul>
+        <li>
+         - un dispositif indiquant soit le débit du combustible, soit le débit du fluide caloporteur,
+        </li>
+        <li>
+         - un analyseur automatique des gaz de combustion donnant au moins la teneur en dioxyde de carbone ou toute indication équivalente.
+        </li>
+       </ul>
+      </div>
+      <div data-number="5" data-spec="alinea">
+       2. La chaudière 3 sera équipée d'un appareil de mesure en continu de la quantité de poussières émises à l'atmosphère.
+      </div>
+      <div data-number="6" data-spec="alinea">
+       Les chaudières 1, 2 et 4 seront équipées de cet appareil dès lors que leur durée de fonctionnement au fuel lourd dépassera 20 jours/an.
+      </div>
+      <div data-number="7" data-spec="alinea">
+       3. La chaufferie sera équipée d'un viscosimètre.
+      </div>
+     </section>
+     <section data-number="4.1.4" data-spec="section" data-title="Conduits de cheminées" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 4.1.4.- Conduits de cheminées
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. Chaque chaudière sera reliée à son propre conduit. L'ensemble des conduits sera regroupé en une cheminée.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       2. La hauteur des conduits sera de 37 m.
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Leur diamètre au débouché dans l'atmosphère sera tel que la vitesse d'éjection des gaz, dans les conditions de marche correspondant à la puissance nominale des chaudières, soit au moins égale à 6 m/s.
+      </div>
+      <div data-number="4" data-spec="alinea">
+       3. Pour permettre des contrôles des émissions de poussières, des dispositifs obturables conformes à la norme française X44052 devront être prévus sur chaque conduit d'évacuation des gaz de combustion, à un emplacement permettant des mesures représentatives des émissions de poussières à l'atmosphère.
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        - 15 -
+
+.../...
+       </div>
+      </div>
+      <a data-page_index="16" data-spec="page_separator">
+      </a>
+      <div data-number="5" data-spec="alinea">
+       <ul>
+        <li>
+         - 16 -
+        </li>
+       </ul>
+      </div>
+     </section>
+     <section data-number="4.1.5" data-spec="section" data-title="Emissions particulaires" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 4.1.5. - Emissions particulaires
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. Les chaudières ne devront pas émettre de fumée dont l'indice de noircissement, tel qu'il est défini dans la norme française X43002, dépasse la valeur indiquée ci-après, quelle que soit leur allure de marche, sauf de façon fugitive et notamment au moment de l'allumage et pendant les ramonages si ceux-ci sont effectués de façon discontinue.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          Chaudière
+         </th>
+         <th>
+          Indice de noircissement maxi
+         </th>
+         <th>
+          Observations
+         </th>
+        </tr>
+        <tr>
+         <td>
+          1
+         </td>
+         <td>
+          5
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          2
+         </td>
+         <td>
+          5
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          3
+         </td>
+         <td>
+          5
+         </td>
+         <td>
+          l'indice de noircissement devra être inférieur à 6 lors de la combustion de bois papier, carton
+         </td>
+        </tr>
+        <tr>
+         <td>
+          4
+         </td>
+         <td>
+          4
+         </td>
+         <td>
+          sans objet si le combustible utilisé est le gaz
+         </td>
+        </tr>
+       </table>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       2. Les gaz de combustion ne devront pas contenir, par thermie de combustible consommé au foyer et quelle que soit l'allure de marche du générateur, plus de poussières que les valeurs maximales indiquées ci-après :
+      </div>
+      <div data-number="4" data-spec="alinea">
+       .../...
+      </div>
+      <a data-page_index="17" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        - 17 -
+       </div>
+      </div>
+      <div data-number="5" data-spec="alinea">
+       <table>
+        <tr>
+         <th>
+          Chaudières
+         </th>
+         <th>
+          Teneur maxi en poussière en mg/thermie
+         </th>
+         <th>
+          Observations
+         </th>
+        </tr>
+        <tr>
+         <td rowspan="2">
+          1 et 2
+         </td>
+         <td>
+          250
+         </td>
+         <td>
+          cette valeur ne doit pas être dépassée pendant plus de 400 heures/an
+         </td>
+        </tr>
+        <tr>
+         <td>
+          500
+         </td>
+         <td>
+          en aucun cas.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          3
+         </td>
+         <td>
+          idem 1 et 2
+          <br/>
+          le combustible utilisé est le fuel seul
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td rowspan="2">
+         </td>
+         <td>
+          1 000
+         </td>
+         <td>
+          valeur ne pouvant être dépassée que fugitivement
+         </td>
+        </tr>
+        <tr>
+         <td>
+          2 000
+         </td>
+         <td>
+          à ne dépasser en aucun cas
+         </td>
+        </tr>
+        <tr>
+         <td rowspan="2">
+          4
+         </td>
+         <td>
+          150
+         </td>
+         <td>
+          dépassement fugitif autorisé
+         </td>
+        </tr>
+        <tr>
+         <td>
+          400
+         </td>
+         <td>
+          valeur à ne dépasser en aucun cas
+         </td>
+        </tr>
+       </table>
+      </div>
+     </section>
+     <section data-number="4.1.6" data-spec="section" data-title="Contrôles" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 4.1.6. - Contrôles
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       La Direction régionale de l'industrie et de la recherche chargée de l'inspection des installations classées pourra demander à l'exploitant de procéder à des contrôles ou des mesures d'émissions particulaires ou à des analyses des gaz de combustion.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Le coût de ces opérations sera à la charge de l'exploitant.
+      </div>
+     </section>
+     <section data-number="4.1.7" data-spec="section" data-title="Livret de chaufferie" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 4.1.7. - Livret de chaufferie
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Il sera tenu à jour un livret de chaufferie qui comprendra au moins les renseignements suivants :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <ul>
+        <li>
+         - nom et adresse de la chaufferie, du propriétaire de l'installation et, éventuellement, de l'entreprise chargée de l'entretien ;
+         <div data-spec="page_footer">
+          <div>
+           …/…
+          </div>
+         </div>
+         <a data-page_index="18" data-spec="page_separator">
+         </a>
+        </li>
+        <li>
+         - 18 -
+        </li>
+        <li>
+         - caractéristiques du local de chaufferie, des installations de stockage des combustibles, des générateurs, de l'équipement de chauffe ; caractéristiques des combustibles préconisés par le constructeur, résultats des mesures de viscosité du fioul lourd et de sa température de réchauffage ; mesures prises pour assurer le stockage des combustibles, l'évacuation des gaz de combustion, le traitement des eaux ; désignation des appareils de réglage des feux et de contrôle ; dispositions adoptées pour limiter la pollution atmosphérique ;
+        </li>
+        <li>
+         - conditions générales d'utilisation de la chaleur ;
+        </li>
+        <li>
+         - pour les installations soumises à l'obligation de la visite périodique : résultats des contrôles de la combustion et du fonctionnement des appareils de réglage des feux et de contrôle ; visa des personnes ayant effectué ces contrôles ; consignation des observations faites et des suites données ;
+        </li>
+        <li>
+         - grandes lignes du fonctionnement et incidents importants d'exploitation notamment : consommation annuelle de combustible ;
+        </li>
+        <li>
+         - indications relatives à la mise en place, au remplacement et la réparation des appareils de réglage des feux et de contrôle. Indication des autres travaux d'entretien et opérations de nettoyage et de ramonage.
+        </li>
+       </ul>
+      </div>
+     </section>
+    </section>
+    <section data-number="2" data-spec="section" data-title="Dispositions particulières concernant la chaudière n° 3" data-type="chapitre">
+     <h3 data-level="1" data-spec="section_title">
+      Chapitre 2 - Dispositions particulières concernant la chaudière n° 3
+     </h3>
+     <section data-number="4.2.1" data-spec="section" data-title="Nature des déchets incinérables" data-type="article">
+      <h4 data-error_codes="non_contiguous_titles" data-level="2" data-spec="section_title">
+       Article 4.2.1. - Nature des déchets incinérables
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. Pourront être incinérés dans la chaudière n° 3 les produits et déchets énumérés ci-après :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       .../...
+      </div>
+      <a data-page_index="19" data-spec="page_separator">
+      </a>
+      <div data-number="3" data-spec="alinea">
+       <ul>
+        <li>
+         - bois, papier, carton n'ayant pas été en contact avec d'autres matières organiques (ces produits ne seront pas considérés comme des déchets au sens du présent chapitre) ;
+        </li>
+        <li>
+         - bois, papier, carton ayant été en contact avec les produits organiques mis en œuvre dans les unités de fabrication d'additif pour bétail ;
+        </li>
+        <li>
+         - liquides ou solvants résiduaires contenant moins de 0,5 % en poids d'élément chlore ou d'autre halogène, moins de 1 % en poids d'élément azote, moins de 2 % en poids d'élément soufre et moins de 10 ppm en métaux.
+        </li>
+       </ul>
+      </div>
+      <div data-number="4" data-spec="alinea">
+       2. En dehors des combustibles commerciaux (bois, fuel), ne pourront être incinérés que des déchets en provenance des usines ROCHE de VILLAGE-NEUF et de FONTENAY-SOUS-BOIS.
+      </div>
+     </section>
+     <section data-number="4.2.2" data-spec="section" data-title="Procédure d'acceptation et de réception des déchets" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 4.2.2. - Procédure d'acceptation et de réception des déchets
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. Chaque type de déchet (même atelier de production, même procédé, même caractéristique physique et chimique) devra avoir fait l'objet, préalablement à toute incinération dans la chaudière, d'une procédure d'acceptation afin de définir son acceptabilité.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       L'exploitant de l'installation, indépendant de l'exploitant des unités productrices des déchets, pour se prononcer sur l'acceptabilité d'un déchet, devra posséder au moins les informations suivantes :
+      </div>
+      <div data-number="3" data-spec="alinea">
+       <ul>
+        <li>
+         - une fiche d'identification remplie par l'exploitant de l'atelier producteur. Cette fiche comprendra notamment l'origine du déchet, le procédé industriel qui l'a généré, la codification du déchet conforme à la nomenclature, le mode de conditionnement ;
+        </li>
+        <li>
+         - une fiche fournissant les résultats d'une analyse complète. Cette fiche précisera en outre le PCI, le point d'éclair, la proportion en eau, sa composition chimique (teneur en métaux lourds, Cl, S, N...), la teneur en cendre. En cas d'acceptation, le type de déchet fera l'objet de la délivrance d'un certificat. Il ne pourra y avoir acceptation d'un type qu'après vérification des conditions de combustion d'un échantillon sous le contrôle de l'exploitant de l'installation d'incinération. Les certificats d'acceptation et les documents d'identification seront transmis à la Direction régionale de l'industrie et de la recherche pour chaque type de déchet.
+         <div data-spec="page_footer">
+          <div>
+           .../...
+          </div>
+         </div>
+         <a data-page_index="20" data-spec="page_separator">
+         </a>
+        </li>
+        <li>
+         - 20 -
+        </li>
+       </ul>
+      </div>
+      <div data-number="4" data-spec="alinea">
+       2. Chaque lot de déchet reçu par l'installation d'incinération devra être accompagné d'une copie du certificat d'acceptation correspondant et d'un document établi par le producteur du déchet attestant que celui-ci est conforme au type ayant fait l'objet de la procédure d'acceptation.
+      </div>
+      <div data-number="5" data-spec="alinea">
+       3. Des procédures de contrôle de réception seront établies par l'exploitant de l'installation d'incinération dans le but de s'assurer de la conformité du déchet livré et notamment des paramètres suivants : teneur en halogène et en eau.
+      </div>
+      <div data-number="6" data-spec="alinea">
+       4. La Direction régionale de l'industrie et de la recherche chargée de l'inspection des installations classées pourra procéder ou faire procéder à tout moment à des prélèvements et des analyses sur les déchets éliminés par l'installation. Les frais seront à la charge de l'exploitant.
+      </div>
+     </section>
+     <section data-number="4.2.3" data-spec="section" data-title="Conditions d'incinération" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 4.2.3. - Conditions d'incinération
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. Les gaz de combustion produits par l'incinération des déchets liquides devront être portés pendant au moins 2 secondes à une température d'au moins 850 °C en présence d'au moins 7 % d'oxygène pendant la période où les gaz sont portés à cette température.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Aucun déchet ou produit solide ne pourra être introduit dans le four en l'absence d'une flamme au brûleur fuel.
+      </div>
+      <div data-number="3" data-spec="alinea">
+       2. L'exploitant s'assurera que la température du foyer atteint la valeur prescrite avant d'introduire ou d'injecter tout déchet dans la chaudière. A cet effet, l'exploitant déterminera la durée minimale de fonctionnement du four avec un combustible commercial pour atteindre cette température.
+      </div>
+      <div data-number="4" data-spec="alinea">
+       Les mêmes précautions devront être prises avant d'engager la phase d'arrêt du four.
+      </div>
+      <div data-number="5" data-spec="alinea">
+       .../...
+      </div>
+      <a data-page_index="21" data-spec="page_separator">
+      </a>
+      <div data-number="6" data-spec="alinea">
+       <ul>
+        <li>
+         - 21 -
+        </li>
+       </ul>
+      </div>
+      <div data-number="7" data-spec="alinea">
+       3. Des consignes détermineront ces précautions. Elles seront tenues à la disposition de l'inspecteur des installations classées.
+      </div>
+     </section>
+     <section data-number="4.2.4" data-spec="section" data-title="Normes" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 4.2.4. - Normes
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les gaz de combustion ne devront pas contenir plus de :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <ul>
+        <li>
+         - 200 mg/Nm³ d'élément chlore,
+        </li>
+        <li>
+         - 10 ppm d'hydrocarbures gazeux (norme X43301 en équivalent méthane),
+        </li>
+        <li>
+         - 5 mg/Nm³ de métaux lourds totaux particulaires (Cu, Pb, Zn, Ni, Cr, Sn, Ag, Co, Ba),
+        </li>
+        <li>
+         - 0,3 mg/Nm³ de mercure et de cadmium particulaire et gazeux.
+        </li>
+       </ul>
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Les normes sont données en mg par Nm³ (ramenées aux conditions normales de pression, de température et d'hygrométrie : 273 k, 1013 hpa, gaz sec à 7 % CO2).
+      </div>
+     </section>
+     <section data-number="4.2.5" data-spec="section" data-title="Contrôles" data-type="article">
+      <h4 data-level="2" data-spec="section_title">
+       Article 4.2.5. - Contrôles
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       1. L'exploitant fera effectuer annuellement, par un organisme indépendant, des prélèvements et analyses des gaz de combustion lors de l'incinération de déchets. En cas de besoin, l'inspection des installations classées pourra demander à augmenter cette périodicité.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       2. Ces contrôles seront à sa charge.
+      </div>
+     </section>
+    </section>
+   </section>
+   <section data-number="V" data-spec="section" data-title="ENTREPÔTS 07 ET 10" data-type="titre">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     TITRE V - ENTREPÔTS 07 ET 10
+    </h2>
+    <section data-number="5.1" data-spec="section" data-title="Description des installations" data-type="article">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      Article 5.1. - Description des installations
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      1. Les caractéristiques des entrepôts couverts sont les suivantes :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Bâtiment 10 : Surface totale 4 530 m² répartis en 2 cellules A et B de 1 900 et 2 630 m². Hauteur de stockage 4,40 m, soit volumes disponibles de 8 360 et 11 570 m³ (total 19 900 m³).
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Bâtiment 07 : Surface totale 1 200 m² répartis en 2 cellules A et B de 400 et 800 m². Hauteur de stockage 5,10 m, soit volumes disponibles de 2 040 et 4 080 m³ (total 6 100 m³).
+     </div>
+     <div data-number="4" data-spec="alinea">
+      2. Les entrepôts et leur exploitation seront conformes à l'arrêté type n° 183 ter.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      .../...
+     </div>
+     <a data-page_index="22" data-spec="page_separator">
+     </a>
+     <div data-number="6" data-spec="alinea">
+      <ul>
+       <li>
+        - 22 -
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="5.2" data-spec="section" data-title="Produits entreposés" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 5.2. - Produits entreposés
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      1. Le bâtiment 07 sera réservé à l'entreposage des matières à risques inflammable, toxique ou présentant une instabilité en présence d'eau.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      2. Les produits instables en présence d'eau ne seront pas stockés avec des produits combustibles ou toxiques. Les produits instables seront entreposés dans la cellule A de l'entrepôt 07. Leur tonnage sera limité à 250 tonnes. Ils seront conditionnés dans des emballages hermétiques d'une capacité inférieure ou égale à 200 litres.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      3. Le bâtiment 10 ne pourra contenir que des produits ne présentant pas de risque particulier (DL50 par voie orale &amp;gt; 2 000 mg/kg pour les liquides, DL50 &amp;gt; 1 000 mg/kg pour les solides), non inflammables au titre de la rubrique 253 de la nomenclature des installations classées.
+     </div>
+    </section>
+    <section data-number="5.3" data-spec="section" data-title="Equipements" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 5.3. - Equipements
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      1. Les parois séparatives des entrepôts 07 et 10 seront coupe-feu de degré 2 heures et auto-stables. Les portes seront coupe-feu de degré 1 heure et leur fermeture est asservie par fusible.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      2. L'entrepôt 07 sera équipé d'un volume de rétention propre de 700 m³. Les capacités de rétention des cellules A et B seront indépendantes. La surverse du volume de rétention de la cellule B ne s'écoulera en aucun cas dans la cellule A.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      3. Les entrepôts 07 et 10 seront équipés d'un réseau de détection ionique relié au centre de secours de l'entreprise ROCHE (VILLAGE-NEUF).
+     </div>
+     <div data-number="4" data-spec="alinea">
+      4. Les entrepôts 07 et 10 seront équipés d'extincteurs conformes aux règles de l'APSAIRD.
+     </div>
+    </section>
+   </section>
+   <section data-number="VI" data-spec="section" data-title="STATION D'EPURATION" data-type="titre">
+    <h2 data-level="0" data-spec="section_title">
+     TITRE VI - STATION D'EPURATION
+    </h2>
+    <section data-number="6.1" data-spec="section" data-title="Prescriptions concernant le rejet des eaux résiduaires" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 6.1. - Prescriptions concernant le rejet des eaux résiduaires
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les titres II et III de l'
+      <a data-date="1985-10-01" data-num="80404" data-spec="document_reference" data-tag_id="7" data-type="arrete-prefectoral">
+       arrêté préfectoral n° 80404 du
+       <time data-spec="date" datetime="1985-10-01">
+        1er octobre 1985
+       </time>
+      </a>
+      <span data-direction="rtl" data-has_operand="true" data-keyword="remplacés" data-operation_type="replace" data-references="7" data-spec="operation">
+       sont
+       <b>
+        remplacés
+       </b>
+       par les dispositions suivantes :
+      </span>
+     </div>
+     <div data-number="2" data-spec="alinea">
+      .../...
+     </div>
+     <a data-page_index="23" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       - 23 -
+      </div>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <blockquote>
+       <p>
+        TITRE II - PRESCRIPTIONS RELATIVES AU TRAITEMENT ET AU REJET DES EAUX
+       </p>
+       <p>
+        <a data-spec="section_reference" data-start_num="II.1" data-type="article">
+         ARTICLE II.1
+        </a>
+        - Les installations d'épuration des eaux usées seront conçues pour réduire au maximum le flux de pollution rejeté dans le Rhin.
+       </p>
+       <p>
+        Les eaux non polluées (eaux de refroidissement, eaux pluviales) ne devront pas être mélangées aux eaux polluées avant envoi de ces dernières dans la station d'épuration.
+       </p>
+       <p>
+        L'ensemble des eaux polluées de l'usine, y compris les rejets de l'atelier isoxamine seront traitées dans la station d'épuration (bâtiment 53).
+       </p>
+       <p>
+        <a data-spec="section_reference" data-start_num="II.2" data-type="article">
+         ARTICLE II.2.
+        </a>
+        Les caractéristiques des eaux sortant de cette station devront permettre de respecter les rendements d'épuration et les flux de pollution fixés ci-après (en %) :
+       </p>
+       <table>
+        <tr>
+         <td>
+         </td>
+         <td>
+          sur toute période de 7 jours consécutifs
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DCO
+         </td>
+         <td>
+          80
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DBO5
+         </td>
+         <td>
+          90
+         </td>
+        </tr>
+       </table>
+       <p>
+        En période d'arrêt et de redémarrage de l'unité cantaxanthine, les rendements d'épuration pourront être inférieurs à ces chiffres. Les normes de flux (article II3) seront toutefois respectées.
+       </p>
+       <p>
+        La DCO et la DBO5 sont mesurées sur l'échantillon après décantation de 2 heures.
+       </p>
+       <p>
+        Le rendement est le rapport du flux de pollution éliminé par la station au flux de pollution mesuré à l'entrée de la station.
+       </p>
+       <p>
+        <a data-spec="section_reference" data-start_num="II.3" data-type="article">
+         ARTICLE II.3.
+        </a>
+        Les flux de pollution et débits maximum en sortie de station (rejetés au Rhin) seront les suivants :
+       </p>
+       <p>
+        .../...
+       </p>
+       <a data-page_index="24" data-spec="page_separator">
+       </a>
+       <div data-spec="page_header">
+        <div>
+         - 24 -
+        </div>
+       </div>
+       <p>
+        FLUX MAXIMUM
+       </p>
+       <table>
+        <tr>
+         <td>
+         </td>
+         <td colspan="2">
+          Valeurs limites de rejet en kg/j ou en m³/j pour le débit
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Paramètre
+         </td>
+         <td>
+          mesurée sur un échantillon journalier
+         </td>
+         <td>
+          moyenne des résultats sur 7 jours
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DBO5
+         </td>
+         <td>
+          150
+         </td>
+         <td>
+          75
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DCO
+         </td>
+         <td>
+          1 400
+         </td>
+         <td>
+          750
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MES
+         </td>
+         <td>
+          75
+         </td>
+         <td>
+          50
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Sels
+         </td>
+         <td>
+          18 000
+         </td>
+         <td>
+          10 000
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Débit
+         </td>
+         <td>
+          1 500
+         </td>
+         <td>
+          1 200
+         </td>
+        </tr>
+       </table>
+       <p>
+        En outre, la température des rejets devra être inférieure à 30°C. Le pH devra être compris entre 5,5 et 9,5. Les effluents ne devront pas provoquer une coloration visible du milieu récepteur. Ils ne devront pas dégager d'odeurs.
+       </p>
+       <p>
+        <a data-spec="section_reference" data-start_num="II.4" data-type="article">
+         ARTICLE II.4
+        </a>
+        Les concentrations en sortie de station seront inférieures aux normes suivantes :
+       </p>
+       <table>
+        <tr>
+         <td>
+          Paramètre
+         </td>
+         <td>
+          Valeur mesurée sur échantillon journalier en mg/l
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DCO
+         </td>
+         <td>
+          1 000
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DBO5
+         </td>
+         <td>
+          100
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MES
+         </td>
+         <td>
+          50
+         </td>
+        </tr>
+        <tr>
+         <td>
+          chlorure de méthylène
+         </td>
+         <td>
+          1
+         </td>
+        </tr>
+       </table>
+       <div data-spec="page_footer">
+        <div>
+         .../...
+        </div>
+       </div>
+       <a data-page_index="25" data-spec="page_separator">
+       </a>
+       <div data-spec="page_header">
+        <div>
+         - 25 -
+        </div>
+       </div>
+       <p>
+        <a data-spec="section_reference" data-start_num="II.5" data-type="article">
+         ARTICLE II.5
+        </a>
+        - Contrôles.
+       </p>
+       <p>
+        Deux postes de contrôle seront installés, l'un en amont de la station, l'autre en aval. Ils comprendront l'instrumentation pour :
+       </p>
+       <p>
+        en amont :
+       </p>
+       <ul>
+        <li>
+         - la mesure du débit,
+        </li>
+        <li>
+         - la prise d'échantillonnage reliée à un échantillonneur automatique ; en aval :
+        </li>
+        <li>
+         - la mesure du débit,
+        </li>
+        <li>
+         - la mesure de pH à 2 seuils à sonde immergée,
+        </li>
+        <li>
+         - la prise de température avec alarme,
+        </li>
+        <li>
+         - la mesure de la conductivité (compensation de température),
+        </li>
+        <li>
+         - la prise d'échantillonnage reliée à un échantillonneur automatique.
+        </li>
+       </ul>
+       <p>
+        Les divers paramètres (débit, température, pH, conductivité) seront enregistrés en continu.
+       </p>
+       <p>
+        Les résultats d'analyse porteront sur les paramètres visés à l'
+        <a data-spec="section_reference" data-start_num="II.3" data-type="article">
+         article II.3.
+        </a>
+        ainsi que sur les matières en suspension et le carbone organique total. Le chlorure de méthylène fera l'objet d'une détermination mensuelle au moins, sur un échantillon journalier.
+       </p>
+       <p>
+        Les résultats d'analyse seront consignés dans un rapport qui sera adressé mensuellement au Service de la Navigation et à la Direction régionale de l'industrie et de la recherche. La Direction régionale de l'industrie et de la recherche pourra exiger des analyses complémentaires ou faire procéder à des analyses de contrôle par un laboratoire agréé, aux frais de l'exploitant.
+       </p>
+       <p>
+        Les analyses seront effectuées selon les normes en vigueur. La DCO pourra être effectuée par la méthode HACH.
+       </p>
+       <p>
+        Les résultats des analyses et les bandes des appareils enregistreurs seront archivés pendant une période d'au moins 2 ans.
+       </p>
+       <p>
+        Le contrôle des effluents traités pourra être effectué en tant que de besoin par des vérifications inopinées (prélevements, notamment en cas de présomption d'infraction aux lois et règlements en vigueur ou de non-conformité aux dispositions de la présente autorisation.
+       </p>
+       <div data-spec="page_footer">
+        <div>
+         .../...
+        </div>
+       </div>
+       <a data-page_index="26" data-spec="page_separator">
+       </a>
+       <div data-spec="page_header">
+        <div>
+         - 26 -
+        </div>
+       </div>
+       <p>
+        <a data-spec="section_reference" data-start_num="II.6" data-type="article">
+         ARTICLE II.6
+        </a>
+        - POINT DE REJETS
+       </p>
+       <p>
+        Le rejet s'effectuera dans le Rhin - Rive gauche au p.k. 172,815.
+       </p>
+       <p>
+        Il appartiendra à l'exploitant de solliciter les autorisations nécessaires concernant en particulier l'occupation du domaine public fluvial.
+       </p>
+       <p>
+        <a data-spec="section_reference" data-start_num="II.7" data-type="article">
+         ARTICLE II.7
+        </a>
+        - AUTRE POINT DE REJET
+       </p>
+       <table>
+        <tr>
+         <th>
+          Nature des rejets
+         </th>
+         <th>
+          Flux maximal instantané
+         </th>
+         <th>
+          Débit moyen qui ne peut être dépassé pendant aucune période de : 2 h consécutives
+         </th>
+         <th>
+          24 h consécutives
+         </th>
+        </tr>
+        <tr>
+         <td>
+          Eaux de lavage (pk 172,505)
+         </td>
+         <td>
+          55 l/s
+         </td>
+         <td>
+          400 m³
+         </td>
+         <td>
+          4 800 m³
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Eaux de refroidissement (pk 172,588)
+         </td>
+         <td>
+          2 100 l/s
+         </td>
+         <td>
+          15 120 m³
+         </td>
+         <td>
+          168 000 m³
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Prise d'eau
+         </td>
+         <td>
+          2 500 l/s
+         </td>
+         <td>
+          18 000 m³
+         </td>
+         <td>
+          216 000 m³
+         </td>
+        </tr>
+       </table>
+       <p>
+        Comme pour le rejet principal, il appartiendra à l'exploitant de solliciter les autorisations nécessaires concernant en particulier l'occupation du domaine public fluvial par ces diverses installations
+       </p>
+      </blockquote>
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       .../...
+      </div>
+     </div>
+     <a data-page_index="27" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       - 27 -
+      </div>
+     </div>
+    </section>
+   </section>
+   <section data-number="III" data-spec="section" data-title="DISPOSITIONS DIVERSES" data-type="titre">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     TITRE III - DISPOSITIONS DIVERSES
+    </h2>
+    <section data-number="III.1" data-spec="section" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article III.1 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les conditions fixées par les articles précédents ne peuvent en aucun cas ni à aucune époque, faire obstacle à l'application des dispositions du Titre III du Livre II du
+      <a data-spec="document_reference" data-title="Code du travail" data-type="code">
+       code du travail
+      </a>
+      (hygiène et sécurité) ainsi qu'à celles des règlements d'administration publique pris en application de l'
+      <a data-spec="section_reference" data-start_num="L231-2" data-type="article">
+       article L.231-2
+      </a>
+      de ce même code.
+     </div>
+    </section>
+    <section data-number="III.2" data-spec="section" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article III.2 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La présente autorisation cessera d'avoir effet dans le cas où les activités mentionnées ci-dessus n'auront pas été mises en exploitation avant l'expiration d'un délai de trois ans à compter du jour de la notification ou si leur exploitation est interrompue pendant deux années consécutives, sauf le cas de force majeure.
+     </div>
+    </section>
+    <section data-number="III.3" data-spec="section" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article III.3 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Dans le cas où l'établissement changerait d'exploitant, le nouvel exploitant ou son représentant devra en faire la déclaration au Préfet dans le mois suivant la prise de possession.
+     </div>
+    </section>
+    <section data-number="III.4" data-spec="section" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article III.4 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      En cas de cessation d'activité, l'exploitant en informera le préfet du Haut-Rhin dans le mois qui suit cette cessation.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Il remettra le site de l'installation dans un état tel qu'il ne s'y manifeste aucun dangers ou inconvénients mentionnés à l'
+      <a data-spec="section_reference" data-start_num="1" data-type="article">
+       article 1
+      </a>
+      de la loi du 19 juillet 1976 (
+      <a data-parent_reference="6" data-spec="section_reference" data-start_num="34" data-type="article">
+       article 34
+      </a>
+      du
+      <a data-date="1977-09-21" data-spec="document_reference" data-tag_id="6" data-type="decret">
+       décret du
+       <time data-spec="date" datetime="1977-09-21">
+        21 septembre 1977
+       </time>
+      </a>
+      ).
+     </div>
+    </section>
+    <section data-number="III.5" data-spec="section" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article III.5 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'administration se réserve la faculté de prescrire ultérieurement toutes les mesures que le fonctionnement ou la transformation dudit établissement rendrait nécessaires dans l'intérêt de la salubrité et de la sécurité publiques et ce, sans que l'exploitant puisse prétendre de ce chef à aucune indemnité ou à aucun dédommagement.
+     </div>
+    </section>
+    <section data-number="III.6" data-spec="section" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article III.6 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les droits des tiers sont et demeurent expressément réservés.
+     </div>
+    </section>
+    <section data-number="III.7" data-spec="section" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article III.7 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La présente autorisation ne dispense pas le bénéficiaire des formalités et accords exigibles, le cas échéant, par d'autres réglementations (
+      <a data-spec="document_reference" data-title="Code de l'urbanisme" data-type="code">
+       code de l'urbanisme
+      </a>
+      ,
+      <a data-spec="document_reference" data-title="Code du travail" data-type="code">
+       code du travail
+      </a>
+      , voirie, etc...).
+     </div>
+    </section>
+    <section data-number="III.8" data-spec="section" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article III.8 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le secrétaire général de la préfecture du Haut-Rhin, le directeur régional de l'Industrie et de la recherche et les inspecteurs des services d'Incendie et de secours sont chargés, chacun en ce qui le concerne, de veiller à l'exécution du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Un avis faisant connaître qu'une copie de l'arrêté est déposée à la mairie et mise à la disposition de tout intéressé, sera inséré par les soins du service instructeur et aux frais de l'exploitant dans deux journaux locaux.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Un extrait du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      énumérant notamment les prescriptions auxquelles l'installation est soumise sera affiché à la mairie pendant une durée minimum d'un mois et affiché en permanence de façon visible dans l'installation par les soins du bénéficiaire de l'autorisation.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Pour ampliation,
+     </div>
+     <div data-number="5" data-spec="alinea">
+      pour le préfet et par délégation,
+     </div>
+     <div data-number="6" data-spec="alinea">
+      le chef du bureau
+     </div>
+     <div data-number="7" data-spec="alinea">
+      <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Fait à COLMAR, le 27 FEV. 1990
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Pour le Préfet,
+     </div>
+     <div data-number="10" data-spec="alinea">
+      et par délégation,
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Le Secrétaire Général
+     </div>
+     <div data-number="12" data-spec="alinea">
+      Signé : Bertrand LABARTHE
+     </div>
+    </section>
+   </section>
+  </main>
+ </body>
+</html>

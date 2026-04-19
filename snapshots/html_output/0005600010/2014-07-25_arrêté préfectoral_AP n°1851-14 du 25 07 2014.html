@@ -1,0 +1,2380 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2014-07-25_arrêté préfectoral_AP n°1851-14 du 25 07 2014.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+Pour copie conforme à l'original
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFECTURE DE L'ALLIER
+    </div>
+    <div>
+     DIRECTION REGIONALE DE L'ENVIRONNEMENT, DE L'AMENAGEMENT ET DU LOGEMENT
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ N° 1851/14 du
+     <time data-spec="date" datetime="2014-07-25">
+      25 juillet 2014
+     </time>
+     Arrêté préfectoral complémentaire portant actualisation des prescriptions applicables à la société LUCANE à BAYET
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet de l'Allier,
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU la nomenclature des installations classées et les décrets la modifiant ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2002-09-20" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2002-09-20">
+      20 septembre 2002
+     </time>
+     modifié
+    </a>
+    relatif aux installations d'incinération et de co-incinération de déchets non dangereux et aux installations incinérant des déchets d'activités de soins à risques infectieux ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2011-11-18" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2011-11-18">
+      18 novembre 2011
+     </time>
+    </a>
+    relatif au recyclage en technique routière des mâchefers d'incinération de déchets non dangereux ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2012-05-31" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2012-05-31">
+      31 mai 2012
+     </time>
+    </a>
+    fixant la liste des installations classées soumises à l'obligation de constitution des garanties financière en application de l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="L516-1" data-type="article">
+     article L.516-1
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     Code de l'Environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2012-07-31" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2012-07-31">
+      31 juillet 2012
+     </time>
+    </a>
+    relatif aux modalités de constitution de garanties financières prévues aux
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+     articles R. 516-1
+    </a>
+    et suivants du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+     Code de l'Environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2008-04-11" data-num="1688/08" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 1688/08 du
+     <time data-spec="date" datetime="2008-04-11">
+      11 avril 2008
+     </time>
+    </a>
+    autorisant la société LUCANE à poursuivre l'exploitation d'un centre de valorisation énergétique de déchets à BAYET ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2011-05-16" data-num="1639/2011" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 1639/2011 du
+     <time data-spec="date" datetime="2011-05-16">
+      16 mai 2011
+     </time>
+    </a>
+    portant actualisation des prescriptions applicables à la société LUCANE à BAYET (sources radioactives) ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2013-08-09" data-num="2247/13" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n°2247/13 du
+     <time data-spec="date" datetime="2013-08-09">
+      9 août 2013
+     </time>
+    </a>
+    autorisant la société LUCANE à procéder à des essais d'incinération de boues de station d'épuration ;
+   </div>
+   <div data-spec="visa">
+    Vu le plan de prévention et de gestion des déchets non dangereux du département de l'Allier approuvé par délibération du 18 juin 2013 ;
+   </div>
+   <div data-spec="visa">
+    VU les demandes de l'exploitant en date du :
+    <ul>
+     <li>
+      - 24 mars 2014, complétée le 19 mai 2014 afin d'être autorisé à incinérer des boues de station d'épuration.
+     </li>
+     <li>
+      - 25 avril 2013 afin de régulariser sa situation administrative concernant l'utilisation et la détention de sources radioactives sur son établissement de BAYET,
+     </li>
+    </ul>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     2, rue Michel de l'Hospital – BP1649 – 03016 MOULINS CEDEX
+Tél. 04.70.48.30.00 – Télécopie 04.70.48.31.14
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    VU les propositions de calcul du montant des garanties financières faites par la société LUCANE par courrier du 20 mars 2014 ;
+   </div>
+   <div data-spec="visa">
+    VU les éléments techniques fournis à l'appui de ces demandes ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport et les propositions en date du 18 juin 2014 de l'inspection des installations classées ;
+   </div>
+   <div data-spec="visa">
+    Vu l'avis en date du 10 juillet 2014 du Conseil départemental de l'environnement et des risques sanitaires et technologiques (CODERST) au cours duquel le demandeur a eu la possibilité d'être entendu ;
+   </div>
+   <div data-spec="visa">
+    Vu le projet d'arrêté porté le 23 juillet 2014 la connaissance du demandeur ;
+   </div>
+   <div data-spec="visa">
+    Vu les observations présentées par le demandeur sur ce projet par courriel en date du 25 juillet 2014 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les substances radioactives mises en œuvre et/ou entreposées au sein de la société LUCANE à BAYET ont fait l'objet d'une autorisation par l'
+    <a data-num="1689/2011" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n°1689/2011
+    </a>
+    pour une activité de 14,64 MBq valable jusqu'au 8 mars 2013 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les substances radioactives mises en œuvre et/ou entreposées au sein de la société LUCANE à BAYET ont été remplacées par des sources de moindre activité unitaire représentant une activité totale de 6,4 MBq, soit un ratio de 0,64 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT en conséquence que les installations entreposage et/ou de mise en œuvre de substances radioactives au sein de la société LUCANE à BAYET ne relèvent plus du régime des installations classées et sont exemptées au sens du
+    <a data-spec="document_reference" data-title="Code de la santé publique" data-type="code">
+     code de la santé publique
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT les évolutions et les modifications de la nomenclature des installations classées introduites depuis 2011 et notamment celles introduites par le
+    <a data-date="2013-05-02" data-num="2013-375" data-spec="document_reference" data-type="decret">
+     décret n° 2013-375 du
+     <time data-spec="date" datetime="2013-05-02">
+      02/05/13
+     </time>
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT en conséquence que le tableau de classement des activités du site de BAYET nécessite d'être mis à jour ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'une actualisation des prescriptions est nécessaire pour encadrer la mise en œuvre de l'incinération de boues de station d'épuration sur le site de BAYET ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'une actualisation des prescriptions est nécessaire pour prendre en compte les prescriptions de l'
+    <a data-date="2011-11-18" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2011-11-18">
+      18 novembre 2011
+     </time>
+    </a>
+    sus-visé ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que la société LUCANE est soumise à l'obligation de constituer des garanties financières pour les installations qu'elle exploite sur la commune de Bayet, en application de l'
+    <a data-parent_reference="3" data-spec="section_reference" data-start_num="3" data-type="article">
+     article 3
+    </a>
+    de l'
+    <a data-date="2012-05-31" data-spec="document_reference" data-tag_id="3" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2012-05-31">
+      31 mai 2012
+     </time>
+    </a>
+    susvisé ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que des volumes maximaux d'entreposage de déchets doivent être fixés en conséquence ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les modifications demandées par l'exploitant ne sont pas de nature à porter atteinte aux intérêts mentionnés à l'
+    <a data-parent_reference="4" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     article L. 511-1
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'en application de l'
+    <a data-parent_reference="5" data-spec="section_reference" data-start_num="R512-31" data-type="article">
+     article R. 512-31
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="5" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    des arrêtés complémentaires peuvent être pris sur proposition de l'inspection des installations classées et après avis du CODERST ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition du Secrétaire général de la préfecture
+    </div>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     2/16
+    </div>
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     ARRÊTE
+    </div>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="PRESCRIPTIONS GENERALES" data-type="chapitre">
+    <h2 data-level="0" data-spec="section_title">
+     Chapitre 1. PRESCRIPTIONS GENERALES
+    </h2>
+    <section data-number="1.1" data-spec="section" data-title="Installations autorisées" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.1. Installations autorisées
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La société LUCANE dont le siège social est situé au lieu-dit
+      <q>
+       Les Bouillots
+      </q>
+      03500 BAYET est autorisée, sous réserve du respect des prescriptions du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      , à poursuivre l'exploitation des installations visées par l'
+      <a data-parent_reference="6" data-spec="section_reference" data-start_num="1.2" data-type="article">
+       article 1.2
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="6" data-type="self">
+       présent arrêté
+      </a>
+      , dans son établissement situé à la même adresse.
+     </div>
+    </section>
+    <section data-number="1.2" data-spec="section" data-title="Liste des installations" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.2. Liste des installations
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'
+      <a data-parent_reference="7" data-spec="section_reference" data-start_num="1.2.3" data-tag_id="35" data-type="article">
+       article 1.2.3
+      </a>
+      de l'
+      <a data-date="2008-04-11" data-spec="document_reference" data-tag_id="7" data-type="arrete-prefectoral">
+       arrêté préfectoral du
+       <time data-spec="date" datetime="2008-04-11">
+        11 avril 2008
+       </time>
+      </a>
+      <span data-direction="rtl" data-has_operand="true" data-keyword="remplacé" data-operand="36" data-operation_type="replace" data-references="35" data-spec="operation">
+       est
+       <b>
+        remplacé
+       </b>
+       par les dispositions suivantes :
+      </span>
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <blockquote data-tag_id="36">
+       <p>
+        <a data-spec="section_reference" data-start_num="1.2.3" data-type="article">
+         Article 1.2.3
+        </a>
+        LISTE DES INSTALLATIONS CONCERNEES PAR UNE RUBRIQUE DE LA NOMENCLATURE DES INSTALLATIONS CLASSEES
+       </p>
+       <table>
+        <tr>
+         <th>
+          Rubrique ICPE
+         </th>
+         <th>
+          Libellé de la rubrique
+         </th>
+         <th>
+          Nature des installations
+         </th>
+         <th>
+          Régime de classement
+         </th>
+        </tr>
+        <tr>
+         <td>
+          2771
+         </td>
+         <td>
+          Installation de traitement thermique de déchets non dangereux
+         </td>
+         <td>
+          2 fours d'une capacité unitaire de 4 t/h et 5 t/h, soit 9 t/h au total
+          <br/>
+          <br/>
+          Capacité annuelle maximale de traitement :
+          <br/>
+          74 100 tonnes/an pour un PCI moyen associé de 8360 kJ/kg
+          <br/>
+          <br/>
+          Puissance thermique nominale : 20 900 kW
+          <br/>
+          <br/>
+          Activités connexes :
+          <br/>
+          1 fosse de 2 000 m³ pour les ordures ménagères (boues de STEP incluses)
+          <br/>
+          <br/>
+          Plate-forme de préparation et de maturation des mâchefers :
+          <br/>
+          • capacité de 5000 m³ (soit 8405 tonnes) sur une aire de 3000 m²
+          <br/>
+          • Capacité maximale de traitement : 30 m³/heure, puissance totale des installations : 50 kW
+          <br/>
+          <br/>
+          Stockage des cendres : 280 tonnes
+          <br/>
+          <br/>
+          2 aérocondenseurs de délestage
+          <br/>
+          <br/>
+          Stockage de réactifs :
+          <br/>
+          • Charbon actif / dioxorb : 20 tonnes
+          <br/>
+          • Soude : 8 tonnes
+          <br/>
+          • Eau Ammoniacale / urée : 20 tonnes
+          <br/>
+          • Chaux : 30 tonnes
+          <br/>
+          • Acide nitrique : 1 tonne
+         </td>
+         <td>
+          A
+         </td>
+        </tr>
+        <tr>
+         <td>
+          3520 A
+          <br/>
+          (Rubrique principale IED)
+         </td>
+         <td>
+          Élimination ou valorisation de déchets dans des installations d'incinération des déchets ou des installations de coïncinération des déchets : Pour les déchets non dangereux avec une capacité supérieure à 3 tonnes par heure
+         </td>
+         <td>
+          2 fours d'une capacité unitaire de 4 t/h et 5 t/h, soit 9 t/h au total
+         </td>
+         <td>
+          A
+         </td>
+        </tr>
+       </table>
+       <a data-page_index="3" data-spec="page_separator">
+       </a>
+       <table>
+        <tr>
+         <th>
+          Rubrique ICPE
+         </th>
+         <th>
+          Libellé de la rubrique
+         </th>
+         <th>
+          Nature des installations
+         </th>
+         <th>
+          Régime de classement
+         </th>
+        </tr>
+        <tr>
+         <td>
+          2770-2
+         </td>
+         <td>
+          Installation de traitement thermique de déchets dangereux
+          <br/>
+          2. Les déchets destinés à être traités ne contenant pas les substances dangereuses ou préparations dangereuses mentionnées à l'
+          <a data-parent_reference="8" data-spec="section_reference" data-start_num="R511-10" data-type="article">
+           article R. 511-10
+          </a>
+          du
+          <a data-spec="document_reference" data-tag_id="8" data-title="Code de l'environnement" data-type="code">
+           code de l'environnement
+          </a>
+         </td>
+         <td>
+          Traitement de déchets d'activité de soins à risques infectieux (DASRI)
+          <br/>
+          <strong>
+           Capacité annuelle de traitement des DASRI:
+          </strong>
+          <br/>
+          10 % de la quantité annuelle de déchets non dangereux traités sur l'usine.
+          <br/>
+          <strong>
+           Activités connexes :
+          </strong>
+          <br/>
+          Installation de réception, de contrôle, de lavage des bacs de DASRI.
+          <br/>
+          Quantité maximale de DASRI entreposée : 50 tonnes
+         </td>
+         <td>
+          A
+         </td>
+        </tr>
+        <tr>
+         <td>
+          3520B
+         </td>
+         <td>
+          Élimination ou valorisation de déchets dans des installations d'incinération des déchets ou des installations de coïncinération des déchets : Pour les déchets dangereux avec une capacité supérieure à 10 tonnes par jour
+         </td>
+         <td>
+          Traitement de déchets d'activité de soins à risques infectieux (DASRI) pour une capacité maximale de 22 tonnes par jour
+         </td>
+         <td>
+          A
+         </td>
+        </tr>
+        <tr>
+         <td>
+          1412-2b
+         </td>
+         <td>
+          Stockage en réservoir manufacturé de gaz inflammable liquéfié
+          <br/>
+          (capacité inférieure à 50 tonnes)
+         </td>
+         <td>
+          1 cuve de 31 tonnes de propane
+          <br/>
+          1 cuve de 2 tonnes de propane
+         </td>
+         <td>
+          DC
+         </td>
+        </tr>
+        <tr>
+         <td>
+          1432-2b
+         </td>
+         <td>
+          Dépôt de liquides inflammables
+          <br/>
+          (capacité équivalente supérieure à 10 m³ et inférieure à 100 m³)
+         </td>
+         <td>
+          1 cuve mixte de 40 m³ de gasoil et 10 m³ de FOD aérienne
+          <br/>
+          1 cuve de 8 m³ de FOD aérienne
+          <br/>
+          1 cuve de 1,5 m³ de FOD aérienne
+          <br/>
+          soit en équivalent 1ère catégorie : 11,9 m³
+         </td>
+         <td>
+          DC
+         </td>
+        </tr>
+        <tr>
+         <td>
+          1435
+         </td>
+         <td>
+          Station-service : installation non ouverte au public
+         </td>
+         <td>
+          Volume annuel de carburant distribué :
+          <br/>
+          - 600 m³ de gasoil
+          <br/>
+          - 20 m³ de fioul
+          <br/>
+          total : 620 m³ soit volume équivalent de 124 m³
+         </td>
+         <td>
+          DC
+         </td>
+        </tr>
+        <tr>
+         <td>
+          1715
+         </td>
+         <td>
+          Substances radioactives (préparation, fabrication, transformation, conditionnement, utilisation, dépôt, entreposage ou stockage de) sous forme de sources radioactives, scellées ou non scellées, à l'exclusion des installations mentionnées à la rubrique 1735, des installations nucléaires de base mentionnées à l'
+          <a data-spec="section_reference" data-start_num="28" data-type="article">
+           article 28
+          </a>
+          de la loi n°2006-686 du 13 juin 2006 relative à la transparence et à la sécurité en matière nucléaire et des installations nucléaires de base secrètes telles que définies par l'
+          <a data-spec="section_reference" data-start_num="6" data-type="article">
+           article 6
+          </a>
+          du décret no 2001-592 du 5 juillet 2001.
+         </td>
+         <td>
+          Utilisation et détention de sources radioactives :
+          <br/>
+          Q = 0,64
+         </td>
+         <td>
+          NC
+         </td>
+        </tr>
+        <tr>
+         <td>
+          2910-A
+         </td>
+         <td>
+          Installations de combustion (puissance thermique maximale inférieure à 2 MW)
+         </td>
+         <td>
+          Groupe électrogène de 340 kW
+          <br/>
+          Chaudières pour le maintien en pression :
+          <br/>
+          4 × 45 kW
+         </td>
+         <td>
+          N.C.
+         </td>
+        </tr>
+       </table>
+       <br/>
+       (*) A : Autorisation – D : Déclaration – DC : Déclaration avec contrôle périodique – NC : Non classable
+       <p>
+        La rubrique principale IED telle que définie par l'
+        <a data-parent_reference="9" data-spec="section_reference" data-start_num="R515-61" data-type="article">
+         article R. 515-61
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="9" data-title="Code de l'environnement" data-type="code">
+         code de l'Environnement
+        </a>
+        est la rubrique 3520. Le BREF correspondant est celui de l'incinération de déchets (WI).
+       </p>
+       <div data-spec="page_footer">
+        <div>
+         4/16
+        </div>
+       </div>
+       <a data-page_index="4" data-spec="page_separator">
+       </a>
+       <div data-spec="page_header">
+        <div>
+         5/16
+        </div>
+       </div>
+       <p>
+        Chapitre 2. BILAN DE REEXAMEN
+       </p>
+       <p>
+        Les dispositions de l'
+        <a data-spec="section_reference" data-start_num="9.5.3" data-tag_id="37" data-type="article">
+         article 9.5.3.
+        </a>
+        <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operation_type="replace" data-references="37" data-spec="operation">
+         sont
+         <b>
+          remplacées
+         </b>
+         par les suivantes :
+        </span>
+       </p>
+       <p>
+        « 9.5.3. Bilan de réexamen IED
+       </p>
+       <p>
+        L'exploitant adresse au préfet le bilan de réexamen prévu à l'
+        <a data-parent_reference="10" data-spec="section_reference" data-start_num="R515-71" data-type="article">
+         article R. 515-71
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="10" data-title="Code de l'environnement" data-type="code">
+         code de l'environnement
+        </a>
+        , dans les douze mois qui suivent la date de publication de la décision concernant les conclusions sur les meilleures techniques disponibles du BREF WI : Incinération de déchets. »
+       </p>
+       <p>
+        Chapitre 3. GARANTIES FINANCIERES
+       </p>
+       <p>
+        3.1. Objet
+       </p>
+       <p>
+        La société LUCANE dont le siège social est situé au lieu-dit
+        <q>
+         Les Bouillots
+        </q>
+        03500 BAYET est tenue de constituer des garanties financières visant la mise en sécurité de ses installations qu'elle exploite à la même adresse.
+       </p>
+       <p>
+        3.2. Nature des garanties financières
+       </p>
+       <p>
+        Les garanties financières définies dans
+        <a data-spec="document_reference" data-type="self">
+         le présent arrêté
+        </a>
+        s'appliquent pour les activités suivantes :
+       </p>
+       <table>
+        <tr>
+         <th>
+          Rubrique ICPE
+         </th>
+         <th>
+          Libellé des rubriques/alinéa
+         </th>
+        </tr>
+        <tr>
+         <td>
+          2771 - 1
+         </td>
+         <td>
+          Installation de traitement thermique de déchets non dangereux et ses installations connexes
+         </td>
+        </tr>
+        <tr>
+         <td>
+          2770 - 2
+         </td>
+         <td>
+          Installation de traitement thermique de déchets dangereux (DASRI)
+         </td>
+        </tr>
+       </table>
+       <p>
+        Elles s'établissent sans préjudice des garanties financières que l'exploitant constitue éventuellement en application du 3° du IV de l'
+        <a data-parent_reference="11" data-spec="section_reference" data-start_num="R516-2" data-type="article">
+         article R 516-2
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="11" data-title="Code de l'environnement" data-type="code">
+         Code de l'Environnement
+        </a>
+        .
+       </p>
+       <p>
+        3.3. Montant des garanties financières
+       </p>
+       <p>
+        Le montant des garanties financières est fixé conformément à l'
+        <a data-spec="section_reference" data-start_num="2" data-type="article">
+         article 2
+        </a>
+        à :
+       </p>
+       <p>
+        1 816 146 euros TTC.
+       </p>
+       <p>
+        Ce montant est fixé sur la base d'un indice TP01 de 704,5 à la date du mois de mars 2014 et d'un taux de la TVA de 20 %.
+       </p>
+       <p>
+        3.4. Établissement des garanties financières
+       </p>
+       <p>
+        Avant le 1er juillet 2014, l'exploitant adresse au Préfet :
+       </p>
+       <ul>
+        <li>
+         - le document attestant la constitution des garanties financières établie dans les formes prévues par l'
+         <a data-date="2012-07-31" data-spec="document_reference" data-type="arrete">
+          arrêté du
+          <time data-spec="date" datetime="2012-07-31">
+           31 juillet 2012
+          </time>
+         </a>
+         relatif aux modalités de constitution de garanties financières prévues aux
+         <a data-parent_reference="12" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+          articles R. 516-1
+         </a>
+         et suivants du
+         <a data-spec="document_reference" data-tag_id="12" data-title="Code de l'environnement" data-type="code">
+          code de l'environnement
+         </a>
+         ,
+        </li>
+        <li>
+         - la valeur datée du dernier indice public TP01 et du taux de la TVA qui ont été utilisées dans son dossier de proposition de calcul du montant des garanties financières.
+        </li>
+       </ul>
+       <a data-page_index="5" data-spec="page_separator">
+       </a>
+       <p>
+        L'échéancier de constitution des garanties financières est établi selon l'une des deux options suivantes :
+       </p>
+       <ul>
+        <li>
+         - Option 1 :
+        </li>
+        <li>
+         - constitution de 20 % du montant initial des garanties financières dans un délai de 2 ans, pour le 1er juillet 2014,
+        </li>
+        <li>
+         - constitution supplémentaire de 20 % du montant initial des garanties financières par an pendant quatre (4) ans.
+        </li>
+        <li>
+         - Option 2 : en cas de constitution des garanties financières sous la forme de consignation entre les mains de la Caisse des Dépôts et consignations :
+        </li>
+        <li>
+         - constitution de 20 % du montant initial des garanties financières dans un délai de 2 ans, pour le 1er juillet 2014,
+        </li>
+        <li>
+         - constitution supplémentaire de 10 % du montant initial des garanties financières par an pendant huit (8) ans.
+        </li>
+       </ul>
+       <p>
+        3.5. Renouvellement des garanties financières
+       </p>
+       <p>
+        Le renouvellement des garanties financières intervient au moins trois mois avant la date d'échéance du document prévu à l'
+        <a data-parent_reference="13" data-spec="section_reference" data-start_num="4" data-type="article">
+         article 4
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="13" data-type="self">
+         présent arrêté
+        </a>
+        .
+       </p>
+       <p>
+        Pour attester du renouvellement des garanties financières, l'exploitant adresse au Préfet, au moins trois mois avant la date d'échéance, un nouveau document dans les formes prévues par l'
+        <a data-date="2012-07-31" data-spec="document_reference" data-type="arrete-ministeriel">
+         arrêté ministériel du
+         <time data-spec="date" datetime="2012-07-31">
+          31 juillet 2012
+         </time>
+        </a>
+        susmentionné.
+       </p>
+       <p>
+        3.6. Actualisation des garanties financières
+       </p>
+       <p>
+        Sans préjudice des dispositions de l'
+        <a data-parent_reference="14" data-spec="section_reference" data-start_num="R516-5-1" data-type="article">
+         article R.516-5-1
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="14" data-title="Code de l'environnement" data-type="code">
+         Code de l'Environnement
+        </a>
+        , l'exploitant présente au Préfet a minima tous les 5 ans, un état actualisé du montant de ses garanties financières par application au montant de référence figurant à l'
+        <a data-spec="section_reference" data-start_num="3.3" data-type="article">
+         article 3.3
+        </a>
+        ci-dessus, de la méthode d'actualisation précisée à l'
+        <a data-parent_reference="15" data-spec="section_reference" data-start_num="2" data-type="annexe">
+         annexe II
+        </a>
+        de l'
+        <a data-date="2012-05-31" data-spec="document_reference" data-tag_id="15" data-type="arrete-ministeriel">
+         arrêté ministériel du
+         <time data-spec="date" datetime="2012-05-31">
+          31 mai 2012
+         </time>
+        </a>
+        susvisé.
+       </p>
+       <p>
+        3.7. Révision du montant des garanties financières
+       </p>
+       <p>
+        Le montant des garanties financières pourra être révisé lors de toutes modifications des conditions d'exploitation telles que définies à l'
+        <a data-parent_reference="16" data-spec="section_reference" data-start_num="R512-33" data-type="article">
+         article R.512-33
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="16" data-title="Code de l'environnement" data-type="code">
+         Code de l'Environnement
+        </a>
+        .
+       </p>
+       <p>
+        3.8. Absence de garanties financières
+       </p>
+       <p>
+        Outre les sanctions rappelées à l'
+        <a data-parent_reference="17" data-spec="section_reference" data-start_num="L516-1" data-type="article">
+         article L.516-1
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="17" data-title="Code de l'environnement" data-type="code">
+         Code de l'Environnement
+        </a>
+        , l'absence de garanties financières peut entraîner la suspension du fonctionnement des installations classées visées à l'
+        <a data-parent_reference="18" data-spec="section_reference" data-start_num="2" data-type="article">
+         article 2
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="18" data-type="self">
+         présent arrêté
+        </a>
+        , après mise en œuvre des modalités prévues à l'
+        <a data-spec="section_reference" data-start_num="L171-8" data-type="article">
+         article L.171-8
+        </a>
+        de ce code. Conformément à l'
+        <a data-spec="section_reference" data-start_num="L171-9" data-type="article">
+         article L.171-9
+        </a>
+        du même code, pendant la durée de la suspension, l'exploitant est tenu d'assurer à son personnel le paiement des salaires, indemnités et rémunérations de toute nature auxquels il avait droit jusqu'alors.
+       </p>
+       <p>
+        3.9. Appel des garanties financières
+       </p>
+       <p>
+        En cas de défaillance de l'exploitant, le Préfet peut faire appel aux garanties financières :
+       </p>
+       <ul>
+        <li>
+         - lors d'une intervention en cas d'accident ou de pollution mettant en cause directement ou indirectement les installations soumises à garanties financières,
+        </li>
+        <li>
+         - ou pour la mise sous surveillance et le maintien en sécurité des installations soumises à garanties financières lors d'un événement exceptionnel susceptible d'affecter l'environnement.
+        </li>
+       </ul>
+       <div data-spec="page_footer">
+        <div>
+         6/16
+        </div>
+       </div>
+       <a data-page_index="6" data-spec="page_separator">
+       </a>
+       <div data-spec="page_header">
+        <div>
+         7/16
+        </div>
+       </div>
+       <p>
+        3.10. Levée de l'obligation de garanties financières
+       </p>
+       <p>
+        L'obligation de garanties financières est levée à la cessation d'exploitation des installations visées à l'
+        <a data-parent_reference="19" data-spec="section_reference" data-start_num="2" data-type="article">
+         article 2
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="19" data-type="self">
+         présent arrêté
+        </a>
+        , et après que les travaux couverts par les garanties financières ont été normalement réalisés.
+       </p>
+       <p>
+        Ce retour à une situation normale est constaté, dans le cadre de la procédure de cessation d'activité prévue aux
+        <a data-end_num="R512-39-3" data-parent_reference="20" data-spec="section_reference" data-start_num="R512-39-1" data-type="article">
+         articles R.512-39-1 à R.512-39-3
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="20" data-title="Code de l'environnement" data-type="code">
+         Code de l'Environnement
+        </a>
+        , par l'inspection des installations classées qui établit un procès-verbal de récolement.
+       </p>
+       <p>
+        L'obligation de garanties financières est levée par arrêté préfectoral.
+       </p>
+       <p>
+        En application de l'
+        <a data-parent_reference="21" data-spec="section_reference" data-start_num="R516-5" data-type="article">
+         article R.516-5
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="21" data-title="Code de l'environnement" data-type="code">
+         Code de l'Environnement
+        </a>
+        , le préfet peut demander la réalisation, aux frais de l'exploitant, d'une évaluation critique par un tiers expert des éléments techniques justifiant la levée de l'obligation de garanties financières.
+       </p>
+       <p>
+        Chapitre 4. INCINERATION DE BOUES DE STEP
+       </p>
+       <p>
+        4.1. Description des activités
+       </p>
+       <p>
+        Les dispositions de l'
+        <a data-parent_reference="22" data-spec="section_reference" data-start_num="1.2.1" data-type="article">
+         article 1.2.1.
+        </a>
+        de l'
+        <a data-date="2008-04-11" data-spec="document_reference" data-tag_id="22" data-type="arrete-prefectoral">
+         arrêté préfectoral du
+         <time data-spec="date" datetime="2008-04-11">
+          11 avril 2008
+         </time>
+        </a>
+        sont complétées de la manière suivante :
+       </p>
+       <p>
+        sous l'alinéa :
+       </p>
+       <ul>
+        <li>
+         - « La capacité maximale d'incinération de DASRI est de 7.410 tonnes/an. » est ajouté l'alinéa suivant :
+        </li>
+        <li>
+         - « La capacité maximale d'incinération de boues de STEP est de 7.000 tonnes/an. »
+        </li>
+       </ul>
+       <p>
+        4.2. Déchets interdits
+       </p>
+       <p>
+        Les dispositions de l'
+        <a data-parent_reference="23" data-spec="section_reference" data-start_num="1.2.4.2" data-type="article">
+         article 1.2.4.2.
+        </a>
+        de l'
+        <a data-date="2008-04-11" data-spec="document_reference" data-tag_id="23" data-type="arrete-prefectoral">
+         arrêté préfectoral du
+         <time data-spec="date" datetime="2008-04-11">
+          11 avril 2008
+         </time>
+        </a>
+        sont complétées de la manière suivante : l'alinéa
+       </p>
+       <ul>
+        <li>
+         - « les boues de station d'épuration quelle que soit leur siccité. » : est supprimé
+        </li>
+       </ul>
+       <p>
+        4.3. Dispositions particulières pour l'apport de boues
+       </p>
+       <p>
+        Sous l'
+        <a data-parent_reference="24" data-spec="section_reference" data-start_num="1.2.4.3" data-type="article">
+         article 1.2.4.3
+        </a>
+        de l'
+        <a data-date="2008-04-11" data-spec="document_reference" data-tag_id="24" data-type="arrete-prefectoral">
+         arrêté préfectoral du
+         <time data-spec="date" datetime="2008-04-11">
+          11 avril 2008
+         </time>
+        </a>
+        est inséré :
+       </p>
+       <p>
+        <q>
+         <a data-spec="section_reference" data-start_num="1.2.4.4" data-type="article">
+          article 1.2.4.4
+         </a>
+         Dispositions particulières pour l'apport de boues
+        </q>
+       </p>
+       <p>
+        Les boues admissibles sont les boues pelletables non dangereuses classées sous le code déchet
+        <q>
+         19 08 05
+        </q>
+        provenant du département de l'Allier et des départements limitrophes dans la limite dans la limite d'un rayon de 80 km autour de l'installation de Lucane définie par le plan de gestion de déchets sus-visé, hors situation exceptionnelle.
+       </p>
+       <p>
+        Leur transport est assuré en benne étanche. Elles sont réceptionnées dans une zone dédiée de la fosse de déchets et mélangées dans la journée aux autres déchets solides de la fosse en vue de leur introduction homogène dans les fours d'incinération.
+       </p>
+      </blockquote>
+     </div>
+    </section>
+    <section data-number="4.4" data-spec="section" data-title="Conduits et installations raccordées" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      4.4. Conduits et installations raccordées
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Dans la colonne
+      <q>
+       combustible
+      </q>
+      du tableau de l'
+      <a data-parent_reference="25" data-spec="section_reference" data-start_num="3.2.3" data-tag_id="38" data-type="article">
+       article 3.2.3
+      </a>
+      de l'
+      <a data-date="2008-04-11" data-spec="document_reference" data-tag_id="25" data-type="arrete-prefectoral">
+       arrêté préfectoral du
+       <time data-spec="date" datetime="2008-04-11">
+        11 avril 2008
+       </time>
+      </a>
+      <span data-direction="rtl" data-has_operand="true" data-keyword="ajouté" data-operand="39" data-operation_type="add" data-references="38" data-spec="operation">
+       est
+       <b>
+        ajouté
+       </b>
+      </span>
+      <q data-tag_id="39">
+       boues de STEP
+      </q>
+      pour les conduits 1 et 2.
+     </div>
+     <a data-page_index="7" data-spec="page_separator">
+     </a>
+    </section>
+   </section>
+   <section data-number="5" data-spec="section" data-title="GESTION ET VALORISATION DES MACHEFERS" data-type="chapitre">
+    <h2 data-level="0" data-spec="section_title">
+     Chapitre 5. GESTION ET VALORISATION DES MACHEFERS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions du chapitre 8.3 de l'
+     <a data-date="2008-04-11" data-spec="document_reference" data-tag_id="40" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2008-04-11">
+       11 avril 2008
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operation_type="replace" data-references="40" data-spec="operation">
+      sont
+      <b>
+       remplacées
+      </b>
+      par les suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <div data-error_codes="unbalanced_quote" data-spec="error">
+      <a data-spec="section_reference" data-start_num="8.3.1" data-type="article">
+       Article 8.3.1
+      </a>
+      Définitions
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - Mâchefer d'incinération de déchets non dangereux ou MIDND : déchet provenant de l'extraction des matières solides en sortie du four des installations de traitement thermique de déchets non dangereux
+      </li>
+      <li>
+       - Lot périodique : ensemble de MIDND produit dans une période P par une même installation de traitement thermique de déchets non dangereux et réceptionné dans une même installation de maturation et d'élaboration des MIDND relevant des rubriques 2716, 2771 ou 2791 de la nomenclature des installations classées.
+      </li>
+      <li>
+       - Matériau alternatif : tout matériau élaboré à partir d'un même lot périodique et destiné à être utilisé, seul ou en mélange avec d'autres matériaux, alternatifs ou non, au sein d'un matériau routier.
+      </li>
+      <li>
+       - Matériau routier : tout matériau alternatif ou mélange d'un matériau alternatif avec d'autres matériaux, alternatifs ou non, répondant à un usage routier.
+      </li>
+      <li>
+       - Usage routier : usage pour lequel des matériaux sont utilisés à des fins de construction, de réhabilitation ou d'entretien d'ouvrages routiers.
+      </li>
+      <li>
+       - Ouvrage routier : ouvrage supportant un trafic routier ou situé dans l'emprise routière et dont la construction a été rendue nécessaire par l'existence de l'infrastructure.
+      </li>
+      <li>
+       - Élaboration : opération reposant sur une combinaison de traitements physiques simples, dits « de préparation », et de traitements physico-chimiques simples, dits « de maturation », visant à produire un matériau alternatif à partir d'un MIDND.
+      </li>
+      <li>
+       - Formulation : opération visant à mélanger des matériaux, alternatifs ou non, dans des proportions déterminées afin de produire un matériau routier.
+      </li>
+      <li>
+       - Stabilisation : opération visant à utiliser différents réactifs dans le but de limiter la solubilité des polluants.
+      </li>
+     </ul>
+    </div>
+    <section data-number="8.3.2" data-spec="section" data-title="Caractérisation" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      Article 8.3.2 Caractérisation
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      1°) La période P de constitution d'un lot périodique de mâchefer d'incinération de déchets non dangereux (MIDND) est d'un mois.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les lots périodiques de MIDND qui peuvent être recyclés au sein d'ouvrages routiers sont les lots périodiques servant à l'élaboration de matériaux alternatifs et de matériaux routiers dont les caractéristiques mécaniques sont conformes aux normes de spécifications d'usage en vigueur concernant les usages routiers visés et dont les caractéristiques environnementales respectent les critères de recyclage définis à l'
+      <a data-parent_reference="26" data-spec="section_reference" data-start_num="8.3.5" data-type="article">
+       article 8.3.5.
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="26" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="3" data-spec="alinea">
+      2°) L'utilisation en technique routière de matériaux alternatifs élaborés à partir de MIDND dangereux au sens de l'
+      <a data-parent_reference="27" data-spec="section_reference" data-start_num="R541-8" data-type="article">
+       article R. 541-8
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="27" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      est interdite. Il est également interdit de procéder à :
+     </div>
+     <div data-number="4" data-spec="alinea">
+      <ul>
+       <li>
+        - un mélange de MIDND issus de lots périodiques différents ;
+       </li>
+       <li>
+        - une dilution de MIDND avec d'autres substances ou objets ;
+       </li>
+       <li>
+        - une stabilisation de MIDND par traitement.
+       </li>
+      </ul>
+     </div>
+     <div data-number="5" data-spec="alinea">
+      3°) L'exploitant procède à l'étude du comportement à la lixiviation et à l'évaluation de la teneur intrinsèque en éléments polluants, nécessaires à la vérification des critères de recyclage mentionnés à l'
+      <a data-parent_reference="28" data-spec="section_reference" data-start_num="8.3.5" data-type="article">
+       article 8.3.5.
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="28" data-type="self">
+       présent arrêté
+      </a>
+      , pour tout lot d'un même matériau alternatif. Ces études concernent également tout lot de matériau routier si ce dernier résulte d'une formulation intégrant d'autres matériaux, alternatifs ou non, autres que des granulats naturels, des liants hydrauliques routiers ou des liants hydrocarbonés.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Les analyses nécessaires aux études sont réalisées par un organisme tiers compétent dans un délai d'un mois à compter de la constitution d'un échantillon.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       8/16
+      </div>
+     </div>
+     <a data-page_index="8" data-spec="page_separator">
+     </a>
+     <div data-number="7" data-spec="alinea">
+      Les méthodes d'analyse sont choisies de manière que les limites de détection et de quantification associées permettent de positionner sans ambiguïté les résultats avec les valeurs limites des paramètres analysés.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      4°) La procédure d'échantillonnage concerne tout lot d'un même matériau alternatif ainsi que tout lot de matériau routier si ce dernier résulte d'une formulation intégrant des matériaux, alternatifs ou non, autres que des granulats naturels, des liants hydrauliques routiers ou des liants hydrocarbonés.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      A cette fin, l'exploitant établit une procédure d'échantillonnage qu'il formalise au sein d'un document tenu à la disposition de l'inspection des installations classées. La procédure d'échantillonnage obéit aux règles générales d'échantillonnage de la matière. Elle est définie de manière à donner à chaque élément présent dans le matériau la même probabilité de se trouver dans l'échantillon que celle qu'il a dans le lot initial.
+     </div>
+     <div data-number="10" data-spec="alinea">
+      5°) Les paramètres à analyser sont ceux figurant dans les tableaux de l'
+      <a data-parent_reference="29" data-spec="section_reference" data-start_num="8.3.5" data-type="article">
+       article 8.3.5.
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="29" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Si pendant une durée déterminée des lots périodiques successifs provenant d'une même installation de traitement thermique de déchets non dangereux donnent lieu à des lots de matériaux alternatifs et routiers pour lesquels l'ensemble des valeurs représentatives d'un paramètre donné reste en deçà de la moitié de la valeur limite associée, l'exploitant peut surseoir à l'analyse du paramètre en question pour les lots de matériaux alternatifs et routiers produits dans les mêmes conditions à partir des lots périodiques suivants, sans que ces conditions ne puissent conduire l'exploitant à effectuer moins de deux analyses par an portant sur la totalité de ces paramètres. Dans ce cas, l'exploitant tient les documents justificatifs de cette adaptation à la disposition du service en charge des installations classées.
+     </div>
+     <div data-number="12" data-spec="alinea">
+      La teneur maximale en carbone organique total (COT) dans les mâchefers mesurée sur les poids secs ne doit pas dépasser 3 % ou bien la perte au feu des mâchefers doit être inférieure à 5 % de leur poids sec. La teneur en carbone organique total ou la perte au feu des mâchefers est vérifiée au moins une fois par mois et un plan de suivi de ce paramètre est défini.
+     </div>
+    </section>
+    <section data-number="8.3.3" data-spec="section" data-title="Gestion des mâchefers" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      Article 8.3.3. Gestion des mâchefers
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      Les mâchefers en attente d'évacuation vers un site de valorisation ou vers un site de mise en dépôt doivent être stockés temporairement sur une aire étanche, constituée de matériaux résistants pour permettre la circulation des engins de reprise.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Le stockage de mâchefers est assuré sur une zone étanche avec une récupération des eaux de ruissellement.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Les installations de manipulation, transvasement, transport de produits pulvérulents doivent être munies de dispositifs permettant de réduire les envois de poussières et les émissions gazeuses et respecter les dispositions relatives à l'hygiène et à la sécurité du travail.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les mâchefers sont intégralement récupérés en fin de combustion et sont immédiatement refroidis.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Ils peuvent faire l'objet d'une pré-maturation sur une aire dédiée avant déferraillage.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Ils sont criblés et déferraillés avant d'être stockés sur l'aire de maturation prévue à cet effet. Les mâchefers produits sont stockés sur l'aire de maturation par lots périodiques correspondant à un mois de production.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      L'installation de maturation traite exclusivement les mâchefers issus de l'usine d'incinération, objet du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       9/16
+      </div>
+     </div>
+     <a data-page_index="9" data-spec="page_separator">
+     </a>
+     <div data-number="8" data-spec="alinea">
+      Les aires de stockage et de manipulation sont maintenues propres en permanence. Tout apport d'ordures menagères, de résidus de l'épuration des fumées ou de tout autre déchet est interdit.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Il est interdit de déposer des mâchefers sur les aires de circulation et de stationnement.
+     </div>
+    </section>
+    <section data-number="8.3.4" data-spec="section" data-title="Mise en œuvre" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      Article 8.3.4. Mise en œuvre
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      L'élaboration de tout matériau alternatif et la formulation de tout matériau routier doivent être motivées par l'atteinte des performances mécaniques nécessaires pour les usages routiers visés et, le cas échéant, par la nécessité d'assurer la compatibilité chimique avec les substances ou objets avec lesquels le matériau routier sera directement en contact au sein de l'ouvrage routier.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      A cette fin, l'exploitant établit une procédure d'élaboration ainsi qu'une procédure de formulation qu'il formalise au sein d'un document tenu à la disposition de l'inspection des installations classées.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      La phase d'élaboration au sein de l'installation de maturation et d'élaboration (IME) comprend a minima un tri permettant d'extraire les matières indésirables dans le matériau routier, en particulier les métaux et les imbrûlés de grande taille. La durée de la phase d'élaboration ne peut excéder un an.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      La phase de formulation ne peut envisager le mélange de matériaux alternatifs élaborés à partir de lots périodiques issus de plusieurs installations de traitement thermique de déchets non dangereux.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      La durée de stockage dans l'installation des matériaux alternatifs ou routiers ne peut excéder trois ans.
+     </div>
+    </section>
+    <section data-number="8.3.5" data-spec="section" data-title="Critères de recyclage" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      Article 8.3.5. Critères de recyclage
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      Les critères à respecter pour le recyclage en technique routière de mâchefers d'incinération d'ordures ménagères sont les suivants :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        a) Critères de recyclage liés à la nature de l'usage routier :
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Les usages autorisés sont les usages, au sein d'ouvrages routiers revêtus ou recouverts, des types 1 et 2 définis ci-après.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      <ul>
+       <li>
+        - Les usages routiers de type 1 sont les usages d'au plus trois mètres de hauteur en sous-couche de chaussée ou d'accotement d'ouvrages routiers revêtus.
+       </li>
+       <li>
+        - Les usages routiers de type 2 sont les usages d'au plus six mètres de hauteur en remblai technique connexe à l'infrastructure routière ou en accotement, dès lors qu'il s'agit d'usages au sein d'ouvrages routiers recouverts. Relèvent également des usages routiers de type 2 les usages de plus de trois mètres et d'au plus six mètres de hauteur en sous-couche de chaussée ou d'accotement d'ouvrages routiers revêtus.
+       </li>
+      </ul>
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Un ouvrage routier est réputé revêtu si sa couche de surface est réalisée à l'aide d'asphalte, d'enrobés bitumineux, d'enduits superficiels d'usure, de béton de ciment ou de pavés jointoyés par un matériau lié et si elle présente en tout point une pente minimale de 1 %.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Un ouvrage routier est réputé recouvert si les matériaux routiers qui y sont présents sont recouverts par au moins 30 centimètres de matériaux naturels ou équivalents et s'il présente en tout point de son enveloppe extérieure une pente minimum de 5 %.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      L'utilisation de matériaux routiers est interdite pour la réalisation de systèmes drainants.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      L'utilisation des matériaux dans le but de réaliser des travaux de préchargement est interdite.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       10/16
+      </div>
+     </div>
+     <a data-page_index="10" data-spec="page_separator">
+     </a>
+     <div data-number="9" data-spec="alinea">
+      <ul>
+       <li>
+        b) Critères de recyclage liés au comportement à la lixiviation :
+       </li>
+      </ul>
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Le comportement à la lixiviation est évalué sur la base des résultats d'un essai de lixiviation mené conformément à la norme NF EN 12457-2 sur un échantillon du lot à caractériser conformément aux dispositions du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Les valeurs limites à respecter pour les quantités relarguées à un ratio L/S = 10 l/kg sont consignées dans le tableau suivant :
+     </div>
+     <div data-number="12" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         PARAMÈTRE
+        </th>
+        <th>
+         VALEUR LIMITE À RESPECTER pour les usages de type 1 exprimée en mg/kg de matière sèche
+        </th>
+        <th>
+         VALEUR LIMITE À RESPECTER pour les usages de type 2 exprimée en mg/kg de matière sèche
+        </th>
+       </tr>
+       <tr>
+        <td>
+         As
+        </td>
+        <td>
+         0,6
+        </td>
+        <td>
+         0,6
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Ba
+        </td>
+        <td>
+         56
+        </td>
+        <td>
+         28
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Cd
+        </td>
+        <td>
+         0,05
+        </td>
+        <td>
+         0,05
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Cr total
+        </td>
+        <td>
+         2
+        </td>
+        <td>
+         1
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Cu
+        </td>
+        <td>
+         50
+        </td>
+        <td>
+         50
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Hg
+        </td>
+        <td>
+         0,01
+        </td>
+        <td>
+         0,01
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Mo
+        </td>
+        <td>
+         5,6
+        </td>
+        <td>
+         2,8
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Ni
+        </td>
+        <td>
+         0,5
+        </td>
+        <td>
+         0,5
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Pb
+        </td>
+        <td>
+         1,6
+        </td>
+        <td>
+         1
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Sb
+        </td>
+        <td>
+         0,7
+        </td>
+        <td>
+         0,6
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Se
+        </td>
+        <td>
+         0,1
+        </td>
+        <td>
+         0,1
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Zn
+        </td>
+        <td>
+         50
+        </td>
+        <td>
+         50
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Fluorure
+        </td>
+        <td>
+         60
+        </td>
+        <td>
+         30
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Chlorure (*)
+        </td>
+        <td>
+         10 000
+        </td>
+        <td>
+         5 000
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Sulfate (*)
+        </td>
+        <td>
+         10 000
+        </td>
+        <td>
+         5 000
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Fraction soluble (*)
+        </td>
+        <td>
+         20 000
+        </td>
+        <td>
+         10 000
+        </td>
+       </tr>
+      </table>
+      <br/>
+      (*) Concernant les chlorures, les sulfates et la fraction soluble, il convient, pour être jugé conforme, de respecter soit les valeurs associées aux chlorures et aux sulfates, soit de respecter les valeurs associées à la fraction soluble.
+     </div>
+     <div data-number="13" data-spec="alinea">
+      <ul>
+       <li>
+        c) Critères de recyclage liés à la teneur intrinsèque en éléments polluants
+       </li>
+      </ul>
+     </div>
+     <div data-number="14" data-spec="alinea">
+      La teneur intrinsèque en éléments polluants est évaluée sur la base des résultats d'une analyse en contenu total menée sur un échantillon du lot à caractériser.
+     </div>
+     <div data-number="15" data-spec="alinea">
+      Les valeurs limites à respecter en contenu total sont consignées dans le tableau suivant :
+     </div>
+     <a data-page_index="11" data-spec="page_separator">
+     </a>
+     <div data-number="16" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         PARAMÈTRE
+        </th>
+        <th>
+         VALEUR LIMITE À RESPECTER
+        </th>
+       </tr>
+       <tr>
+        <td>
+         COT (carbone organique total)
+        </td>
+        <td>
+         30 g/kg de matière sèche
+        </td>
+       </tr>
+       <tr>
+        <td>
+         BTEX (benzène, toluène, éthylbenzène et xylènes)
+        </td>
+        <td>
+         6 mg/kg de matière sèche
+        </td>
+       </tr>
+       <tr>
+        <td>
+         PCB (polychlorobiphényles 7 congénères)
+        </td>
+        <td>
+         1 mg/kg de matière sèche
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Hydrocarbures (C10 à C40)
+        </td>
+        <td>
+         500 mg/kg de matière sèche
+        </td>
+       </tr>
+       <tr>
+        <td>
+         HAP (Hydrocarbures aromatiques polycycliques)
+        </td>
+        <td>
+         50 mg/kg de matière sèche
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Dioxines et furannes
+        </td>
+        <td>
+         10 ng I-TEQ OMS 2005 /kg de matière sèche
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-number="17" data-spec="alinea">
+      <ul>
+       <li>
+        d) Critères de recyclage liés à l'environnement immédiat de l'ouvrage routier
+       </li>
+      </ul>
+     </div>
+     <div data-number="18" data-spec="alinea">
+      L'utilisation de matériaux routiers doit se faire :
+     </div>
+     <div data-number="19" data-spec="alinea">
+      <ul>
+       <li>
+        - en dehors des zones inondables et à une distance minimale de 50 cm des plus hautes eaux cinquantennales ou, à défaut, des plus hautes eaux connues ;
+       </li>
+       <li>
+        - à une distance minimale de 30 mètres de tout cours d'eau, y compris les étangs et les lacs. Cette distance est portée à 60 mètres si l'altitude du lit du cours d'eau est inférieure de plus de 20 mètres à celle de la base de l'ouvrage et dans les zones désignées comme zone de protection des habitats des espèces, de la faune et de la flore sauvages en application de l'
+        <a data-parent_reference="30" data-spec="section_reference" data-start_num="L414-1" data-type="article">
+         article L. 414-1
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="30" data-title="Code de l'environnement" data-type="code">
+         code de l'environnement
+        </a>
+        ;
+       </li>
+       <li>
+        - en dehors des zones couvertes par une servitude d'utilité publique instituée, en application de l'
+        <a data-parent_reference="31" data-spec="section_reference" data-start_num="L211-12" data-type="article">
+         article L. 211-12
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="31" data-title="Code de l'environnement" data-type="code">
+         code de l'environnement
+        </a>
+        , au titre de la protection de la ressource en eau ;
+       </li>
+       <li>
+        - en dehors des périmètres de protection rapprochés des captages d'alimentation en eau potable ;
+       </li>
+       <li>
+        - en dehors des parcs nationaux ;
+       </li>
+       <li>
+        - en dehors des zones de karsts affleurants.
+       </li>
+       <li>
+        e) Critères de recyclage liés à la mise en œuvre du matériau routier :
+       </li>
+      </ul>
+     </div>
+     <div data-number="20" data-spec="alinea">
+      La mise en œuvre de matériaux routiers doit être effectuée de façon à limiter les contacts avec les eaux météoriques, superficielles et souterraines. À ce titre, la quantité de matériaux routiers stockée temporairement dans l'emprise d'un chantier routier donné doit être limitée aux seuls besoins permettant de s'affranchir de l'irrégularité des approvisionnements du chantier, sans que jamais cette quantité n'excède 1000 m³.
+     </div>
+    </section>
+    <section data-number="8.3.6" data-spec="section" data-title="Traçabilité des mâchefers" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      Article 8.3.6. Traçabilité des mâchefers
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant doit réaliser une gestion par lot des mâchefers. Un suivi de la traçabilité dans l'espace et le temps des lots doit être mis en place.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Un registre consigne les informations relatives à la sortie des mâchefers pour valorisation, avec l'identité et les coordonnées du destinataire et le lieu indiqué de mise en œuvre.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Ce registre et les résultats des analyses réalisées sur les lots de mâchefers valorisés sont tenus à la disposition du service chargé de l'inspection des installations classées pendant une durée de 3 ans.
+     </div>
+     <a data-page_index="12" data-spec="page_separator">
+     </a>
+     <div data-number="4" data-spec="alinea">
+      Un bilan annuel d'activité reprenant notamment les informations figurant dans les registres cités ci-dessus est adressé à l'inspecteur des installations classées. Ce bilan comprend notamment les indications citées plus haut sur les lieux de mise en œuvre des mâchefers.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Prescriptions particulières pour les mâchefers valorisés en matériau routier :
+     </div>
+     <div data-number="6" data-spec="alinea">
+      L'exploitant tient à jour un registre de sortie dans lequel il consigne pour chaque chargement de matériau routier quittant l'installation :
+     </div>
+     <div data-number="7" data-spec="alinea">
+      <ul>
+       <li>
+        - le nom, l'adresse postale et le numéro SIRET de l'installation de traitement thermique de déchets non dangereux qui a produit les lots périodiques ayant servi à l'élaboration des différents matériaux alternatifs entrant dans la composition du matériau routier ;
+       </li>
+       <li>
+        - le nom, l'adresse postale et, le cas échéant, le numéro SIRET du maître d'ouvrage des travaux routiers ;
+       </li>
+       <li>
+        - le nom, l'adresse postale et le numéro SIRET de l'entreprise chargée de l'exécution des travaux routiers ;
+       </li>
+       <li>
+        - le nom, l'adresse postale et le numéro SIREN des transporteurs, si le transport n'est pas effectué par l'entreprise chargée de l'exécution des travaux routiers ;
+       </li>
+       <li>
+        - la référence des lots périodiques ayant servi à l'élaboration des différents matériaux alternatifs entrant dans la composition du matériau routier ;
+       </li>
+       <li>
+        - la quantité de matériau routier quittant l'installation ;
+       </li>
+       <li>
+        - la date de sortie de l'installation ;
+       </li>
+       <li>
+        - l'usage routier effectif ;
+       </li>
+       <li>
+        - le libellé et les coordonnées GPS du chantier routier.
+       </li>
+      </ul>
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Ce registre est conservé pendant au moins dix ans et est tenu à la disposition de l'inspection en charge des installations classées. Une procédure d'assurance de la qualité liant l'exploitant, l'entreprise chargée de l'exécution des travaux routiers et le transporteur est établie à l'initiative de l'exploitant et tenue à la disposition de l'inspection des installations classées.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Avant la livraison sur le chantier routier ou au moment de celle-ci, ou lors de la première d'une série de livraisons d'un même matériau routier, l'exploitant fournit à l'entreprise chargée de l'exécution des travaux routiers une fiche de données environnementales indiquant :
+     </div>
+     <div data-number="10" data-spec="alinea">
+      <ul>
+       <li>
+        - les usages routiers autorisés compte tenu des caractéristiques environnementales du matériau routier et des matériaux alternatifs entrant dans sa composition ;
+       </li>
+       <li>
+        - les limitations d'usage liées à l'environnement immédiat de l'ouvrage routier ainsi que celles liées à la mise en œuvre du matériau routier.
+       </li>
+      </ul>
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Sont annexés à cette fiche les résultats de l'étude du comportement à la lixiviation et l'évaluation de la teneur intrinsèque en éléments polluants.
+     </div>
+     <div data-number="12" data-spec="alinea">
+      Si les mâchefers ne peuvent être valorisés dans les conditions définies au
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      , ils doivent être éliminés dans des installations autorisées au titre du livre V du
+      <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+       Code de l'Environnement
+      </a>
+      .
+     </div>
+    </section>
+   </section>
+   <section data-number="6" data-spec="section" data-title="UTILISATION ET DETENTION DE SUBSTANCES RADIOACTIVES" data-type="chapitre">
+    <h2 data-level="0" data-spec="section_title">
+     Chapitre 6. UTILISATION ET DETENTION DE SUBSTANCES RADIOACTIVES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le chapitre 7 de l'
+     <a data-date="2011-05-16" data-num="1639/2011" data-spec="document_reference" data-tag_id="41" data-type="arrete-prefectoral">
+      arrêté préfectoral n°1639/2011 du
+      <time data-spec="date" datetime="2011-05-16">
+       16 mai 2011
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacé" data-operation_type="replace" data-references="41" data-spec="operation">
+      est
+      <b>
+       remplacé
+      </b>
+      par le suivant :
+     </span>
+    </div>
+    <a data-page_index="13" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      « CHAPITRE 7 UTILISATION ET DETENTION DE SUBSTANCES RADIOACTIVES
+     </div>
+    </div>
+    <section data-number="7.1" data-spec="section" data-title="Sources radioactives" data-type="article">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      Article 7.1. Sources radioactives
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les sources visées par le présent article sont réceptionnées, stockées et utilisées dans le ou les locaux décrits dans le tableau précédent.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         Radionucléide
+        </th>
+        <th>
+         Activité autorisée (Bq)
+        </th>
+        <th>
+         Type de source
+        </th>
+        <th>
+         Type d'utilisation
+        </th>
+        <th>
+         Lieu d'utilisation et/ou d'entreposage
+        </th>
+       </tr>
+       <tr>
+        <td>
+         14C
+        </td>
+        <td>
+         1,6 MBq
+        </td>
+        <td>
+         scellée
+        </td>
+        <td>
+         mesure de poussières
+        </td>
+        <td>
+         Coffret d'analyse situé dans bâtiment laveur
+        </td>
+       </tr>
+       <tr>
+        <td>
+         14C
+        </td>
+        <td>
+         1,6 MBq
+        </td>
+        <td>
+         scellée
+        </td>
+        <td>
+         mesure de poussières
+        </td>
+        <td>
+         Coffret d'analyse situé dans bâtiment laveur
+        </td>
+       </tr>
+       <tr>
+        <td>
+         14C
+        </td>
+        <td>
+         1,6 MBq
+        </td>
+        <td>
+         scellée
+        </td>
+        <td>
+         mesure de poussières
+        </td>
+        <td>
+         Coffret d'analyse situé dans bâtiment laveur
+        </td>
+       </tr>
+       <tr>
+        <td>
+         14C
+        </td>
+        <td>
+         1,6 MBq
+        </td>
+        <td>
+         scellée
+        </td>
+        <td>
+         mesure de poussières
+        </td>
+        <td>
+         Coffret d'analyse situé dans bâtiment laveur
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Lors des opérations de renouvellement des sources scellées périmées, il est admis une détention simultanée de la nouvelle source et de la source périmée sur une période de courte durée, afin de couvrir les délais de livraison et de reprise des sources par le fournisseur.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les conditions de stockage des sources en attente de reprise, respectent les prescriptions du présent chapitre. En particulier, elles sont stockées dans un lieu fermé et réservé à cet usage, dont l'accès est limité aux seules personnes habilitées.
+     </div>
+    </section>
+    <section data-number="7.2" data-spec="section" data-title="Utilisation de sources scellées" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 7.2. Utilisation de sources scellées
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les installations objets du présent chapitre sont situées, installées et exploitées conformément aux plans et documents du dossier de demande d'autorisation.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Le conditionnement des sources scellées doit être tel que leur étanchéité soit parfaite et leur détérioration impossible dans toutes les conditions normales d'emploi et en cas d'incident exceptionnel prévisible.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      L'exploitant est tenu de faire reprendre les sources scellées périmées ou en fin d'utilisation, conformément aux dispositions prévues à l'
+      <a data-parent_reference="32" data-spec="section_reference" data-start_num="R1333-52" data-type="article">
+       article R.1333-52
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="32" data-title="Code de la santé publique" data-type="code">
+       code de la santé publique
+      </a>
+      .
+     </div>
+     <div data-number="4" data-spec="alinea">
+      En application de l'
+      <a data-parent_reference="33" data-spec="section_reference" data-start_num="R1333-52" data-type="article">
+       article R.1333-52
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="33" data-title="Code de la santé publique" data-type="code">
+       code de la santé publique
+      </a>
+      , une source scellée est considérée périmée au plus tard dix ans après la date du premier visa apposé sur le formulaire de fourniture sauf prolongation en bonne et due forme de l'autorisation obtenue auprès de la préfecture de département. En cas de demande de prolongation au-delà de 10 ans d'une source scellée, l'exploitant doit fournir, comme justificatif de sa demande, les informations et éléments suivants :
+     </div>
+     <div data-number="5" data-spec="alinea">
+      <ul>
+       <li>
+        - engagement du fournisseur du maintien des caractéristiques de la source,
+       </li>
+       <li>
+        - résultat des derniers contrôles des sources scellées,
+       </li>
+       <li>
+        - engagement de reprise par le fournisseur à l'issue de la prolongation.
+       </li>
+      </ul>
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Lors de l'acquisition de sources scellées chez un fournisseur autorisé, l'exploitant veille à ce que les conditions de reprise de ces sources (en fin d'utilisation ou lorsqu'elles deviendront périmées) par le fournisseur soient précisées et formalisées dans un document dont il conserve un exemplaire.
+     </div>
+    </section>
+    <section data-number="7.3" data-spec="section" data-title="Prévention du risque incendie" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 7.3. Prévention du risque incendie
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Une isolation suffisante contre les risques d'incendie d'origine extérieure est exigée.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       14/16
+      </div>
+     </div>
+     <a data-page_index="14" data-spec="page_separator">
+     </a>
+     <div data-number="2" data-spec="alinea">
+      Les installations abritant les sources ne doivent pas être situées à proximité d'un stockage de produit combustibles (bois, papiers, hydrocarbures...) ou en sont séparées par un mur coupe-feu 2h. Il est interdit de constituer à l'intérieur de l'atelier un dépôt de matières combustibles.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Les moyens de secours contre l'incendie dont l'emploi est proscrit sur les substances radioactives présentes dans l'établissement sont signalés.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les zones d'entreposage et de manipulation des sources radioactives ne commandent ni escalier, ni dégagement quelconque. L'accès en est facile pour les services de secours et permet, en cas de besoin, une évacuation rapide des sources.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      En cas d'incendie concernant ou menaçant des substances radioactives, les services de secours doivent être informés, dès l'alerte, du risque radiologique.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Les services d'incendie appelés à intervenir sont informés du plan des lieux, des emplacements des différentes sources radioactives, des moyens et voies d'évacuation des sources ainsi que des produits extincteurs recommandés ou proscrits pour les substances radioactives présentes dans l'établissement.
+     </div>
+    </section>
+    <section data-number="7.4" data-spec="section" data-title="Appareils contenant des sources scellées" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 7.4. Appareils contenant des sources scellées
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les appareils contenant les sources doivent porter extérieurement, en caractères lisibles, indélébiles et résistants au feu, l'identification de la présence d'une source, le(s) radionucléide(s), leur activité maximale exprimée en Becquerels, et le numéro d'identification de l'appareil. La gestion des sources, conformément au présent chapitre du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      , doit associer le couple source et appareil.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les appareils sont installés et mis en œuvre conformément aux instructions du fabricant. Ils sont maintenus en bon état de fonctionnement et font l'objet d'un entretien approprié et compatible avec les recommandations du fabricant et de la réglementation en vigueur. Le conditionnement de la (des) source(s) radioactive(s) doit être tel que son (leur) étanchéité soit assurée et sa (leur) détérioration impossible dans les conditions normales d'emploi et en cas d'incident exceptionnel prévisible.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      En aucun cas, les sources ne doivent être retirées de leur logement par des personnes non habilitées par le fabricant.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Tout appareil présentant une défectuosité est clairement identifié. L'utilisation d'un tel appareil est suspendue jusqu'à ce que la réparation correspondante ait été effectuée et que le bon fonctionnement de l'appareil ait été vérifié. La défectuosité et sa réparation sont consignées dans un registre tenu à la disposition de l'inspection des installations classées. Le registre présente notamment :
+     </div>
+     <div data-number="5" data-spec="alinea">
+      <ul>
+       <li>
+        - les références de l'appareil concerné
+       </li>
+       <li>
+        - la date de découverte de la défectuosité
+       </li>
+       <li>
+        - une description de la défectuosité
+       </li>
+       <li>
+        - une description des modifications, réparations effectuées, et l'identification de l'entreprise / organisme qui les a accomplies,
+       </li>
+       <li>
+        - la date de vérification du bon fonctionnement de l'appareil, et l'identification de l'entreprise / organisme qui l'a vérifié.
+       </li>
+      </ul>
+     </div>
+    </section>
+   </section>
+   <section data-number="7" data-spec="section" data-title="DISPOSITIONS ADMINISTRATIVES" data-type="chapitre">
+    <h2 data-level="0" data-spec="section_title">
+     Chapitre 7. DISPOSITIONS ADMINISTRATIVES
+    </h2>
+    <section data-number="7.1" data-spec="section" data-title="Affichage et publicité" data-type="unknown">
+     <h5 data-level="3" data-spec="section_title">
+      7.1. Affichage et publicité
+     </h5>
+     <div data-number="1" data-spec="alinea">
+      Une copie du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      sera déposée à la mairie de BAYET pour y être consultée par toute personne intéressée.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Un extrait de l'arrêté énumérant notamment les prescriptions auxquelles l'installation est soumise, sera affiché en mairie pendant une durée minimale d'un mois. Le procès verbal de l'accomplissement de ces formalités sera établi par le maire.
+     </div>
+     <a data-page_index="15" data-spec="page_separator">
+     </a>
+     <div data-number="3" data-spec="alinea">
+      Un avis sera inséré par les soins de monsieur le préfet de l'Allier et aux frais de l'exploitant dans deux journaux locaux ou régionaux diffusés dans le département concerné par l'exploitation.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Une copie du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      est notifiée à l'exploitant. Ce document doit, en permanence, être en sa possession et pouvoir être présenté à toute réquisition. L'extrait de cet arrêté sera affiché en permanence et de façon visible dans l'établissement par l'exploitant.
+     </div>
+    </section>
+    <section data-number="7.2" data-spec="section" data-title="Délais et voies de recours" data-type="unknown">
+     <h5 data-level="3" data-spec="section_title">
+      7.2. Délais et voies de recours
+     </h5>
+     <div data-number="1" data-spec="alinea">
+      <a data-spec="document_reference" data-type="self">
+       Le présent arrêté
+      </a>
+      est soumis à un contentieux de pleine juridiction.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Il ne peut être déféré qu'au tribunal administratif de Clermont-Ferrand :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - par le demandeur ou l'exploitant, dans un délai de deux mois qui commence à courir du jour où
+        <a data-spec="document_reference" data-type="self">
+         le présent arrêté
+        </a>
+        lui a été notifié ;
+       </li>
+       <li>
+        - par les tiers, personnes physiques ou morales, les communes intéressées ou leurs groupements, en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts visés à l'
+        <a data-group_id="1" data-parent_reference="34" data-spec="section_reference" data-start_num="L211-1" data-type="article">
+         article L. 211-1
+        </a>
+        et
+        <a data-group_id="1" data-parent_reference="34" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+         L. 511-1
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="34" data-title="Code de l'environnement" data-type="code">
+         code de l'environnement
+        </a>
+        , dans un délai d'un an à compter de la publication ou de l'affichage du présent acte.
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les tiers qui n'ont acquis ou pris à bail des immeubles ou n'ont élevé des constructions dans le voisinage de l'installation classée que postérieurement à l'affichage ou à la publication de l'acte portant autorisation ou enregistrement de cette installation ou atténuant les prescriptions primitives ne sont pas recevables à déférer ledit arrêté à la juridiction administrative.
+     </div>
+    </section>
+    <section data-number="7.3" data-spec="section" data-title="Exécution" data-type="unknown">
+     <h5 data-level="3" data-spec="section_title">
+      7.3. Exécution
+     </h5>
+     <div data-number="1" data-spec="alinea">
+      Monsieur le secrétaire général de la préfecture de l'Allier, monsieur le maire de Bayet, monsieur le directeur régional de l'environnement de l'aménagement et du logement d'Auvergne, monsieur l'inspecteur des installations classées, sont chargés, chacun en ce qui les concerne, de l'exécution du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      , qui sera également adressé, pour information à :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - Monsieur le directeur départemental des territoires,
+       </li>
+       <li>
+        - Monsieur le directeur général de l'Agence Régionale de Santé – délégation territoriale de l'Allier,
+       </li>
+       <li>
+        - Monsieur le directeur départemental des services d'incendie et de secours,
+       </li>
+       <li>
+        - Monsieur le délégué régional de l'Autorité de sûreté nucléaire – division de Lyon.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Pour copie conforme à l'original!
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Le Préfet,
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Pour le Préfet et par délégation
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Le Secrétaire Général par intérim.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Le Sous-Préfet de Montluçon
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Thierry BARON
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       16/16
+      </div>
+     </div>
+    </section>
+   </section>
+  </main>
+ </body>
+</html>

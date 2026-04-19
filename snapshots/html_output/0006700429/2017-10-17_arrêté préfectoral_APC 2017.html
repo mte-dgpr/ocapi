@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2017-10-17_arrêté préfectoral_APC 2017.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFET DU HAUT-RHIN
+    </div>
+    <div>
+     Préfecture
+    </div>
+    <div>
+     Direction des relations avec les collectivités locales
+    </div>
+    <div>
+     Bureau des enquêtes publiques et installations classées
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     n° 747
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ du
+     <time data-spec="date" datetime="2017-10-17">
+      17 octobre 2017
+     </time>
+     fixant des prescriptions à la société DSM Nutritional Products France à Village-Neuf pour la réduction de ses émissions atmosphériques en cas d'épisodes de pollution de l'air ambiant (procédure préfectorale d'alerte)
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet du Haut-Rhin
+    </div>
+    <div>
+     Chevalier de la légion d'Honneur
+    </div>
+    <div>
+     Officier de l'Ordre National du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    et notamment son
+    <a data-spec="section_reference" data-start_num="R181-45" data-type="article">
+     article R 181-45
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2016-04-07" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2016-04-07">
+      7 avril 2016
+     </time>
+    </a>
+    , modifié par l'
+    <a data-date="2016-08-26" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2016-08-26">
+      26 août 2016
+     </time>
+    </a>
+    relatif au déclenchement des procédures préfectorales en cas d'épisodes de pollution de l'air ambiant,
+   </div>
+   <div data-spec="visa">
+    VU l'instruction technique interministérielle du 24 septembre 2014 relative au déclenchement des procédures préfectorales en cas d'épisodes de pollution de l'air ambiant,
+   </div>
+   <div data-spec="visa">
+    VU l'instruction du Gouvernement du 5 janvier 2017 relative à la gestion des épisodes de pollution de l'air ambiant,
+   </div>
+   <div data-spec="visa">
+    VU l'arrêté interpréfectoral du 24 mai 2017 relatif à la gestion des épisodes de pollution atmosphérique et au déclenchement des procédures d'information-recommandation et d'alerte,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2016-03-15" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2016-03-15">
+      15 mars 2016
+     </time>
+    </a>
+    portant prescriptions complémentaires à la société DSM Nutritional Products France à Village-Neuf relatives à la création d'un local de déchargement de produits chimiques en référence au titre Ier du livre V du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2013-07-01" data-num="2013-82-0011" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 2013-82-0011 du
+     <time data-spec="date" datetime="2013-07-01">
+      1er juillet 2013
+     </time>
+    </a>
+    (prescriptions complémentaires : codificatif des prescriptions d'exploiter),
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2015-10-13" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2015-10-13">
+      13 octobre 2015
+     </time>
+    </a>
+    prescrivant une étude pour la réduction des émissions en cas d'un épisode de pollution de l'air ambiant au seuil d'alerte,
+   </div>
+   <div data-spec="visa">
+    VU le courrier de la société DSM Nutritional Products France du 4 avril 2016 dans lequel elle propose des mesures pour la réduction temporaire des émissions de poussières en cas d'un épisode de pollution de l'air ambiant au seuil d'alerte,
+   </div>
+   <div data-spec="visa">
+    VU le rapport du 31 juillet 2017 de la Direction régionale de l'environnement de l'aménagement et du logement Grand-Est, chargée de l'inspection des installations classées,
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     2
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU l'avis du Conseil départemental de l'environnement et des risques sanitaires et technologiques réuni le 7 septembre 2017,
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les émissions de poussières totales déclarées par la société DSM Nutritional Products France pour ses installations de Village-Neuf font partie des plus importantes de la région Grand-Est,
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT les effets négatifs des particules sur la santé,
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'il est nécessaire de prévoir et mettre en œuvre des mesures de réduction des émissions atmosphériques de poussières, en cas de dépassement ou de risque de dépassement du seuil d'alerte pour les particules PM10,
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     APRÈS communication à la société DSM Nutritional Products France du projet d'arrêté,
+    </div>
+    <div>
+     SUR proposition du secrétaire général de la préfecture du Haut-Rhin,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="MESURES D'URGENCE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1 – MESURES D'URGENCE
+    </h2>
+    <section data-number="1.1" data-spec="section" data-title="mise en œuvre des mesures d'urgence" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 1.1 : mise en œuvre des mesures d'urgence
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La société DSM Nutritional Products France, dont le siège social est situé
+      <address data-spec="address">
+       1 boulevard d'Alsace
+      </address>
+      , Village-Neuf, BP 170, 68305 Saint-Louis Cedex, ci-après nommée l'exploitant, est tenue, pour les installations industrielles qu'elle exploite sur le territoire de la commune de Village-Neuf, de mettre en œuvre les mesures d'urgence définies dans
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      en cas de déclenchement de la procédure d'alerte à la pollution atmosphérique prévue par l'
+      <a data-num="inter-préfectoral" data-spec="document_reference" data-type="arrete">
+       arrêté inter-préfectoral
+      </a>
+      précité pour les polluants suivants :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - PM10 (paramètre dont les émissions sont à réduire : poussières totales).
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      En cas de déclenchement du seuil d'alerte, dès le niveau 1, l'exploitant met en œuvre les actions suivantes, dites mesures d'urgence, de réduction temporaire de ses émissions dans l'air ambiant, ces mesures sont maintenues jusqu'à la fin l'épisode de pollution :
+     </div>
+     <div data-number="4" data-spec="alinea">
+      <ul>
+       <li>
+        - s'assurer du fonctionnement optimal des dispositifs épuratoires,
+       </li>
+       <li>
+        - stabiliser les procédés et/ou les installations, en évitant notamment les phases transitoires d'arrêt, démarrage, réglage, afin de minimiser les rejets des poussières,
+       </li>
+       <li>
+        - reporter les opérations suivantes fortement émettrices à la fin de l'épisode d'alerte :
+       </li>
+       <li>
+        - les tests et les contrôles de fonctionnement des groupes électrogènes,
+       </li>
+       <li>
+        - les essais de réglage des brûleurs des chaudières,
+       </li>
+       <li>
+        - l'utilisation d'équipements thermiques d'entretien des espaces verts,
+       </li>
+       <li>
+        - les exercices d'incendie provoquant des émissions de fumées,
+       </li>
+       <li>
+        - limiter toutes les opérations génératrices de poussières diffuses (manutention, manipulation produits pulvérulents, balayage, chantiers générateurs de poussières, etc.) et mettre en place les mesures d'évitement et de réduction nécessaires éventuelles (arrosage,...),
+       </li>
+       <li>
+        - sensibiliser son personnel pendant l'épisode d'alerte :
+       </li>
+       <li>
+        - à l'impact de l'activité industrielle du site,
+       </li>
+       <li>
+        - au covoiturage, au télétravail et à l'utilisation de transport en commun,
+        <a data-page_index="2" data-spec="page_separator">
+        </a>
+        <div data-spec="page_header">
+         <div>
+          3
+         </div>
+        </div>
+       </li>
+       <li>
+        - limiter dans la mesure du possible l'utilisation des transports par camion pendant l'épisode d'alerte, en reportant par exemple les livraisons/expéditions non-urgentes,
+       </li>
+      </ul>
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Ces mesures sont mises en œuvre dans le respect prioritaire des règles de sécurité.
+     </div>
+    </section>
+    <section data-number="1.2" data-spec="section" data-title="période d'application des mesures d'urgence" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 1.2 : période d'application des mesures d'urgence
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant est informé des déclenchements de seuil d'information/recommandation, d'alerte et de la fin des procédures par l'AASQA Atmo Grand-Est à qui la DREAL Grand-Est a délégué la responsabilité de la transmission de l'information. L'exploitant transmet à la DREAL Grand-Est les coordonnées des contacts (nom, fonction, mail, n°portable) qui recevront l'information.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Dès réception de l'information du déclenchement de la procédure d'information-recommandation, l'exploitant anticipe la mise en œuvre éventuelle des mesures prévues à l'
+      <a data-parent_reference="1" data-spec="section_reference" data-start_num="1.1" data-type="article">
+       article 1.1
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="1" data-type="self">
+       présent arrêté
+      </a>
+      , et a minima s'assure du bon fonctionnement des dispositifs de dépoussiérage.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Dès réception de l'information du déclenchement de la procédure d'alerte, l'exploitant met en œuvre les mesures du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      . Elles sont effectives de manière immédiate et jusqu'à l'information officielle de fin d'alerte diffusée par le réseau de surveillance de la qualité de l'air.
+     </div>
+    </section>
+    <section data-number="1.3" data-spec="section" data-title="bilan des mesures mises en œuvre" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 1.3 : bilan des mesures mises en œuvre
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant informe l'inspection des installations classées de la mise en place de ces mesures dans les 12 heures ouvrées (plage d'horaires variables d'ouverture des services de la DREAL : 7h-19h30) suivant le déclenchement du seuil d'alerte puis dans les deux jours ouvrés suivant la fin officielle du seuil d'alerte transmet un bilan qualitatif des actions comprenant une estimation des émissions évitées si elles sont quantifiables.
+     </div>
+    </section>
+    <section data-number="1.4" data-spec="section" data-title="persistance" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 1.4 : persistance
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      En cas de persistance de l'alerte, le Préfet peut imposer à partir du niveau 3, après consultation d'un comité d'expert (composition définie à l'
+      <a data-spec="section_reference" data-start_num="4" data-type="article">
+       article 4
+      </a>
+      de l'arrêté interpréfectoral du 24 mai 2017), dans le respect prioritaire des règles de sécurité, la mise en œuvre de mesures complémentaires.
+     </div>
+    </section>
+   </section>
+   <section data-number="2" data-spec="section" data-title="PUBLICITÉ" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 – PUBLICITÉ
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="R181-44" data-type="article">
+      article R 181-44
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     énumérant les conditions auxquelles les prescriptions ont été prises et faisant connaître qu'une copie en est déposée aux archives de la mairie de Village-Neuf et mise à la disposition de tout intéressé, sera affiché dans ladite mairie ; procès-verbal de l'accomplissement de cette formalité est dressé par les soins du maire.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'arrêté est publié sur le site internet de la préfecture du Haut-Rhin pendant une durée minimale d'un mois.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="FRAIS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 – FRAIS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les frais inhérents à l'application des prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     seront à la charge de la société DSM Nutritional Products France.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="DROIT DES TIERS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 – DROIT DES TIERS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les droits des tiers sont et demeurent expressément réservés.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="SANCTIONS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 – SANCTIONS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En cas de non-respect des prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , il sera fait application des dispositions du chapitre Ier du titre 7 du livre Ier du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      4
+     </div>
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="EXÉCUTION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6 – EXÉCUTION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le secrétaire général de la préfecture du Haut-Rhin, le maire de Village-Neuf et la directrice régionale de l’environnement, de l’aménagement et du logement Grand Est chargée de l’inspection des installations classées, sont chargés, chacun en ce qui le concerne, de veiller à l’exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie sera notifiée à la société DSM Nutritional Products France.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Fait à Colmar, le 17 octobre 2017
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le préfet,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le préfet et par délégation,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     le secrétaire général
+    </div>
+    <div data-number="6" data-spec="alinea">
+     signé
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Christophe MARX
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Délais et voie de recours
+    </div>
+    <div data-number="9" data-spec="alinea">
+     (
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="R181-50" data-type="article">
+      article R. 181-50
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+      Code de l’environnement
+     </a>
+     ).
+    </div>
+    <div data-number="10" data-spec="alinea">
+     La présente décision peut être déférée au Tribunal Administratif Strasbourg :
+    </div>
+    <div data-number="11" data-spec="alinea">
+     <ul>
+      <li>
+       - par les pétitionnaires ou exploitants, dans un délai de deux mois à compter du jour où la décision leur a été notifiée ;
+      </li>
+      <li>
+       - par les tiers, intéressés en raison des inconvénients ou des dangers pour les intérêts mentionnés à l’
+       <a data-spec="section_reference" data-start_num="L181-3" data-type="article">
+        article L. 181-3
+       </a>
+       , dans un délai de quatre mois à compter de :
+      </li>
+      <li>
+       a) l’affichage en mairie dans les conditions prévues au 2° de l’
+       <a data-spec="section_reference" data-start_num="R181-44" data-type="article">
+        article R. 181-44
+       </a>
+       ;
+      </li>
+      <li>
+       b) la publication de la décision sur le site internet de la préfecture prévue au 4° du même article.
+      </li>
+     </ul>
+    </div>
+    <div data-number="12" data-spec="alinea">
+     Le délai court à compter de la dernière formalité accomplie. Si l’affichage constitue cette dernière formalité, le délai court à compter du premier jour d’affichage de la décision.
+    </div>
+    <div data-number="13" data-spec="alinea">
+     Les décisions mentionnées au
+     <a data-spec="section_reference" data-start_num="1" data-type="alinea">
+      premier alinéa
+     </a>
+     peuvent faire l’objet d’un recours gracieux ou hiérarchique dans le délai de deux mois. Ce recours administratif prolonge de deux mois les délais mentionnés aux 1° et 2°.
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

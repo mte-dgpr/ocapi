@@ -1,0 +1,1864 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2024-10-18_ap prescriptions complémentaires_AP 2024-221-PC du 18-10-2024.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PREFET DES BOUCHES-DU-RHÔNE
+Liberté Égalité Fraternité
+Direction de la Citoyenneté de la Légalité et de l'Environnement
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Bureau des installations et travaux réglementés pour la protection des milieux
+    </div>
+    <div>
+     Affaire suivie par : Madame Olivia CROCE Tél: 04.84.35.42.68 olivia.croce@bouches-du-rhone.gouv.fr Dossier n°2024-221-PC Marseille, le 18 OCT. 2024
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté n°2024-221-PC modifiant les prescriptions applicables à l'installation de stockage de déchets non dangereux exploitée par la société SUEZ RV Méditerranée au lieu-dit «Jas-de-Rhôdes » aux Pennes Mirabeau
+    </h1>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , notamment ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     articles L.511-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L541-1" data-type="article">
+     L.541-1
+    </a>
+    .I.7°, L.541-15, L.181-14, R.181-46-I, R.181-45 ; R.541-48-3 ;
+   </div>
+   <div data-spec="visa">
+    VU la modification de l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="L541-15" data-type="article">
+     article L.541-15
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    à compter du 01 janvier 2025 ;
+   </div>
+   <div data-spec="visa">
+    VU la loi n°2023-1322 du 29 décembre 2023 de finances pour 2024 qui instaure d'une part, la possibilité de déroger au volet déchets du Schéma Régional d'Aménagement, de Développement Durable et d'Egalité des Territoires (SRADDET), afin notamment de permettre le stockage au-delà de l'objectif fixé de 50% des quantités enfouies en 2010 et d'autre part de modifier la Taxe Générale sur les Activités Polluantes (TGAP) en vue de surtaxer les quantités de déchets stockées au-delà de l'objectif ;
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-date="2021-09-16" data-num="2021-1199" data-spec="document_reference" data-type="decret">
+     décret n°2021-1199 du
+     <time data-spec="date" datetime="2021-09-16">
+      16 septembre 2021
+     </time>
+    </a>
+    relatif aux conditions d'élimination des déchets non dangereux ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2016-02-15" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2016-02-15">
+      15 février 2016
+     </time>
+     modifié
+    </a>
+    relatif aux installations de stockage de déchets non dangereux ;
+   </div>
+   <div data-spec="visa">
+    VU le SRADDET adopté le 26 juin 2019 par le Conseil Régional Provence-Alpes-Côte d'Azur et approuvé par
+    <a data-date="2019-10-15" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2019-10-15">
+      15 octobre 2019
+     </time>
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2019-10-22" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2019-10-22">
+      22 octobre 2019
+     </time>
+    </a>
+    , modifié par les arrêtés préfectoraux complémentaires des 06 juillet 2021, 21 juillet 2021 et 26 mai 2023 autorisant la société SUEZ RV Méditerranée à exploiter une installation de stockage de déchets non dangereux au lieu-dit « Jas-de-Rhodes » sur la commune des Pennes-Mirabeau ;
+   </div>
+   <div data-spec="visa">
+    VU la visite d'inspection du 24 janvier 2024 et le rapport transmis le 3 juillet 2024 à la suite d'une demande de modification de l'exploitant ;
+   </div>
+   <div data-spec="visa">
+    VU le dossier de porter à connaissance transmis par l'exploitant le 08 août 2024 visant à augmenter la capacité annuelle de stockage de déchets non dangereux en 2025 de 25 000 tonnes et de 12 000 tonnes de matériaux d'exploitation ;
+   </div>
+   <div data-spec="visa">
+    VU le courrier du Président du Conseil Régional Provence-Alpes-Côte d'Azur du 20 septembre 2024 en réponse à la consultation du Préfet de région du 28 juin 2024, conformément à l'
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="L541-15" data-type="article">
+     article L.541-15
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l'inspection de l'environnement du 27 septembre 2024 ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis rendu par le Conseil Départemental de l'Environnement et des Risques Sanitaires et Technologiques du 9 octobre 2024 au cours duquel l'exploitant a été entendu ;
+   </div>
+   <div data-spec="visa">
+    VU la procédure contradictoire menée auprès de l'exploitant ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que la société SUEZ RV Méditerranée est régulièrement autorisée à exploiter une Installation de Stockage de Déchets Non Dangereux (ISDND) au lieu-dit « Jas-de-Rhodes » sur le territoire de la commune des Pennes-Mirabeau ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que 1 999 584 tonnes de déchets non dangereux non inertes ont été stockées en région Provence-Alpes-Côte-d'Azur en 2010 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que l'
+    <a data-spec="section_reference" data-start_num="L541-1" data-type="article">
+     article L.541-1
+    </a>
+    .I.7° du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    impose de « réduire de 30% les quantités de déchets non dangereux non inertes admis en installation de stockage en 2020 par rapport à 2010, et de 50% en 2025. Dans ce cadre, la mise en décharge des déchets non dangereux valorisables est progressivement interdite. » ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Place Félix Baret - CS 80001 - 13282 Marseille Cedex 06 -
+Téléphone : 04.84.35.40.00
+www.bouches-du-rhone.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    CONSIDÉRANT que le SRADDET adopté le 26 juin 2019 par le Conseil Régional Provence-Alpes-Côte d'Azur et approuvé par
+    <a data-date="2019-10-15" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2019-10-15">
+      15 octobre 2019
+     </time>
+    </a>
+    , est le texte réglementaire opposable organisant la prévention et la gestion des déchets dans la région Provence-Alpes-Côte d'Azur ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que le SRADDET organise le territoire régional selon le principe de quatre bassins de vie : Azuréen (Alpes-Maritimes et Est du Var), Provençal (Ouest du Var et Métropole-Aix-Marseille-Provence), Rhodanien (Ouest des Bouches-du-Rhône et Vaucluse) et Alpin (Alpes-de-Haute-Provence et Hautes-Alpes) ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'il planifie une réduction des capacités de stockages autorisées à compter du 01 janvier 2025, imposant une limite régionale au stockage fixée à 999 792 t/an conformément à l'
+    <a data-spec="section_reference" data-start_num="L541-1" data-type="article">
+     article L.541-1
+    </a>
+    .1.7° du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , ainsi que des capacités individuelles des sites inférieures ou égales à 100 000 t/an dès 2025 afin de favoriser un maillage de proximité au sein des quatre bassins de vie ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que la capacité de stockage des déchets non dangereux non inertes en région autorisée n'atteint pas la limite fixée par le SRADDET pour 2025 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que cette situation conduit à identifier un déficit très probable de capacité de stockage en 2025 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que pour pallier ce déficit d'exutoires prévisible en 2025, il est nécessaire de réviser les autorisations des sites existants en vue de ramener la capacité régionale cumulée à hauteur de la limite du SRADDET, soit une hausse de cumul des autorisations de 98 092 tonnes en 2025 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que dans cette perspective, la société SUEZ RV Méditerranée a porté à la connaissance du préfet un projet de modification des conditions d'exploitation de l'ISDND, consistant en l'augmentation de 25 000 tonnes de la capacité d'accueil des déchets non dangereux au titre de l'année 2025 et de 12 000 tonnes de matériaux d'exploitation nécessaires au recouvrement des déchets pour maîtriser notamment des envols et odeurs ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT le principe d'équité visant à considérer toutes les demandes qui ont été formulées et à partager cette capacité de 98 092 tonnes entre les différents exploitants d'ISDND ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que l'installation exploitée par la société SUEZ RV Méditerranée fait partie du bassin de vie Provençal ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'une des principales orientations définies par le volet déchets du SRADDET consiste à disposer d'un maillage d'ISDND assurant l'application du principe de proximité et d'autosuffisance des quatre bassins de vie, conformément à l'
+    <a data-parent_reference="3" data-spec="section_reference" data-start_num="R541-16" data-type="article">
+     article R.541-16
+    </a>
+    -I-5° du
+    <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT la situation de saturation en matière de capacités de traitement des déchets non dangereux ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT la nécessité, au titre du principe de proximité, de mobiliser les capacités régionales pour atteindre l'autosuffisance régionale avant tout recours à des capacités extra-régionales ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que dans ce contexte, il y a lieu d'autoriser l'ISDND des Pennes-Mirabeau à augmenter sa capacité d'accueil de déchets non dangereux de l'ordre de 115 000 t/an jusqu'au 31 décembre 2025 et de 55 200 t/an de matériaux d'exploitation ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que cette augmentation temporaire de la capacité de stockage à 115 000 t/an pour 2025 n'entraîne pas de nouveaux rejets ou de nouvelles émissions industrielles et donc aucun nouveau danger et inconvénient pour l'environnement par rapport à la situation 2020-2024 (stockage de déchets non dangereux à 175 000 t/an), situation dont les impacts et les inconvénients ont été étudiés et présentés au public dans le cadre de l'instruction de la demande d'autorisation environnementale ayant abouti à l'
+    <a data-date="2019-10-22" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2019-10-22">
+      22 octobre 2019
+     </time>
+    </a>
+    susvisé ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que cette augmentation s'accompagne d'une réduction de la durée de vie du site, fixée désormais au 30 juin 2030 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que ces modifications des conditions d'exploitation de l'ISDND ne concernent pas une extension de ses capacités de stockage, ni une augmentation de la quantité totale de déchets et qu'il n'y a pas de changement de la remise en état final du site ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les intérêts mentionnés à l'
+    <a data-parent_reference="4" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     article L.511-1
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , notamment pour la commodité du voisinage, la santé, la sécurité, la salubrité publiques et pour la protection de la nature et de l'environnement, sont préservés ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT dès lors que les modifications sollicitées ne sont pas substantielles au sens de l'
+    <a data-parent_reference="5" data-spec="section_reference" data-start_num="R181-46" data-type="article">
+     article R.181-46
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="5" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    mais qu'il est cependant nécessaire d'encadrer leur mise en œuvre par un arrêté préfectoral de prescriptions complémentaires ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'il convient de modifier les prescriptions techniques imposées par l'
+    <a data-date="2019-10-22" data-spec="document_reference" data-type="arrete">
+     arrêté d'autorisation du
+     <time data-spec="date" datetime="2019-10-22">
+      22 octobre 2019
+     </time>
+    </a>
+    susvisé, modifié par les arrêtés complémentaires des 06 juillet 2021, 21 juillet 2021 et 26 mai 2023 pour intégrer les modifications apportées par l'exploitant à son installation ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Place Félix Baret - CS 80001 - 13282 Marseille Cedex 06 -
+Téléphone : 04.84.35.40.00
+www.bouches-du-rhône.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    CONSIDÉRANT par ailleurs que les couvertures intermédiaires et définitives sont des aménagements essentiels à la fin de l'exploitation de zones du casier pour garantir la limitation des infiltrations d'eaux pluviales dans le massif des déchets, la limitation des émissions gazeuses diffuses et le drainage des eaux pluviales en extérieur du massif ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que selon les conclusions de la visite d'inspection du 24 janvier 2024, l'exploitant doit apporter des précisions sur la mise en œuvre de ces couvertures afin de démontrer la conformité réglementaire de son exploitation aux
+    <a data-group_id="2" data-parent_reference="6" data-spec="section_reference" data-start_num="34" data-type="article">
+     articles 34
+    </a>
+    et
+    <a data-group_id="2" data-parent_reference="6" data-spec="section_reference" data-start_num="35" data-type="article">
+     35
+    </a>
+    de l'
+    <a data-date="2016-02-15" data-spec="document_reference" data-tag_id="6" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2016-02-15">
+      15 février 2016
+     </time>
+     modifié
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT en conséquence qu'il y a lieu de faire application des dispositions de l'
+    <a data-parent_reference="7" data-spec="section_reference" data-start_num="R181-45" data-type="article">
+     article R.181-45
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="7" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition du secrétaire général de la Préfecture des Bouches-du-Rhône,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Champ d'application" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1er - Champ d'application
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les conditions d'exploitation de l'installation de stockage de déchets non dangereux (ISDND) située au lieu-dit
+     <q>
+      Jas-de-Rhodes
+     </q>
+     sur la commune des Pennes-Mirabeau, autorisée par l'
+     <a data-date="2019-10-22" data-spec="document_reference" data-tag_id="24" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2019-10-22">
+       22 octobre 2019
+      </time>
+      modifié
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="modifiées" data-operation_type="replace" data-references="24" data-spec="operation">
+      par les arrêtés préfectoraux complémentaires des 06 juillet 2021, 21 juillet 2021 et 26 mai 2023, sont
+      <b>
+       modifiées
+      </b>
+      conformément aux dispositions du
+     </span>
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Modifications de l'article 1.2.1 de l'arrêté préfectoral d'autorisation du 22 octobre 2019" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 - Modifications de l'article 1.2.1 de l'arrêté préfectoral d'autorisation du 22 octobre 2019
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions de l'
+     <a data-parent_reference="8" data-spec="section_reference" data-start_num="1.2.1" data-type="article">
+      article 1.2.1
+     </a>
+     de l'
+     <a data-date="2019-10-22" data-spec="document_reference" data-tag_id="8" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2019-10-22">
+       22 octobre 2019
+      </time>
+     </a>
+     , modifié par l'
+     <a data-parent_reference="9" data-spec="section_reference" data-start_num="2" data-tag_id="25" data-type="article">
+      article 2
+     </a>
+     de l'
+     <a data-date="2023-05-26" data-spec="document_reference" data-tag_id="9" data-type="arrete">
+      arrêté du
+      <time data-spec="date" datetime="2023-05-26">
+       26 mai 2023
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="abrogées et remplacées" data-operand="26" data-operation_type="replace" data-references="25" data-spec="operation">
+      , sont
+      <b>
+       abrogées et remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="26">
+      <tr>
+       <th>
+        Rubrique
+       </th>
+       <th>
+        Désignation des installations
+       </th>
+       <th>
+        Volume de l'activité
+       </th>
+       <th>
+        Régime*
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2760-2b
+       </td>
+       <td>
+        Installations de stockage de déchets, à l'exclusion des installations visées à la rubrique 2720 :
+        <br/>
+        2. Installation de stockage de déchets non dangereux autre que celle mentionnée au 3 b) Autres installations que celles mentionnées au a
+       </td>
+       <td>
+        Stockage en ISDND :
+        <br/>
+        Capacité totale brute de stockage de déchets supplémentaire de 2 001 900m³ dont 400 380m³ de matériaux d'exploitation
+        <br/>
+        Capacité annuelle dégressive
+        <br/>
+        - Déchets non dangereux (déchets ménagers et assimilés et déchets ultimes d'activité économique)
+        <br/>
+        175 000 t/an jusqu'au 31 décembre 2024
+        <br/>
+        115 000 t/an jusqu'au 31 décembre 2025, puis 100 000 t/an à partir du 01 janvier 2026 et jusqu'au 31 décembre 2029
+        <br/>
+        Les quantités stockées de DND entre le 1er janvier 2030 et le 30 juin 2030 ne peuvent excéder 63 000 tonnes.
+        <br/>
+        - Déchets minéraux non dangereux (mâchefers d'incinération et de déchets non dangereux et terres faiblement polluées) valorisés en matériaux d'exploitation dans le casier :
+        <br/>
+        84 000 t/an jusqu'au 31 décembre 2024
+        <br/>
+        55 200t/an jusqu'au 31 décembre 2025, puis 48 000t/an à partir du 01 janvier 2026 et jusqu'au 31 décembre 2029.
+        <br/>
+        Les quantités stockées de DMND entre le 1er janvier 2030 et le 30 juin 2030 ne peuvent excéder 30 300 tonnes.
+        <br/>
+        Stockage en alvéole dédiée de déchets de matériaux de construction contenant de l'amiante liée :
+        <br/>
+        Capacité totale brute de stockage supplémentaire de 39 300 m³
+        <br/>
+        Capacité annuelle 4 200 t/an
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        3540 -1
+       </td>
+       <td>
+        Installations de stockage de déchets autres que celles mentionnées aux rubriques 2720 et 2760-3
+        <br/>
+        1. Installations d'une capacité totale supérieure à 25 000 tonnes
+       </td>
+       <td>
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Place Félix Baret - CS 80001 - 13282 Marseille Cedex 06 -
+Téléphone : 04.84.35.40.00
+www.bouches-du-rhone.gouv.fr
+     </div>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      Place Félix Baret - CS 80001 - 13282 Marseille Cedex 06 -
+Téléphone : 04.84.35.40.00
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        2510-3
+       </td>
+       <td>
+        Carrière ou autre extraction de matériaux (exploitation de)
+        <br/>
+        3. Affouillements du (à l'exception des affouillements rendus nécessaires pour l'implantation des constructions bénéficiant d'un permis de construire et des affouillements réalisés sur l'emprise des voies de circulation), lorsque les matériaux prélevés sont utilisés à des fins autres que la réalisation de l'ouvrage sur l'emprise duquel ils ont été extraits et lorsque la superficie d'affouillement est supérieure à 1000 mètres carrés ou lorsque la quantité de matériaux à extraire est supérieure à 2000 tonnes.
+       </td>
+       <td>
+        Affouillement pour l'extension Ouest de l'installation de stockage de déchets non dangereux :
+        <br/>
+        185 000 m³ extrait (soit environ 46 000t), sur une surface de 24 000 m². Les travaux sont prévus sur une période de 10 mois.
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2515-1-a
+       </td>
+       <td>
+        Installations de broyage, concassage, criblage, ensachage, pulvérisation, lavage, nettoyage, tamisage, mélange de pierres, cailloux, minerais et autres produits minéraux naturels ou artificiels ou de déchets non dangereux inertes, en vue de la production de matériaux destinés à une utilisation, à l'exclusion de celles classées au titre d'une autre rubrique ou de la sous-rubrique 2515-2.
+        <br/>
+        La puissance maximale de l'ensemble des machines fixes pouvant concourir simultanément au fonctionnement de l'installation, étant :
+        <br/>
+        a) Supérieure à 200 kW
+       </td>
+       <td>
+        Plateforme Bâtiment-Travaux Publics (BTP) :
+        <br/>
+        Activité de broyage et concassage de déchets inertes et de terres excavées
+        <br/>
+        Capacité de 70 000 t/an
+        <br/>
+        Puissance maximum de 350 kW
+       </td>
+       <td>
+        E
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2517-2
+       </td>
+       <td>
+        Station de transit, regroupement ou tri de produits minéraux ou de déchets non dangereux inertes autres que ceux visés par d'autres rubriques
+        <br/>
+        La superficie de l'aire de transit étant :
+        <br/>
+        2. Supérieure à 5 000 m², mais inférieure ou égale à 10 000 m²
+       </td>
+       <td>
+        Plateforme BTP :
+        <br/>
+        Capacité de 70 000t/an
+        <br/>
+        Surface de plateforme BTP dédié au stockage de déchets inertes et des terres excavées 2 000m²
+       </td>
+       <td>
+        NC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2710-2-a
+       </td>
+       <td>
+        Installation de collecte de déchets apportés par le producteur initial de ces déchets, à l'exclusion des installations visées à la rubrique 2719
+        <br/>
+        2. Collecte de déchets non dangereux :
+        <br/>
+        Le volume de déchets susceptibles d'être présents dans l'installation étant :
+        <br/>
+        a) Supérieur ou égal à 300 m³
+       </td>
+       <td>
+        Plateforme Déchets des Activités Economiques Non Dangereux Valorisables (DAENDV) :
+        <br/>
+        Activité de tri conjointe avec une activité de réception de déchets apportés par le producteur initial, capacité de 14 000t/an
+        <br/>
+        - Stockage en vrac, en box et en bennes de déchets de papiers, cartons, bois, plastiques, DAENDV en mélange : 475 m³
+        <br/>
+        - Stockage en vrac, en box et en benne de déchets de métaux : 70 m³
+        <br/>
+        Soit un volume total global de 545m³
+       </td>
+       <td>
+        E
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2713-2
+       </td>
+       <td>
+        Installation de transit, regroupement, tri ou préparation en vue de réutilisation de déchets de métaux non dangereux, d'alliage de métaux ou de déchets d'alliage de métaux non dangereux, à l'exclusion des activités et installations visées aux rubriques 2710, 2711 et 2712.
+        <br/>
+        La superficie étant :
+        <br/>
+        2. Supérieure ou égale à 100 m² mais inférieure à 1 000 m²
+       </td>
+       <td>
+        Activité Collecte Sélective (CS) et DAENDV :
+        <br/>
+        Transit de métaux pour une surface de 145 m²
+        <br/>
+        Zone de stockage de balles de déchets d'aluminium / métaux : 518 m²
+        <br/>
+        <br/>
+        Plateforme DAENDV
+        <br/>
+        Surface dédiée de 35 m²
+        <br/>
+        Soit une surface globale égale à 698 m²
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      www.bouches-du-rhone.gouv.fr
+4/8
+     </div>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      Place Félix Baret - CS 80001 - 13282 Marseille Cedex 06 -
+Téléphone : 04.84.35.40.00
+     </div>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        2714-1
+       </td>
+       <td>
+        Installation de transit, regroupement, tri ou préparation en vue de réutilisation de déchets non dangereux de papiers/cartons, plastiques, caoutchouc, textiles, bois à l'exclusion des activités visées aux rubriques 2710, 2711 et 2719.
+        <br/>
+        Le volume susceptible d'être présent dans l'installation étant :
+        <br/>
+        1. Supérieur ou égal à 1 000 m3
+       </td>
+       <td>
+        Activité CS :
+        <br/>
+        Capacité de tri 94 000t/an de déchets issus de collecte sélective
+        <br/>
+        • 80 000t/an passant sur la chaîne de tri
+        <br/>
+        • 14 000t/an de mono-matériaux (verre + fibreux et autres)
+        <br/>
+        <br/>
+        Stockage en box :
+        <br/>
+        - des déchets issus de la collecte sélective avant tri 5 950 m³
+        <br/>
+        - des JRM monoflux 680 m³
+        <br/>
+        <br/>
+        Stockage en balles :
+        <br/>
+        - à l'extérieur sous auvents des déchets plastiques et cartons triés : 2 487 m³
+        <br/>
+        - à l'extérieur : déchets plastiques, papiers, cartons sur des zones de 1 080 m³ et de 360 m³
+        <br/>
+        <br/>
+        Volume global dédiée de 10 557 m³
+        <br/>
+        <br/>
+        Plateforme DAENDV :
+        <br/>
+        Activité de tri conjointe avec une activité de réception de déchets apportés par le producteur initial, capacité de 14 000t/an
+        <br/>
+        Stockage en vrac, en box et en bennes de déchets de papiers, cartons, bois, plastiques, DAENDV en mélange pour un volume dédié de 475 m³
+        <br/>
+        <br/>
+        Volume total de 11 032 m³
+       </td>
+       <td>
+        E
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2715
+       </td>
+       <td>
+        Installation de transit, regroupement ou tri de déchets non dangereux de verre à l'exclusion des installations visées à la rubrique 2710
+        <br/>
+        Le volume susceptible d'être présent dans l'installation étant supérieur ou égal à 250 m³.
+       </td>
+       <td>
+        Bâtiment de tri :
+        <br/>
+        Activité CS : Stockage en alvéole de 40 m²
+        <br/>
+        Volume total de 120 m³
+       </td>
+       <td>
+        NC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2716-2
+       </td>
+       <td>
+        Installation de transit, regroupement, tri ou préparation en vue de réutilisation de déchets non dangereux non inertes à l'exclusion des installations visées aux rubriques 2710, 2711, 2712, 2713, 2714, 2715 et 2719 et des stockages en vue d'épandages de boues issues du traitement des eaux usées mentionnés à la rubrique 2.1.3.0 de la nomenclature annexée à l'
+        <a data-spec="section_reference" data-start_num="R214-1" data-type="article">
+         article R.214-1
+        </a>
+        <br/>
+        Le volume susceptible d'être présent dans l'installation étant :
+        <br/>
+        2. Supérieur ou égal à 100 m³ mais inférieur à 1 000 m³.
+       </td>
+       <td>
+        Bâtiment de tri :
+        <br/>
+        Stockage en alvéole des refus de tri issus de la collecte sélective
+        <br/>
+        Volume total de 400 m³
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2791-1
+       </td>
+       <td>
+        Installation de traitement de déchets non dangereux, à l'exclusion des installations classées au titre des rubriques 2515, 2711, 2713, 2714, 2716, 2720, 2760, 2771, 2781, 2782, 2783, 2794, 2795 ou 2971.
+        <br/>
+        La quantité de déchets traités étant :
+        <br/>
+        1. Supérieure ou égale à 10t/j
+       </td>
+       <td>
+        Bâtiment de tri :
+        <br/>
+        Activité DAEND/BTP : Capacité de tri 75 000t/an, soit 265 t/j
+        <br/>
+        Opérations successives de broyages, criblages, tri et granulation des déchets pour produire du CSR
+        <br/>
+        Opération de broyage de déchets de bois
+        <br/>
+        <br/>
+        Traitement des lixiviats du site et de lixiviats en provenance d'autres ICPE
+        <br/>
+        Capacité : 30 000 m³/an, dont 15 000 m³/an maximum provenant d'autres installations soit 83t/jour
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        3532
+       </td>
+       <td>
+        Valorisation ou un mélange de valorisation et d'élimination, de déchets non dangereux non inertes avec une capacité supérieure à 75 tonnes par jour et entraînant une ou plusieurs des activités suivantes, à l'exclusion des activités
+       </td>
+       <td>
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      www.bouches-du-mone.gouv.fr
+5/8
+     </div>
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+    <div data-number="5" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+       </th>
+       <th>
+        relevant de la
+        <a data-date="1991" data-num="271" data-spec="document_reference" data-type="eu-directive">
+         directive 91/271/CEE
+        </a>
+        :
+        <br/>
+        -traitement biologique
+        <br/>
+        -prétraitement des déchets destinés à l'incinération ou à la coïncinération [...]
+       </th>
+       <th>
+        Capacité totale de traitement de déchets 348 t/j
+       </th>
+       <th>
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2910-B-1
+       </td>
+       <td>
+        Combustion à l'exclusion des activités visées par les rubriques 2770, 2771, 2971 ou 2931 et des installations classées au titre de la rubrique 3110 ou au titre d'autres rubriques de la nomenclature pour lesquelles la combustion participe à la fusion, la cuisson ou au traitement, en mélange avec les gaz de combustion, des matières entrantes
+        <br/>
+        B. Lorsque sont consommés seuls ou en mélange des produits différents de ceux visés en A, ou de la biomasse telle que définie au b) ii) ou au b) iii) ou au b) v) de la définition de la biomasse :
+        <br/>
+        1. Uniquement de la biomasse telle que définie au b) ii) ou au b) iii) ou au b) v) de la définition de la biomasse, le biogaz autre que celui visé en 2910-A, ou un produit autre que la biomasse issu de déchets au sens de l'
+        <a data-parent_reference="12" data-spec="section_reference" data-start_num="L541-4-3" data-type="article">
+         article L. 541-4-3
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="12" data-title="Code de l'environnement" data-type="code">
+         code de l'environnement
+        </a>
+        , avec une puissance thermique nominale supérieure ou égale à 1 MW, mais inférieure à 50 MW
+       </td>
+       <td>
+        Plateforme de valorisation du biogaz :
+        <br/>
+        2 moteurs de valorisation du biogaz de l'installation de stockage de déchets non dangereux d'une puissance électrique nominale unitaire de 1 067kWe et d'une puissance thermique nominale unitaire de 1.14 MW
+        <br/>
+        <br/>
+        Puissance thermique nominale totale : 2.28MW
+       </td>
+       <td>
+        E
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2921-1-b
+       </td>
+       <td>
+        Refroidissement évaporatif par dispersion d'eau dans un flux d'air généré par ventilation mécanique ou naturelle, ou récupération de la chaleur par dispersion d'eau dans des fumées émises à l'atmosphère (installations de)
+        <br/>
+        1. Installations de refroidissement évaporatif par dispersion d'eau dans un flux d'air généré par ventilation mécanique ou naturelle :
+        <br/>
+        b. La puissance thermique évacuée maximale étant inférieure à 3 000 kW
+       </td>
+       <td>
+        Plateforme de valorisation du biogaz :
+        <br/>
+        Tour aéroréfrigérante pour l'évaporation des perméats du traitement des lixiviats grâce à la chaleur récupérée sur les moteurs
+        <br/>
+        <br/>
+        Puissance thermique évacuée maximale de 1.5 MW
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2930-1-b
+       </td>
+       <td>
+        Ateliers de réparation et d'entretien de véhicules et engins à moteur, y compris les activités de carrosserie et de tôlerie :
+        <br/>
+        1. Réparation et entretien de véhicules et engins à moteur, la surface de l'atelier étant :
+        <br/>
+        b) Supérieure à 2 000 m², mais inférieure ou égale à 5 000 m²
+       </td>
+       <td>
+        111 m²
+       </td>
+       <td>
+        NC
+       </td>
+      </tr>
+     </table>
+     <br/>
+     (*) A (Autorisation), E (Enregistrement), D (Déclaration), DC (soumis au contrôle périodique prévu par l'
+     <a data-parent_reference="10" data-spec="section_reference" data-start_num="L512-11" data-type="article">
+      article L.512-11
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="10" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     ) ou NC (Non Classé).
+     <br/>
+     (**) En application de l'
+     <a data-parent_reference="11" data-spec="section_reference" data-start_num="R512-55" data-type="article">
+      article R.512-55
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="11" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , les installations DC ne sont pas soumises à l'obligation de contrôle périodique lorsqu'elles sont incluses dans un établissement qui comporte au moins une installation soumise au régime de l'autorisation ou de l'enregistrement.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Au sens de l'
+     <a data-spec="section_reference" data-start_num="R512-61" data-type="article">
+      article R.512-61
+     </a>
+     , la rubrique principale est la rubrique 3540 relative à l'installation de stockage de déchets non dangereux et les conclusions sur les meilleures techniques disponibles relatives à la rubrique principale sont celles associées au document BREF traitement de déchets (BREF WT).
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Modifications de l'article 1.2.4.2° de l'arrêté préfectoral d'autorisation du 22 octobre 2019" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 - Modifications de l'article 1.2.4.2° de l'arrêté préfectoral d'autorisation du 22 octobre 2019
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions de l'
+     <a data-parent_reference="13" data-spec="section_reference" data-start_num="1.2.4.2" data-type="article">
+      article 1.2.4.2
+     </a>
+     ° de l'
+     <a data-date="2019-10-22" data-spec="document_reference" data-tag_id="13" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2019-10-22">
+       22 octobre 2019
+      </time>
+     </a>
+     , modifié par l'
+     <a data-parent_reference="14" data-spec="section_reference" data-start_num="3" data-tag_id="27" data-type="article">
+      article 3
+     </a>
+     de l'
+     <a data-date="2023-05-26" data-spec="document_reference" data-tag_id="14" data-type="arrete">
+      arrêté du
+      <time data-spec="date" datetime="2023-05-26">
+       26 mai 2023
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="abrogées et remplacées" data-operation_type="replace" data-references="27" data-spec="operation">
+      , sont
+      <b>
+       abrogées et remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     La durée d'exploitation de l'installation de stockage de déchets non dangereux est de 10 ans et 9 mois, soit une fin d'exploitation au 30 juin 2030 pour un démarrage de l'extension au 1er octobre 2019.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     La durée d'exploitation de l'installation de stockage de déchets de matériaux de construction contenant de l'amiante liée est de 3 ans et 11 mois, soit une fin d'exploitation au 30 août 2023 pour un démarrage de l'exploitation de l'extension au 1er octobre 2019.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Place Félix Baret - CS 80001 – 13282 Marseille Cedex 06 -
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Téléphone : 04.84.35.40.00
+    </div>
+    <div data-number="6" data-spec="alinea">
+     www.bouches-du-rhone.gouv.fr
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      6/8
+     </div>
+    </div>
+    <a data-page_index="6" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Modifications de l'article 1.2.4.4° de l'arrêté préfectoral d'autorisation du 22 octobre 2019" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 - Modifications de l'article 1.2.4.4° de l'arrêté préfectoral d'autorisation du 22 octobre 2019
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions de l'
+     <a data-parent_reference="15" data-spec="section_reference" data-start_num="1.2.4.4" data-type="article">
+      article 1.2.4.4
+     </a>
+     ° de l'
+     <a data-date="2019-10-22" data-spec="document_reference" data-tag_id="15" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2019-10-22">
+       22 octobre 2019
+      </time>
+     </a>
+     , modifié par l'
+     <a data-parent_reference="16" data-spec="section_reference" data-start_num="4" data-tag_id="28" data-type="article">
+      article 4
+     </a>
+     de l'
+     <a data-date="2023-05-26" data-spec="document_reference" data-tag_id="16" data-type="arrete">
+      arrêté du
+      <time data-spec="date" datetime="2023-05-26">
+       26 mai 2023
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="abrogées et remplacées" data-operand="29" data-operation_type="replace" data-references="28" data-spec="operation">
+      , sont
+      <b>
+       abrogées et remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="29">
+      <tr>
+       <th>
+        Année
+       </th>
+       <th>
+        Tonnage maximal annuel de déchets non dangereux (t)
+       </th>
+       <th>
+        Tonnage maximal annuel de matériaux d'exploitation (t)
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2020
+       </td>
+       <td>
+        175 000
+       </td>
+       <td>
+        84 000
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2021
+       </td>
+       <td>
+        175 000
+       </td>
+       <td>
+        84 000
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2022
+       </td>
+       <td>
+        175 000
+       </td>
+       <td>
+        84 000
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2023
+       </td>
+       <td>
+        175 000
+       </td>
+       <td>
+        84 000
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2024
+       </td>
+       <td>
+        175 000
+       </td>
+       <td>
+        84 000
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2025
+       </td>
+       <td>
+        115 000
+       </td>
+       <td>
+        55 200
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2026
+       </td>
+       <td>
+        100 000
+       </td>
+       <td>
+        48 000
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2027
+       </td>
+       <td>
+        100 000
+       </td>
+       <td>
+        48 000
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2028
+       </td>
+       <td>
+        100 000
+       </td>
+       <td>
+        48 000
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2029
+       </td>
+       <td>
+        100 000
+       </td>
+       <td>
+        48 000
+       </td>
+      </tr>
+      <tr>
+       <td>
+        01/01/2030 au 30/06/2030
+       </td>
+       <td>
+        63 000
+       </td>
+       <td>
+        30 300
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Modifications de l'article 1.5.2 de l'arrêté préfectoral d'autorisation du 22 octobre 2019" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 - Modifications de l'article 1.5.2 de l'arrêté préfectoral d'autorisation du 22 octobre 2019
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions de l'
+     <a data-parent_reference="17" data-spec="section_reference" data-start_num="1.5.1" data-type="article">
+      article 1.5.1
+     </a>
+     (1°) de l'
+     <a data-date="2019-10-22" data-spec="document_reference" data-tag_id="17" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2019-10-22">
+       22 octobre 2019
+      </time>
+     </a>
+     , modifié par l'
+     <a data-parent_reference="18" data-spec="section_reference" data-start_num="7" data-tag_id="30" data-type="article">
+      article 7
+     </a>
+     de l'
+     <a data-date="2023-05-26" data-spec="document_reference" data-tag_id="18" data-type="arrete">
+      arrêté du
+      <time data-spec="date" datetime="2023-05-26">
+       26 mai 2023
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="abrogées et remplacées" data-operation_type="replace" data-references="30" data-spec="operation">
+      , sont
+      <b>
+       abrogées et remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le montant des garanties financières est calculé sur la base de l'approche forfaitaire détaillée par la
+     <a data-date="1996-05-28" data-spec="document_reference" data-type="circulaire">
+      circulaire du
+      <time data-spec="date" datetime="1996-05-28">
+       28 mai 1996
+      </time>
+     </a>
+     . Les coûts unitaires et les codes de calcul des différents postes à prendre en compte dans l'évaluation des garanties sont détaillés dans l'
+     <a data-parent_reference="19" data-spec="section_reference" data-start_num="2" data-type="annexe">
+      annexe II
+     </a>
+     de la
+     <a data-date="1999-04-23" data-num="532" data-spec="document_reference" data-tag_id="19" data-type="circulaire">
+      circulaire n°532 du
+      <time data-spec="date" datetime="1999-04-23">
+       23 avril 1999
+      </time>
+     </a>
+     . Il a été défini en prenant en compte un indice TP01 en base 2010 de 129.9 (paru au JO du 14 septembre 2024), le coefficient de raccordement de 6.5345 et un taux de TVA de 20%.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le montant des garanties financières pendant la période d'exploitation est défini selon le tableau suivant :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Tonnage annuel (t/an)
+       </th>
+       <th>
+        Durée d'exploitation
+       </th>
+       <th>
+        Base annuelle des garanties financières (€ HT)
+       </th>
+       <th>
+        Base annuelle des garanties financières (€ TTC)
+       </th>
+      </tr>
+      <tr>
+       <td>
+        175 000
+       </td>
+       <td>
+        2 ans (2023 à 2024 inclus)
+       </td>
+       <td>
+        5 266 770
+       </td>
+       <td>
+        6 320 125
+       </td>
+      </tr>
+      <tr>
+       <td>
+        115 000
+       </td>
+       <td>
+        1 an (2025)
+       </td>
+       <td>
+        3 812 582
+       </td>
+       <td>
+        4 575 099
+       </td>
+      </tr>
+      <tr>
+       <td>
+        100 000
+       </td>
+       <td>
+        4 ans et 6 mois (2025 à juin 2030 inclus)
+       </td>
+       <td>
+        3 409 571
+       </td>
+       <td>
+        4 091 485
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le montant des garanties financières durant la phase de post-exploitation de l'installation de stockage de déchets non dangereux est défini selon le tableau suivant :
+    </div>
+    <div data-number="6" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Période
+       </th>
+       <th>
+        Montant des garanties (€ HT)
+       </th>
+       <th>
+        Montant des garanties (€ TTC)
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Année n+1 à n+5
+       </td>
+       <td>
+        2 557 178
+       </td>
+       <td>
+        3 068 614
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+6 à n+15
+       </td>
+       <td>
+        1 704 785
+       </td>
+       <td>
+        2 045 743
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+16
+       </td>
+       <td>
+        1 670 690
+       </td>
+       <td>
+        2 004 828
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+17
+       </td>
+       <td>
+        1 636 594
+       </td>
+       <td>
+        1 963 913
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+18
+       </td>
+       <td>
+        1 602 498
+       </td>
+       <td>
+        1 922 998
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+19
+       </td>
+       <td>
+        1 568 403
+       </td>
+       <td>
+        1 882 083
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+20
+       </td>
+       <td>
+        1 534 307
+       </td>
+       <td>
+        1 841 168
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+21
+       </td>
+       <td>
+        1 500 211
+       </td>
+       <td>
+        1 800 253
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+22
+       </td>
+       <td>
+        1 466 115
+       </td>
+       <td>
+        1 759 339
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+23
+       </td>
+       <td>
+        1 432 020
+       </td>
+       <td>
+        1 718 424
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+24
+       </td>
+       <td>
+        1 397 924
+       </td>
+       <td>
+        1 677 509
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+25
+       </td>
+       <td>
+        1 363 828
+       </td>
+       <td>
+        1 636 594
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+26
+       </td>
+       <td>
+        1 329 733
+       </td>
+       <td>
+        1 595 679
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+27
+       </td>
+       <td>
+        1 295 637
+       </td>
+       <td>
+        1 554 764
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+28
+       </td>
+       <td>
+        1 261 541
+       </td>
+       <td>
+        1 513 849
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+29
+       </td>
+       <td>
+        1 227 446
+       </td>
+       <td>
+        1 472 935
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Année n+30
+       </td>
+       <td>
+        1 193 350
+       </td>
+       <td>
+        1 432 020
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Place Félix Baret - CS 80001 - 13282 Marseille Cedex 06 -
+Téléphone : 04.84.35.40.00
+www.bouches-du-rhône.gouv.fr
+     </div>
+    </div>
+    <a data-page_index="7" data-spec="page_separator">
+    </a>
+    <div data-number="7" data-spec="alinea">
+     L'exploitant transmet, sous 1 mois à compter de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , le document attestant de la constitution des garanties financières établie dans les formes par l'
+     <a data-date="2012-07-31" data-spec="document_reference" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="2012-07-31">
+       31 juillet 2012
+      </time>
+     </a>
+     relatif aux modalités de constitution de garanties financières prévues aux
+     <a data-parent_reference="20" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+      articles R.516-1
+     </a>
+     et suivants du
+     <a data-spec="document_reference" data-tag_id="20" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="Couverture des zones de stockage de déchets" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6 - Couverture des zones de stockage de déchets
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant justifie par une étude le principe d'équivalence proposé dans le dossier de demande d'autorisation environnementale ayant abouti à l'
+     <a data-date="2019-10-22" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2019-10-22">
+       22 octobre 2019
+      </time>
+     </a>
+     , en comparaison des attendus réglementaires prescrits pour les couches intermédiaires et finales, respectivement aux
+     <a data-group_id="3" data-parent_reference="21" data-spec="section_reference" data-start_num="34" data-type="article">
+      articles 34
+     </a>
+     et
+     <a data-group_id="3" data-parent_reference="21" data-spec="section_reference" data-start_num="35" data-type="article">
+      35
+     </a>
+     de l'
+     <a data-date="2016-02-15" data-spec="document_reference" data-tag_id="21" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="2016-02-15">
+       15 février 2016
+      </time>
+      modifié
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 7 - Délais et voies de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="22" data-spec="section_reference" data-start_num="R181-50" data-type="article">
+      article R.181-50
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="22" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , cette décision peut être déférée devant le tribunal administratif de Marseille par voie postale ou par l'application Télerecours citoyens accessible à partir du site www.telerecours.fr
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       1° par l'exploitant, dans un délai de deux mois à compter du jour où la décision lui a été notifiée ;
+      </li>
+      <li>
+       2° par les tiers intéressés en raison des inconvénients ou des dangers pour les intérêts mentionnés à l'
+       <a data-spec="section_reference" data-start_num="L181-3" data-type="article">
+        article L.181-3
+       </a>
+       , dans un délai de deux mois à compter de :
+      </li>
+      <li>
+       a) l'affichage en mairie dans les conditions prévues au 2° de l'
+       <a data-spec="section_reference" data-start_num="R181-44" data-type="article">
+        article R.181-44
+       </a>
+       ;
+      </li>
+      <li>
+       b) la publication de la décision sur le site internet de la préfecture prévue au 4° du même article.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le délai court à compter de la dernière formalité accomplie. Si l'affichage constitue cette dernière formalité, le délai court à compter du premier jour d'affichage de la décision.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour les décisions mentionnées à l'
+     <a data-parent_reference="23" data-spec="section_reference" data-start_num="R181-51" data-type="article">
+      article R.181-51
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="23" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     et suivant les modalités de ce même article, les recours contentieux et les recours administratifs s'y rapportant doivent être obligatoirement notifiés à l'auteur de la décision et au bénéficiaire sous peine d'irrecevabilité ou de non prorogation du délai de recours contentieux. Il en va de même pour les recours en annulation ou réformation des décisions juridictionnelles s'y rapportant. À ce titre, l'affichage et la publication de la décision concernée mentionnent cette obligation légale et réglementaire.
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-title="Publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 8 - Publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En vue de l'information des tiers, une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     est déposée à la mairie des Pennes Mirabeau et peut y être consultée. Un extrait de l'arrêté est affiché à la mairie précitée pendant une durée minimum d'un mois ; procès-verbal de l'accomplissement de cette formalité est dressé par les soins du maire. L'arrêté est publié sur le site internet de la Préfecture des Bouches-du-Rhône pendant une durée minimale de quatre mois.
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-title="Exécution" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 9 - Exécution
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - Le Secrétaire Général de la Préfecture des Bouches-du-Rhône,
+      </li>
+      <li>
+       - Le Sous-Préfet d'Aix-en-Provence,
+      </li>
+      <li>
+       - Le Maire des Pennes Mirabeau,
+      </li>
+      <li>
+       - Le Directeur Régional de l'Environnement, de l'Aménagement et du Logement,
+      </li>
+      <li>
+       - Le Directeur Départemental des Territoires et de la Mer,
+      </li>
+      <li>
+       - Le Directeur Départemental des Services d'Incendie et de Secours, et toutes autorités de police et de gendarmerie, sont chargés, chacun en ce qui le concerne, de l'exécution du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       .
+      </li>
+     </ul>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Marseille, le 18 OCT. 2024
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Place Félix Baret - CS 80001 - 13282 Marseille Cedex 06 -
+Téléphone : 04.84.35.40.00
+www.bouches-du-rhone.gouv.fr
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

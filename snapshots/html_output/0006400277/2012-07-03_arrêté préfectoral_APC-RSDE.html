@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2012-07-03_arrêté préfectoral_APC-RSDE.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+APGome du 03/7/2012
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFET DES ALPES-MARITIMES
+    </div>
+    <div>
+     DIRECTION DEPARTEMENTALE DE LA PROTECTION DES POPULATIONS DES ALPES-MARITIMES
+    </div>
+    <div>
+     service environnement
+    </div>
+    <div>
+     Installations classées pour la protection de l’environnement Société SONITHERM 33, boulevard de l’Ariane à Nice
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté préfectoral complémentaire portant sur les rejets de substances dangereuses dans le milieu aquatique (RSDE)
+    </h1>
+   </div>
+   <div data-spec="identification">
+    <div>
+     N° 14104
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l’Environnement
+    </a>
+    , livre II, titre 1er, relatif à l’eau et aux milieux aquatiques marins et notamment son
+    <a data-spec="section_reference" data-start_num="R212-9" data-type="article">
+     article R.212-9
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l’Environnement
+    </a>
+    , livre V, titre 1er, relatif aux installations classées pour la protection de l’environnement et notamment son
+    <a data-spec="section_reference" data-start_num="R512-31" data-type="article">
+     article R.512-31
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2010-07-08" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2010-07-08">
+      8 juillet 2010
+     </time>
+    </a>
+    établissant la liste des substances prioritaires et fixant les modalités et délais de réduction progressive et d’élimination des déversements, écoulements, rejets directs ou indirects respectivement des substances prioritaires et des substances dangereuses visées à l’
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="R212-9" data-type="article">
+     article R. 212-9
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2009-01-05" data-spec="document_reference" data-type="circulaire">
+     circulaire DGPR/SRT du
+     <time data-spec="date" datetime="2009-01-05">
+      5 janvier 2009
+     </time>
+    </a>
+    relative à la mise en œuvre de la deuxième phase de l’action nationale de recherche et de réduction des substances dangereuses pour le milieu aquatique présentes dans les rejets des installations classées pour la protection de l’environnement (ICPE) soumises à autorisation ;
+   </div>
+   <div data-spec="visa">
+    VU la note d’instructions ministérielles du 27 avril 2011 portant adaptations des conditions de mise en œuvre de la
+    <a data-date="2009-01-05" data-spec="document_reference" data-type="circulaire">
+     circulaire du
+     <time data-spec="date" datetime="2009-01-05">
+      5 janvier 2009
+     </time>
+    </a>
+    relative aux actions de recherche et de réduction des substances dangereuses dans les rejets aqueux des installations classées ;
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2010-10-01" data-num="13589" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 13589 en date du
+     <time data-spec="date" datetime="2010-10-01">
+      1er octobre 2010
+     </time>
+    </a>
+    portant sur les rejets des substances dangereuses dans le milieu aquatique de l'établissement Sonitherm ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport n°R5162 381-001-3 établi le 25 janvier 2012 par le laboratoire APAVE présentant les résultats d'analyses menées dans le cadre de la campagne initiale de recherche de substances dangereuses dans les rejets aqueux de l'établissement Sonitherm ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l'Inspection des Installations Classées en date du 20 avril 2012 ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis émis par le Conseil Départemental de l'Environnement et des Risques Sanitaires et Technologiques (CODERST) dans sa séance du 4 mars 2011 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT : la nécessité de prendre en compte les dispositions de la note ministérielle du 27 avril 2011 susvisée portant adaptation des conditions de mise en œuvre de la
+    <a data-date="2009-01-05" data-spec="document_reference" data-type="circulaire">
+     circulaire du
+     <time data-spec="date" datetime="2009-01-05">
+      5 janvier 2009
+     </time>
+    </a>
+    susvisée ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT : les objectifs de suppression des substances dangereuses prioritaires dans les émissions à l'horizon 2021 définis par l'
+    <a data-date="2010-07-08" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2010-07-08">
+      8 juillet 2010
+     </time>
+    </a>
+    susvisé ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition du secrétaire général de la préfecture des Alpes-Maritimes,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1er
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société niçoise de réalisations thermiques (SONITHERM), dont le siège social est situé au
+     <address data-spec="address">
+      33 Boulevard de l'Ariane
+     </address>
+     - 06300 NICE, ci-après dénommée
+     <q>
+      l'exploitant
+     </q>
+     , se conforme pour la poursuite de l'exploitation de l'usine d'incinération d'ordures ménagères et autres déchets assimilés sise à l'adresse de son siège social aux dispositions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions de l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="3.3" data-tag_id="4" data-type="article">
+      article 3.3.
+     </a>
+     de l'
+     <a data-date="2010-10-01" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2010-10-01">
+       01/10/2010
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="abrogées et remplacées" data-operation_type="replace" data-references="4" data-spec="operation">
+      susvisé sont
+      <b>
+       abrogées et remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <div data-error_codes="unbalanced_quote" data-spec="error">
+      Au vu des résultats factuels décrits dans le rapport de synthèse de la surveillance initiale, l'exploitant adresse au service de l'inspection des installations classées, dans les conclusions de ce rapport, ses propositions de classement en 3 catégories (substances à abandonner, substances à surveiller, substances devant faire en sus de la surveillance l'objet d'un programme d'actions) des substances mesurées lors de cette phase de surveillance.
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'inspection des installations classées accuse réception de ce rapport.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les critères de classement des substances en 3 catégories sont les suivants :
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="5" data-spec="alinea">
+     1. Les substances dont les mesures ont été qualifiées d'
+     <q>
+      incorrectes - rédhibitoires
+     </q>
+     par l'INERIS ne peuvent voir leur surveillance abandonnée. Elles doivent continuer au titre de la surveillance pérenne à faire l'objet de mesures (autant d'analyses sur un paramètre que de mesures classées
+     <q>
+      incorrectes rédhibitoires
+     </q>
+     sur ce paramètre) avant qu'il ne soit possible de statuer sur leur cas.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     2. Toute substance dont le flux journalier moyen émis (flux journalier moyen émis net en cas de contamination démontrée du milieu amont) est supérieur ou égal à la valeur figurant dans la colonne A du tableau de l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="7" data-type="annexe">
+      annexe 7
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-type="self">
+      présent arrêté
+     </a>
+     ne peut voir sa surveillance abandonnée. Si ce flux excède la valeur figurant en colonne B du précédent tableau les substances doivent faire en sus de leur surveillance l'objet d'un programme d'actions.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     3. prise en compte du
+     <q>
+      milieu
+     </q>
+     pour les rejets directs dans le milieu naturel.
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Le flux journalier moyen est déterminé pour chaque substance émise dans les rejets aqueux selon les critères définis dans la note du 27 avril 2011 susvisée.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant prend les dispositions adéquates pour que les émissions des substances dangereuses prioritaires suivantes soient supprimées à l'échéance du 31/12/2021 dans les rejets aqueux industriels de l'établissement :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - nonylphénols (code SANDRE 6598)
+      </li>
+      <li>
+       - cadmium et ses composés (code SANDRE 1388)
+      </li>
+      <li>
+       - mercure et ses composés (code SANDRE 1387)
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Une substance peut être considérée comme supprimée dans les rejets aqueux industriels si l'une des deux conditions suivantes est satisfaite :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - limite de détection (LD) non atteinte ;
+      </li>
+      <li>
+       - si la substance est détectée dans les rejets, la quantité mesurée avant rejet est inférieure à la quantité mesurée dans les eaux d'alimentation des installations.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 - Délais et voies de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est soumis à un contentieux de pleine juridiction.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Il peut être déféré à la juridiction administrative :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - par le demandeur ou exploitant, dans un délai de deux mois qui commence à courir du jour où lesdits actes leur ont été notifiés ;
+      </li>
+      <li>
+       - par les tiers, personnes physiques ou morales, les communes intéressées ou leurs groupements, en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts visés à l'
+       <a data-spec="section_reference" data-start_num="L511-1" data-type="article">
+        article L.511-1
+       </a>
+       , dans un délai de un an à compter de la publication ou de l'affichage desdits actes, ce délai étant, le cas échéant, prolongé jusqu'à la fin d'une période de deux années suivant la mise en activité de l'installation.
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les tiers qui n'ont acquis ou pris à bail des immeubles ou n'ont élevé des constructions dans le voisinage d'une installation classée que postérieurement à l'affichage ou à la publication de l'arrêté autorisant l'ouverture de cette installation ou atténuant les prescriptions primitives ne sont pas recevables à déférer ledit arrêté à la juridiction administrative.
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="5" data-spec="section" data-title="information des tiers" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5 : information des tiers
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - Une copie du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       est déposée à la mairie de Nice ;
+      </li>
+      <li>
+       - Un extrait dudit arrêté est affiché à la mairie de Nice pendant une durée minimum d’un mois ; procès-verbal de l’accomplissement de cette formalité étant dressé par les soins du maire ;
+      </li>
+      <li>
+       - Le même extrait est affiché en permanence de façon visible dans l’installation par les soins du bénéficiaire de l’autorisation ;
+      </li>
+      <li>
+       - Un avis est inséré, par les soins du préfet et au frais de l’exploitant, dans deux journaux locaux ou régionaux diffusés dans le département.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 6 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le Secrétaire Général de la préfecture des Alpes-Maritimes est chargé de l’exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont copie sera adressée :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - à la Société SONITHERM,
+      </li>
+      <li>
+       - au Maire de Nice,
+      </li>
+      <li>
+       - au Délégué territorial de l’Agence Régionale de Santé,
+      </li>
+      <li>
+       - au Directeur départemental des services d’incendie et de secours,
+      </li>
+      <li>
+       - au Chef de l’unité territoriale des Alpes-Maritimes de la DREAL, inspecteur des installations classées.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Fait à Nice, le - 3 JUIL. 2012
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le Préfet,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le Secrétaire Général
+    </div>
+    <div data-number="6" data-spec="alinea">
+     OTION C 1992
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Gérard GAVORY
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

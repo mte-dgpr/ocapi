@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2014-03-26_rapport_rapport.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté - Égalité - Fraternité
+RÉPUBLIQUE FRANÇAISE
+
+PRÉFET DE LA RÉGION AUVERGNE
+PRÉFET DU PUY-DE-DÔME
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Direction Régionale de l'Environnement, de l'Aménagement et du Logement Auvergne Clermont-Ferrand, le 26 mars 2014 Département du Puy De Dôme
+    </div>
+    <div>
+     Installations Classées Pour La Protection de l'Environnement SAS VERNEA – Commune de Clermont-Ferrand Mise en place de garanties financières Rapport de l'inspecteur des installations classées au Conseil Départemental de l'Environnement et des Risques Sanitaires et Technologiques P.J. : Projet d'arrêté préfectoral
+    </div>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="OBJET" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     1  OBJET
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le projet d'arrêté annexé au présent rapport fixe le montant des garanties financières que doit constituer la société VERNEA dont le siège social est situé 1, chemin des domaines de Beaulieu à Clermont-Ferrand, pour l'exploitation de ses installations de valorisation et de traitement de déchets située à Clermont-Ferrand à la même adresse.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le
+     <a data-date="2012-05-03" data-num="633-2012" data-spec="document_reference" data-type="decret">
+      décret n°633-2012 du
+      <time data-spec="date" datetime="2012-05-03">
+       3 mai 2012
+      </time>
+     </a>
+     a institué l'obligation pour certaines installations classées, susceptibles, en raison de la nature et de la quantité des produits et déchets détenus, d'être à l'origine de pollutions importantes des sols ou des eaux, de constituer des garanties financières. L'objectif de ces garanties financières est de financer la surveillance et le maintien en sécurité du site en cas de défaillance de l'industriel.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Par dossier déposé le 31 décembre 2013 en préfecture du Puy-de-Dôme, la société VERNEA a fait part de sa proposition de calcul des garanties financières, qui ont fait l'objet d'un examen de la part de l'inspection des installations classées.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Dans le présent rapport, l'inspection des installations classées présente son analyse du dossier et les propositions de prescriptions nécessaires.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Ce rapport fera l'objet d'une présentation en Conseil Départemental de l'Environnement et des Risques Sanitaires et Technologiques.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      www.auvergne.developpement-durable.gouv.fr
+
+Siège :
+DREAL AUVERGNE
+7, rue Léo Lagrange
+63033 Clermont-Ferrand cedex 1
+Tél. 04.73.43.16.00 - Fax : 04.73.34.37.47
+     </div>
+    </div>
+    <a data-page_index="1" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      Page 2/4
+     </div>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="IDENTIFICATION DU PÉTITIONNAIRE" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2 IDENTIFICATION DU PÉTITIONNAIRE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - Raison sociale : SAS VERNEA
+      </li>
+      <li>
+       - Identification du signataire : Alexandre SUBLARD, Président
+      </li>
+      <li>
+       - Siège social :
+       <address data-spec="address">
+        1 chemin des Domaines de Beaulieu
+       </address>
+       – 63 000 CLERMONT FERRAND
+      </li>
+      <li>
+       - Adresse de l'autorisation sollicitée : lieu-dit Beaulieu
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="MODALITÉS DE MISE EN ŒUVRE DES GARANTIES" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     3 MODALITÉS DE MISE EN ŒUVRE DES GARANTIES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les installations soumises à l'obligation de constitution des garanties financières sont listées par arrêté ministériel¹. L'établissement VERNEA à Clermont-Ferrand est concerné par les rubriques 2771, 2716, 2791 et 2782 ; il est tenu, en application de ce texte, de constituer ses garanties financières selon l'échéancier suivant :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - 20% du montant total de la garantie avant le 1ᵉʳ juillet 2014 ;
+      </li>
+      <li>
+       - 20% du montant total de la garantie pendant les 4 suivantes ou 10 % pendant les 8 années si garanties contractées au près de la caisse des dépôts et consignation.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'exploitant doit donc transmettre au préfet pour le 1ᵉʳ juillet 2014, un document attestant de la constitution de garanties financières sur la base d'un engagement écrit d'un établissement de crédit, d'une entreprise d'assurance ou d'une société de caution mutuelle conforme au modèle d'acte de cautionnement solidaire prévu par l'
+     <a data-date="2012-07-31" data-spec="document_reference" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="2012-07-31">
+       31 juillet 2012
+      </time>
+     </a>
+     relatif aux modalités de constitution de garanties financières prévues aux
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+      articles R.516-1
+     </a>
+     et suivants du
+     <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+      Code de l'Environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="CALCUL DU MONTANT DES GARANTIES FINANCIÈRES" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     4 CALCUL DU MONTANT DES GARANTIES FINANCIÈRES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En application de l'
+     <a data-date="2012-05-31" data-spec="document_reference" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="2012-05-31">
+       31 mai 2012
+      </time>
+     </a>
+     relatif aux modalités de détermination et d'actualisation des garanties financières, l'exploitant a adressé à l'inspection par le courrier en référence, le calcul du montant des garanties financières qu'il doit constituer. Ce calcul porte sur les éléments suivants :
+    </div>
+    <section data-number="4.1" data-spec="section" data-title="Gestion des produits dangereux et des déchets : 1 653 944 euros" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.1 Gestion des produits dangereux et des déchets : 1 653 944 euros
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les principaux produits dangereux et déchets présents sur le site, correspondant à l'arrêté d'autorisation et pris en compte pour le calcul sont :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <table>
+       <tr>
+        <td>
+         Charbon actif
+        </td>
+        <td>
+         60 t
+        </td>
+        <td>
+         SITA REKEM
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Acide Chlorhydrique
+        </td>
+        <td>
+         10 t
+        </td>
+        <td>
+         SITA REKEM
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Soude
+        </td>
+        <td>
+         16,8 t
+        </td>
+        <td>
+         SITA REKEM
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Ammoniac/urée
+        </td>
+        <td>
+         36 t
+        </td>
+        <td>
+         SITA REKEM
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Carbohydrazine ou DEHA
+        </td>
+        <td>
+         0,3 t
+        </td>
+        <td>
+         SITA REKEM
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Acide sulfurique
+        </td>
+        <td>
+         18 t
+        </td>
+        <td>
+         SITA REKEM
+        </td>
+       </tr>
+       <tr>
+        <td>
+         PSR
+        </td>
+        <td>
+         112 t
+        </td>
+        <td>
+         Valorisation RESOLEST
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Cendres électrofiltre
+        </td>
+        <td>
+         60 t
+        </td>
+        <td>
+         ISDD de Drambon
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Mâchefers
+        </td>
+        <td>
+         19 000 t
+        </td>
+        <td>
+         ISDND de Cusset
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Déchets non dangereux (OMR, DIB, Stabilisat, déchets encombrants, balles)
+        </td>
+        <td>
+         21 620 t
+        </td>
+        <td>
+         ISDND de Puy Long
+        </td>
+       </tr>
+      </table>
+     </div>
+    </section>
+    <section data-number="4.2" data-spec="section" data-title="Neutralisation des cuves enterrées : 2590 euros" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.2 Neutralisation des cuves enterrées : 2590 euros
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le nombre de cuves enterrées pris en compte est de une cuve de 3 m³.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      ¹
+      <a data-date="2012-05-31" data-spec="document_reference" data-type="arrete-ministeriel">
+       Arrêté ministériel du
+       <time data-spec="date" datetime="2012-05-31">
+        31 mai 2012
+       </time>
+      </a>
+      fixant la liste des installations classées soumises à l'obligation de constitution de garanties financières en application du 5ᵉ de l'
+      <a data-parent_reference="2" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+       article R 516-1
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+     </div>
+     <a data-page_index="2" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       Page 3/4
+      </div>
+     </div>
+    </section>
+    <section data-number="4.3" data-spec="section" data-title="Limitation des accès au site : 450 euros" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.3 Limitation des accès au site : 450 euros
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le site est clôturé ; le calcul prend en compte la pose de 30 panneaux.
+     </div>
+    </section>
+    <section data-number="4.4" data-spec="section" data-title="Surveillance des effets de l'installation : 74 120 euros" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.4 Surveillance des effets de l'installation : 74 120 euros
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le calcul proposé par l'industriel prend en compte le contrôle et l'interprétation des résultats des piézomètres existants (deux campagnes) ainsi que le coût de réalisation d'un diagnostic de pollution des sols sur 11,06 ha.
+     </div>
+    </section>
+    <section data-number="4.5" data-spec="section" data-title="Gardiennage du site : 22 000 euros" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.5 Gardiennage du site : 22 000 euros
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le coût du gardiennage du site proposé par l'industriel comprend une surveillance de trois patrouilles d'une heure par 24h pendant 6 mois (tel que prévu par l'
+      <a data-date="2012-05-31" data-spec="document_reference" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="2012-05-31">
+        31 mai 2012
+       </time>
+      </a>
+      ).
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Après prise en compte des coûts liés à la gestion du chantier, et de l'indice d'actualisation des coûts (octobre 2013), le coût total des garanties financières à constituer est estimé à 1 934 663 euros TTC.
+     </div>
+    </section>
+   </section>
+   <section data-number="5" data-spec="section" data-title="RECTIFICATION D'UNE ERREUR MATÉRIELLE DE L'APC DU 18 OCTOBRE 2013" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     5 RECTIFICATION D'UNE ERREUR MATÉRIELLE DE L'APC DU 18 OCTOBRE 2013
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="8.13" data-type="article">
+      article 8.13
+     </a>
+     de l'
+     <a data-date="2009-05-20" data-spec="document_reference" data-tag_id="3" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="2009-05-20">
+       20 mai 2009
+      </time>
+     </a>
+     a été modifié par l'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="14" data-type="article">
+      article 14
+     </a>
+     de l'
+     <a data-date="2013-10-18" data-spec="document_reference" data-tag_id="4" data-type="arrete-prefectoral">
+      arrêté préfectoral complémentaire du
+      <time data-spec="date" datetime="2013-10-18">
+       18 octobre 2013
+      </time>
+     </a>
+     , afin d'appliquer les prescriptions relatives à la prévention et à la lutte contre l'incendie adaptées au local de broyage des déchets verts. Ces prescriptions étaient initialement uniquement celles issues des arrêtés type des installations soumises au régime de déclaration pour la rubrique 2260. Or, il s'est avéré par suite de changement de nomenclature que le broyeur de biodéchets relevait désormais de la rubrique 2791. Il a donc été nécessaire de fixer les mêmes prescriptions relatives à la prévention et à la lutte contre l'incendie, sans faire référence à l'arrêté-type 2260. Seuls des aménagements relatifs au caractère coupe-feu des murs et des fermetures étaient nécessaires, moyennant un avis favorable du service d'incendie et de secours.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Bien que les exutoires de fumées ne nécessitaient pas d'aménagement particulier, l'
+     <a data-date="2013-10-18" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral complémentaire du
+      <time data-spec="date" datetime="2013-10-18">
+       18 octobre 2013
+      </time>
+     </a>
+     a fixé par erreur la surface utile d'ouverture de l'ensemble des exutoires à un minimum de 3 % de la superficie des locaux, alors que la réglementation générale fixe cette valeur à 2 %.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     En l'absence de problématique particulière, il est donc proposé de réparer cette erreur matérielle en reprenant les prescriptions des arrêtés type 2260 et 2791 qui disposent :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <div data-error_codes="unbalanced_quote" data-spec="error">
+      Les bâtiments abritant les installations doivent être équipés en partie haute de dispositifs permettant l'évacuation des fumées, gaz de combustion, chaleur et produits imbrûlés dégagés en cas d'incendie (lanterneaux en toiture, ouvrants en façade ou tout autre dispositif équivalent).
+     </div>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Ces dispositifs doivent être conformes aux normes en vigueur et être adaptés aux risques particuliers de l'installation.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Ces dispositifs incluent des exutoires à commandes automatique et manuelle. La surface utile d'ouverture de l'ensemble des exutoires ne doit pas être inférieure à :
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <ul>
+      <li>
+       - 2 % de la superficie des locaux si celle-ci est inférieure à 1 600 mètres carrés ;
+      </li>
+      <li>
+       - à déterminer selon la nature des risques si la superficie à désenfumer est supérieure à 1 600 mètres carrés sans pouvoir être inférieure à 2 % de la superficie des locaux.
+      </li>
+     </ul>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Les commandes d'ouverture manuelle sont placées à proximité des accès.
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Dans le cas présent, la surface utile d'ouverture de 2 % a été jugée suffisante par les études réalisées et n'a pas fait l'objet d'objection de la part du SDIS.
+    </div>
+    <div data-number="10" data-spec="alinea">
+     En conséquence, il n'y a pas lieu de fixer une valeur différente de celle préconisée par la réglementation générale et l'
+     <a data-num="ci-joint" data-spec="document_reference" data-type="arrete">
+      arrêté ci-joint
+     </a>
+     remplace la phrase en question par la phrase suivante :
+    </div>
+    <div data-number="11" data-spec="alinea">
+     <blockquote>
+      <p>
+       Ces dispositifs incluent des exutoires à commandes automatique et manuelle. La surface utile d'ouverture de l'ensemble des exutoires ne doit pas être inférieure à 2 % de la superficie des locaux.
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="PROPOSITION ET CONCLUSION DE L'INSPECTION" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     6 PROPOSITION ET CONCLUSION DE L'INSPECTION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Considérant les évolutions réglementaires issues du
+     <a data-date="2012-05-03" data-num="633-2012" data-spec="document_reference" data-type="decret">
+      décret n°633-2012 du
+      <time data-spec="date" datetime="2012-05-03">
+       3 mai 2012
+      </time>
+     </a>
+     relatif à l'obligation de constituer des garanties financières en vue de la mise en sécurité de certaines installations classées pour la protection de l'environnement, l'inspection propose aux membres du Conseil départemental de l'environnement des risques sanitaires et technologiques de considérer favorablement le projet d'arrêté préfectoral joint en annexe.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Celui-ci impose à la société VERNEA pour son site de Clermont-Ferrand, la transmission au préfet d'un document attestant la constitution de garanties financières pour le 1er juillet 2014, pour un montant de 386932,6 euros
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     (l'échéancier de constitution étant 20 % du montant initial pour le 1er juillet 2014, puis 20 % supplémentaires par an pendant 4 ans ou 10 % supplémentaires par an pendant 8 ans si cautionnement auprès de la caisse des dépôts).
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Par ailleurs, l'erreur matérielle évoquée, qui pourrait avoir des conséquences sur le permis de construire doit être rectifiée.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        Rédigé le 26 mars 2014 par
+        <br/>
+        L'Inspecteur de l'Environnement,
+        <br/>
+        Spécialité Installations Classées
+        <br/>
+        signé
+       </td>
+       <td>
+        Vérifié le 2014 par
+        <br/>
+        L'Inspecteur de l'Environnement,
+        <br/>
+        Spécialité Installations Classées
+        <br/>
+        signé
+       </td>
+       <td>
+        Approuvé le 2014
+        <br/>
+        Pour le Directeur,
+        <br/>
+        Le chef de l'unité territoriale Allier / Puy
+        <br/>
+        de Dôme,
+        <br/>
+        signé
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 4/4
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

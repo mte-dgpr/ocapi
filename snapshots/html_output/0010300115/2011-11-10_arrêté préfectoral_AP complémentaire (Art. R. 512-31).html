@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2011-11-10_arrêté préfectoral_AP complémentaire (Art. R. 512-31).pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFET DE LA DRÔME
+    </div>
+    <div>
+     Direction Départementale de la Protection des Populations de la Drôme
+    </div>
+    <div>
+     Service Protection de l'environnement
+    </div>
+    <div>
+     Dossier suivi par : Françoise ROUX Tél. : 04.26.52.22.07 Fax : 04.26.52.21.62 mail : francoise.roux@drome.gouv.fr Valence, le 10 novembre 2011
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE PREFECTORAL COMPLEMENTAIRE
+    </h1>
+   </div>
+   <div data-spec="identification">
+    <div>
+     n° 2011314-0018
+    </div>
+   </div>
+   <div>
+    AU TITRE D'UNE INSTALLATION CLASSÉE POUR LA PROTECTION DE L'ENVIRONNEMENT
+   </div>
+   <div>
+    de mise à jour de l'arrêté préfectoral d'autorisation d'exploiter
+   </div>
+   <div>
+    pour la Société ANDROS SNC à PORTES LES VALENCE
+   </div>
+   <div data-spec="honorary">
+    <div>
+     LE PREFET
+    </div>
+    <div>
+     Chevalier de la Légion d'Honneur
+    </div>
+    <div>
+     Chevalier de l'Ordre National du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l'Environnement
+    </a>
+    et notamment l'
+    <a data-spec="section_reference" data-start_num="R512-31" data-type="article">
+     article R. 512-31
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU la nomenclature des installations classées pour la protection de l'environnement et notamment la modification des rubriques 2920 et 1530 ainsi que la création des rubriques 1511 et 1532 ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2009-10-14" data-num="09-4699" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 09-4699 du
+     <time data-spec="date" datetime="2009-10-14">
+      14 octobre 2009
+     </time>
+    </a>
+    autorisant la société FRUIVAL, dont le siège social est situé en ZI de La Motte à Portes les Valence, à exploiter ses activités relevant de la nomenclature des installations classées à Portes les Valence - ZI de La Motte ;
+   </div>
+   <div data-spec="visa">
+    VU le récépissé de déclaration n° 89/11 délivré le 12 juillet 2011 à la Société ANDROS SNC pour sa prise en charge depuis le 30 juin 2011 des activités situées ZI de La Motte à Portes les Valence et précédemment exploitées par la société FRUIVAL ;
+   </div>
+   <div data-spec="visa">
+    VU le dossier du 31 mars 2011, complété les 17 juin et 12 septembre 2011, la Société ANDROS SNC, relatif à sa demande de mise à jour des rubriques installations classées de l'arrêté susvisé ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport et les propositions de l'inspection des installations classées à la Direction Régionale de l'Environnement, de l'Aménagement et du Logement de Rhône-Alpes - unité territoriale Drôme-Ardèche - du 16 septembre 2011 ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis du Conseil Départemental de l'Environnement et des Risques Sanitaires et Technologiques (CODERST) en date du 20 octobre 2011 ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     33 avenue de Romans – BP 96 – 26904 VALENCE Cedex 9 - Téléphone : 04.26.52.21.61
+Site Internet de l'Etat en Drôme : http://www.drome.pref.gouv.fr/
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    VU la consultation du pétitionnaire sur le projet d'arrêté le 25 octobre 2011 ;
+   </div>
+   <div data-spec="visa">
+    VU le courrier du 28 octobre 2011 par lequel le pétitionnaire précise qu'il n'a aucune observation à formuler sur le projet d'arrêté ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT la modification des rubriques 2920 et 1530 et la création des rubriques 1511 et 1532 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT l'évolution des activités sur le site, notamment par le remplacement de la chaudière de secours par une nouvelle chaudière installée à proximité de la chaudière principale, le stockage et l'emploi de produits comburants, la mise en place d'une unité de traitement des boues de la station d'épuration ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT la nécessité de modifier le tableau des rubriques de la nomenclature de l'arrêté d'autorisation d'exploiter susvisé n° 09-4699 du 14 octobre 2009 et de définir les prescriptions additionnelles applicables au site ;
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1:
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le tableau de l'
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="1.2.1" data-tag_id="3" data-type="article">
+      article 1.2.1
+     </a>
+     de l'
+     <a data-date="2009-10-14" data-num="09-4699" data-spec="document_reference" data-tag_id="1" data-type="arrete">
+      arrêté n° 09-4699 du
+      <time data-spec="date" datetime="2009-10-14">
+       14 octobre 2009
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacé" data-operand="4" data-operation_type="replace" data-references="3" data-spec="operation">
+      susvisé est
+      <b>
+       remplacé
+      </b>
+      par le tableau suivant :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="4">
+      <tr>
+       <th>
+        Nature des activités
+       </th>
+       <th>
+        Volume
+       </th>
+       <th>
+        Rubrique
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Préparation ou conservation de produits d'origine végétale
+       </td>
+       <td>
+        900 t/jour
+       </td>
+       <td>
+        2220.1
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Préparation et conditionnement de jus de fruits et autres boissons
+       </td>
+       <td>
+        706 500 l/jour
+       </td>
+       <td>
+        2253.1
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Entrepôts couverts
+       </td>
+       <td>
+        34 560 m3
+       </td>
+       <td>
+        1510.3
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Entrepôts frigorifiques
+       </td>
+       <td>
+        20 000 m3
+       </td>
+       <td>
+        1511.3
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Installation de combustion
+       </td>
+       <td>
+        17 MW
+       </td>
+       <td>
+        2910.A-2
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Atelier de charge d'accumulateurs
+       </td>
+       <td>
+        125 kW
+       </td>
+       <td>
+        2925
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Stockage en réservoirs manufacturés de gaz inflammables liquéfiés
+       </td>
+       <td>
+        8,74 t
+       </td>
+       <td>
+        1412.2-b
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Installation de remplissage de gaz inflammables liquéfiés
+       </td>
+       <td>
+       </td>
+       <td>
+        1414.3
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Transformation de polymères, par des procédés exigeant des conditions particulières de température ou de pression
+       </td>
+       <td>
+        &lt; 10 t/jour
+       </td>
+       <td>
+        2661.1-b
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Nature des activités
+       </th>
+       <th>
+        Volume
+       </th>
+       <th>
+        Rubrique
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Emploi et stockage de substances comburantes
+       </td>
+       <td>
+        10 t
+       </td>
+       <td>
+        1200.2-c
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Dépôts de cartons, papier et matériaux combustibles analogues
+       </td>
+       <td>
+        &lt; 1000 m³
+       </td>
+       <td>
+        1530
+       </td>
+       <td>
+        NC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Dépôt de bois sec ou matériaux analogues (palettes)
+       </td>
+       <td>
+        &lt; 1000 m³
+       </td>
+       <td>
+        1532
+       </td>
+       <td>
+        NC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Stockage de matières plastiques (dont 50% au moins de la masse totale est composée de polymères).
+       </td>
+       <td>
+        &lt; 1000 m³
+       </td>
+       <td>
+        2663
+       </td>
+       <td>
+        NC
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-spec="section_reference" data-start_num="3.2.2" data-tag_id="5" data-type="article">
+      article 3.2.2
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="complété" data-operation_type="add" data-references="5" data-spec="operation">
+      est
+      <b>
+       complété
+      </b>
+      comme suit :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Toutes les dispositions sont prises pour que les deux chaudières ne puissent fonctionner simultanément.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le tableau de l'
+     <a data-spec="section_reference" data-start_num="3.2.2.1" data-tag_id="6" data-type="article">
+      article 3.2.2.1
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="modifié" data-operand="7" data-operation_type="replace" data-references="6" data-spec="operation">
+      est
+      <b>
+       modifié
+      </b>
+      comme suit :
+     </span>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <table data-tag_id="7">
+      <tr>
+       <th>
+        N° de conduit
+       </th>
+       <th>
+        Installations raccordées
+       </th>
+       <th>
+        Puissance
+       </th>
+       <th>
+        Combustible
+       </th>
+      </tr>
+      <tr>
+       <td>
+        1
+       </td>
+       <td>
+        Chaudière
+       </td>
+       <td>
+        17 MW
+       </td>
+       <td>
+        Gaz naturel
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2
+       </td>
+       <td>
+        Chaudière
+       </td>
+       <td>
+        9 MW
+       </td>
+       <td>
+        Gaz naturel
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-spec="section_reference" data-start_num="7.2.2.1" data-tag_id="8" data-type="article">
+      article 7.2.2.1
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="complété" data-operation_type="add" data-references="8" data-spec="operation">
+      est
+      <b>
+       complété
+      </b>
+      comme suit :
+     </span>
+    </div>
+    <section data-number="7.2.2.1.4" data-spec="section" data-title="Surveillance du stockage :" data-type="article">
+     <h6 data-error_codes="non_contiguous_titles" data-level="4" data-spec="section_title">
+      Article 7.2.2.1.4 Surveillance du stockage :
+     </h6>
+     <div data-number="1" data-spec="alinea">
+      En dehors des heures d'exploitation du stockage, une surveillance de ce stockage, par gardiennage ou télésurveillance, est mise en place en permanence, notamment afin de transmettre l'alerte aux services d'incendie et de secours, d'assurer leur accueil sur place et de leur permettre l'accès à tous les lieux.
+     </div>
+    </section>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     ARTICLE 4 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-spec="section_reference" data-start_num="7.5.1.1" data-tag_id="9" data-type="article">
+      article 7.5.1.1
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="complété" data-operation_type="add" data-references="9" data-spec="operation">
+      est
+      <b>
+       complété
+      </b>
+      comme suit :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les substances comburantes sont stockées et manipulées à l'écart des matières inflammables et de toute source d'ignition.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La cinquième ligne du tableau de l'
+     <a data-spec="section_reference" data-start_num="8.1.2.3" data-tag_id="10" data-type="article">
+      article 8.1.2.3
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="modifiée" data-operand="11" data-operation_type="replace" data-references="10" data-spec="operation">
+      est
+      <b>
+       modifiée
+      </b>
+      comme suit :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="11">
+      <tr>
+       <td>
+        Paramètres physico- chimique
+       </td>
+       <td>
+        PH &lt; ou égal à 12
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="6" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 6 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le deuxième tiret du
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="3" data-tag_id="12" data-type="alinea">
+      troisième alinéa
+     </a>
+     de l'
+     <a data-spec="section_reference" data-start_num="9.2.4.2.1" data-tag_id="2" data-type="article">
+      article 9.2.4.2.1
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="complété" data-operation_type="add" data-references="12" data-spec="operation">
+      est
+      <b>
+       complété
+      </b>
+      comme suit :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le flux de CaO sera particulièrement surveillé.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'
+     <a data-spec="section_reference" data-start_num="9.4" data-tag_id="13" data-type="article">
+      article 9.4
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="complété" data-operation_type="add" data-references="13" data-spec="operation">
+      est
+      <b>
+       complété
+      </b>
+      comme suit :
+     </span>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - un paragraphe sera dédié à la surveillance des flux de CaO.
+      </li>
+     </ul>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     DISPOSITIONS ADMINISTRATIVES
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 7 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     sera notifié au pétitionnaire qui devra toujours l'avoir en sa possession et le présenter à toute réquisition.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le bénéficiaire se conforme aux lois et règlements intervenus ou à intervenir sur les installations classées.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     En outre, l'administration se réserve le droit de prescrire en tout temps, toutes mesures ou dispositions additionnelles aux conditions énoncées du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     qui seraient reconnues nécessaires dans l'intérêt de la sécurité publique ou pour diminuer les inconvénients résultant du voisinage de cette installation et ce, sans que l'exploitant puisse prétendre de ce chef à un dédommagement quelconque.
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 8 : Délais et voies de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est soumis à un contentieux de pleine juridiction. Il peut être déféré au Tribunal Administratif de Grenoble :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Par les demandeurs ou exploitants, dans un délai de deux mois qui commence à courir du jour où lesdits actes leur ont été notifiés.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Par les tiers, personnes physiques ou morales, les communes intéressées ou leurs groupements, en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts visés aux
+     <a data-group_id="1" data-spec="section_reference" data-start_num="L211-1" data-type="article">
+      articles L. 211-1
+     </a>
+     et
+     <a data-group_id="1" data-spec="section_reference" data-start_num="L511" data-type="article">
+      L. 511
+     </a>
+     .1 dans un délai d'un an à compter de l'achèvement de la publication ou de l'affichage du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-title="Droits des tiers" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 9 : Droits des tiers
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les droits des tiers sont et demeurent exclusivement réservés. L'exploitant devra observer les prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sous réserve de ce droit.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les tiers qui n'ont acquis ou pris à bail des immeubles ou n'ont élevé des constructions dans le voisinage que postérieurement à l'affichage ou à la publication de l'arrêté autorisant l'ouverture de cette installation ou atténuant les prescriptions primitives ne sont pas recevables à déférer ledit arrêté à la juridiction administrative.
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="10" data-spec="section" data-title="Affichage" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 10 : Affichage
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sera déposée à la mairie de Portes les Valence et mise à la disposition de toute personne intéressée.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Un extrait de cet arrêté énumérant notamment les prescriptions auxquelles l'installation est soumise sera affiché pendant une durée minimum d'un mois à la porte de la mairie par les soins du maire.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Procès-verbal de l'accomplissement de ces formalités sera dressé par les soins du maire et une copie sera transmise à la direction départementale de la protection des populations.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le même extrait sera affiché en permanence de façon visible dans l'installation par les soins du bénéficiaire de l'autorisation.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Un avis rappelant la délivrance de la présente autorisation et indiquant où les prescriptions imposées à l'exploitant peuvent être consultées sera publié par les soins des services de la direction départementale de la protection des populations, aux frais du pétitionnaire, dans deux journaux d'annonces légales du département.
+    </div>
+   </section>
+   <section data-number="11" data-spec="section" data-title="Diffusion" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 11 : Diffusion
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant devra toujours être en possession de son arrêté d'autorisation et le présenter à toute réquisition de l'inspection des installations classées, aux visites de laquelle il devra soumettre son établissement.
+    </div>
+   </section>
+   <section data-number="12" data-spec="section" data-title="Exécution" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 12 : Exécution
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La Secrétaire Générale de la préfecture de la Drôme, le Directeur Régional de l'Environnement, de l'Aménagement et du Logement (DREAL) Rhône-Alpes, Unité Territorial Drôme-Ardèche, chargé de l'inspection des installations classées, le Maire de Portes les Valence, sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , dont une copie sera adressée aux :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - Maire de Portes les Valence
+      </li>
+      <li>
+       - Directeur Départemental Interministériel des Territoires ;
+      </li>
+      <li>
+       - Directeur Départemental des Services d'Incendie et de Secours ;
+      </li>
+      <li>
+       - Délégué Territorial de l'Agence Régionale de la Santé ;
+      </li>
+      <li>
+       - Directeur Régional de l'Environnement, de l'Aménagement et du Logement de Rhône-Alpes, Unité Territoriale Drôme-Ardèche
+      </li>
+      <li>
+       - et à la Société ANDROS SNC.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Fait à Valence, le 10 NOV. 2011
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le Préfet,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Pour le Préfet, par délégation,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     La Secrétaire Générale
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Charlotne LBCA
+    </div>
+    <div data-number="8" data-spec="alinea">
+     5 / 5
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+    <div data-number="9" data-spec="alinea">
+     ^{}[]
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

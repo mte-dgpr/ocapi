@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2005-12-16_rapport_Rapport concernant UNILIN daté du 16-12-2005.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="entity">
+    <div>
+     Direction régionale de l'industrie, de la recherche et de l'environnement Champagne-Ardenne Groupe de subdivisions des ARDENNES ZAC du Bois Fortant - Rue Paulin Richier 08000 CHARLEVILLE-MEZIERES 03 24 59 71 20 - 03 24 57 17 69 Charleville-Mézières, le 16 décembre 2005
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     Réf. : SA2- BD/JR -
+    </div>
+    <div>
+     N° 05/1642
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Affaire suivie par Benoît DESRUMAUX direct : 03 24 59 71 42 mel : benoit.desrumaux@industrie.gouv.fr UNILIN à BAZEILLES Objet : Installations classées - Rapport de présentation au CDH en vue de prescrire les dispositifs de sécurité visant à éviter le renouvellement d'un accident analogue à celui du 10 mai 2005 - Modification des vitesses minimales d'éjection aux sorties des séchoirs (article 11 de l'arrêté préfectoral) - Mise à jour de la situation administrative de la société
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     Réf. : - Tierce expertise du rapport relatif à l'explosion de la chaufferie
+    </div>
+    <div>
+     n° 2 survenue le 10 mai 2005
+    </div>
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="1,19,86" data-spec="segmentation:text_span" data-start="1,19,0">
+      - Courrier du 20 juillet 2005 concernant les vitesses minimales des sorties de séchoirs
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div>
+    RAPPORT DE L'INSPECTION DES INSTALLATIONS CLASSEES
+   </div>
+   <div>
+    I. CONTEXTE
+   </div>
+   <div>
+    La société UNILIN a pour activité principale la fabrication de panneaux de bois agglomérés : "MDF". Cette usine, située dans la zone industrielle de BAZEILLES, a été autorisée par l'arrêté préfectoral du 3 juin 1999.
+   </div>
+   <div>
+    Un nouvel arrêté a été signé le 26 juillet 2002 par Monsieur le préfet des Ardennes afin de doubler la capacité de production de panneaux MDF et de créer une unité de mélaminage des panneaux.
+   </div>
+   <div>
+    II. EXPLOSION DE LA CHAUFFERIE N° 2 SURVENUE LE 10 MAI 2005
+   </div>
+   <div>
+    A. Description de la chaufferie n° 2
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Principe de fonctionnement" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     1. Principe de fonctionnement
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La chaufferie n° 2 produit les flux thermiques nécessaires à différents points du procédé de fabrication des panneaux de fibres de bois :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - de l'air chaud pour le séchoir de fibres,
+      </li>
+      <li>
+       - de l'huile thermique pour la presse,
+      </li>
+      <li>
+       - de la vapeur pour le cuiseur et la défibreuse.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Ministère de l'écologie et du développement durable
+    </div>
+    <a data-page_index="1" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     La partie
+     <q>
+      huile thermique
+     </q>
+     de l'installation est soumise à autorisation au titre de la rubrique 2915.1 de la nomenclature :
+     <q>
+      procédés de chauffage utilisant comme fluide caloporteur des organiques combustibles. La température d'utilisation étant supérieure au point éclair du fluide avec une quantité de liquide dans le circuit supérieure à 1 000 l
+     </q>
+     .
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le schéma simplifié du système de chauffage est présenté en
+     <a data-spec="section_reference" data-start_num="1" data-type="annexe">
+      annexe 1
+     </a>
+     du présent rapport.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     L'huile est chauffée à 285°C au niveau d'un échangeur par les gaz chauds de la chaudière (environ 850°C). Cette huile est mise en circulation par deux pompes (plus une pompe de secours en parallèle) dans un circuit primaire qui comprend :
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <ul>
+      <li>
+       - les collecteurs d'huile qui vont permettre de la distribuer vers les consommateurs (presses, générateurs de vapeur),
+      </li>
+      <li>
+       - une boucle de secours prévue pour diriger l'huile vers un bac de refroidissement à eau en cas de surchauffe.
+      </li>
+     </ul>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     La température dans le circuit primaire est mesurée et régulée par le clapet d'admission de l'air chaud, qui entretient la combustion de la chaudière.
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Pour compenser les variations de volume dues aux phénomènes de dilatation et de rétractation, le circuit primaire comporte au point le plus haut une cuve d'expansion. Compte tenu de l'importance du volume total (près de 200 m³), la cuve d'expansion est équipée d'un trop plein qui déverse l'huile vers un ensemble de 3 cuves de drainage de 55 m³ chacune. Ces cuves se trouvent au point le plus bas du réseau, au niveau du sol. Ce procédé de trop plein est d'usage fréquent avec les installations de volume important. Ces cuves participent de manière permanente et normale au fonctionnement du système.
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Le ciel des trois cuves de drainage et de la cuve d'expansion inter communiquent. Il constitue un volume commun dans lequel une légère surpression d'azote est appliquée pour protéger l'huile de l'oxydation par l'air.
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Les variations de hauteur d'huile dans les cuves comprennent ou détendent l'atmosphère du ciel. Cette pression est donc mesurée et régulée en permanence entre 0,1 et 0,2 bars :
+    </div>
+    <div data-number="12" data-spec="alinea">
+     <ul>
+      <li>
+       - quand la pression est inférieure à 0,1 bar, l'azote est injecté dans les cuves,
+      </li>
+      <li>
+       - quand la pression dépasse 0,2 bars les gaz sont évacués vers l'extérieur par une électrovanne (via tuyau de diamètre 10 mm).
+      </li>
+     </ul>
+    </div>
+    <div data-number="13" data-spec="alinea">
+     En cas de dysfonctionnement de l'électrovanne, le système est équipé de deux niveaux de sécurité :
+    </div>
+    <div data-number="14" data-spec="alinea">
+     <ul>
+      <li>
+       - une soupape de surpression présente sur une des cuves (cuve n° 3, les trois cuves étant liées) s'ouvre à partir de 0,8 bars,
+      </li>
+      <li>
+       - en dernier recours, chaque cuve est dotée d'un évent de gros diamètre (DN300) fermé par un disque de rupture taré à 1,2 bars (plus ou moins 10 %).
+      </li>
+     </ul>
+    </div>
+    <div data-number="15" data-spec="alinea">
+     L'huile collectée dans les cuves de drainage est relevée par des pompes dans la cuve d'expansion. La pompe de relevage de l'huile dans la cuve de drainage démarre et s'arrête en fonction du niveau de la cuve d'expansion. Cette pompe démarre lorsque le niveau d'huile dans la cuve d'expansion a atteint 39 % de sa capacité totale et s'arrête quand le niveau de l'huile dans la cuve d'expansion a atteint 44 % de sa capacité totale.
+    </div>
+    <div data-number="16" data-spec="alinea">
+     Lorsque le niveau d'huile dans la cuve d'expansion a atteint 60 % de sa capacité totale, l'huile déborde de la cuve d'expansion pour être acheminée vers les cuves de drainage.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 2 sur 12
+     </div>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      Page 3 sur 12
+     </div>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Fluide caloporteur" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2. Fluide caloporteur
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les caractéristiques techniques de l'huile utilisée (MOBILTHERM 32) sont d'après la fiche de données et de sécurité :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - température d'utilisation maximale en circuit fermé : 315° C,
+      </li>
+      <li>
+       - Point éclair (méthode de la coupelle ouverte) : &amp;gt; 200° C.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     D'après le concepteur de la chaufferie, la température maximale d'utilisation de l'huile n'est atteinte en aucun point dans la zone la plus chaude (échangeur air chaud/huile).
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Récit de l'accident et suivi des événements jusqu'à aujourd'hui" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     3. Récit de l'accident et suivi des événements jusqu'à aujourd'hui
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le mardi 10 mai 2005, vers 17 heures, suite à un arrêt d'urgence de la chaufferie n° 2, une explosion est survenue dans le bâtiment l'abritant. L'accident n'a fait aucune victime. L'opérateur présent dans le bureau de contrôle de la chaufferie a été choqué suite à l'explosion et hospitalisé par mesure de précaution. A l'heure actuelle, l'opérateur n'est plus hospitalisé.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'une des cuves de purge d'huile, connexe au circuit primaire de la chaufferie, a été soumise à une surpression. Le disque de rupture a cédé, causant une vaporisation d'huile sous forme de nuage, qui s'est auto enflammé au contact d'une surface chaude. Une explosion est alors survenue et a entraîné quelques dégâts matériels.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le feu a été rapidement contenu grâce au déclenchement du système d'extinction automatique d'incendies.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les dégâts constatés concernaient (photos en
+     <a data-spec="section_reference" data-start_num="2" data-type="annexe">
+      annexes 2
+     </a>
+     ) :
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <ul>
+      <li>
+       - les bardages du bâtiment n° 2, qui ont été arrachés en partie lors de l'explosion,
+      </li>
+      <li>
+       - deux armoires électriques situées dans la zone des cuves de purge,
+      </li>
+      <li>
+       - les installations connexes aux cuves de purge qui ont subi l'effet de flamme.
+      </li>
+     </ul>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Il a été constaté lors d'une première visite (le 11 mai 2005) des services d'inspection des installations classées sur le site accidenté que les conséquences de l'accident sur l'environnement étaient minimes. En effet, les rétentions incendies ont correctement rempli leur rôle, la solution émulseur utilisée est biodégradable, et le bassin de décantation des eaux pluviales a été isolé du milieu naturel par fermeture de la vanne d'évacuation des effluents vers l'extérieur.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Afin d'éviter toute contamination des eaux du bassin de décantation, un barrage flottant a été mis en place rapidement à l'entrée de celui-ci. Aucune trace visuelle (ni par analyse) d'hydrocarbures n'a été détectée.
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Le 19 mai 2005, la préfecture des Ardennes a adressé à UNILIN un arrêté de mesure d'urgence prescrivant l'arrêt provisoire de la ligne de production n° 2 durant l'enquête visant à déterminer les causes du sinistre.
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Suite à la réunion du 23 mai 2005 où l'exploitant a réalisé une présentation des premières hypothèses de l'origine de l'accident (Boil over, auto-inflammation et relevage d'eaux de purges dans le vase d'expansion de la chaufferie) et des différents dispositifs de prévention et de protection mis en place, le service de l'inspection des installations classées a autorisé UNILIN à relancer la production de la ligne 2 concernée par l'accident sous certaines conditions de sécurité.
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Cette remise en production a été opérée sous la vigilance des services environnement et équipements sous pression de la DRIRE ainsi qu'avec la collaboration de l'INERIS afin de déterminer les véritables origines du sinistre.
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-number="11" data-spec="alinea">
+     Le jeudi 30 juin 2005, une réunion entre l'exploitant et l'INERIS a permis d'élaborer un dossier bilan explicitant les dernières théories ainsi que les causes avérées de l'explosion de la chaufferie 2.
+    </div>
+    <div data-number="12" data-spec="alinea">
+     Le présent rapport vise à synthétiser les conclusions de l'enquête déterminant les causes exactes de la surpression ayant entraîné l'explosion.
+    </div>
+    <div data-number="13" data-spec="alinea">
+     B. Scénarios retenus dans le rapport Unilin (rapport du 20/05/05)
+    </div>
+   </section>
+   <section data-number="1" data-spec="section" data-title="Constats et analyses ayant permis l'établissement de 3 scénarios" data-type="unknown">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     1. Constats et analyses ayant permis l'établissement de 3 scénarios
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Suite à l'accident l'exploitant a pu faire les constats des éléments suivants :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - Les conséquences des effets thermiques de l'explosion se concentrent dans la zone des cuves de drainage de l'huile : mur en béton noirci, câbles électriques fondus...
+      </li>
+      <li>
+       - Sur une des trois cuves de drainage, le disque de rupture qui se trouve au bout de l'évent a cédé,
+      </li>
+      <li>
+       - La température de la paroi extérieure de la cuve de drainage n° 3 a été mesurée à 75°C environ par le personnel d'Unilin une à deux heures après le sinistre,
+      </li>
+      <li>
+       - Défaillance dans le circuit de refroidissement de secours (sectionneur de sécurité du circuit de refroidissement),
+      </li>
+      <li>
+       - La comparaison des analyses réalisées en février 2005 et immédiatement après l'explosion sur l'huile caloportrice montrent qu'elle s'est rapidement dégradée : baisse du point éclair de 200°C à 64 – 74°C, baisse de la viscosité de 32 Cst à 21 Cst,
+      </li>
+      <li>
+       - La société Exxon Mobil (fournisseur de la mobiltherm 32) précise que la présence d'eau en mélange dans l'huile thermique peut conduire à une modification importante de ses caractéristiques,
+      </li>
+      <li>
+       - Les analyses réalisées sur l'huile caloportrice montrent qu'elle ne souffrait pas d'oxydation par l'air.
+      </li>
+      <li>
+       - Récupération en fond de cuves de drainage de deux tonnes d'eau pour 200 m³ d'huile après l'accident,
+      </li>
+      <li>
+       - Les cuves de drainage n'ont pas été vidangées depuis la première charge d'huile en juillet 2002,
+      </li>
+      <li>
+       - Le graphique « pression ; détail 10/05/05 à partir de 17 h » (cf.
+       <a data-spec="section_reference" data-start_num="3" data-type="annexe">
+        annexe 3
+       </a>
+       ) permet de comprendre la cinétique de la montée en pression : on observe deux pentes de montée en pression espacée entre 17 h 01' 28'' (arrêt d'urgence de la chaufferie n° 2) et 17 h 03' 01'' (éclatement du disque de rupture de la cuve de drainage n° 3), qui laisse envisager la libération d'un phénomène de surpression qui s'est accéléré dans le circuit d'expansion,
+      </li>
+      <li>
+       - Préalablement à l'accident, des relargages d'huile chaude (280°C environ) dans la cuve de drainage n° 3 ont été constatés en quantité non négligeable avec une hauteur de chute importante facilitant les mélanges huile-eau.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Présentation des trois scénarios" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2. Présentation des trois scénarios
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       a) Auto-inflammation
+      </li>
+     </ul>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Du fait de la présence d'eau, le cracking poussé de l'huile conduit à un dégagement et une accumulation de vapeurs inflammables dans la cuve d'expansion et les cuves de drainage. Le débordement d'huile très chaude de la cuve d'expansion vers les cuves de drainage enflamme ces vapeurs. La surpression étant trop brusque, ni l'électrovanne, ni la soupape de sécurité ne peuvent évacuer efficacement de débit vers l'extérieur. Les disques de rupture de la cuve n° 3 cèdent et libèrent un nuage de vapeurs/brouillard d'huile dans le bâtiment.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 4 sur 12
+     </div>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     Une source d'ignition (surface chaude, contact dans une armoire électrique...) enflamme ce nuage confiné et provoque une 2ème explosion plus importante.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       b) Relevage d'eau de fond de cuve
+      </li>
+     </ul>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     La présence d'eau dans le circuit conduit à une accumulation en partie basse des cuves de drainage (à la vidange de celles-ci, environ 1,5 m³ d'eau a été récupérée). Le niveau de ce fond de cuve d'eau monte progressivement jusqu'à atteindre le niveau du piquage des pompes de relevage (qui ramènent l'huile drainée vers le réseau). Au moment où elle rejoint la cuve d'expansion, cette eau rencontre une huile à plus de 100°C (ce qui est possible puisque les heures qui ont précédé l'explosion ont été marquées par des variations de régime de l'installation). L'eau se vaporise et provoque la rupture du disque sur la cuve de drainage, et la pulvérisation dans le bâtiment des vapeurs et/ou d'un brouillard d'huile.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     <ul>
+      <li>
+       c) Boil over
+      </li>
+     </ul>
+    </div>
+    <div data-number="7" data-spec="alinea">
+     La présence d'eau dans le circuit conduit à une accumulation en partie basse des cuves de drainage. Le débordement d'huile très chaude de la cuve d'expansion vers les cuves de drainage vaporise le fond de cuve aqueux, ce qui casse le disque de rupture et pulvérise dans le bâtiment des vapeurs et/ou d'un brouillard d'huile.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Protections mises en place dès le 23 mai 2005" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     3. Protections mises en place dès le 23 mai 2005
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Pour examiner ces trois scénarios et ainsi identifier les causes déterminantes de l'accident, Unilin a fait appel aux compétences de l'INERIS.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les mesures suivantes ont été prises dans les jours suivant l'accident :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - Vidange et remplacement de la totalité de l'huile du réseau,
+      </li>
+      <li>
+       - Augmentation de la fréquence d'analyse de l'huile,
+      </li>
+      <li>
+       - Remplacement des trois disques de rupture (y compris ceux qui n'ont pas cédé),
+      </li>
+      <li>
+       - Les évents ont été dirigés vers l'extérieur du bâtiment,
+      </li>
+      <li>
+       - Installation de mesure en continu de la température sur les cuves de drainages,
+      </li>
+      <li>
+       - Enregistrement de la mesure de pression déjà en place sur les cuves de drainages,
+      </li>
+      <li>
+       - Organisation de purge régulière de l'eau dans les cuves de drainages,
+      </li>
+      <li>
+       - Approfondissement et finalisation des vérifications de la structure du bâtiment,
+      </li>
+      <li>
+       - Vérification de l'étanchéité du réseau de gaz naturel,
+      </li>
+      <li>
+       - Vérification des équipements sous pression en rapport avec le sinistre par un expert de Bureau Véritas (essai d'étanchéité des générateurs de Vapeur par mise en pression des faisceaux d'huile),
+      </li>
+      <li>
+       - Vérification de l'isolement des câbles électriques n'ayant pas été remplacés,
+      </li>
+      <li>
+       - Sécurisation du bâtiment (s'assurer qu'aucun élément ou objet ne menace de tomber).
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     C. Scénarios retenus par l'INERIS (expertise du 01/07/05 référencée DRA - 05 - n° 69746)
+    </div>
+   </section>
+   <section data-number="1" data-spec="section" data-title="Etude sur la présence d'eau dans l'huile" data-type="unknown">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     1. Etude sur la présence d'eau dans l'huile
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La présence d'eau en grande quantité exclut l'origine de l'eau par des phénomènes de condensation mais plutôt par une introduction massive (environ 2 tonnes d'eau pour 230 m³ d'huile) dans le circuit.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'eau n'est en aucun cas générée par les phénomènes de cracking.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 5 sur 12
+     </div>
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     Le bureau Veritas a contrôlé le générateur de vapeur de la chaufferie n° 2, la cuve d'expansion et les cuves de drainage. Cependant aucun des examens réalisés ne fait apparaître de défauts.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les tests de démarrage des appareils à pression se font à l'aide d'eau afin de vérifier l'étanchéité de l'ensemble des éléments. Une mauvaise purge suite aux tests pourrait expliquer la présence d'eau dans les cuves de drainage (il est important de souligner que l'huile se mélange à l'eau selon un facteur de solubilité à l'eau qui augmente d'autant plus que l'huile est dégradée. Ainsi des mélanges huile-eau peuvent apparaître dans la cuve de drainage).
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Néanmoins aucune certitude sur la présence d'eau n'a pu être dégagée des investigations menées par Unilin et l'INERIS. Le facteur
+     <q>
+      eau
+     </q>
+     est donc à surveiller régulièrement dans le fonctionnement futur de l'installation.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Etude du scénario Boil Over" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2. Etude du scénario Boil Over
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Un Boil over est un phénomène de moussage de grande ampleur impliquant des réservoirs atmosphériques et résultant de la transformation en vapeur d'eau, d'eau liquide contenue dans un réservoir en feu.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Ce phénomène est à l'origine de violentes projections de combustibles, du bouillonnement du contenu du bac, de l'extension des flammes et de la formation d'une boule de feu.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Quatre conditions sont à réunir :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - la présence d'un fond d'eau susceptible d'être transformée en vapeur,
+      </li>
+      <li>
+       - la création d'une onde de chaleur qui entre en contact avec le fond de l'eau située sous la masse d'hydrocarbures,
+      </li>
+      <li>
+       - un hydrocarbure suffisamment visqueux, que la vapeur créée par l'eau au contact de la zone chaude en fond de réservoir ne puisse pas facilement traverser,
+      </li>
+      <li>
+       - un hydrocarbure dont la température d'ébullition moyenne soit suffisamment élevée.
+      </li>
+     </ul>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     L'incident du 10 mai 2005 est apparu en 1 minute 33 secondes après l'apparition de l'arrêt d'urgence. Or, la cinétique du phénomène de Boil over ne peut se comparer à celle de l'accident de part sa brièveté.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     De plus il ne peut y avoir Boil over que si l'hydrocarbure offre des conditions d'étanchéité suffisantes (donc une viscosité suffisante). Or, du fait de la dégradation de l'huile, sa viscosité a chuté n'assurant plus un aspect d'étanchéité suffisant.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     L'INERIS conclut donc que ce scénario ne peut correspondre à celui survenu chez UNILIN le 10 mai 2005.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Etude du scénario auto-inflammation" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     3. Etude du scénario auto-inflammation
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     On rappelle que la température d'auto-inflammation est la température minimale à laquelle un mélange en proportion convenable, s'enflamme spontanément en présence d'un point chaud.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Par hypothèse conservatoire, les vapeurs d'huile (formées par cracking) peuvent être assimilées à des vapeurs d'essences dans la mesure où la dégradation de l'huile a été constatée (point éclair à 64-74° C et viscosité à 21Cst).
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Ainsi la température d'auto-inflammation huile/air peut être assimilée à celle de l'essence qui est supérieure à 300°C.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 6 sur 12
+     </div>
+    </div>
+    <a data-page_index="6" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     Au vu des courbes d'enregistrement, la température de l'huile dans le circuit primaire atteignait 280/290° C : la température de l'huile dans la cuve d'expansion doit être alors moindre.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     L'INERIS conclut donc comme peu probable le fait que la température des vapeurs d'huile formées atteigne la température d'auto-inflammation dans la mesure où la température de l'huile dans la cuve d'expansion est inférieure à 280° C.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Etude du scénario relevage d'eau" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     4. Etude du scénario relevage d'eau
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La pompe de relevage démarre et s'arrête en fonction du niveau dans le vase d'expansion. La pompe démarre à un niveau de 39 % et s'arrête quand le niveau a atteint 44 %. Les relevés du 10 mai 2005 ont montré que cette pompe a fonctionné plusieurs fois entre 16:00 et 16:25. A partir de 16:24 le niveau du vase d'expansion est resté au-dessus de 44 %, il n'y avait alors aucune raison que pour que la pompe effectue un relevage.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Ceci permet à l'INERIS d'écarter également ce scénario.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     D. Conclusions
+    </div>
+   </section>
+   <section data-number="1" data-spec="section" data-title="Scénarios retenus par l'INERIS" data-type="unknown">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     1. Scénarios retenus par l'INERIS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'arbre des causes et des conséquences relatives au scénario présenté ci-dessous est annexé au rapport (cf.
+     <a data-spec="section_reference" data-start_num="4" data-type="annexe">
+      Annexe 4
+     </a>
+     ), celui-ci met en relief :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - l'arrêt d'urgence de la chaufferie,
+      </li>
+      <li>
+       - le dysfonctionnement de la pompe de circulation dans le système de refroidissement de secours (sans visualisation du problème par le technicien en poste),
+      </li>
+      <li>
+       - l'augmentation de la température du fluide caloporteur,
+      </li>
+      <li>
+       - la dilatation et l'expansion de l'huile dans la cuve d'expansion,
+      </li>
+      <li>
+       - les déversements intempestifs dans la cuve de drainage n° 3.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le relevé de la courbe d'enregistrement de la pression (Cf.
+     <a data-spec="section_reference" data-start_num="3" data-type="annexe">
+      annexe 3
+     </a>
+     ) le 10 mai 2005 permet de valider l'importante dilatation de l'huile par élévation de température.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Du fait de la présence d'eau, le cracking de l'huile conduit à sa dégradation par hydrolyse : chute du point éclair (65° C environ) et de la viscosité.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Au vu de la courbe d'enregistrement de pression et du niveau de la cuve d'expansion du 10 mai 2005, on observe une montée de pression avec deux pentes différentes. Cela peut s'expliquer par un phénomène de vaporisation rapide puis accéléré de l'eau émulsionnée dans l'huile présente dans la cuve de drainage n° 3 (effet de moussage), lors de l'introduction de l'huile chaude en quantité importante par le phénomène de dilatation thermique (sous forme de débordement intempestif) suite au dysfonctionnement du circuit de refroidissement de secours.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Cette dilatation conduit à un facteur de dilatation élevé d'autant plus que l'huile voit sa viscosité chuter par la dégradation par hydrolyse.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Le contenu de la cuve de drainage n° 3 se trouve soudainement dans des conditions de température et de pression telles qu'une partie du liquide se vaporise violemment. La vaporisation brutale d'une partie du liquide entraîne la fragmentation de la partie liquide en fines gouttelettes dont le diamètre et la vitesse vont dépendre notamment de l'écart entre la température initiale du produit et la température d'ébullition du produit à pression atmosphérique.
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Ce scénario conduit à une surpression dans le circuit d'expansion entraînant une fuite par le disque de rupture de la cuve de drainage n° 3.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 7 sur 12
+     </div>
+    </div>
+    <a data-page_index="7" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      Page 8 sur 12
+     </div>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Barrières de protection et préventions retenues" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2. Barrières de protection et préventions retenues
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'arbre de défaillances et l'arbre d'événements redoutés, proposés par l'INERIS a permis de sélectionner la majeure partie des barrières de prévention et de protection figurant dans le rapport d'Unilin du 20/05/05.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les barrières de préventions et protections affichées dans l'arbre des causes et d'événements redoutés sont les suivantes :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - B1 : Modification des canalisations DN300 pour les orienter vers l'extérieur,
+      </li>
+      <li>
+       - B2 : Remplacement des canalisations et vannes de sections des cuves de drainage (de section 10 mm) par des sections 1'',
+      </li>
+      <li>
+       - B3 : Installation de trois sondes de température (Pt 100) sur les cuves de drainage. Report de l'information en salle de commande, avec enregistrement. Le seuil d'alarme sera défini lors des essais de remise en service,
+      </li>
+      <li>
+       - B4 : Renouvellement complet de la charge d'huile,
+      </li>
+      <li>
+       - B6 : Augmenter la fréquence des analyses d'huile (mensuelle). Analyse par un laboratoire indépendant selon deux méthodes pour le point éclair (coupelle ouverte et coupelle fermée),
+      </li>
+      <li>
+       - B7 : Rédaction et mise en application d'une instruction rendant obligatoire la purge des fonds de cuve de drainage de manière hebdomadaire,
+      </li>
+      <li>
+       - B8 : Système automatique de sprinklage à la mousse,
+      </li>
+      <li>
+       - B9 : Organisation d'exercices de coordination entre l'équipe de seconde intervention et les services départementaux de secours incendie,
+      </li>
+      <li>
+       - B10 : Bassin de rétention des eaux d'extinction,
+      </li>
+      <li>
+       - B11 : Conception du bâtiment en bardage léger,
+      </li>
+      <li>
+       - B12 : Modification de la supervision pour qu'un message d'alerte « pompe circuit secours en manuel » s'affiche sur tous les écrans,
+      </li>
+      <li>
+       - B13 : Remplacement du moteur de démarrage de la pompe de circulation du circuit de refroidissement de secours,
+      </li>
+      <li>
+       - B14 : Mesure de la pression de l'huile dans la partie « aval » de la pompe du circuit de refroidissement de secours.
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     E. Avis de l'inspection des installations classées
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Compte tenu :
+    </div>
+    <div data-number="6" data-spec="alinea">
+     <ul>
+      <li>
+       - que suite à l'accident du 10 mai 2005, l'exploitant a remis à l'inspection des installations classées un rapport explicitant les hypothèses des causes pouvant être à l'origine du sinistre,
+      </li>
+      <li>
+       - que l'exploitant a mandaté l'INERIS en tant que tiers expert dans le cadre de l'enquête,
+      </li>
+      <li>
+       - que l'INERIS a remis un rapport détaillant un scénario retenu comme étant celui le plus probable,
+      </li>
+      <li>
+       - que l'exploitant (en collaboration avec l'INERIS) a défini les barrières de prévention et protection les plus pertinentes par rapport au scénario retenu,
+      </li>
+      <li>
+       - que la source première identifiée du sinistre est la présence d'eau dans l'huile, provoquant son hydrolyse,
+      </li>
+      <li>
+       - que l'hydrolyse de l'huile provoque une chute de son point éclair et de sa viscosité,
+      </li>
+      <li>
+       - que l'origine de l'eau ne peut être avec certitude identifiée,
+      </li>
+      <li>
+       - que la chaufferie n° 1 est de même type que la chaufferie n° 2 incriminée,
+      </li>
+     </ul>
+    </div>
+    <div data-number="7" data-spec="alinea">
+     L'inspection des installations classées propose la mise en place effective des mesures de préventions et protections détaillées au
+     <a data-spec="section_reference" data-start_num="D2" data-type="article">
+      paragraphe D.2
+     </a>
+     du présent rapport au niveau de la chaufferie n° 2 et de la chaufferie n° 1 en émettant les conditions supplémentaires suivantes :
+    </div>
+    <div data-number="8" data-spec="alinea">
+     <ul>
+      <li>
+       - les analyses de l'huile caloportrice porteront sur les éléments suivants : Point éclair, viscosité et présence d'eau,
+       <a data-page_index="8" data-spec="page_separator">
+       </a>
+      </li>
+      <li>
+       - les prélevements d'huiles se feront en plusieurs points de l'installation afin de garantir une qualité d'huile homogène sur l'ensemble de l'installation de combustion,
+      </li>
+      <li>
+       - les analyses d'huile réalisées par le laboratoire spécialisé devront être régulièrement envoyées à l'inspection des installations classées,
+      </li>
+      <li>
+       - toute dégradation importante de l'huile caloportrice devra être signalée aux services de l'inspection et devra entraîner la vidange complète de l'installation visée (des valeurs seuils en terme de viscosité et de point éclair seront précisées par l'exploitant à l'aide d'un laboratoire agréé),
+      </li>
+      <li>
+       - une attention toute particulière de l'exploitant devra être portée sur les purges régulières des deux installations de chaufferie afin de vérifier l'absence d'eau.
+      </li>
+     </ul>
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Nous informons également Monsieur le Préfet des Ardennes qu'une enquête du service équipements sous pression de la DRIRE est en cours afin de déterminer le classement des équipements utilisés par UNILIN.
+    </div>
+    <div data-number="10" data-spec="alinea">
+     III. VITESSE MINIMALE D'ÉJECTION AUX SORTIES DES SECHOIRS (
+     <a data-spec="section_reference" data-start_num="11.5.2.2" data-type="article">
+      ARTICLE 11.5.2.2
+     </a>
+     DE L'ARRÊTÉ PRÉFECTORAL D'AUTORISATION)
+    </div>
+    <div data-number="11" data-spec="alinea">
+     A. Contexte de la demande formulée par l'exploitant
+    </div>
+    <div data-number="12" data-spec="alinea">
+     L'
+     <a data-date="2002-07-26" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     prescrit à la société Unilin à l'
+     <a data-spec="section_reference" data-start_num="11.5.2.2" data-type="article">
+      article 11.5.2.2
+     </a>
+     -Cheminée, les éléments suivants :
+    </div>
+    <div data-number="13" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+       </th>
+       <th>
+        Hauteur (m)
+       </th>
+       <th>
+        Section (m²)
+       </th>
+       <th>
+        Rejets des fumées des installations raccordées
+       </th>
+       <th>
+        Débit nominal instantané en Nm³/h
+       </th>
+       <th>
+        Vitesse mini d'éjection en m/s
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Conduits Séchoir 1
+       </td>
+       <td>
+        63,25
+       </td>
+       <td>
+        4,15 x 2
+       </td>
+       <td>
+        Atmosphère
+       </td>
+       <td>
+        400 000
+       </td>
+       <td>
+        21,4
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Conduits Séchoir 2
+       </td>
+       <td>
+        68
+       </td>
+       <td>
+        5,2 x 2
+       </td>
+       <td>
+        Atmosphère
+       </td>
+       <td>
+        500 000
+       </td>
+       <td>
+        17
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="14" data-spec="alinea">
+     Les relevés d'auto-surveillance envoyés mensuellement par la société Unilin aux services de l'inspection des installations classés, montrent systématiquement des valeurs de vitesse minimale d'éjection en total désaccord avec les prescriptions réglementaires ci-dessus.
+    </div>
+    <div data-number="15" data-spec="alinea">
+     Suite au courrier de rappel adressé à l'exploitant le 31 janvier 2005 et la visite d'inspection du site Unilin le 3 juin 2005, l'exploitant a fait connaître par courrier du 20 juillet 2005 une erreur de calcul dans le dimensionnement des vitesses minimales d'éjection lors de l'établissement de la demande d'autorisation d'exploiter. Cette erreur ayant été ensuite reprise dans l'
+     <a data-date="2002-07-26" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     .
+    </div>
+    <div data-number="16" data-spec="alinea">
+     B. Éléments de correction apportés par l'exploitant
+    </div>
+   </section>
+   <section data-number="1" data-spec="section" data-title="Historique des erreurs" data-type="unknown">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     1. Historique des erreurs
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dans le premier arrêté préfectoral (N° 4442 du 3 juin 1999), la vitesse minimale a été calculée en considérant que la totalité du débit sortait par une cheminée, alors qu'il y en a deux par séchoir. De plus, le débit pris en compte est de 400 000 m³/h ; ce qui n'est pas exact car il convenait de convertir cette valeur en Nm³/h. Par contre, les calculs de flux maximaux en polluants ont bien été faits sur la base de Nm³/h.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Dans l'arrêté préfectoral (N° 4550 du 26 juillet 2002), il a été tenu compte de la répartition du flux sur deux cheminées, mais la section utilisée dans le calcul pour le séchoir n'est pas correcte (4,15 m² au lieu de 4,9 m²). Pourtant la vitesse minimale pour le séchoir 1 est restée à 21,4 m/s.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 9 sur 12
+     </div>
+    </div>
+    <a data-page_index="9" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     Dans les deux arrêtés, les vitesses minimales ont été calculées en se basant sur des débits nominaux. Il convient plutôt d'utiliser les débits minimaux.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Nouveau calcul" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2. Nouveau calcul
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les conditions pour lesquelles la vitesse minimale d'éjection a été calculée sont :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - une cadence de production minimale,
+      </li>
+      <li>
+       - bois peu humide,
+      </li>
+      <li>
+       - air chaud épuré provenant de chaufferie, très sec,
+      </li>
+      <li>
+       - l'air frais provenant de l'extérieur a une température élevée.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     A partir de ces conditions, le concepteur de l'installation (BUTTNER) a calculé le débit minimum théorique de 451 692 m³ humide/h à 0°C qui conduit aux résultats suivants :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+       </th>
+       <th>
+        Diamètre cheminée (m)
+       </th>
+       <th>
+        Section cheminée (m²)
+       </th>
+       <th>
+        Vitesse minimale d'éjection (m/s)
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Séchoir n°1
+       </td>
+       <td>
+        2,5
+       </td>
+       <td>
+        4,909
+       </td>
+       <td>
+        12,78
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Séchoir n°2
+       </td>
+       <td>
+        2,57
+       </td>
+       <td>
+        5,187
+       </td>
+       <td>
+        12,09
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     C. Avis de l'inspection des installations classées
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Après vérification du dossier de demande d'autorisation réalisé par GNAT ingénierie les valeurs suivantes ont été vérifiées :
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+       </th>
+       <th>
+        Diamètre cheminée (m)
+       </th>
+       <th>
+        Hauteur cheminée (m)
+       </th>
+       <th>
+        Section cheminée (m²)
+       </th>
+       <th>
+        Vitesse minimale d'éjection (m/s)
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Séchoir n°2
+       </td>
+       <td>
+        2,57
+       </td>
+       <td>
+        68
+       </td>
+       <td>
+        10,4 (2 x 5,2)
+       </td>
+       <td>
+        17
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Séchoir n°1
+       </td>
+       <td>
+        2,5
+       </td>
+       <td>
+        63,25
+       </td>
+       <td>
+        8,31 (2 x 4.155)
+       </td>
+       <td>
+        21,4
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Compte tenu :
+    </div>
+    <div data-number="9" data-spec="alinea">
+     <ul>
+      <li>
+       - que l'erreur portant sur la section des cheminées de chacun des séchoirs est avérée et est contenue dans le dossier de demande d'autorisation réalisé par GNAT ingénierie,
+      </li>
+      <li>
+       - que le dossier de demande d'autorisation précédemment cité ne détaille pas les calculs réalisés pour déterminer les vitesses minimales d'éjection,
+      </li>
+      <li>
+       - que l'exploitant a apporté de nouveaux éléments permettant de recalculer les valeurs de vitesses minimales d'éjection aux séchoirs.
+      </li>
+     </ul>
+    </div>
+    <div data-number="10" data-spec="alinea">
+     L'inspection des installations classées propose la mise à jour de l'
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="11.5.2.2" data-type="article">
+      article 11.5.2.2
+     </a>
+     de l'
+     <a data-date="2002-07-26" data-spec="document_reference" data-tag_id="1" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     avec les données suivantes :
+    </div>
+    <div data-number="11" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+       </th>
+       <th>
+        Hauteur (m)
+       </th>
+       <th>
+        Section (m²)
+       </th>
+       <th>
+        Rejet des fumées des installations raccordées
+       </th>
+       <th>
+        Débit nominal instantané (Nm³/h)
+       </th>
+       <th>
+        Vitesse minimale d'éjection (m/s)
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Conduits séchoir 1
+       </td>
+       <td>
+        63,25
+       </td>
+       <td>
+        4,909 x 2
+       </td>
+       <td>
+        Atmosphère
+       </td>
+       <td>
+        400 000
+       </td>
+       <td>
+        11
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Conduits séchoir 2
+       </td>
+       <td>
+        68
+       </td>
+       <td>
+        5,187 x 2
+       </td>
+       <td>
+        Atmosphère
+       </td>
+       <td>
+        500 000
+       </td>
+       <td>
+        11
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 10 sur 12
+     </div>
+    </div>
+    <a data-page_index="10" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      Page 11 sur 12
+     </div>
+    </div>
+    <div data-number="12" data-spec="alinea">
+     IV. MISE A JOUR DE LA SITUATION ADMINISTRATIVE DU SITE
+    </div>
+    <div data-number="13" data-spec="alinea">
+     A. Objet de la demande de l'exploitant
+    </div>
+    <div data-number="14" data-spec="alinea">
+     L'exploitant a adressé à la préfecture des Ardennes un courrier daté du 4 février annonçant qu'une erreur existait dans l'
+     <a data-date="2005-07-26" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="2005-07-26">
+       26 juillet 2005
+      </time>
+     </a>
+     . En effet, les trois sources radioactives utilisées sur le site ne sont pas visées par la rubrique n° 1720-1b de la nomenclature des installations classées.
+    </div>
+    <div data-number="15" data-spec="alinea">
+     Le dossier visant à la détention de sources radioactives scellées avait été retiré du conseil départemental d'hygiène lors de sa séance du 2 février 2005 du fait que la source utilisée par la société est en-dessous du seuil de déclaration.
+    </div>
+    <div data-number="16" data-spec="alinea">
+     B. Avis de l'inspection des installations classées
+    </div>
+    <div data-number="17" data-spec="alinea">
+     Compte tenu :
+    </div>
+    <div data-number="18" data-spec="alinea">
+     <ul>
+      <li>
+       - que l'exploitant utilise trois sources radioactives scellées non classées par la nomenclature des installations classées,
+      </li>
+      <li>
+       - que par conséquent, ce dossier a été transmis à la Direction Générale de la Sûreté Nucléaire et de la Radioprotection,
+      </li>
+     </ul>
+    </div>
+    <div data-number="19" data-spec="alinea">
+     L'inspection des installations classées propose la mise à jour du tableau de classement présent à l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="1.1" data-type="article">
+      article 1.1
+     </a>
+     de l'
+     <a data-date="2002-07-26" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     , en précisant :
+    </div>
+    <div data-number="20" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Rubrique
+       </th>
+       <th>
+        Désignation de la rubrique
+       </th>
+       <th>
+        Caractéristique
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td>
+        1720-3
+       </td>
+       <td>
+        Utilisation, dépôt et stockage de substances radioactives sous forme de sources conformes aux normes NFM 61-002 et NFM 61-003 contenant des radio nucléaires du groupe 3. L'activité totale étant inférieure à 3 700 GBq
+       </td>
+       <td>
+        - 2 sources identiques installées sur les lignes fabrication de panneaux MDF de même activité (370 MBq : césium 137 - 1 source d'activité 3,66 MBq : carbone 14
+        <br/>
+        Soit au total : 743,66 MBq
+       </td>
+       <td>
+        NC
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="21" data-spec="alinea">
+     V. DEMANDE D'ANTERIORITE CONCERNANT LA RUBRIQUE 2921
+    </div>
+    <div data-number="22" data-spec="alinea">
+     A. Contexte
+    </div>
+    <div data-number="23" data-spec="alinea">
+     La société UNILIN de BAZEILLES est connue par nos services comme exploitant des tours aéroréfrigérantes.
+    </div>
+    <div data-number="24" data-spec="alinea">
+     En effet, un arrêté préfectoral complémentaire sur la prévention de la légionellose a été notifié à la société le 9 août 2004.
+    </div>
+    <div data-number="25" data-spec="alinea">
+     De plus, après la création de la rubrique 2921 par le décret n° 2004-1331 en date du 1er décembre 2004, l'exploitant a confirmé par courrier du 13 décembre 2004 l'exploitation effective de ses tours aéroréfrigérantes. Il a fait un courrier de rectification de sa demande d'antériorité le 26 septembre 2005.
+    </div>
+    <div data-number="26" data-spec="alinea">
+     B. Avis de l'inspection
+    </div>
+    <div data-number="27" data-spec="alinea">
+     Les conditions de l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="L513-1" data-type="article">
+      article L 513-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+      Code de l'Environnement
+     </a>
+     :
+    </div>
+    <div data-number="28" data-spec="alinea">
+     <div data-error_codes="unbalanced_quote" data-spec="error">
+      Les installations qui, après avoir été régulièrement mises en service, sont soumises, en vertu d'un décret relatif à la nomenclature des installations classées, à autorisation ou à déclaration peuvent continuer à fonctionner sans cette autorisation ou déclaration à la seule condition que l'exploitant se
+     </div>
+    </div>
+    <a data-page_index="11" data-spec="page_separator">
+    </a>
+    <div data-number="29" data-spec="alinea">
+     soit déjà fait connaître du Préfet ou se fasse connaître de lui dans l'année suivant la publication du décret » sont respectées.
+    </div>
+    <div data-number="30" data-spec="alinea">
+     L'exploitant peut donc bénéficier de l'antériorité pour la rubrique 2921.
+    </div>
+    <div data-number="31" data-spec="alinea">
+     VI. PROPOSITION
+    </div>
+    <div data-number="32" data-spec="alinea">
+     Au vu des éléments précédemment développés, nous proposons à Monsieur le Préfet des Ardennes de prendre, en application de l'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="18" data-type="article">
+      article 18
+     </a>
+     du
+     <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-tag_id="4" data-type="decret">
+      décret n° 77-1133 du
+      <time data-spec="date" datetime="1977-09-21">
+       21 septembre 1977
+      </time>
+     </a>
+     modifié, un projet d'arrêté préfectoral complémentaire à l'arrêté préfectoral d'autorisation d'exploiter de la société Unilin du 26 juillet 2002, après avis du Conseil Départemental d'Hygiène :
+    </div>
+    <div data-number="33" data-spec="alinea">
+     <ul>
+      <li>
+       - prescrivant les dispositifs de sécurité (prévention et protection) adéquats afin d'éviter tout nouvel accident du même type que celui s'étant déroulé le 10 mai 2005,
+      </li>
+      <li>
+       - réalisant une mise à jour des prescriptions réglementant les rejets atmosphériques des séchoirs (vitesse minimale d'éjection),
+      </li>
+      <li>
+       - réalisant une mise à jour de la situation administrative de la société Unilin, concernant l'utilisation de trois sources radioactives,
+      </li>
+      <li>
+       - répondant à la demande d'antériorité quant à l'utilisation de systèmes de refroidissement d'eaux dans un flux d'air soumis à autorisation.
+      </li>
+     </ul>
+    </div>
+    <div data-number="34" data-spec="alinea">
+     Nous proposons au Conseil Départemental d'Hygiène d'émettre un avis favorable sur le projet d'
+     <a data-num="ci-joint." data-spec="document_reference" data-type="arrete">
+      arrête complémentaire ci-joint.
+     </a>
+    </div>
+    <div data-number="35" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        Rédigé le 16 décembre 2005
+        <br/>
+        à Charleville-Mézières
+       </td>
+       <td>
+        Validé
+        <br/>
+        A Châlons-en-Champagne
+       </td>
+       <td>
+        Vu, approuvé et transmis à Monsieur le Préfet du département des Ardennes
+       </td>
+      </tr>
+      <tr>
+       <td>
+        L'inspecteur des installations classées,
+        <br/>
+        <br/>
+        <i>
+         signé
+        </i>
+        <br/>
+        Séverine SALLE
+       </td>
+       <td>
+        L'inspecteur des installations classées,
+        <br/>
+        <br/>
+        <i>
+         signé
+        </i>
+        <br/>
+        Daniel RIVIERE
+       </td>
+       <td>
+        Pour la Directrice et par délégation,
+        <br/>
+        Le Chef du Service Régional de l'Environnement Industriel,
+        <br/>
+        <br/>
+        <i>
+         signé
+        </i>
+        <br/>
+        Jeanne FOUCAULT
+       </td>
+      </tr>
+      <tr>
+       <td>
+        L'inspecteur des installations classées,
+        <br/>
+        <br/>
+        <i>
+         signé
+        </i>
+        <br/>
+        Benoît DESRUMAUX
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Page 12 sur 12
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2011-08-23_arrêté préfectoral_AP complémentaire n° 397.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFET DES LANDES
+    </div>
+    <div>
+     DIRECTION DE LA RÉGLEMENTATION ET DES LIBERTES PUBLIQUES 1er
+    </div>
+    <div>
+     Bureau PR/DRLP/2011/N°397
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ PRÉFECTORAL COMPLÉMENTAIRE fixant des prescriptions complémentaires à la société DRT pour son établissement de CASTETS
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet des Landes,
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l'environnement
+    </a>
+    et notamment son titre 1er du livre V relatif aux Installations Classées pour la Protection de l'Environnement, et notamment ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L512-7" data-type="article">
+     articles L.512-7
+    </a>
+    et
+    <a data-group_id="1" data-spec="section_reference" data-start_num="R512-31" data-type="article">
+     R 512-31
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="1953-05-20" data-num="53-578" data-spec="document_reference" data-type="decret">
+     décret n°53-578 du
+     <time data-spec="date" datetime="1953-05-20">
+      20 mai 1953
+     </time>
+    </a>
+    modifié relatif à la nomenclature des installations classées ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="1998-02-02" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="1998-02-02">
+      2 février 1998
+     </time>
+     modifié
+    </a>
+    relatif au prélèvement et à la consommation d'eau ainsi qu'aux émissions de toute nature des installations classées pour la protection de l'environnement soumises à autorisation ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="1985-01-04" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="1985-01-04">
+      4 janvier 1985
+     </time>
+    </a>
+    relatif au contrôle des circuits d'élimination de déchets générateurs de nuisances,
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2000-05-10" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2000-05-10">
+      10 mai 2000
+     </time>
+    </a>
+    , modifié par l'
+    <a data-date="2005-09-29" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2005-09-29">
+      29 septembre 2005
+     </time>
+    </a>
+    , relatif à la prévention des risques majeurs impliquant des substances ou des préparations dangereuses présentes dans certaines catégories d'installations classées pour la protection de l'environnement soumises à autorisation,
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2010-05-11" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2010-05-11">
+      11 mai 2010
+     </time>
+    </a>
+    autorisant la société DRT à étendre ses installations de Chimie Fine sur le territoire de la commune de CASTETS et fixant des mesures de maîtrise des risques complémentaires à la suite de l'instruction de l'étude de dangers de l'établissement,
+   </div>
+   <div data-spec="visa">
+    VU le dossier de Porter à connaissance de modifications déposé par l'exploitant auprès du Préfet des Landes le 29 mars 2010,
+   </div>
+   <div data-spec="visa">
+    VU le dossier de Porter à connaissance de modifications déposé par l'exploitant auprès du Préfet des Landes le 03 mars 2011,
+   </div>
+   <div data-spec="visa">
+    VU le rapport et les propositions en date du 20 juin 2011 de l'inspecteur des installations classées,
+   </div>
+   <div data-spec="visa">
+    VU l'avis du en date du 5 juillet 2011 du CODERST au cours duquel le demandeur a eu la possibilité d'être entendu,
+   </div>
+   <div data-spec="visa">
+    VU le projet d'arrêté porté le 18 juillet 2011 à la connaissance du demandeur.
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les dangers et inconvénients présentés par le fonctionnement de l'installation vis à vis des intérêts visés à l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     article L511-1
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     Code de l'Environnement
+    </a>
+    peuvent être prévenus par des prescriptions techniques adéquates ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les mesures spécifiées par
+    <a data-spec="document_reference" data-type="self">
+     le présent arrêté
+    </a>
+    préfectoral et ses annexes constituent les prescriptions techniques susvisées ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition de M. le Secrétaire Général de la Préfecture des Landes ;
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Préfecture des Landes - 40021 Mon de Marsan Cedex - Tél. 05 58 06 58 06 - Fax 05 58 75 83 81
+Adresse internet : http://www.landes.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="TABLEAU DE CLASSEMENT DES INSTALLATIONS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1 - TABLEAU DE CLASSEMENT DES INSTALLATIONS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le tableau de l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="1.2.1" data-tag_id="3" data-type="article">
+      article 1.2.1.
+     </a>
+     de l'
+     <a data-date="2010-05-11" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2010-05-11">
+       11 mai 2010
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacé" data-operand="4" data-operation_type="replace" data-references="3" data-spec="operation">
+      est
+      <b>
+       remplacé
+      </b>
+      par le tableau suivant :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="4">
+      <tr>
+       <th>
+        Rubrique ICPE
+       </th>
+       <th>
+        Désignation des Installations
+       </th>
+       <th>
+        Volume (1)
+       </th>
+       <th>
+        Régime (2)
+       </th>
+       <th>
+        Seuil (3)
+       </th>
+      </tr>
+      <tr>
+       <td rowspan="3">
+        1131-2-b
+       </td>
+       <td>
+        Toxiques (emploi ou stockage de substances et préparations) telles définies à la rubrique 1000, à l'exclusion des substances et préparations visées explicitement ou par famille par d'autres rubriques de la nomenclature ainsi que du méthanol.
+       </td>
+       <td rowspan="3">
+        Monochloroacétate de méthyle :
+        <br/>
+        Quantité maximale : 24 t
+       </td>
+       <td rowspan="3">
+        A
+       </td>
+       <td rowspan="3">
+        200 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2. substances et préparations liquides ; la quantité totale susceptible d'être présente dans l'installation étant :
+       </td>
+      </tr>
+      <tr>
+       <td>
+        b) supérieure ou égale à 10 t, mais inférieure à 200 t
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="2">
+        1141-2
+       </td>
+       <td>
+        Chlorure d'hydrogène anhydre liquéfié (emploi ou stockage du)
+       </td>
+       <td rowspan="2">
+        12 sphères de 1 200 kg,
+        <br/>
+        soit 14,4 t
+       </td>
+       <td rowspan="2">
+        A
+       </td>
+       <td rowspan="2">
+        250 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2. En récipients de capacité unitaire supérieure à 37 kg, la quantité totale susceptible d'être présente dans l'installation étant inférieure à 250 t
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="3">
+        1172-1
+       </td>
+       <td>
+        Dangereux pour l'environnement (A), très toxiques pour les organismes aquatiques (stockage et emploi de substances ou préparations) telles que définies à la rubrique 1000, à l'exclusion de celles visées nominativement ou par famille par d'autres rubriques.
+       </td>
+       <td rowspan="3">
+        Iode monosublimé, Oxyde de Zinc, Chlorure d'allyle, Glutaraldéhyde, TMCDT
+        <br/>
+        blanchi, Nirvanol/ Polysantol, Sanderol
+        <br/>
+        Total : 763 t
+       </td>
+       <td rowspan="3">
+        AS
+       </td>
+       <td rowspan="3">
+        200 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        La quantité totale susceptible d'être présente dans l'installation étant :
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1. supérieure ou égale à 200 t
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="3">
+        1173-1
+       </td>
+       <td>
+        Dangereux pour l'environnement (B), toxiques pour les organismes aquatiques (stockage et emploi de substances ou préparations) telles que définies à la rubrique 1000, à l'exclusion de celles visées nominativement ou par famille par d'autres rubriques.
+       </td>
+       <td rowspan="3">
+        Trioctylamine, Cyclohexane,
+        <br/>
+        Ate de citronellyle, Alpha pinène, Epoxy alpha pinène,
+        <br/>
+        Cedroxyde, Derambrène, Dersantol, Myrcène,
+        <br/>
+        Romandolide, THG
+        <br/>
+        Total : 1940 t
+       </td>
+       <td rowspan="3">
+        AS
+       </td>
+       <td rowspan="3">
+        500 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        La quantité totale susceptible d'être présente dans l'installation étant :
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1. supérieure ou égale à 500 t
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="3">
+        1200-2-b
+       </td>
+       <td>
+        Comburants (fabrication, emploi ou stockage de substances ou préparations) telles que définies à la rubrique 1000 à l'exclusion des substances visées nominativement ou par famille par d'autres rubriques :
+       </td>
+       <td rowspan="3">
+        Stockage de 120 m3 de peroxyde d'hydrogène à 50%
+        <br/>
+        (densité à 20°C : 1,2)
+        <br/>
+        Total : 72 t
+       </td>
+       <td rowspan="3">
+        A
+       </td>
+       <td rowspan="3">
+        200 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2. emploi ou stockage. La quantité totale susceptible d'être présente dans l'installation étant :
+       </td>
+      </tr>
+      <tr>
+       <td>
+        b) supérieure ou égale à 50 t, mais inférieure à 200 t
+        <br/>
+        Nota : Pour les solutions de peroxyde d'hydrogène, on considère les quantités d'eau oxygénée contenues.
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="3">
+        1211-2
+       </td>
+       <td>
+        Peroxydes organiques (fabrication des)
+       </td>
+       <td rowspan="3">
+        Acide Péraçétique Aqueux,
+        <br/>
+        Total : 4 t
+       </td>
+       <td rowspan="3">
+        A
+       </td>
+       <td rowspan="3">
+        10 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        La quantité totale susceptible d'être présente dans l'installation étant :
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2. inférieure à 10 t
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        1212-5-a
+       </td>
+       <td>
+        Peroxydes organiques (emploi et stockage).
+        <br/>
+        5. Peroxydes organiques et préparations en contenant du groupe de risques Gr3 :
+        <br/>
+        a) La quantité totale susceptible d’être présente dans l’installation étant supérieure ou égale à 2 000 kg mais inférieure à 50 t
+       </td>
+       <td>
+        Acide Péracétique Aqueux, APAA (densité 1,08) capacité maximale 32 m³,
+        <br/>
+        Total : 35 t
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        50 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1412-2-b
+       </td>
+       <td>
+        Gaz inflammables liquéfiés (stockage en réservoirs manufacturés de), à l'exception de ceux visés explicitement par d’autres rubriques de la nomenclature :
+        <br/>
+        Les gaz sont maintenus liquéfiés à une température telle que la pression absolue de vapeur correspondante n’excède pas 1,5 bar (stockages réfrigérés ou cryogéniques) ou sous pression quelle que soit la température
+        <br/>
+        2. La quantité totale susceptible d’être présente dans l’installation étant :
+        <br/>
+        b) supérieure à 6 t, mais inférieure à 50 t
+       </td>
+       <td>
+        Stockage et emploi de chlorure de méthyle. Quantité maximale 30 fûts de 750 kg soit :
+        <br/>
+        22,5 t
+       </td>
+       <td>
+        DC
+       </td>
+       <td>
+        50 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1432-2-a
+       </td>
+       <td>
+        Liquides inflammables (stockage en réservoirs manufacturés de)
+        <br/>
+        2. stockage de liquides inflammables visés à la rubrique 1430 :
+        <br/>
+        a) représentant une capacité équivalente totale supérieure à 100 m³
+       </td>
+       <td>
+        Capacité totale équivalente :
+        <br/>
+        5069 m³
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        100 m³
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1433-B-a
+       </td>
+       <td>
+        Liquides inflammables (installations de mélange ou d'emploi de)
+        <br/>
+        B.- Autres installations (hors simple mélange à froid)
+        <br/>
+        Lorsque la quantité totale équivalente de liquides inflammables de la catégorie de référence (coefficient 1 visé par la rubrique 1430) susceptible d’être présente est :
+        <br/>
+        a) supérieure à 10 t
+       </td>
+       <td>
+        Total : 457,7 t
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        10 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1434-1-b
+       </td>
+       <td>
+        Liquides inflammables (installation de remplissage ou de distribution)
+        <br/>
+        1. installations de chargement de véhicules citernes, de remplissage de récipients mobiles ou des réservoirs des véhicules à moteur, le débit maximum équivalent de l'installation, pour les liquides inflammables de la catégorie de référence (coefficient 1) étant :
+        <br/>
+        b) supérieure ou égal à 1 m³/h, mais inférieur à 20 m³/h
+       </td>
+       <td>
+        Postes enfûtages :
+        <br/>
+        Un.1 : 6m³/h max.
+        <br/>
+        Un.2 : 6m³/h max.
+        <br/>
+        Un.3 : 6m³/h max.
+        <br/>
+        Débit équivalent total :
+        <br/>
+        18 m³/h
+       </td>
+       <td>
+        DC
+       </td>
+       <td>
+        20 m³/h
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1434-2
+       </td>
+       <td>
+        Liquides inflammables (installation de remplissage ou de distribution)
+        <br/>
+        2. installations de chargement ou de déchargement desservant un dépôt de liquides inflammables soumis à autorisation
+       </td>
+       <td>
+        Zones dépotage citernes des parcs stockeurs sur les trois unités
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        --
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1450-2-a
+       </td>
+       <td>
+        Solides facilement inflammables à l'exclusion des substances visées explicitement par d'autres rubriques
+        <br/>
+        2. emploi ou stockage : la quantité totale susceptible d'être présente dans l'installation étant :
+        <br/>
+        a) supérieure ou égale à 1 t
+       </td>
+       <td>
+        Emploi et stockage de borohydrure de sodium :
+        <br/>
+        quantité max. 5 t
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        1 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1611-1
+       </td>
+       <td>
+        Acide chlorhydrique à plus de 20% en poids d'acide.
+       </td>
+       <td>
+        Acide phosphorique . Acide
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        250 t
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <td rowspan="2">
+       </td>
+       <td>
+        formique à plus de 50%, nitrique à plus de 20% mais à moins de 70%, picrique à moins de 70%, phosphorique, sulfurique à plus de 25%, oxydes d'azote, anhydride phosphorique, oxydes de soufre, préparations à base d'acide acétique et d'anhydride acétique (emploi ou stockage de)
+       </td>
+       <td>
+        formique, acide sulfurique, acide acétique, acide propionique, anhydride acétique :
+        <br/>
+        Total : 698 t
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        La quantité totale susceptible d'être présente dans l'installation étant :
+        <br/>
+        1. supérieure ou égale à 250 t
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="5">
+        1630-B-2
+       </td>
+       <td>
+        Soude ou potasse caustique
+       </td>
+       <td>
+        Total : 165 t
+       </td>
+       <td>
+        D
+       </td>
+       <td>
+        100 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        B- Emploi ou stockage de lessives de.
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+        &lt; &lt;
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Le liquide renfermant plus de 20% en poids d'hydroxyde de sodium ou de potatium
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+        250 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        La quantité totale susceptible d'être présente dans l'installation étant :
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2. supérieure à 100 t, mais inférieure ou égale à 250 t
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="3">
+        2910-A-2
+       </td>
+       <td>
+        Combustion à l'exclusion des installations visées par les rubriques 2770 et 2771.
+       </td>
+       <td>
+        1 chaudière GN : 10 MW
+       </td>
+       <td>
+        DC
+       </td>
+       <td>
+        20 MW
+       </td>
+      </tr>
+      <tr>
+       <td>
+        A) Lorsque l'installation consomme exclusivement, seuls ou en mélange, du gaz naturel, des gaz de pétrole liquéfiés, du fioul domestique, du charbon, des fiouls lourds ou la biomasse, à l'exclusion des installations visées par d'autres rubriques de la nomenclature pour lesquelles la combustion participe à la fusion, la cuisson ou au traitement, en mélange avec les gaz de combustion, des matières entrantes, si la puissance thermique maximale de l'installation est :
+       </td>
+       <td>
+        4 groupes électrogènes FOD : 3,92 MW
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2. supérieure à 2 MW, mais inférieure à 20 MW
+       </td>
+       <td>
+        Puissance totale : 14 MW
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="4">
+        2921-1-a
+       </td>
+       <td>
+        Refroidissement par dispersion d'eau dans un flux d'air (installations de) :
+       </td>
+       <td>
+        Un.1 : 1655 kW
+       </td>
+       <td>
+        A
+       </td>
+       <td>
+        2000 kW
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1. Lorsque l'installation n'est pas du type « circuit primaire fermé » :
+       </td>
+       <td>
+        Un.2 : 3489 kW
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        a) La puissance thermique évacuée maximale étant supérieure ou égale à 2 000 kW
+       </td>
+       <td>
+        Un.3 : 2x3489 kW
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Nota. - Une installation est de type « circuit primaire fermé » lorsque l'eau dispersée dans l'air refroidit un fluide au travers d'un ou plusieurs échangeurs thermiques étanches situés à l'intérieur de la tour de refroidissement ou accolés à celle-ci ; tout contact direct est rendu impossible entre l'eau dispersée dans la tour et le fluide traversant le ou les échangeurs thermiques.
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="3">
+        2921-2
+       </td>
+       <td>
+        Refroidissement par dispersion d'eau dans un flux d'air (installations de) :
+       </td>
+       <td>
+        Un.1 : 105 kW
+       </td>
+       <td>
+        D
+       </td>
+       <td>
+        s. o.
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2. Lorsque l'installation est du type « circuit primaire fermé »
+       </td>
+       <td>
+        Un.2 : 2000 kW
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Nota. - Une installation est de type « circuit primaire fermé » lorsque l'eau dispersée dans l'air refroidit un fluide au travers d'un ou plusieurs échangeurs thermiques étanches situés à l'intérieur de la tour de refroidissement ou accolés à celle-ci ; tout contact direct est rendu impossible entre l'eau dispersée dans la tour et le fluide traversant le ou les échangeurs thermiques.
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="2" data-spec="section" data-title="MESURES COMPLEMENTAIRES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 - MESURES COMPLEMENTAIRES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société DRT (Dérivés Résiniques et Terpéniques), dont le siège social est situé à DAX (40105),
+     <address data-spec="address">
+      30 rue Gambetta
+     </address>
+     , est tenue de respecter les dispositions de l'
+     <a data-date="2010-05-11" data-spec="document_reference" data-type="arrete">
+      arrêté du
+      <time data-spec="date" datetime="2010-05-11">
+       11 mai 2010
+      </time>
+     </a>
+     complété par les dispositions les dispositions suivantes pour l'exploitation de son établissement de CASTETS.
+    </div>
+    <section data-number="2.1" data-spec="section" data-title="Zone RE47" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.1. Zone RE47
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'ensemble des installations est placé sur rétention. Les mesures nécessaires (pompe de relevage,...) sont mises en œuvre afin de limiter la surface en feu et d'empêcher la migration du feu.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les équipements de process sont maintenus fermés et inertés à l'azote.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Le bâtiment est équipé d'une détection gaz explosimétrique avec alarme visuelle et sonore, d'une double détection incendie (fil thermosensible et capteurs infra-rouge) qui déclenche automatiquement une installation fixe de protection incendie avec solution moussante haut foisonnement.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Cette installation est activable automatiquement sur détection et manuellement.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Une protection fixe par rideau d'eau est mise en place entre le bâtiment de l'unité 3 et celui du réacteur RE47 afin de refroidir les structures et limiter le rayonnement thermique.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Le réacteur est équipé d'un dispositif d'arrêt automatique sur détection d'une alarme avec noyage à l'eau du milieu réactionnel.
+     </div>
+    </section>
+    <section data-number="2.2" data-spec="section" data-title="Aire de stockage des produits intermédiaires" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.2. Aire de stockage des produits intermédiaires
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La nouvelle aire de stockage des produits intermédiaire est équipée des moyens d'extinction et de refroidissement dûment dimensionnés.
+     </div>
+    </section>
+   </section>
+   <section data-number="3" data-spec="section" data-title="EXECUTION ET AMPLIATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 - EXECUTION ET AMPLIATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     M. le secrétaire général de la préfecture des Landes,
+    </div>
+    <div data-number="2" data-spec="alinea">
+     M. le directeur régional de l'environnement, de l'aménagement et du logement
+    </div>
+    <div data-number="3" data-spec="alinea">
+     les inspecteurs des installations classées placés sous son autorité,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     M. le maire de la commune de CASTETS,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     sont chargés, chacun en ce qui le concerne, de l'application du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une ampliation leur sera adressée, ainsi qu'à la société DRT.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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3gyy05YZIruRVuL1XkDn7QyrvGRxgYCjHGFHJySfONeI+IXx8sNCkSO50Xw8rSzqjxurMArPkEcgyGKNk5+63TJx7iow1AD6KKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACsvxJrUPhzw3qOsTiMpZwNKEkkEYkYD5U3HoWbCjryRwa0z0rx/4/wCrXEXhjTfDlks73Os3QXZHGH81I9p2Y67jI0RAUZO089iATfAPQ5bbwveeI7u6e4utbuC7OzliVjZ1y2RneXMhJycjb7163WT4a0WHw74c07R4NhSzgSIukXliRgPmfaOhZssfc8561rUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFACN904rwSSQeN/2mIo0hS4sdCXazKTGVMOTuOTklbhwvyjGAOoyT7R4k1qHw54a1HWJ/LKWdu8oSSQRiRgPlTcehZsKODyRwa8c/Zt0fy7HW9beOBvOlS0hfb+8XYNzjOOFO+PoeSvPQZAPdQOQcU6iigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigApD0paRvumgDxf9obxKll4ZtfD0Nxi61CUSzxrtI8hORuzyuXCkEddjjPGK7D4Q6N/Yvwy0WJkgEtzEbuRoh9/zTvUscDLBCgOc9MA4Arw/xLY+LfiP8Vr+2fQ5DLbubJIriJkjsoTvMbyuhIBwTIDlgxHy7hhT9NaPp0Oj6RY6Xbs7QWdulvG0hyxVFCgsQMZwB6UAX6KKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/2Q=="/>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

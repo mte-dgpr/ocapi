@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2020-08-11_rapport_20200806-RAP-DAEN0565EpandageBouesSurveillanceSubstancesdangereusesEauAndros.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFET DE LA DRÔME
+    </div>
+    <div>
+     Direction régionale de l'environnement, de l'aménagement et du logement Auvergne - Rhône-Alpes
+    </div>
+    <div>
+     Unité inter-départementale Drôme Ardèche
+    </div>
+    <div>
+     PREFECTURE DE LA DRÔME
+    </div>
+    <div>
+     Direction départementale de la protection des populations (DDPP)
+    </div>
+    <div>
+     Bureau de l'environnement 33 avenue de Romans – BP 96 26904 VALENCE CEDEX 9 Subdivision 5 – Risques Agroalimentaire
+    </div>
+    <div>
+     Affaire suivie par : Elodie MOUROUX Tél. : 04 75 82 46 46 Télécopie : 04 75 82 46 49 Courriel : elodie.mouroux@developpement-durable.gouv.fr
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     Ref. : 20200806-RAP-DAEN0565
+    </div>
+   </div>
+   <div>
+    Valence, le 11/08/2020
+   </div>
+   <div>
+    DÉPARTEMENT DE LA DRÔME
+   </div>
+   <div>
+    Société ANDROS SNC à Portes les Valence
+   </div>
+   <div>
+    Demande de modification des conditions d'épandage, prise en compte de la nouvelle réglementation sur les émissions de substances dangereuses dans l'eau, prise en compte de la nouvelle autorisation de déversement des eaux
+   </div>
+   <div>
+    Rapport de l'inspection des installations classées
+   </div>
+   <div>
+    Adresse de l'établissement : ZI de la Motte 26800 Portes les Valence
+   </div>
+   <div>
+    Activité principale : Fabrication de purée de fruits et conditionnement de jus de fruits
+   </div>
+   <div>
+    Code S3IC de l'établissement : 103-115
+   </div>
+   <div>
+    Priorité DREAL : P2
+   </div>
+   <div>
+    PJ : projet d'arrêté préfectoral complémentaire
+   </div>
+   <div>
+    Original : DDPP26
+   </div>
+   <div>
+    Copies : établissement, inspecteur signataire, chrono sub 5
+   </div>
+   <div data-spec="entity">
+    <div>
+     Direction régionale de l'environnement de l'aménagement et du logement d'Auvergne-Rhône-Alpes
+    </div>
+    <div>
+     Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE Standard : 04 75 82 46 46 – ud-da.
+    </div>
+    <div>
+     dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr www.auvergne-rhone-alpes.developpement-durable.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Présentation de la société" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     1. Présentation de la société
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société ANDROS SNC est spécialisée dans le conditionnement de jus de fruit frais, la fabrication de compote et de purée de fruit.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Installations classées et régime
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'arrêté préfectoral du 19/5/2009 modifié par l'
+     <a data-date="2016-08-18" data-num="2016235-0005" data-spec="document_reference" data-type="arrete">
+      arrêté n°2016235-0005 du
+      <time data-spec="date" datetime="2016-08-18">
+       18 août 2016
+      </time>
+     </a>
+     , par l'
+     <a data-date="2017-04-10" data-num="2017101-0004" data-spec="document_reference" data-type="arrete">
+      arrêté n° 2017101-0004 du
+      <time data-spec="date" datetime="2017-04-10">
+       10 avril 2017
+      </time>
+     </a>
+     et par l'
+     <a data-date="2018-06-19" data-num="2018171-0014" data-spec="document_reference" data-type="arrete">
+      arrêté n°2018171-0014 du
+      <time data-spec="date" datetime="2018-06-19">
+       19 juin 2018
+      </time>
+     </a>
+     autorise l'activité sous les rubriques suivantes :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Nature des activités
+       </th>
+       <th>
+        Volume des activités
+       </th>
+       <th>
+        Numéro de la rubrique
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Traitement et transformation de matières premières en vue de la fabrication de produits alimentaires uniquement de matières premières végétales, avec une capacité de production supérieure à 300 t de produits finis par jour
+       </td>
+       <td>
+        &gt; 300 t/jour
+       </td>
+       <td>
+        3642-2
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Préparation et conditionnement de jus de fruits et autres boissons
+       </td>
+       <td>
+        706 500 l/jour
+       </td>
+       <td>
+        2253.1
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Préparation ou conservation de produits d'origine végétale
+       </td>
+       <td>
+        900 t/jour
+       </td>
+       <td>
+        2220.2.a
+       </td>
+       <td>
+        E
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Entrepôts couverts
+       </td>
+       <td>
+        34 560 m3
+       </td>
+       <td>
+        1510.3
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Entrepôts frigorifiques
+       </td>
+       <td>
+        20 000 m3
+       </td>
+       <td>
+        1511.3
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Installation de combustion
+       </td>
+       <td>
+        17 MW
+       </td>
+       <td>
+        2910.A-2
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Installation de remplissage de gaz inflammables liquéfiés
+       </td>
+       <td>
+       </td>
+       <td>
+        1414.3
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Emploi dans des équipements clos en exploitation de gaz à effet de serre fluorés
+       </td>
+       <td>
+        1316 kg
+       </td>
+       <td>
+        4802-2.a
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Ammoniac
+       </td>
+       <td>
+        900 kg
+       </td>
+       <td>
+        4735-1.b
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Atelier de charge d'accumulateurs
+       </td>
+       <td>
+        125 kW
+       </td>
+       <td>
+        2925
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Transformation de polymères, par des procédés exigeant des conditions particulières de température ou de pression
+       </td>
+       <td>
+        &lt; 10 t/jour
+       </td>
+       <td>
+        2661-1.c
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Liquides comburants catégorie 1, 2 ou 3
+       </td>
+       <td>
+        14 t
+       </td>
+       <td>
+        4441
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Contexte" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2. Contexte
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant a transmis le 16/10/2018 une demande de modifications des parcelles à épandre (
+     <a data-spec="section_reference" data-start_num="1" data-type="annexe">
+      annexe I
+     </a>
+     de son
+     <a data-date="2017-08-21" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-08-21">
+       21/08/2017
+      </time>
+     </a>
+     ). La demande porte sur un correctif de certains îlots et l'ajout de parcelles sur les communes de LIVRON et LA VOULTE-SUR-RHONE. Ce dossier de régularisation porte également sur l'épandage de nouveaux types d'effluents.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Une demande de compléments a été formulée le 22/02/2019.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les éléments complémentaires ont été transmis le 26/04/2019, le 15/07/2019, le 17/02/2020 et le 29/06/2020.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Analyse de la demande" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     3. Analyse de la demande
+    </h2>
+    <section data-number="3.1" data-spec="section" data-title="Changement de zones d'épandage des boues" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.1 Changement de zones d'épandage des boues
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les éléments requis pour le plan d'épandage sont prévus par les dispositions de l'
+      <a data-parent_reference="1" data-spec="section_reference" data-start_num="38" data-type="article">
+       article 38
+      </a>
+      de l'
+      <a data-date="1998-02-02" data-spec="document_reference" data-tag_id="1" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="1998-02-02">
+        2 février 1998
+       </time>
+      </a>
+      .
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Dans son dossier de demande de modification des zones d'épandages du 16/10/2018 modifié, l'exploitant indique :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - les parcelles à rajouter ou à modifier avec leur référence cadastrale,
+       </li>
+       <li>
+        - un plan des parcelles avec les zones d'exclusions,
+       </li>
+       <li>
+        - les contraintes liées au milieu naturel ou aux activités humaines,
+       </li>
+       <li>
+        - la description des matières à épandre,
+       </li>
+       <li>
+        - la description des caractéristiques des sols et des cultures envisagées,
+       </li>
+       <li>
+        - une analyse des sols sur la parcelle M56 (toutes les parcelles sont situées dans la plaine alluvionnaire dans la zone Rhône/Drôme),
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Direction régionale de l'environnement de l'aménagement et du logement d'Auvergne-Rhône-Alpes
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Unité inter-départementale Drôme Ardèche – Plateau de Lautagne –
+      <address data-spec="address">
+       3 avenue des Langories
+      </address>
+      – 26 000 VALENCE
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+     </div>
+     <div data-number="7" data-spec="alinea">
+      www.auvergne-rhone-alpes.developpement-durable.gouv.fr
+     </div>
+     <a data-page_index="2" data-spec="page_separator">
+     </a>
+     <div data-number="8" data-spec="alinea">
+      <ul>
+       <li>
+        - la justification des doses d'apport de boues.
+       </li>
+      </ul>
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Les compléments apportés le 26/04/2019 et le 15/07/2019 précisent les éléments suivants :
+     </div>
+     <div data-number="10" data-spec="alinea">
+      <ul>
+       <li>
+        - la granulométrie de la parcelle M56, le pH, K2O échangeable, MgO échangeable, CaO échangeable, les oligo-éléments B, Co, Fe, Mn, Mo,
+       </li>
+       <li>
+        - la justification de la fréquence d'apport d'épandage de boues sur une même parcelle, fréquence d'un épandage tous les 30 mois sur chaque parcelle ;
+       </li>
+       <li>
+        - l'accord écrit des exploitants agricoles des parcelles pour la mise en œuvre de l'épandage dans les conditions envisagées.
+       </li>
+      </ul>
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Remarques :
+     </div>
+     <div data-number="12" data-spec="alinea">
+      <ul>
+       <li>
+        - les analyses menées sur l'échantillon de la parcelle M56 ne sont pas complètes selon les dispositions de l'
+        <a data-parent_reference="2" data-spec="section_reference" data-start_num="7" data-type="annexe">
+         annexe VII
+        </a>
+        c de l'
+        <a data-date="1998-02-02" data-spec="document_reference" data-tag_id="2" data-type="arrete">
+         arrêté du
+         <time data-spec="date" datetime="1998-02-02">
+          02/02/1998
+         </time>
+        </a>
+        : il manque le paramètre de la matière sèche. Ce point n'est pas jugé bloquant par l'inspection pour instruire la demande de plan d'épandage.
+       </li>
+      </ul>
+     </div>
+     <div data-number="13" data-spec="alinea">
+      Actuellement, la surface épandable autorisée est de 74,9 ha. Le périmètre d'épandage sollicité augmente de 19,6 ha la surface épandable et baisse la surface existante de 3,64 ha pour atteindre une surface épandable totale de 90,8 ha.
+     </div>
+     <div data-number="14" data-spec="alinea">
+      Les nouvelles parcelles sont situées sur les communes de LIVRON-SUR-RHONE et LA VOULTE-SUR-RHONE à l'Est du Rhône (plaines alluvionnaires) et concernent les agriculteurs M. SABATIER et M. MANSON :
+     </div>
+     <div data-number="15" data-spec="alinea">
+      <ul>
+       <li>
+        - îlots nouveaux : M52, M53, M54, M55, M56, M57, S1, S2, S3, S6
+       </li>
+       <li>
+        - îlots supprimés (communes de ROMPON et SAINT-LAURENT-DU-PAPE) : M18, M19, M20, M21, M23
+       </li>
+       <li>
+        - îlots dont la surface épandable est modifiée : M9, M40, C1 (LA VOULTE, ROMPON, ST LAURENT)
+       </li>
+      </ul>
+     </div>
+     <div data-number="16" data-spec="alinea">
+      La parcelle M56 fait partie des nouvelles parcelles et est jugée représentative des autres parcelles ajoutées par l'exploitant (terre calcaire). Elle est sur la commune de LIVRON.
+     </div>
+     <div data-number="17" data-spec="alinea">
+      Conclusion pour l'augmentation des surfaces épandables pour les boues de STEP
+     </div>
+     <div data-number="18" data-spec="alinea">
+      L'exploitant a démontré l'innocuité dans les conditions d'emploi et l'intérêt agronomique des effluents, l'aptitude du sol à les recevoir. Il précise le périmètre d'épandage et les modalités de sa réalisation. L'augmentation est donc acceptable.
+     </div>
+    </section>
+    <section data-number="3.2" data-spec="section" data-title="Régularisation de l'épandage des eaux de pluie dit 'bassin agrovalor'" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.2 Régularisation de l'épandage des eaux de pluie dit 'bassin agrovalor'
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant indique avoir épandu ponctuellement des boues de bassin de traitement des eaux de pluie dit 'bassin agrovalor' et des drêches de fruit/jus de fruit non-conformes. L'
+      <a data-parent_reference="3" data-spec="section_reference" data-start_num="8.1.2.2" data-type="article">
+       article 8.1.2.2
+      </a>
+      de l'
+      <a data-date="2009-10-14" data-spec="document_reference" data-tag_id="3" data-type="arrete-prefectoral">
+       arrêté préfectoral du
+       <time data-spec="date" datetime="2009-10-14">
+        14/10/2009
+       </time>
+      </a>
+      précise que
+      <q>
+       Les effluents à épandre sont constitués exclusivement de boues provenant de la station d'épuration biologique du site. Aucun autre effluent ne pourra être incorporé à ceux-ci en vue d'être épandu.
+      </q>
+      . Ces épandages sont donc non conformes aux dispositions de l'arrêté préfectoral.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Cependant, l'exploitant démontre a postériori la valeur agronomique et précise les doses d'épandages des boues du bassin agrovalor et des drêches de fruit.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Pour les boues du bassin agrovalor, l'exploitant sollicite une autorisation pérenne d'épandage. Le projet d'arrêté préfectoral prend en compte cette demande.
+     </div>
+    </section>
+    <section data-number="3.3" data-spec="section" data-title="Ajout de déchets supplémentaires à épandre" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.3 Ajout de déchets supplémentaires à épandre
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant sollicite une autorisation pour épandre les déchets de drêches de fruit, les déchets à détruire (drêches de fruit ayant fermenté) et jus de revidage (jus de fruits non-conformes) de manière pérenne.
+     </div>
+     <section data-number="3.3.1" data-spec="section" data-title="Déchets ou effluents : origine, quantités et caractéristiques" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       3.3.1 Déchets ou effluents : origine, quantités et caractéristiques
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les quantités de déchets à épandre sont les suivantes, au vu de la production 2018 :
+      </div>
+      <div data-number="2" data-spec="alinea">
+       <ul>
+        <li>
+         - déchets à détruire : 818 t
+        </li>
+        <li>
+         - drêches : 1746 t
+        </li>
+        <li>
+         - jus de revidage : 631 t
+        </li>
+       </ul>
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        Direction régionale de l'environnement de l'aménagement et du logement d'Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.developpement-durable.gouv.fr
+       </div>
+      </div>
+      <a data-page_index="3" data-spec="page_separator">
+      </a>
+      <div data-number="3" data-spec="alinea">
+       Ces déchets sont acides (pH 3,5 et 3,7). Les teneurs en éléments-traces métalliques et composés-traces organiques sont nettement inférieures aux valeurs seuils réglementaires.
+      </div>
+      <div data-number="4" data-spec="alinea">
+       Un fort taux de matières organiques, de magnésium et de potasse pour les déchets de drêches aidera à la structuration et la bonne valeur agronomique des sols. Leurs teneurs en azote et en phosphore sont cependant plus faibles.
+      </div>
+      <div data-number="5" data-spec="alinea">
+       Les jus de revillage présentent un intérêt agronomique sur l'ensemble des paramètres.
+      </div>
+     </section>
+     <section data-number="3.3.2" data-spec="section" data-title="Périmètre d'étude, sensibilité parcellaire, caractéristiques des sols, pour les déchets à détruire et jus de revillage" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       3.3.2 Périmètre d'étude, sensibilité parcellaire, caractéristiques des sols, pour les déchets à détruire et jus de revillage
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       L'acidité de ces déchets les indique particulièrement sur les sols calcaires uniquement, soit 73 % des surfaces épandables (68,1 ha). Cela vise uniquement les communes de LIVRON et LA VOULTE, les terrains des autres communes du plan d'épandage étant acides. Ces communes sont situées en dehors des zones d'actions renforcées pour les pollutions aux nitrates. La commune de LIVRON-SUR-DROME est située en zone vulnérable aux nitrates.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Le critère de sélection des terres est le pH des terres et la capacité d'acceptation prise en compte est de 3 kg de matières sèches par mètre carré, sur une période de dix ans, soit la valeur fixée par l'
+       <a data-date="1998-02-02" data-spec="document_reference" data-type="arrete">
+        arrêté du
+        <time data-spec="date" datetime="1998-02-02">
+         02/02/1998
+        </time>
+       </a>
+       . L'exploitant prend en compte dans ses calculs les surfaces déjà utilisées pour l'épandage des boues de sa station d'épuration. L'ensemble des déchets de drêches et de déchets à détruire ne pourront être épandus sur le nouveau périmètre. L'ensemble des jus de revillage pourront être épandus.
+      </div>
+     </section>
+     <section data-number="3.3.2" data-spec="section" data-title="Cultures envisagées" data-type="unknown">
+      <h4 data-error_codes="non_contiguous_titles" data-level="2" data-spec="section_title">
+       3.3.2 Cultures envisagées
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les cultures envisagées dépendent de l'acidité des sols.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Sols acides : prairie permanente ou temporaire, céréales d'hiver
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Sols calcaires : prairie temporaire, céréales d'hiver, maïs, tournesol, couvert végétal
+      </div>
+     </section>
+     <section data-number="3.3.4" data-spec="section" data-title="Préconisations d'utilisation des déchets" data-type="unknown">
+      <h4 data-error_codes="non_contiguous_titles" data-level="2" data-spec="section_title">
+       3.3.4 Préconisations d'utilisation des déchets
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Dose d'apport pour les jus de revillage, les drêches de fruit et les déchets à détruire : 3 t de MS/ha avec une période de retour tous les 2 ans
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Pour les sols calcaires, l'exploitant s'engage à s'assurer lors des prévisionnels d'épandage des quantités cumulées de matières sèches apportées par hectare. Il ne prévoit pas d'épandre exclusivement des drêches ou des déchets à détruire ou des jus de revillage, qui dépendent des productions du moment.
+      </div>
+     </section>
+     <section data-number="3.3.5" data-spec="section" data-title="Description des modalités techniques de réalisation des épandages" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       3.3.5 Description des modalités techniques de réalisation des épandages
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les épandages sont réalisés uniquement par M. MANSON ou un sous-traitant avec un épandeur avec fonction table d'épandage et épandeur à fumier et 3 tonnes à lisier pour les déchets liquides.
+      </div>
+     </section>
+     <section data-number="3.3.6" data-spec="section" data-title="Dispositifs de surveillance de la qualité" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       3.3.6 Dispositifs de surveillance de la qualité
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Le suivi de l'épandage de ces nouveaux déchets sera effectué dans le cadre du cahier d'épandage et du suivi agronomique annuel.
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Les fréquences et types d'analyses sur les déchets seront les suivantes:
+      </div>
+      <div data-number="3" data-spec="alinea">
+       <ul>
+        <li>
+         - 2 analyses/an sur les paramètres agronomiques (matière sèche, matière organique, pH, NTK, N, C/N, phosphore, potassium, calcium, magnésium, sodium, CEC),
+        </li>
+        <li>
+         - 1 analyse/an sur les éléments traces métalliques (Cu, Cd, Cr, Hg, Ni, Pb, Zn, Se) et composés trace organiques (PCB et HAP).
+        </li>
+       </ul>
+      </div>
+     </section>
+     <section data-number="3.3.7" data-spec="section" data-title="Localisation et caractéristiques des ouvrages d'entreposage" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       3.3.7 Localisation et caractéristiques des ouvrages d'entreposage
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       Les déchets sont stockés sur le site Andros. Pas de stockage dans les champs.
+      </div>
+     </section>
+     <section data-number="3.3.8" data-spec="section" data-title="Convention d'épandages" data-type="unknown">
+      <h4 data-level="2" data-spec="section_title">
+       3.3.8 Convention d'épandages
+      </h4>
+      <div data-number="1" data-spec="alinea">
+       L'accord écrit des exploitants agricoles des parcelles pour la mise en œuvre de l'épandage dans les conditions envisagées pour les drêches/déchets à détruire/ jus de fruit ont été transmis pour M. SABATIER, M. COMBES et M. MANSON.
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        Direction régionale de l'environnement de l'aménagement et du logement d'Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.developpement-durable.gouv.fr
+       </div>
+      </div>
+      <a data-page_index="4" data-spec="page_separator">
+      </a>
+      <div data-number="2" data-spec="alinea">
+       Conclusion pour l'ajout de 3 nouveaux types de déchets à épandre
+      </div>
+      <div data-number="3" data-spec="alinea">
+       L'exploitant a fourni l'ensemble des éléments prévus par l'
+       <a data-parent_reference="4" data-spec="section_reference" data-start_num="38" data-type="article">
+        article 38
+       </a>
+       de l'
+       <a data-date="1998-02-02" data-spec="document_reference" data-tag_id="4" data-type="arrete">
+        arrêté du
+        <time data-spec="date" datetime="1998-02-02">
+         2 février 1998
+        </time>
+       </a>
+       et a montré l'innocuité (dans les conditions d'emploi) et l'intérêt agronomique des drêches de fruit, déchets à détruire et jus de revillage, l'aptitude du sol à les recevoir. Le périmètre d'épandage et les modalités de sa réalisation sont précisés. L'ajout de 3 nouveaux types de déchets à épandre est jugé acceptable.
+      </div>
+     </section>
+    </section>
+    <section data-number="3.5" data-spec="section" data-title="Mise à jour des paramètres RSDE" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      3.5 Mise à jour des paramètres RSDE
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Aucune surveillance pérenne sur les substances dangereuses dans l'eau n'était nécessaire.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Par ailleurs, le glyphosate et l'AMPA sont des polluants susceptibles d'être présents dans les matières premières travaillées par ANDROS. Ces substances sont visées par un objectif de réduction progressive à l'horizon 2027 dans le cadre du SDAGE car elles sont des polluants spécifiques de l'état écologique du bassin Rhône Méditerranée. Des valeurs limites d'émissions sont applicables depuis le 01/01/2020 si le flux est supérieur à 1 g/j. Il convient dans un premier temps de vérifier leur présence ou non dans les rejets. Si le flux est dépassé, alors il conviendra de maintenir une autosurveillance. Le projet d'arrêté prescrit la surveillance de ces deux paramètres.
+     </div>
+    </section>
+    <section data-number="3.6" data-spec="section" data-title="Mise à jour des valeurs limites d'émissions et des flux pour les rejets aqueux" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.6 Mise à jour des valeurs limites d'émissions et des flux pour les rejets aqueux
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant a transmis la nouvelle autorisation de déversement n°2019-A283 du 02/09/2019 comprenant les VLE et les flux maximum admissibles par la STEU de PORTES-LES-VALENCE.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les VLE et flux en DCO, DBOS et MES n'ont pas été modifiés. Cependant le flux maximal d'azote global a été diminué et un flux maximal de phosphore total a été fixé. Les fréquences d'autosurveillance ont également été révisées.
+     </div>
+    </section>
+    <section data-number="3.7" data-spec="section" data-title="Augmentation de la consommation d'eau potable" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.7 Augmentation de la consommation d'eau potable
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant sollicite une augmentation de sa consommation d'eau potable : il souhaite passer de 16000 m³/an à 70 000 m³/an. Seule une attestation du gestionnaire de réseau indiquant l'aptitude du réseau à fournir un volume de 70 000 m³/an a été transmise. Cela n'est pas suffisant.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Une étude de réduction des consommations d'eau aurait dû être menée en 2010 mais n'a jamais été fournie à l'inspection. Le projet d'arrêté propose de la demander à nouveau sous 6 mois, à l'occasion du dossier de réexamen IED prévu pour fin 2020.
+     </div>
+    </section>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Conclusion" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     4. Conclusion
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'inspection propose de consulter les communes concernées par l'extension des zones d'épandages (LIVRON-SUR-DRÔME et LA VOULTE-SUR-RHONE) sur le projet d'arrêté joint au présent rapport.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'inspecteur de l'environnement
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Signature numérique de Elodie MOUROUX elodie.mouroux Date 2020.08.11 08:28:35 +02'00'
+    </div>
+    <div data-number="5" data-spec="alinea">
+     L'adjoint au chef de l'unité inter-départementale par intérim
+    </div>
+    <div data-number="6" data-spec="alinea">
+     <img alt="img-1.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Christophe BOUILLOUX christophe.bouilloux 2020.08.11 11:49:35 +02'00'
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Direction régionale de l'environnement de l'aménagement et du logement d'Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.developpement-durable.gouv.fr
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

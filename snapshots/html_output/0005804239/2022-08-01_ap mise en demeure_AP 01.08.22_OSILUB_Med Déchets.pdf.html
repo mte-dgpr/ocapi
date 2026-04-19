@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2022-08-01_ap mise en demeure_AP 01.08.22_OSILUB_Med Déchets.pdf.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Direction régionale de l'environnement, de l'aménagement et du logement de Normandie
+
+PRÉFET DE LA SEINE-MARITIME
+Liberté
+Égalité
+Fraternité
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Unité Départementale du Havre Équipe Raffinage Pétrochimie
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté du
+     <time data-spec="date" datetime="2022-08-01">
+      01 AOUT 2022
+     </time>
+     mettant en demeure la société OSILUB (SIREN 441 563 764) à Gonfreville-l'Orcher de se conformer aux prescriptions édictées en matière de législations relatives aux déchets et aux produits chimiques
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le préfet de la région Normandie, préfet de la Seine-Maritime,
+    </div>
+    <div>
+     Officier de la Légion d'honneur,
+    </div>
+    <div>
+     Commandeur de l'ordre national du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    et notamment ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-6" data-type="article">
+     articles L.171-6
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+     L.171-8
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L172-1" data-type="article">
+     L.172-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L514-3" data-type="article">
+     L.514-3
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L541-3" data-type="article">
+     L.541-3
+    </a>
+    et
+    <a data-group_id="1" data-spec="section_reference" data-start_num="R541-12-16" data-type="article">
+     R.541-12-16
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code des relations entre le public et l'administration" data-type="code">
+     code des relations entre le public et l'administration
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="2004-04-29" data-num="2004-374" data-spec="document_reference" data-type="decret">
+     décret n° 2004-374 du
+     <time data-spec="date" datetime="2004-04-29">
+      29 avril 2004
+     </time>
+    </a>
+    modifié relatif aux pouvoirs des préfets, à l'organisation et à l'action des services de l'État dans les régions et les départements ;
+   </div>
+   <div data-spec="visa">
+    Vu le décret du Président de la République en date du 1er avril 2019 nommant M. Pierre-André DURAND préfet de la région Normandie, préfet de la Seine-Maritime ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2022-07-22" data-num="22-040" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 22-040 du
+     <time data-spec="date" datetime="2022-07-22">
+      22 juillet 2022
+     </time>
+    </a>
+    portant délégation de signature à madame Béatrice STEFFAN, secrétaire générale de la préfecture de la Seine-Maritime ;
+   </div>
+   <div data-spec="visa">
+    Vu le considérant 17 de la directive européenne 2018/851 du 30 mai 2018 (modifiant la
+    <a data-date="2008" data-num="98" data-spec="document_reference" data-type="eu-directive">
+     directive européenne 2008/98/CE
+    </a>
+    relative aux déchets) relatif au statut de déchet ou de non déchet des substances valorisées ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="2006" data-num="1013" data-spec="document_reference" data-type="eu-regulation">
+     règlement (CE) n° 1013/2006
+    </a>
+    du Parlement européen et du Conseil du 14 juin 2006 concernant le transfert de déchets qui établit les procédures et les régimes de contrôle applicables au transfert de déchets, en fonction notamment de l'origine, de la destination et de l'itinéraire du transfert et du type de déchets transférés ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-spec="section_reference" data-start_num="L541-4-3" data-type="article">
+     article L.541-4-3
+    </a>
+    .IV du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    qui prévoit que les substances ayant cessé d'être des déchets au titre du présent article restent soumis au régime des déchets pour l'application des dispositions du
+    <a data-date="2006" data-num="1013" data-spec="document_reference" data-type="eu-regulation">
+     règlement (CE) n° 1013/2006
+    </a>
+    du Parlement européen et du Conseil du 14 juin 2006 concernant les transferts de déchets, sauf si l'exportateur apporte la preuve que l'autorité compétente de destination au sens de ce règlement, sollicitée sur la classification de la substance faisant l'objet du transfert, n'a pas émis d'objection ;
+   </div>
+   <div data-spec="visa">
+    Vu le décret n° 2021-280 en date du 1er avril 2021 relatif à la sortie du statut de déchets ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     7, place de la Madeleine
+CS 16096 – 76096 ROUEN cedex
+Tél : 02 32 76 50 00
+www.seine-maritime.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    Vu l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="2" data-type="article">
+     article 2
+    </a>
+    de l'
+    <a data-date="2019-02-22" data-spec="document_reference" data-tag_id="1" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2019-02-22">
+      22 février 2019
+     </time>
+    </a>
+    (fixant les critères de sortie de statut de déchet pour les produits chimiques ayant fait l'objet d'une régénération) relatif à la définition de la régénération au sens de cet arrêté ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-spec="section_reference" data-start_num="3.b" data-type="article">
+     article 3.b
+    </a>
+    ) (et la section 2.1 de l'
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="1" data-type="annexe">
+     annexe I
+    </a>
+    ) de l'
+    <a data-date="2019-02-22" data-spec="document_reference" data-tag_id="2" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2019-02-22">
+      22 février 2019
+     </time>
+    </a>
+    relatif à l'obligation de traitements nécessaires des déchets d'huiles usagées pour justifier de la complétude de la régénération en vue de la sortie du statut de déchet ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-parent_reference="3" data-spec="section_reference" data-start_num="3.d" data-type="article">
+     article 3.d
+    </a>
+    ) de l'
+    <a data-date="2019-02-22" data-spec="document_reference" data-tag_id="3" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2019-02-22">
+      22 février 2019
+     </time>
+    </a>
+    (fixant les critères de sortie de statut de déchet pour les produits chimiques ayant fait l'objet d'une régénération) relatif au système d'auto-contrôle des impuretés que l'exploitant se doit de mettre en œuvre sur les substances régénérées OSI 100, OSI 150 et gazole ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport de l'inspecteur de l'environnement communiqué à l'exploitant le 1er avril 2022 suite à la visite d'inspection du 20 janvier 2022 (conformément aux
+    <a data-group_id="2" data-parent_reference="4" data-spec="section_reference" data-start_num="L171-6" data-type="article">
+     articles L.171-6
+    </a>
+    et
+    <a data-group_id="2" data-parent_reference="4" data-spec="section_reference" data-start_num="L514-5" data-type="article">
+     L.514-5
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ) ;
+   </div>
+   <div data-spec="visa">
+    Vu les observations et les réponses formulées par la société OSILUB sur le rapport de visite et le projet de prescriptions de mise en demeure (projet annexé au rapport de visite suite à l'inspection en date du 20 janvier 2022) dans son courrier en date du 8 avril 2022 ainsi que dans ses courriers électroniques en date des 3 mai 7 juin et 13 juillet 2022.
+   </div>
+   <div>
+    CONSIDÉRANT
+   </div>
+   <div data-spec="motifs">
+    qu'en vertu de l'
+    <a data-parent_reference="5" data-spec="section_reference" data-start_num="R541-12-16" data-type="article">
+     article R.541-12-16
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="5" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , l'autorité titulaire du pouvoir de police est le préfet lorsque les dispositions relatives à la prévention et la gestion des déchets s'appliquent sur le site d'une installation classée pour la protection de l'environnement ;
+   </div>
+   <div data-spec="motifs">
+    que le considérant 17 de la directive européenne 2018/851 prévoit, afin d'empêcher les transferts illicites de déchets, que les approches choisies par les États membres en matière de fin du statut de déchet soient assorties d'une plus grande transparence, notamment en ce qui concerne leurs destinations au cas par cas ;
+   </div>
+   <div data-spec="motifs">
+    qu'en vertu de l'
+    <a data-spec="section_reference" data-start_num="L541-4-3" data-type="article">
+     article L.541-4-3
+    </a>
+    .IV du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , seule la consultation de l'autorité compétente de destination prévue à cet article permet de déterminer, à l'étranger, le statut de produit chimique (ou de déchet) des substances régénérées pouvant sortir du statut de déchet en France ;
+   </div>
+   <div data-spec="motifs">
+    que la partie V de l'
+    <a data-parent_reference="6" data-spec="section_reference" data-start_num="L541-4-3" data-type="article">
+     article L.541-4-3
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="6" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    prévoit qu'un décret précise les modalités d'application de cet article ;
+   </div>
+   <div data-spec="motifs">
+    que le décret n° 2021/380 en date du 1er avril 2021 a permis de préciser ces modalités d'application et notamment celles de l'
+    <a data-spec="section_reference" data-start_num="115" data-type="article">
+     article 115
+    </a>
+    de la loi n° 2020-105 du 10 février 2020 relative à la lutte contre le gaspillage et à l'économie circulaire ;
+   </div>
+   <div data-spec="motifs">
+    que l'inspection des installations classées a effectué le 20 janvier 2022 une visite du site exploité par la société OSILUB dans la commune de Gonfreville l'Orcher ;
+   </div>
+   <div data-spec="motifs">
+    que l'inspection des installations classées a constaté lors de cette visite plusieurs manquements significatifs de la part de l'exploitant quant à ses obligations réglementaires afférentes aux législations relatives aux déchets et aux produits chimiques :
+    <ul>
+     <li>
+      - absence, depuis le 31 juillet 2020, de notifications de transfert transfrontalier de déchets prévu à l'article L.541-4-3.IV du code de l'environnement à l'occasion de la vente, dans un pays étranger, de substances régénérées (dites OSI 100, OSI 150, OSI 935) alors que les autorités compétentes de destination n'ont pas été consultées ou que les autorités consultées en novembre 2021 (autorités belges wallonnes, belges flamandes et néerlandaises) ont émis des objections à la reconnaissance de sortie du statut de déchets des substances régénérées (à l'exception des substances régénérées OSI 100 et OSI 150 pour l'autorité belge flamande (OVAM) à compter du 17 novembre 2021).
+      <div data-spec="page_footer">
+       <div>
+        2/6
+       </div>
+      </div>
+      <a data-page_index="2" data-spec="page_separator">
+      </a>
+     </li>
+     <li>
+      - absence de justification de la complétude de la régénération visant à rendre les performances équivalentes des substances régénérées OSI 100 et gazole soufré compte-tenu de leur utilisation prévue telle qu'exigée à l'article 3.b) (et à la section 2.1 de l'annexe I) de l'arrêté ministériel du 22 février 2019.
+     </li>
+     <li>
+      - non respect de la fréquence minimale de contrôle (sur chaque lot et à minima fréquence mensuelle) des teneurs en hydrocarbures aromatiques polycycliques (HAP) dans les substances régénérées OSI 100 et OSI 150 considérées par l'exploitant comme impureté tel qu'exigé à l'article 3.d) de l'arrêté ministériel du 22 février 2019.
+     </li>
+    </ul>
+   </div>
+   <div data-spec="motifs">
+    que le délai pour consulter les autorités compétentes de destination sur la classification de la substance (ou de l'objet) régénérée faisant l'objet du transfert à l'étranger dans le cadre de la vente par l'exploitant et raisonnablement obtenir une réponse de leur part (y compris après une relance à l'issue d'une première consultation infructueuse) est estimée à 2 mois et qu'à la date du 13 juillet 2022, l'exploitant n'a pas justifié des dates de consultation de certaines de ces autorités (celles de Poméranie allemande, de Campanie italienne) ce qui ne permet pas de statuer sur le délai à compter duquel, en l'absence de réponses de ces autorités, l'exploitant sera légitime à considérer que les substances régénérées ont le statut de produit ;
+   </div>
+   <div data-spec="motifs">
+    que l'exploitant indique, le 13 juillet 2022, que 3 autorités compétentes de destination ont refusé de reconnaître le statut de produit des substances régénérées par l'exploitant sans indiquer les substances régénérées et les noms des autorités concernées ;
+   </div>
+   <div data-spec="motifs">
+    que l'exploitant indique, le 13 juillet 2022, que 17 dossiers de consultation des autorités compétentes de destination sont en cours d'examen par ces autorités sans préciser les substances régénérées et le nom des autorités concernées ;
+   </div>
+   <div data-spec="motifs">
+    que l'exploitant indique, le 13 juillet 2022, que 22 dossiers de consultation des autorités compétentes de destination sont sans réponses de la part de par ces autorités sans préciser les substances régénérées et le nom des autorités concernées ;
+   </div>
+   <div data-spec="motifs">
+    que l'exploitant indique, le 13 juillet 2022, que 14 dossiers de consultation des autorités compétentes de destination ont reçu des réponses formelles d'acceptation ou de non opposition sans préciser les substances régénérées concernées, le nom des autorités concernées et sans transmission d'aucun justificatif des réponses formelles d'acceptation ;
+   </div>
+   <div data-spec="motifs">
+    que les notifications de transfert transfrontaliers de déchets doivent comprendre, en application des
+    <a data-group_id="3" data-parent_reference="7" data-spec="section_reference" data-start_num="4" data-type="article">
+     articles 4
+    </a>
+    ,
+    <a data-group_id="3" data-parent_reference="7" data-spec="section_reference" data-start_num="5" data-type="article">
+     5
+    </a>
+    et
+    <a data-group_id="3" data-parent_reference="7" data-spec="section_reference" data-start_num="6" data-type="article">
+     6
+    </a>
+    du
+    <a data-date="2006" data-num="1013" data-spec="document_reference" data-tag_id="7" data-type="eu-regulation">
+     règlement européen n° 1013/2006
+    </a>
+    , un contrat entre le notifiant et le destinataire ainsi qu'une garantie financière ou une assurance équivalente ;
+   </div>
+   <div data-spec="motifs">
+    que le délai en vue de préparer et réaliser cette notification de transferts transfrontaliers de déchets auprès de l'autorité compétente française (pôle national français) est estimé par l'inspection des installations classées à 2 mois ;
+   </div>
+   <div data-spec="motifs">
+    que l'exploitant revendique la complétude de son procédé de régénération des huiles de base et du gazole soufré en se comparant aux caractéristiques techniques définies contractuellement (dans la Fiche produit) à l'occasion de l'homologation de chaque substance régénérée par ses clients (ainsi qu'aux spécifications techniques de la norme ISO 8217 pour le gazole soufré à usage de carburant marin) ;
+   </div>
+   <div data-spec="motifs">
+    qu'il existe une norme internationale API 1509 par l'American Petroleum Institute définissant les différentes catégories d'huile de base en fonction de performances techniques de ces huiles ;
+   </div>
+   <div data-spec="motifs">
+    que ces performances techniques peuvent être comprises comme des spécifications externes ou commerciales (de type cahier des charges) établies par une branche professionnelle d'utilisateurs aux fins d'une utilisation spécifique au sens de l'
+    <a data-date="2019-02-22" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2019-02-22">
+      22 février 2019
+     </time>
+    </a>
+    fixant les critères de sortie du statut de déchet pour les produits chimiques ayant fait l'objet d'une régénération ;
+   </div>
+   <div data-spec="motifs">
+    que ces performances techniques de l'API pourraient également être utilisées, par défaut, pour justifier de la complétude du procédé de régénération des huiles de base ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     3/6
+    </div>
+   </div>
+   <a data-page_index="3" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    que les fiches produits de la société OSILUB sont réputées être archivées dans les dossiers clients en application de la procédure PR-SMI-190-01 version C transmise le 13 juillet 2022 ;
+   </div>
+   <div data-spec="motifs">
+    que l'exploitant n'a transmis, à la date du 13 juillet 2022, qu'une partie (minoritaire) des Fiches produits / Spécifications techniques au regard du nombre de ses clients d'huiles de base et de gazole soufré régénérés ;
+   </div>
+   <div data-spec="motifs">
+    qu'aucune Fiche produit / Spécifications techniques en lien avec la norme ISO 8217 n'a été transmise, à la date du 13 juillet 2022, concernant le gazole soufré à usage de carburant marin ;
+   </div>
+   <div data-spec="motifs">
+    que l'exploitant s'engage à travers la procédure PR-SMI-19-01 version C à contrôler le respect de ses spécifications techniques à travers les bulletins d'analyse disponibles dans les formulaires FO-LAB-XX-01 ;
+   </div>
+   <div data-spec="motifs">
+    qu'aucun bulletin d'analyse n'a été transmis, à la date du 13 juillet 2022, concernant le gazole soufré à usage de carburant marin faisant état du respect des spécifications de la norme ISO 8217 ;
+   </div>
+   <div data-spec="motifs">
+    que le délai pour justifier de la complétude de la régénération est estimé à un mois ;
+   </div>
+   <div data-spec="motifs">
+    que l'exploitant précise (sans le justifier), le 13 juillet 2022, que les teneurs en hydrocarbures aromatiques polycycliques (HAP) dans les huiles régénérées OSI 100 et OSI 150 sont du même ordre de grandeur que celles dans les huiles de base d'origine ;
+   </div>
+   <div data-spec="motifs">
+    que l'exploitant n'a donc pas apporté la démonstration, le 13 juillet 2022, que les teneurs en HAP dans les huiles régénérées OSI 100 et OSI 150 ne sont pas supérieures à celles des huiles de base d'origine ;
+   </div>
+   <div data-spec="motifs">
+    qu'il ne peut donc pas être considéré, en l'état, que les HAP ne constituent pas des impuretés des huiles de base régénérées au sens de l'
+    <a data-parent_reference="8" data-spec="section_reference" data-start_num="2" data-type="article">
+     article 2
+    </a>
+    de l'
+    <a data-date="2019-02-20" data-spec="document_reference" data-tag_id="8" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2019-02-20">
+      20 février 2019
+     </time>
+    </a>
+    fixant les critères de sortie du statut de déchet pour les produits chimiques ayant fait l'objet d'une régénération ;
+   </div>
+   <div data-spec="motifs">
+    que le
+    <a data-parent_reference="9" data-spec="section_reference" data-start_num="4.4" data-type="unknown">
+     paragraphe 4.4
+    </a>
+    de l'
+    <a data-parent_reference="10" data-spec="section_reference" data-start_num="2" data-tag_id="9" data-type="annexe">
+     annexe II
+    </a>
+    de l'
+    <a data-date="2019-02-22" data-spec="document_reference" data-tag_id="10" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2019-02-22">
+      22 février 2019
+     </time>
+    </a>
+    prévoit que le contrôle de la teneur en impuretés soit effectué pour chaque lot et à minima à fréquence mensuelle ;
+   </div>
+   <div data-spec="motifs">
+    que le délai pour justifier de la réalisation et de résultats d'analyses en HAP sur chaque lot vendu de substance régénérée OSI 100 et OSI 150 (et à une fréquence a minima mensuelle) est de 1 mois ;
+   </div>
+   <div data-spec="motifs">
+    que face à ces manquements, il convient de faire application des dispositions de l'
+    <a data-parent_reference="11" data-spec="section_reference" data-start_num="L541-3" data-type="article">
+     article L.541-3
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="11" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    en mettant en demeure la société OSILUB de respecter les dispositions et prescriptions réglementaires applicables ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition de la secrétaire générale de la préfecture
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1er
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société OSILUB, dont le siège social est situé route de la Plaine, 76700 Gonfreville-l'Orcher, est mise en demeure de respecter les dispositions suivantes pour son site implanté dans la commune de Gonfreville-l'Orcher :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - sous 2 mois, l'
+       <a data-spec="section_reference" data-start_num="L541-4-3" data-type="article">
+        article L.541-4-3
+       </a>
+       .IV du
+       <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+        Code de l'environnement
+       </a>
+       , en apportant la preuve que chaque autorité compétente de destination au sens du
+       <a data-date="2006" data-num="1013" data-spec="document_reference" data-type="eu-regulation">
+        règlement européen n° 1013/2006
+       </a>
+       , sollicitée sur la classification des substances régénérées OSI 100, OSI 150, OSI 935, gazole soufré faisant l'objet du transfert, n'a pas émis d'objection (à l'exception de l'autorité belge flammande (OVAM) vis-à-vis de l'exportation des substances régénérées OSI 100 et OSI 150 pour laquelle l'inspection des installations classées est déjà détentrice du justificatif) et, le cas échéant (en cas d'objection et de velléités renouvelées de la part de l'exploitant de vendre ces
+      </li>
+     </ul>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      4/6
+     </div>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      5/6
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     substances régénérées dans ces pays de destination), sous 2 mois supplémentaires en déposant auprès du pôle national français de transfert transfrontalier de déchets un dossier complet et régulier (par substance régénérée) de notification préalablement aux ventes de ces substances régénérées OSI 100, OSI 150, OSI 935 et gazole soufré aux clients étrangers.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - sous 1 mois, l'
+       <a data-spec="section_reference" data-start_num="3.b" data-type="article">
+        article 3.b
+       </a>
+       ) (et la section 2.1 de l'
+       <a data-parent_reference="12" data-spec="section_reference" data-start_num="1" data-type="annexe">
+        annexe I
+       </a>
+       ) de l'
+       <a data-date="2019-02-22" data-spec="document_reference" data-tag_id="12" data-type="arrete-ministeriel">
+        arrêté ministériel du
+        <time data-spec="date" datetime="2019-02-22">
+         22 février 2019
+        </time>
+       </a>
+       en justifiant de la complétude de la régénération au sens de la définition visée à l'
+       <a data-spec="section_reference" data-start_num="2" data-type="article">
+        article 2
+       </a>
+       du même arrêté au regard des performances équivalentes des substances régénérées OSI 100 et gazole soufré et de l'utilisation prévue de ces substances (au moyen des Fiches produits / Spécifications techniques des substances OSI 100 et gazole soufré (à usages de combustible et de carburant marin) définies soit en application de la norme ISO 8217 (cas du gazole soufré à usage de carburant marin), soit à l'occasion de l'homologation comme matière première chez les clients à l'exception des 5 fiches clients déjà transmises les 4 et 13 juillet 2022 et des formulaires FO-LAB-XX-01 correspondants dûment renseignés pour chacune de ces substances régénérées et chacun des clients ou, à défaut pour les huiles de base régénérées OSI 100, au moyen de la comparaison aux performances techniques de la norme API 1509 définies par l'American Petroleum Institute pour définir les catégories d'huiles de base).
+      </li>
+      <li>
+       - sous 1 mois, l'
+       <a data-parent_reference="13" data-spec="section_reference" data-start_num="3.d" data-type="article">
+        article 3.d
+       </a>
+       ) de l'
+       <a data-date="2019-02-22" data-spec="document_reference" data-tag_id="13" data-type="arrete-ministeriel">
+        arrêté ministériel du
+        <time data-spec="date" datetime="2019-02-22">
+         22 février 2019
+        </time>
+       </a>
+       et la section 4.4 de l'
+       <a data-spec="section_reference" data-start_num="1" data-type="annexe">
+        annexe I
+       </a>
+       de ce même arrêté en procédant à des analyses en hydrocarbures aromatiques polycycliques (HAP) sur chaque lot (et à une fréquence à minima mensuelle) de substances régénérées OSI 100 et OSI 150 tant que n'est pas apportée la justification que les teneurs en HAP dans les huiles régénérées OSI 100 et OSI 150 ne sont pas plus importantes que dans les huiles de base d'origine.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dans le cas où l'une des obligations prévues à l'
+     <a data-spec="section_reference" data-start_num="1" data-type="article">
+      article 1
+     </a>
+     ne serait pas satisfaite dans le délai prévu au même article et indépendamment des poursuites pénales qui pourraient être engagées, il peut être pris à l'encontre de la société OSILUB les sanctions prévues par les dispositions des
+     <a data-group_id="4" data-parent_reference="14" data-spec="section_reference" data-start_num="L521-18" data-type="article">
+      articles L.521-18
+     </a>
+     et
+     <a data-group_id="4" data-parent_reference="14" data-spec="section_reference" data-start_num="L541-3" data-type="article">
+      L.541-3
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="14" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="15" data-spec="section_reference" data-start_num="L171-11" data-type="article">
+      article L.171-11
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="15" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , la présente décision est soumise à un contentieux de pleine juridiction. Elle peut être déférée au tribunal administratif de ROUEN.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le délai de recours est de deux mois pour l'exploitant à compter du jour où la présente décision lui a été notifiée et de deux mois pour les tiers à compter de la date de publication (
+     <a data-parent_reference="16" data-spec="section_reference" data-start_num="R421-1" data-type="article">
+      article R.421-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="16" data-title="Code de justice administrative" data-type="code">
+      code de justice administrative
+     </a>
+     ).
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Conformément aux dispositions de l'
+     <a data-spec="section_reference" data-start_num="R414-2" data-type="article">
+      article R.414-2
+     </a>
+     du code de la justice administrative, les personnes de droit privé autres que celles chargées de la gestion permanente d'un service public non représentées par un avocat, peuvent adresser leur requête à la juridiction par voie électronique au moyen d'un téléservice accessible par le site www.telerecours.fr. Ces personnes ne peuvent régulièrement saisir la juridiction par voie électronique que par l'usage de ce téléservice.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'arrêté est publié sur le site internet de la préfecture de la Seine-Maritime pendant une durée minimale de deux mois.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Un extrait de cet arrêté est affiché à la mairie de Gonfreville l'Orcher pendant une durée minimum d'un mois.
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="6" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La secrétaire générale de la préfecture de la Seine-Maritime, le sous-préfet du Havre, le maire de la commune de Gonfreville l'Orcher, le directeur régional de l'environnement, de l'aménagement et du logement de Normandie, ainsi que tous les agents habilités des services précités sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est notifié à la société OSILUB.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Fait à ROUEN, le
+    </div>
+    <section data-number="01" data-spec="section" data-title="ADUT 2022" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      01 ADUT 2022
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Pour le préfet de la Seine-Maritime
+     </div>
+     <div data-number="2" data-spec="alinea">
+      et par délégation,
+     </div>
+     <div data-number="3" data-spec="alinea">
+      la secrétaire générale,
+     </div>
+     <div data-number="4" data-spec="alinea">
+      <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Béatrice STEFFAN
+     </div>
+    </section>
+   </section>
+  </main>
+ </body>
+</html>

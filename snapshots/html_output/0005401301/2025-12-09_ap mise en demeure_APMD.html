@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2025-12-09_ap mise en demeure_APMD.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET DE L'YONNE
+Liberté
+Égalité
+Fraternité
+
+Secrétariat général aux affaires départementales
+Bureau de l'environnement
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté n° PREF-SGAD-BE-2025-0510 du
+     <time data-spec="date" datetime="2025-12-09">
+      09 DEC. 2025
+     </time>
+     portant mise en demeure la société DAVEY BICKFORD de régulariser la situation de l'installation de fabrication de produits pyrotechniques qu'elle exploite sur le territoire de la commune d'HERY
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet de l'Yonne,
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , en particulier ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-6" data-type="article">
+     articles L. 171-6
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+     L. 171-8
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L172-1" data-type="article">
+     L. 172-1
+    </a>
+    et suivants, L. 511-1 et L. 514-5 ;
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de justice administrative" data-type="code">
+     code de justice administrative
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1980-05-22" data-num="D1-80-311" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° D1-80-311 du
+     <time data-spec="date" datetime="1980-05-22">
+      22 mai 1980
+     </time>
+    </a>
+    autorisant la société DAVEY BICKFORD à exploiter une installation de fabrication de produits pyrotechniques sur le territoire de la commune d'Héry ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l'inspecteur de l'environnement transmis à l'exploitant par courrier en date du 10 septembre 2025 ;
+   </div>
+   <div data-spec="visa">
+    VU le projet d'arrêté transmis le 1er octobre 2025 à l'exploitant en application de l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="L171-6" data-type="article">
+     article L. 171-6
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU l'absence d'observation de l'exploitant sur le projet d'arrêté précité ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que l'
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+     article L. 171-8
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    dispose qu'en cas d'inobservation des prescriptions applicables en vertu du présent code aux installations, ouvrages, travaux, aménagements, opérations, objets, dispositifs et activités, l'autorité administrative compétente met en demeure, la personne à laquelle incombe l'obligation d'y satisfaire dans un délai qu'elle détermine ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que l'
+    <a data-parent_reference="3" data-spec="section_reference" data-start_num="3.1" data-type="article">
+     article 3.1
+    </a>
+    de l'
+    <a data-date="1980-05-22" data-spec="document_reference" data-tag_id="3" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="1980-05-22">
+      22 mai 1980
+     </time>
+    </a>
+    susvisé dispose :
+   </div>
+   <div>
+    « 3.1 - Principes généraux
+   </div>
+   <div>
+    Sont interdits tous déversements, écoulements, rejets, dépôts directs ou indirects d'effluents susceptibles d'incommoder le voisinage, de porter atteinte à la santé publique ainsi qu'à la conservation de la faune et de la flore, de nuire à la conservation des constructions et réseaux d'assainissement et au bon fonctionnement des installations d'épuration, de dégager en égout directement ou indirectement des gaz ou vapeurs toxiques ou inflammables.
+   </div>
+   <div>
+    Par ailleurs, il ne peut être procédé à des déversements sur le sol dans le sous-sol sans l'accord de l'inspecteur des installations classées qui peut prescrire une étude géologique préalable.
+   </div>
+   <div>
+    Toutes dispositions doivent être prises pour éviter tout déversement accidentel susceptible d'être à l'origine d'une pollution des eaux.
+   </div>
+   <div>
+    L'exploitant doit rechercher par tous les moyens possibles, et notamment à l'occasion des remplacements de matériel et de réfection des ateliers, à diminuer au maximum la consommation d'eau de l'établissement, et plus particulièrement en ce qui concerne les eaux d'origine souterraine. »
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     1/3
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    CONSIDÉRANT que lors de la visite du 20 août 2025, l'inspecteur de l'environnement a constaté que l'exploitant ne respecte pas les dispositions précitées car les réseaux de collecte de l'établissement ne sont pas équipés d'obturateurs de façon à maintenir toute pollution accidentelle à l'intérieur de l'établissement ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que face à ces manquements, il convient de faire application des dispositions de l'
+    <a data-parent_reference="4" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+     article L. 171-8
+    </a>
+    I du
+    <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    en mettant en demeure la société DAVEY BICKFORD de respecter les prescriptions de l'
+    <a data-parent_reference="5" data-spec="section_reference" data-start_num="3.1" data-type="article">
+     article 3.1
+    </a>
+    de l'
+    <a data-date="1980-05-22" data-spec="document_reference" data-tag_id="5" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="1980-05-22">
+      22 mai 1980
+     </time>
+    </a>
+    susvisé ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition de Madame la Secrétaire générale de la préfecture de l'Yonne,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE :
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Mise en demeure" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1er – Mise en demeure
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société DAVEY BICKFORD, située Moulin Gaspard, 89550 HERY, qui est autorisée à exploiter à la même adresse, des installations spécialisées dans la fabrication de produits pyrotechniques, est mise en demeure de respecter :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - dans un délai de 6 mois à compter de la notification du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       , les dispositions prévues à l'
+       <a data-parent_reference="6" data-spec="section_reference" data-start_num="3.1" data-type="article">
+        article 3.1
+       </a>
+       de l'
+       <a data-date="1980-05-22" data-spec="document_reference" data-tag_id="6" data-type="arrete-prefectoral">
+        arrêté préfectoral du
+        <time data-spec="date" datetime="1980-05-22">
+         22 mai 1980
+        </time>
+       </a>
+       susvisé, en équipant ses réseaux de collecte d'obturateurs de façon à maintenir toute pollution accidentelle à l'intérieur du site.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Sanctions" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 – Sanctions
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dans le cas où l'obligation prévue à l'
+     <a data-spec="section_reference" data-start_num="1" data-type="article">
+      article 1er
+     </a>
+     ne serait pas satisfaite dans le délai prévu dans ce même article, et indépendamment des poursuites pénales qui pourraient être engagées, il pourra être pris à l'encontre de l'exploitant les sanctions prévues à l'
+     <a data-parent_reference="7" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+      article L. 171-8
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="7" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Notification et publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 – Notification et publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="8" data-spec="section_reference" data-start_num="R171-1" data-type="article">
+      article R. 171-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="8" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     ,
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     est publié sur le site internet de la préfecture pendant une durée minimale de deux mois.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est notifié à la société DAVEY BICKFORD.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 – Délais et voies de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="9" data-spec="section_reference" data-start_num="L171-11" data-type="article">
+      article L. 171-11
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="9" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , la présente décision est soumise à un contentieux de pleine juridiction. Elle peut être déférée au Tribunal administratif de Dijon :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - 1° Par l'exploitant, dans un délai de deux mois à compter de sa notification ;
+      </li>
+      <li>
+       - 2° Par les tiers, dans un délai de deux mois à compter de sa publication.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le Tribunal administratif peut être saisi d'un recours déposé via l'application Télérecours citoyens accessible par le site internet www.telerecours.fr.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le destinataire du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     peut également saisir le préfet d'un recours gracieux ou le ministre de la transition écologique d'un recours hiérarchique, dont l'exercice interrompt le délai de recours contentieux (l'absence de réponse au terme de deux mois vaut décision implicite de rejet).
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      2/3
+     </div>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Exécution" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 – Exécution
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Madame la Secrétaire générale de la préfecture de l’Yonne et Monsieur le Directeur régional de l’environnement, de l’aménagement et du logement de Bourgogne-Franche-Comté sont chargés, chacun en ce qui le concerne, de l’exécution des dispositions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie sera adressée à :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - Monsieur le Maire d’Héry,
+      </li>
+      <li>
+       - Monsieur le Directeur du service départemental d’incendie et de secours,
+      </li>
+      <li>
+       - Madame la Directrice générale de l’Agence régionale de santé,
+      </li>
+      <li>
+       - Monsieur le Responsable de l’Unité interdépartementale Nièvre/Yonne de la DREAL.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Fait à Auxerre, le 09 DEC. 2025
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le Préfet et par délégation,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     La Sous-préfète,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Secrétaire générale
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

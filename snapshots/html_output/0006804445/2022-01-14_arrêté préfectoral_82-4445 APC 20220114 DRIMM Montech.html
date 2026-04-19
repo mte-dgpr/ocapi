@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2022-01-14_arrêté préfectoral_82-4445 APC 20220114 DRIMM Montech.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DE TARN-ET-GARONNE
+Liberté
+Égalité
+Fraternité
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Direction de la coordination interministérielle et de l'appui territorial
+    </div>
+    <div>
+     Mission des politiques environnementales
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ PRÉFECTORAL COMPLÉMENTAIRE N° 82-2022-01 14 00001 portant adaptation temporaire de l'article 12.1 des prescriptions particulières annexées à l'arrêté préfectoral n° 82-2017-12-06-004 du
+     <time data-spec="date" datetime="2017-12-06">
+      06 décembre 2017
+     </time>
+     , autorisant la SAS DRIMM à exploiter une installation de traitement et de stockage de déchets ménagers et d'activité économique sur le territoire des communes de Montech et d'Escatalens
+    </h1>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Installations Classées pour la Protection de l'Environnement
+    </div>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     La préfète de Tarn-et-Garonne,
+    </div>
+    <div>
+     Chevalier de la Légion d'Honneur,
+    </div>
+    <div>
+     Chevalier de l'Ordre National du Mérite,
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    Vu les décrets n° 2018-458 du 6 juin 2018 et n° 202-828 du 30 juin 2020 modifiant la nomenclature des installations classées pour la protection de l'environnement (rubrique 2716),
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2018-06-06" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2018-06-06">
+      6 juin 2018
+     </time>
+    </a>
+    relatif aux prescriptions générales applicables aux installations de transit, regroupement, tri ou préparation en vue de la réutilisation de déchets relevant du régime de l'enregistrement au titre de la rubrique n° 2711 (déchets d'équipements électriques et électroniques), 2713 (métaux ou déchets de métaux non dangereux, alliage de métaux ou déchets d'alliage de métaux non dangereux), 2714 (déchets non dangereux de papiers, cartons, plastiques, caoutchouc, textiles, bois) ou 2716 (déchets non dangereux non inertes) de la nomenclature des installations classées pour la protection de l'environnement ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 82-2017-12-06-004 du
+     <time data-spec="date" datetime="2017-12-06">
+      6 décembre 2017
+     </time>
+    </a>
+    autorisant la SAS DRIMM à exploiter une installation de traitement et de stockage de déchets ménagers et d'activités économiques sur le territoire de la commune de Montech,
+   </div>
+   <div data-spec="visa">
+    Vu la demande présentée par la SAS DRIMM le 15 décembre 2021 en vue d'obtenir une adaptation temporaire de l'
+    <a data-spec="section_reference" data-start_num="12.1" data-type="article">
+     article 12.1
+    </a>
+    des prescriptions particulières annexées à l'
+    <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 82-2017-12-06-004 du
+     <time data-spec="date" datetime="2017-12-06">
+      06 décembre 2017
+     </time>
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu le courrier de la société AUDEVAL du 1er décembre 2021 ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport et les propositions en date du 23 décembre 2021 de l'inspection des installations classées ;
+   </div>
+   <div data-spec="visa">
+    Vu le projet d'arrêté porté le 24 décembre 2021 à la connaissance du demandeur et son courriel du 6 janvier 2022, indiquant l'absence d'observation sur a décision proposée ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     1/3
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    Considérant que la société AUDEVAL a la nécessité qu'environ 650 tonnes de déchets issues de la collecte sélective du Grand-Narbonne soient traitées durant la période comprise entre le 17 janvier 2022 et le 27 février 2022 ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que la SAS DRIMM est en mesure de répondre ponctuellement à la sollicitation de la société AUDEVAL ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que l'
+    <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 82-2017-12-06-004 du
+     <time data-spec="date" datetime="2017-12-06">
+      6 décembre 2017
+     </time>
+    </a>
+    n'intègre pas l'autorisation de traiter des déchets en provenance du département de l'Aude ;
+   </div>
+   <div data-spec="motifs">
+    Considérant qu'en application des dispositions de l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="L512-1" data-type="article">
+     article L.512-1
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , l'autorisation ne peut être accordée que si les dangers ou inconvénients de l'installation peuvent être prévenus par des mesures que spécifie l'arrêté préfectoral ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que les conditions d'aménagement et d'exploitation, les modalités d'implantation, telles que définies par
+    <a data-spec="document_reference" data-type="self">
+     le présent arrêté
+    </a>
+    , permettent de prévenir les dangers et inconvénients de l'installation pour les intérêts mentionnés à l'
+    <a data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     article L.511-1
+    </a>
+    du titre 1er du livre V du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , notamment pour la commodité du voisinage, pour la santé, la sécurité, la salubrité publique et pour la protection de la nature et de l'environnement ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition de la secrétaire générale de la préfecture de Tarn-et-Garonne ;
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="IDENTIFICATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1 – IDENTIFICATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La SAS DRIMM dont le siège social est sis 3525, route de La Ville-Dieu – 82700 MONTECH, qui est autorisée à exploiter sur le territoire des communes de Montech et d'Escatalens, à la même adresse, des installations de traitement et de stockage de déchets ménagers et d'activités économiques, est tenue de respecter, dans le cadre de la demande du 15 décembre 2021 susvisée, les dispositions des articles suivants.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="MODIFICATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 – MODIFICATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions de l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="12.1" data-tag_id="5" data-type="article">
+      article 12.1
+     </a>
+     de l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="complétées" data-operation_type="add" data-references="5" data-spec="operation">
+      susvisé sont
+      <b>
+       complétées
+      </b>
+      par les dispositions suivantes, pour la période du 17 janvier 2022 au 27 février 2022 :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - les déchets issus de la collecte sélective du Grand-Narbonne en provenance de la société AUDEVAL (Aude) sont admis sur le centre de tri, pour une quantité d'environ 650 tonnes ;
+      </li>
+      <li>
+       - à la fin de l'opération, l'exploitant fournit à l'inspection des installations classées, un bilan sur la base du registre des déchets entrants, qui formalise l'acceptation des déchets issus de la collecte sélective de la société AUDEVAL.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="PUBLICITE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 – PUBLICITE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément aux dispositions de l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="R181-44" data-type="article">
+      article R.181-44
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     ,
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     sera déposé dans les mairies de Montech et d'Escatalens et mis à la disposition de toute personne intéressée. Un extrait sera affiché pendant une durée minimum d'un mois.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les maires de Montech et d'Escatalens transmettrons, à la préfecture de Tarn-et-Garonne, un procès-verbal d'accomplissement de cette formalité.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'arrêté sera publié pendant une durée identique sur le site Internet des services de l'État de Tarn-et-Garonne ;
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      2/3
+     </div>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="4" data-spec="section" data-title="EXECUTION ET NOTIFICATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 – EXECUTION ET NOTIFICATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La secrétaire générale de la préfecture de Tarn-et-Garonne, le Directeur Régional de l’Environnement, de l’Aménagement et du Logement (DREAL) chargé de l’Inspection des Installations Classées et aux maires des communes de Montech et d’Escatalens sont chargés, chacun en ce qui le concerne, de veiller à l’exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie sera notifiée à l’exploitant.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Fait à Montauban, le **14 JAN. 2022**
+    </div>
+    <div data-number="3" data-spec="alinea">
+     La Préfète
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCACMAcUDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iiigAooooAKKKKACiiigAooooAKKM0ZoAKKKKACijI9aM0AFFFGR60AISB1NLXEa94wvNG8eaVoqW8EtperEHJBDqzyMmQc4wPlOMZ689MdvQAUUZHrRketABRRRQAUUZFFABRRRmgAooyKKACiiigAooyPWjNABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUZFABRRmobm6t7O3a4uriKCFMbpJXCquTgZJ46kCgCbNGR61yOp/EfwzpomX7f8AapY8fJaqX3Zx0bhDwc/e7EdeK466+KGu6veTW/hzSMqEbBETTzLzjfgYAxkcYYZ9aAPX6o3ms6Xp0whvdSs7aUrvCTzqjFc4zgnpkH8q8rl8OfErXZWi1C9ktojEUbfcqkbr0KlIcg5BP8OCOvYVe074NW67W1PVJZMoMx20YUK/chmzkdQPlB6dOlAG7qXxQ8N6dOIUmnvW3MrfZY8hdv8AtMQGB9Vz09xWVefGLS0hzZaZeTS55WdliUD6jdz04xW3YfDTwxZCLNg9zJG27zLiVju5z8yghT9MYI9a6Gz0XS9Pm82y0y0tZCuzfBAqHb6ZA6cdKAPL7P4keNdQhM1loMFzEG2l4bOZ1B9Mh+vIqODVvijqV3KtvbXUOcuEks44kUZ+6GkUevQknA717DjuM/40+gDySWL4szQvE5cKylTse2U++CCCPYgg1Un8KfEmCKB49TvJ2dcskWpMDF0+VtxAzyfu5HB9q9mozQB4rbaN8ULW4WeOW+Z0zgS38ci9MfdZyD+I61bS2+K8U806mUtNt3Bpbcr8owMAkhfwAyeua9S1G8+wafNdiJ5fKXdsTqef5c5/CuNg8d3quTcWkDoRwIyyH8yTQB5vrN34og8YWU2swNLq9s0RgiMY/eAPuQDy+GG4npznIzxXUR/FnWNPuZoNZ0KLz12/u1LwMnf5gwY85Hp+NM1/VU1TxNo2rS2ggFveW6s+8yYQOzZ6DHXt7fh6DqXjPw5pM/k3eqwLLuZSkWZSrLwQwQHae3Pv6UAczY/F/RpkhW8sry2kdsOUCyInP3s5BIxyeM+ma6vSvFWha2wTT9TglkZiFiY7JGwMnCMASPfHY+leY6j448IvuitPBlrLDJGQ7yJHA+TkHG1Wxx3yDz2wDXJJpF9r99JNo2hTpbSShI44A8kcXQYaRj1wQSTj14HAAPpXI9RVK81nS9OlEV9qVnayMu4JPOqEjnnBPTg/lXitz4S+IH9mtbXEV9LZRxjMH21ZF2ryAE3HOMDAxnjvxWHpOm6bFrP2XxPLfaaiffC2/wAwypPzZ+Zc/LwFbOT0HNAHtUnxF8JwzSRNq67kYqSkMjDj0YKQR7isf/hcXh//AJ9NT/79R/8AxdS6T8NfCLwfaImk1S3l+5K11uUYJB2mPAPP16dq3bPwX4asIDFFotmyk7iZ080/99Pk/hnFAHEf8Lq/6l8/+Bn/ANhTR8Q/GN8PtOmeGS9k/wDq2+zTTdOD86lQeQegFepW1rb2VutvawRQRJnbHEoVVzzwAOKlAwPT/PP9aAPIbvxf8RrmEJDodxaMG/1kOnSEn2+fcMdO3brVnHxc/wA/ZK9XyPUUuaAPHLzUPirp+zzkun35x5FrDNjGOuxTjOe/oat6Z408eWvlJf8Ahq6vY1zvb7FJHI3XHIG30/h6D1Oa9YyM4zzRQB53B8VLGO5+y61pN/pt0JFDIy7wikA7mztYcEnAU8DIrtNJ1ew1uxF5p1ys8BYruGQQR2IPI7HnsQe9c34w1PwdcaXcQazc2s7x7owkBWS4ifqQuOVOVHJwMgZ61znwiN9JNqXlbo9EViyRSAEmVtuDvCjcQi4bp94HHNAHq9FFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFGR60Vm6zqtvoml3OpXRYQQLltq5J5wAB6kkAZ4Gc9KANGuU134g6BoMhgluXubhW2vFagOY+oO4kgAjHQnPPSuCvNd8T/EPU7ix0JZLbTBgMu4IAhyu6Vxyc5Y7BkEDoSpJ6LQ/hLplpEH1iR764YcojNHGh46EEMxBB5JAIP3aAMSX4leJfEN19i8PaUkMrhfuDz5EO7BbJARV5AJKnGevTElt8NfEmu26v4h1qaJ0z5UUrG5Zc8H+LA6KeCc555FerWtpb2Vulva28cECfdjiQKq564AwBySasUAcRpnwu8N6fMJZIJ71wysn2qTKoR/sqFBB4yCCOPz6+1tLeyt0t7W3jggT7scSBVXPXAGAOSTViigAooozQAUUZFQ3N3bWcDT3VxFBCv3pJXCqOcck8dSKAJs0VxerfEzw5pc/kLPLfN/G1kquqcA8sSFOc9icYOcVyN98Tdf1m4ltfDemOqhdwZYTPPtDfewPlXPAxggZPPTAB6/LNFBC800iRxRqXd3YAKo6kk9AK5jVvH/AIc0m3ErajFds33I7NhKzDIzyDgcH+IjODiuDi+H3jXW4kTWdSeOBZgTHd3bTsvH31ALDIBIHIPUZAroNO+EOkW115t9d3F7EAuIf9UC23DliDkgn5gAQR3LUAUdY+LVvJp7/wBlaW8hY7JGvgAi7ug2qTuyA3cY469Kxft9xqNt9ue0t4p5F3CC3GxDgcAA5A6D8a9c0rRrDQrIWemWq28G8ttXJJJ6kk8k8AcnoAOgArzLVXSTV710ZXjadypUggjccHPTGPSgCtdaXe6XeXFlqM9jcHHP2fJwDztfI4OMcHPBHWpdO8KeFYLSPUdWuri6nld2NnG+ARkgBsfN0Oclhn+bdSig0y+isjfWdxcSGQMltLvKFMZV+AVPP/jpFRpNZW8sb6jNJDalwJJEQsQPw/z9elAHc+GV8KLLFHpWnQ211Hu8tpYgZSDycSHJP3jxnpnsK2F8SaO1wYRfx7gxBJyFyB/exjFeXf2pplzqEh0SS78u3I/fTYUscnDKRzjgEZwaY91FZIbqaISxxfMyFyu4DnbkcjPTigD2H+0rATeSb2283dt2eau7d6Yz1qnq3h7SNbUjUdPguGKhPMK4kCg52hxhgMk9COp9TXklreJd2gu1iaJGLERk72AyccgDJxjtVyN7x7hJHgu4b1nzsmVlm3k8HHXJyD60AJf6b4l+Gl/Ne6XK11ou7P70lo8vwPMQEHcMAbxjPyjPzFa6J/G1zq+mw3+jv5Mari7hCB3hkzj5iR90/wAJ4z82eRgYEvhrxHqd9Ppun3b2QWNhdK8zpG46BW2g7sgnHUYB/GsPhxqnh5Rqd3cW8qxOF2QEthSCMsWC4A+UYG7OeeBmgDq/DniFbTUpE1TWIxA8OVNxPgbwRwN+ORuOcdffArWk+IvhOGd4n1dd6MVJSGRgcehCkEe4rzmSy0jVY7pLy4mF1ahFgghYLkuCSzZByoAXOMc/UYqwaBp0TqXgM4GNySOwDc552kdsUAdrL8YNEWJjBY6i8oU7VdUUE9snccfXBrEu/jLeSRAWWkW8M2eWmlMi49MAKc9Oc49q6zwt4b8MXOl/aYdEtPNY7JllBmCsM9DJnGc549e+K1dY12z8PJDaR25dxGDHDHhERBwOew4OAAenYUAcDJ4k+JOq3ENva6TLYud3K2WxX4z8zS5UYwQORnPfil/4QXxzrUX/ABNta8qG4fM9vLdO+0bs/wCrX5OwIAIHTp26xvHkH2dStjKZ84dC4Cgc9Gxz+VaDeMNJFos5eTcwz5IXL9SOew6Z6+lAHPaZ8I9EtvKkvri6vZVJ3gt5cbdew+YY4/i6j04ruba0gsrdYLSCOCFfuxxIFVc5JwBgDqT9TWTD4v0mWDzZJnhyxULIuW4AOcLnA57+hqDxdqy22mPbwTxefI3lyR7gzBCDnjPGeOe2aAOgjvLWaZ4YrmF5UzvRXBZcHByO3NT5ArgfDGjrA0Ot3F7bJDFnA3A43AjDNnCnkfnzg1kXV3deI9YVdyp5r7Y43kOxAcDHOeeBnA5I6c0Aeq0ZFeT/AGfWdIWVhHe2qA4kdAypnt8w4IrvfC981/ocLySmSaMmN2I5yDxn1+UrQBt0VjT+ILGDWU0x/NM5KjIX5VZugPfuORxz9cbOaACiiigAozRUahhI5L5U42rjpQBJRWaNQeLYZ49qsCeAR3psusLx5UefXdQBqUVmjVDk74GQAZOWGfyp8WrQOcPlD78igC/RVX7fa4J80cfWrCurqGU5B70AOoozRQAUUUUAFFFFABRRRQAVxfxN0mXVPB0rQn5rORborx8yqCG5PTAYt6nGBXaUzbnqKAPOPhXr+mPoceiZig1JHkfZjBmGc784wSBxjJOEz2wPSs15T4m+Eod3ufDzrEAoP2KVjjIB+45z14wDxnPIHAyU8V/EDw6rtqFnPNbW6iJmvLQlBg4B8xcbj2yWOc98g0Ae2UV5BbfGW4S2VbvRYpZudzx3BjU854Uq2OPUmp/+F1D/AKF//wAnP/sKAPWMjGc0ZHrXkcvxnlaJ1i0NUlwdrPc7gp7EjaCR7ZH1rKl+K3ii/QWtrBaRzysqo1vAzSbt3RQzMCTgjoaAPcMiuP134i6Do0f7q5XULhl3JFaMHHfG5+gHHPU4OcV5lc2nj/xFcNBdW+syC4xujlVoYflGehCoOn4n3NWtP+FniqRGmzbWMnzJtlnO5lZcN9wMMEEg8888YoA0tf8AiR4niDrFo7aOhC5eeFnkUknkFgFwQpABUnhufTCutNuNduH1TxN4o0yEABH2zpcShQBt2xRZBGTzyP4jjHXo4vgvKYlM2tospUb1W13AH2O8Z784BPetWL4O6KsSCa+1B5MDeyMihiOuBtJA9iSfegDlrZ/hzobQyO19rk/yknyiqIy9flYrlWJ6Hf0/PW/4XFBbHyLTQD9nj+WEfaQnyD7vyhDt4xwMjsMiuu/4Vr4S/wCgT/5My/8AxVa0XhvRLeWOWHRdPjkRg6slqgKsO4IHB96APKovi54lnmSGHT9PklkYKiJDIWYnoAA/Jp1trHxRvJ1gjiv1d84MthHGvAzyzIFGcY6969mIz1FPoA8STw98SQ2ZrnVkiHLMmoByB/uiTJ+gq9/YGppbxxvp93IrJjLRMxbt83HXjPPrXqV/qNrpsKzXkvlRs20HaT834fSqKeKdFdlVb5csQBlGUZ9yRwKAPI9S8C3Gg6HD4heV2VLhTPamHYYk3YB+ZjnkKMY6NntVqFIb2ytLu6tHksLgswjdtglVSVI3KcggjPXjAJyDg+neLbFdZ8G6lbxeZL5luZYhB8xdlw6AY65Kj864j4TXkeoWOo6VeJbSpHKLmKN1GcnIbC9NoIXoBgsc9RQBHBpmm3erw2Oh2j2dtKRkPIzkkcs+Cx7cYz2p92n9i+JH/dYW2uBIibv4d2V5/Ec9a9RigigiEUMKRxjoiKAB69Kp32i2GpyI93beY6ZAbcV6+uCM/wCfegDzZr9LjXBfXKFoXuBK0Wd3y7s49+Ktahd22peLPtEczR28k8YE2drADaCwJ6YxkHrXbP4V0Z3Z2sRuYknEjgZ+gOKqzeCNKllLq1zED/AsgI/8eBP60AdCjrIgdGDKwDBgcgj1Fc/41naLQNgCkTSrG2ew5bj8VFb8EKW8EcMY2xxqFRfQAYrnfEPhy61q9t5Y7lI4lXa6Pkhec7lHc8+33R+ABwMtjCmnJfRKv2uSZomLKMGMBCeeucHjqOB0xyzyj9mjnyjRM7Rgq6thlxuUgHKnkcH1ro5PBGppC7b4JHUDbHG3LHIyMsAPf8K5jULRvD+oRWl9bm0e7+dZGKiNmJAILZwCMAnsMigD0rwaG/4R2ImIJ87EMCPn56n/ANB/4DVLx1bw/wBnwXPljzhKE8zvt2scfmBV3wtpV9ptlIL2QguQEgLbhGAT6HHJJPHt3rM8fSME09AzbCZGIz1ICgfz/WgDNi8P2svhE6qZ3S4Cs2HYbCQ5GOmeQMdeprnwyeQ6mPMm5SJNx+VcEEY9yV+mK2INVvbrQDolvZmYg7i8YLNs3ZxgD+8Rz0x2zzVa5l+yac2ky2ZiuVuPNkdmBJIBAGMdBnPU5yfWgCS30NrnQpdTS7hXymYPG+RjAzgHuxyOPfOc1TtUiMU0s1rcTRx7cvDJtCZ6ZJU/06V0mhsmq+GLrR4raUTojSb1wFdw25MnsSQB9B19MbSNYu9AupdsYwx2zRSAgjafXqD978+hxQBDpVjPql0LKGQoHBckglQVU4Y/yz15OPddG0p9Y1AWyPsUIXaTAO0D2PXkgfj7Vs2mvX3m3mo3kzwRzWzrbKN2xpQBgqpyDjacnGMn3rK0LUv7NuriQEiaaAxRN8uFckbSSeAOMmgCmJpPtUhS7kUTEpJK+QWVuu7HPI5PJ/GrelatqtrtstPn2+bIAE2Jy5wOrA47VBp7WtrqG3U7V5IV3LJHgq6n25GMEfzrXuJdFa+8rS7TCpDI4uDJICHVC67RnjBUdf6CgDL02bUF1NbqzjkuLpCZCApcnP3iceuT+f0ro38Z3k7W8Wn2QkmKfvA0ZPz4ydoU5xwfesfw9N9nbU5fM8orYS7Wzj5iV2498kD8ayraGKeXZJeW1qMH95cPsT/vrBx/9bHegDu/D/iptUuTa3aJHO3MbRqQrcZwQSecc5/yeqrynT10621q3La/pLeTKsjlbgldoOT8+3b7depxXoH/AAlHh7/oO6Z6/wDH3H/jQBrVC9tG/mZB/eY3YPpWf/wlPh7/AKD2l+n/AB+R/wCNIfFPh8DjXdM/8C4/8aAL8lnDLGiMpKp0GaymsTK6mCNkRs/e7elEXiLw6kskg8Qacd/UG7Tj9ax7v4i6BFdSxpq8XyErlYJHGR15C4I9CKANKaGRJ/32XxjeR0ApY2jErIsRdGYEFuoFZS/ETws08byaqMeXhx9nl5P/AHzUCeOfCsNwZItZUKc8G2m6f980AdHLY4E8iKrJ/Bhs1A1tcxYYqwHYiso/EfwtaqEtdRDKck7oJRj/AMdqQfEXwo7xyyavhlGCot5cZ/75oA6EXs0EQ8+Jmc7m644FSQXUtzKrBDHEM7t3fPTFYtr458Kahc7I9Wtw6qW3TgxADgcFwATyOPrUd3ruiIJZ/wDhJNP8tVJ2pcqTjrgKpyfQAc0AdJELkXD+aymL+HHWrFc3aeKdF2qk+s2gLKsqtLMIyVIBXIYgjgg9O9Xv+Eo8P/8AQd0z/wAC4/8AGgDWoopAQehBxQAtFIWA6kfnRQAtFJkeoqK5ureyt3uLqeKCFMbpJXCquTgZJ4HNAE1RsM+nb/639K838Q/FeC2hH9h2bXIYlRd3CMsJICkhRwzEBsHJXGQeQa5uHRPHHj2GOa9nZbNVzE10fJjb0Koq8nDEbtuMZ57UAdv4g+J2iaOTFZt/aVyP4YHAjHQ8v06E42huQQcVwMuq+KfGOqveaNpS27OxRbi1gVHGBn5rgjIIXA4ZQRgAYOD3eifCzQ9MVXvlfUbgMGDSZWMYJ6Rg4wRjIbcDj8K7WGJIIUiiiWOJFCqiLhVA7AdhjpQB5VoHwglLW9zrl0qqGDPZw5JK4B2mQEY567R2ODyCPQ9I8MaPoLMdLsI4HfO6Q5dyDjI3MS2OBxnHFbNFABRRRQAUUUZHrQAUUZooAKKMj1ozQBR1Gxs7+12XyhoEO85cqBgHkkEdjXmeiWMWp6xBZzM6xybsmMgMMKT3B9K9PvzEum3TXKl4RE5kUd1wcj8q818OXVtZa9bT3lzBbQx7svPKsYGVIxknk5I/DNAHpNhZRafZR2kIIjjGBuOSe5JPcnqfrXi+E8AfFLP71NP8z/bUGCQfiXCE++SnY9PSZPiJ4UhmeJ9WXcjYJSGRgcehCkEe4rgNcvoNZ1OS9T/TRcMI4ZDHuQRB885xtABY9MlscHkgA9qoryKy8a3Xha2SAWy3lsVJVJLkRmPHUgkEsMc47/U814Pin4n1C6lTTtJs5EGZAgikkaNM9WYOBgf3sAewoA9kyPWjNePwan431G2vV/tWYwQwgyzxQRJ5ZbsAAGPGTuUjGDmubvNN8RX8caajqlxNas/mRC4uGkyAzLvCkkD+LuD26UAe/XN1b2Vu1xdXEUECY3SSuFVcnHJPHXis/wD4Snw8Ouu6X/4Fx/414nL4QiivBFPcXNqoGHDwh5FOOOCV9u/vWjqnw9sNIuBbza/I8pGWWKyB2j/a/eCgD0m4+IPhW0uGgk1iIunUxI8i8jsygqeuOtcj488R+FPEvh947fU0N/A3mW5NvICT0ZMlOAR2yASFzxVOz8HeDruYxi61qLCtITI0eMKMngIe2fyrUsfC3w9t4JFlkmuyDu8y4eRWA4GAFCg9c4xnk+lAFHw98UbHSfC9pZXlve3F7bxGNSqIsZwSEGd2QAuATjPfmqmoeLhrKrcXdzHEo3yJAXQtGDj5flwT2GTzSWFjo2n/ABQjt1srM6JeQFoftY3qFCk7xvOQfMjZfm5xkdCK3rTw7Za5rV7DHHZ29gJD+7t0QK4UgAhc9SOd2CKAOdX4s6na2kNraWNl+5GwyPvfcqjA4yD2P1yOBg5ns/il4s1GUxWWkWdzIF3FYbaVzj1IVyccj867278QRWWr2Ok6fHB5YdYZVC/LGMgBVwQMgdRjA/A10vGc9/X9aAPGrjxN8S57h5Y9Pv7dD/yyi0wlRgdt6luo9e9V0h+ImtzGRrCQyRlWLXFpDAWPPGWVdw46cgYGR0r3DIrg/EOq6ra+JVihll8tGRoolBAkzt4IGN2WBH50AcXJ4X+Ik06TTW88uwkrE93H5YHoE37QPYAY7YwMSTeF/HU0TR/2NGu4Y3JcorA/hJXtlFAHkEHw+8aGDe+o2QllPmN58zu6seWBbYefUgnp+b5/hv4nubiKeSXRvMiOVxJMB64Py+uD74Feu5ooA8wPw51a/WNby8sbbauWkiQzFj027WC/KRg5z1HTvVTUPCOqQg2t3aG9jztWaJS3mAAAMQPuNgnjoOgOBXrNFAHkB8C3lpoUs00Ea2rHe1qu4uin+JiW4xhTgDv7HNDSfAlnr19LbxXD2bLCXUhd43BlGSCc/dyOCO3uD6h4j0S41pbVIbgRJG5Lhs8gjG4Y7jt9eoqTQ9Ag0aJip82d/vylQCRngAdh0/z0AOPtPg5pkcJF7qd5NLnhoVWMY9MEMc9ec456VZ/4U94f/wCfzU/+/qf/ABFeg5B70UAeff8ACnvD/wDz+an/AN/U/wDiKP8AhT3h/wD5/NT/AO/qf/EV6DRketAHn3/CnvD/APz+an/39T/4ikPwe0A/8vmp/wDf1P8A4ivQqKAPO5PhF4cjTc97qgHTiSM/+06d/wAKd8P/APP5qf8A38j/APjdehUtAHnv/CnvD/8Az+an/wB/U/8AiKP+FPeH/wDn81P/AL+p/wDEV6DmigDz3/hT/h//AJ+9T9v3qf8Axv8AD8KX/hTvh/8A5/NT/wC/kf8A8RXoVFAHnv8Awp3w/wD8/mp/9/I//iKkh+Gp0/zYtM8SazaWzRkrFHNjEx/jOMAjAGRgHj71d9RQBU0+2ms9OtraWdriWGJY3mfOZCAAWOSeT16mirdFAGR4h1lPD+hXWqSwvMkCjEanBZiwVRntyRk9ueteOWGl+JPiZqct5cXO21ikw0kmfKizjKRrzztwSO+BuOTmvWfGek3et+FL/T7JFa4lVSiucBtrK2M9icYGePWvKvCvjXUvBk7aXqdpO9qGBNvJlJYCSOVDAcEHO3gEkEEZOQD03wt4H0zwtma3Ms168eyS4kbBIO3ICjgDK5HU+9dNjjgCuMtPil4WuITJLcT2jBseXPAxP1+TcMc+uauv8QfCscEE51eLbNu2hY3ZhtOPmULuX23AZ7UAdTmiuWT4g+FZIJ5xq8W2HbuDRurHccfKpXc3vtBx3qo/xP8ACq3EES3szrJu3SrA+2PAyN2Rk57YB98UAdpmivO7r4u6DF5wt7W/nZNwjbYqJIe3JbIB+mR6Zrn734x6hIUNhpNtB/f8+Rpd2cYxjbjoeufwoA9kyKM14o/jT4g6qqXen2U8dsykL9k08ujckZyytz26446VdTw18StUuJp7vVZbJ/lwGvSitx2WHIGMc8DOe+TQB63LNFBDJNNIkcUalnd2ACqOpJPQcVzl3498L2M4im1m3Ziu7MAaYf8AfSAjPt7ivP7P4N6rJMVvdStIYQuVaENIc+m0hQBjPOc1vW3wc0dbZVutRvpJ+dzRbI0POeFKtjt1JoAtXPxb8OQXJiSO+uFHSSKFQrcZ4DMD+YrF/wCF1f8AUvn/AMDP/sK6ew+GnhiyEWbB7mSNt3mXErHdzn5lBCn6YwR61txeHNEt5Umh0XT45UYOrpaoCrDuCBwfcUAeUp8TPGGsK9pp1jAZ9obdZ2rySIMjJwSw6ccg9aVofidrsEcoOpRCIlcZSzOeM8ZUsMY5PfOO+faCOe9PoA8HuPDmrQ30M3ieaWe6MYaOOW4MpVQW4Y8g9NwAOOfUmpL3S7fUxHHcXLW6R5IeOASN6YHzLgcnP0Fe3vGsisjoHVhhlIyCKrtptk8aRvY2zRx52IYlIXPXA7UAePaV4T06bW7S3spb5kfAlZpFjL/89GGMbR6DJPA5Oav6emlrFMb8TySRJm3QOwV354cggkDg9ecHrxXqkGn2dq++3s4InIwWjjVSfrgCqr6Bpcl4129kjSuTuyCVPHdc49+nXnrzQB41qFzDYXtlqM9vaXaW0jFrS5AKyqwAPUHkdRwcEZ7AV63da1aXXhI6tCn2i2uIQfL8zBIYgFSRnBGSD6EVW1vwNpGsaZPaCD7NLI2+OZMkxvzyBnG3k5XjjpggEeVaZfXPg/WL3w5rRf7DNIizrDINqHcpEy/Kc/KOmATkA8gYAOuuNB1GxtDeWbSSWUluHaRDtbYwztZQe3HTIx9DTdRuLe+utLmliS1t3gUSLAMBR5rq5Ax9T+PeugbwNG0qhNQlFsG3CMrk84zg9OQBzj064rR1jwzb6hYQ21sfIa2VvJUfcyf7w6np16855oAwL3wfb6dbm4u9ZEcYIGTASSSeAPmyf8BTNAlivfGM0t9GwmYyNFHLklJAQcfVVBHPTHGMCtLTfCE63aT6tOtykKhYogxcEDOM7hwB6Dr+hg1rwxqS6rJf6U2fMbdtSQo6MQdxyT098/xYxigC9d+GbSTWjqE94sEM7hTAoCbyVwV3Z785A65P1rlvD2jLrN1PDI0saxxZEifwtkYB9jzxx0roI9K195I9TvzHc3VuD5Fq23G45GTjCgjg8dcdRgYl8F6beWMN091bvEsuzYHGDxuzx1H40AcH4jsIdC1cyOyzNaNGrOyYDIxUsCBz0JHXoTWhdRO8kd3Y6dc2sFwoWPBZg+4Ywr45BH1zzj0qz8RdHuh9ov8AyhNBO8YEasQ3ygEg/UKenoPWuj8NaldzQ6ZYQWKRWtvZwecxfLLuhBUAcdDx3/CgDlrXSPtPiFtK8/aBJJH5m09Vyc4z7Vr30t//AG5b6LFqLW0NrEqeaGMYIEYLMcH26dOO3Wt7SvDz2muX2o3BjYyuxhC87QxJJORwcY6Hu1Yk1o+veImN+b2zsW4hE6mPLYUbFycAk84xzj8aAE8Panep4lNg9893A7Om53LZ25KsvJxnHb19uJ4NZ1248TW+nzmG2YMPNiVQQQBubnk8j0Pp71NaeHbiw8Xpc21oU05M4PmA9UI6E5+8aq6b5l98QrmYhB5DSbhjso8sf0oAZN401O3u2SaxhjRW+aFwwYL1wSe+O+Me1WLDxtm3uXv44xKoUwxxKR5hOcgkk4/h/wDr1Xmht774itHKEliLDPOQWWIcfmMVB42sxb6pDMkSJHNGclQBvYMScjucEZz60Aadt49hlnRJ7Iwxk/NIsu/b+GBmuuSRJUV43V0YAhlOQQehrgdR8KTLaR3Z1aGa3jjH7yfcAqdguC2RzwOO2K6zQYxFodoi3QuAE/1gJI69BnnA6fh2oAt3t/a6dbGe6mWKIHGTnr6ADmqMPiXRrlyqX0YIGT5gKDH1YCue8eG4E9oDJ/ozKxEYJ+8OpP4EY/Hp3zvEul2NhDp01hvMdxGTuYk78bcNz35+nsKAPRILq3uk3288UqZxujcMM+nFedakmoa/4mntIyXKSuiAk7I1HBJ646c4749ah1SOLTtNs7e2eZTeQpc3OTw/ACqAOwO7g+ozntnpMLKWC4s7iYTry2Ywu046Dk7u+cgccY5IoA9Q0mzlsNLt7SWUSyRrgt2HOcD2HQew7VoZGcV5bNrOuPfRb7ucz4QokZGCD8y/KuAx+YdQfSpBq+t6LqLR3M8jyKMPDNJ5i4Iz69e/H0oA9PrgbjxzfLcyrBFavCHby2KNllB4z81a+t+JJ7K+Ww063+0XfVwUZgB1wACCT3z/APXxyOhva2utINStldM+WRKMCNum5geOOnP16gUAemWVx9qsre427RLGr7f7uRnFWc1xr+PIBcbUsZDDkfO0gDD1O3BHr3qe08bWE0Er3cb28q9IxmTeMdjgDP14/WgDqqzdT1uw0rC3U212UssaruZsfp+dZ1v400u4nSIrcQ7zjfIqhQfcg5rG8eQbb60uNxO+Nk24/unP/s36UAdfpmpW+q2a3UBO1iV2tjcpHY46dj9CKvVznhU21n4WinkdIkdmaR3bAzuK9T06AVtwahZXUhjt7u3mcDJWOQMQPXAPuKALFFFFABRRRQAUUUUAFZ+p6Np2rwiLULCC6VVZV8xASgYYO09VPuOa0KKAOJu/hX4XuIgkNtcWjA582CdiSPT59wx+GeOtU/8AhTvh/wD5/NT/AO/kf/xFehUUAee/8Kd8P/8AP5qf/fyP/wCIqe0+E/hu3mZ5heXalceXPKAoPr8gU5/HHtXd0UAczaeAfC9lMZYtFgZiu0+cWlH5OSPxxmtmz0nT9NL/AGGwtbXzMb/IhVN2PXA561dooAYBjtin0UUAFFFJketAC0Vn3OvaNZXD291q1hBOmN0ctyisuRkZBORxUtlqunal5n2G/tbry8b/ACJlfbnpnB4zg0AW6KM0ZHrQAUZHrRkVz2q+M/D+i3xs9Q1FIrhRuZFjdyuR32g4OO3uKAOhoooyPWgArk/Gngq28VWW9NsOpQriGcj7w/uP6qT+ROR1IPV5HrS5HrQB4j4R8XXvgvU30LXY5VslkKujDLWz9dy+qHOTjrnK5/i9isL611SxivbOVZraZdyOvQ/n0IOeO1c3490jRLzw7d3urJ5TwRjZdRxhpUOcKP8AaGW+6TjknIxuHkvhnxNrfheMXdsksmlPcATRup8qR8H5Q+PlbBzxzwMggYoA+is0VzHhrxppPiSGJIZ1gvWX57SRsODySFP8fQnI7cnHStq+t7uf7N9kvvsnlzq837oP50Yzuj5+7nj5hyMUAXaMj1oyPWs/VtXsNEsjeajcrBAGC7jkkk9gByT349DQB538YLmab+x9Kt38x5ZHlNsgDOWGFQ4xnqzgep+lek6fZJp2n29lEWMVvEkSF8FiFAAJI+noK8OGrXWs+KB4x1SyvDpVncxhjb/OIdozGoLHGNwBbp97sWFdz/wuHw//AM+ep/8AfqP/AOLoA9DyPWoZYYpgvmRo+1ty7hnBHf61yWh/EnR9f1e3020tr9JZt21pkQLwCTyGJ7Vta94j0zw5aC41G48vfuEcajc8hAyQB/U8DIyeaANmq8VrBDJJJHBEjyEl2VAC3rk9+a4T/hcPh/Gfsep4/wCuUf8A8XXVw+JNMvNAuNZs5/tNnAjvJ5a/N8gJYbTgg47HHUetAGlHBHCX8uFE3sXbauNzHqTjqfes/WtHi1mz8liI3VgY5SuShyM8ZHUcf/qFcl/wuHw//wA+eqf9+o//AIuuw/ti3/4R3+29k32X7L9r24G/Zs3YxnGce+M0AZt14duLy8eKW7kj0lYVjhgikwRt2/eBBB5B55Nb1tbRWdulvAgSKMYVV7CuFi+Lnh2SaNHt9QiUsAZHiUhR03HDE4+mTVp/ij4WW+SAXM7xOu43IgbYnB4IPzZ6dFxyPfABseIdFn1l7KNZQlvG5MylyCQcDIGCCcZ6/wBazJvDFjpt9ZGO0vL0SyhXDEGONem5sL2yOOhxz72bf4g+Fbu4WCPV4w7Z5ljeNeBnlmUAdMda6aKaKeFJoZEkikUMjowKsCMggjqMUAc/quhXN94jsdRjeFYoPL3ByQx2uScYH4dan8RM8dgskWmR38+8KqPD5gTPJOPTj26in6v4l0fQAo1O/igZuVjwWfHPO1QTj5TzjFZsfxG8JzTJGurrudgoLwyKATxyxUAD3NAEM2lTyePo7iW1ka1JDiQKSo2oMZI4B3L09h61W8UQpP4v06CQbo5FjVxkjIMhH8j+la0/jfw7bWFlfy6hstr3f5D+RId+w4bjbkYPrV2z1jSNbuJoLO5t71rNkZyo3qjNkoQ2ME8HkE4NAHFXujyTeLXtLp1tvtUrujnDZUltvAPUkYwavT+ErKyurWK71ZgZ3CoqwHLHIyA2TjqOvrXXahplrqEeJV2SjbsuIwBImDuG1scf/XpZ9Lsp7+K9ngV7mJQI3Ynj8OnU9cUAcJbWCal40uLeZHaH7TM0mzPQMx59BnA981a8V6VpWmxw/ZT5E5yfJXLFhxyct8uMHHrn2rpLTRmt/Et5qZaMRzIFSNRyM7dxP4r2655qxcaNaXeqxahOHeWFQqKWwoIYkHA5zk+uPagDzfVJJ53huJbCKzRkxGIYTGrjJ5Gev3h+ldN4/I/4l3P/AD1P/oNb97owv9Utbua4YR2uGSJVA+cHOSfTgDH61HqumTX+p6ZcxiIpayFnEhI7jBGO4wce+KAMC/ga+1bSvD0k+2O3gUTmPPLhckc8H5QMcfxH6Vl3+n3f2pHsdDvbJ4iQdrPIMg8FTjt7HB9u/dLo1ousSaoVZrpsYJfhPl28D6eufwrTzQAtFGR60ZFABRRketJkeooAWiiigAooooAKKKKACiiigAooooAKQ8ClpG+6fpQAA/LmuT8d+Irrw/o8Q09VfUbyUQQJ1YE9WVP4iDtA92Gc9D1ChvKXrmvPviHj/hKfB+UZ/wDSmwFOOd8WP5g/4UAcn4H8DR+L4bzVNUvZ/KExT90wMjyYDMzFgeMNjuSe/HJ45+Hsfhqxi1HTpp5rQMI5hMAWjJPDZUAbTwOR1I654774YXMM/gS0jR9z28ksco5+Vi5cdf8AZZTx6+ua6u6tbe9ga3uoIZ4W+9HKoZTjpkEHuKAOf/4TXSdP0nS7nWb6O3uL20juDGiO+MqCeACQMk4z6H0qfSvGnh/W70WdhqKS3DKWCmN0JwOcbgMnHOPQGvKfiJBHYeOElnFvcWKrCqWcU4UxRoq5iIHMYPJHb5sjnNYUeqabBrkep2enS23kXUE0FqJ96hUyXBdgWySFx7FvagDuPFPj+3n8YaVDp1/PFp9lcr9rnilYJMN67htX76gA88g5OBjBPJeOm0afxEb3RLjzre9j8+Tk/LIXYMMEblyVzg/3uOMCrfiTTbHQvHp02SKS20Iz28rwlpCrR4G5hzk8mQZHIJOO9aXxQ8PaXoC6QmmWi24kWZXwzNvwVIzuJzy5564wOgAAB3b/ABJ8NDWo9OF2zhm2m7CjyUbJGCx59PmA24IOetb+o65pmlaYupXl5FHaNt2Sg7g+7ptxy3HPHYZrx7xP4U0zSvh/omrWyyi8ufK85mfIffGX6dBjGBjHHXJ5rP8AGt159t4aSOfzIE0aHaqvlVfLKwHoflwf93nGKAPStO+Kfhy/u1t3a6s92AslygCZJAAyCcdcknA460+7+J/hq01EWvmzzru2yXEEe6JOcHnIJAxnIByOma831HwP4unDXV3pVrCkUZLMj20CKo5JO0qowM/Nis/xXptlpsmkLZLFmXTopZ3ilEqtMS6uQwJHVSOOOKAPQtU+IXhLXtDvLO+i1FEdVUR+WodjkEFCDtBU4PzH8D0qbRdZ8G6d4EmlSznGlm58p4ruISvcTBFbpkrztHouR24rL8S+A9H8N+DNTvbYTT3BWJVe4YN5Q81c7cKOvAz1POMZObek6fYDwH4uthZJ5NpdXZhjmAkMbrCBuBI6jnB64PJJ5IB53rw8NvtudCkvo/MkIa0uolPljk5DhjwchQOTwcnpnS0fxj4yhhlks7q8vba3YTT+bEZwg77mIJVflPRh36da6H4VafYa0+qPqVjBeTW6woklwDJ8hBAXaxxgBFwcZwSM44HHeH766stM8RC3naMPp+1lBGDmaJDx0+67AHqMnGM0Ab1z8WvElxbtFGljbucfvYoSWXnJxuZl6eoPWmeHdC1b4h3r3Op6uz2dvL++Ek25xv5IjTkKCRjkAemduKr+E/DviDxBpF0mka1Hb2wkKTWrXUiZyvUqoIweRyPm2kdBXS/DjTn0LxrqWlyajFcTJafvEtWZotwdQdxOPmXIGAD95uQQQQD0jSNJttE0q3060DeRAuFLtlm5JJJ9Sck47ngCvKfhNf6Xp82rTX93Z20hWJY3nlVDt+fcqlu3C8fT0Fen+JznwlrPIz9hmxz/ANMyRXiPgPw3Z+KNcnsr2W4jjS2aZTCwDZDKO4P940AeiaO+m+K/HEutWkSW91pErwyvGRIt4jKyRuGBGCMN2OQVGfThfD73Pjf4iWs2rK1wu8ySIq5SNEBZVIIICbtoI77j3PPf+AvC194bvtejngZLSWVBaO0isZEUyDPy9Dgr1A61wngfxAIvF+hxYW2gFu1g+0F/N3MzDrnGZGX2B54BIoA9qudKsrzTW02e1iayZBGYduF2joBjpjAxjpxjGK8i8EXN14W+IlxoMkqrbTTNBK0yBC+wMYmGem7jHJzv78Ee114St5H4n+K0N1ZQs2+/heJvMwpii6tggHJCBhyMYI5JGACbXokh+NMSRRqgOoWjEKoAyfLJPHck5Pvk17dt46V4r4i/5LdD/wBf1mf/AB2Ovbc0AeceAIoz4z8ZTFF81b0hWKjKgyS5H44XPPOB6VyniaKKb4zpDKiyRyXtorI6ghhtiyCDwQf61s+CP+SseJOT1ufb/luv9Kw/GOkvqnxEvQJljjku7S0ZuSVMkYwcd8bTn3+poA2fitY6Bp+n2UNlaWdrqJl3bIIgjGLawO4LgYyFxn0OO9dH4T1Y6d8KrfU7p/MNtBKR5sm0vtkcIm459Ao/TNeTXekHwr4nistctluYI2RpUjLbZY2HJQ/JkjnHTDLzkZr1/wAZxR6h8NLs6XGrWzW0U0SoNqiFWV8gHHAUE49uBmgDiPAWlf8ACaa/d6pr9xJfNZbGEM3KsXZiAewUFSdgAUkjtkH0HWfAmhavpslpFp9tYy9Y7i2gVGRvwxuHqD2PY8jnPhJcm3s7/R50SOdGjvUG8EukqKQQPoFOf9sA4Nel5HrQB5fommyv8KtRh1rR1jn0+K6Fqbm2IkVSm/cN3IO4nkY6D0zSfBx7b+ztVRI2F2ssbSuT8pjIIQDnsQ+eO/ft2XiG/s7vwx4ghtruCaWCynWZI5AzRny24YA8Hg9fSvLvAPhe71rTbq50/wASz6XIsoSSG3ByRjKsQrrwSWx9DQB1vxf48JWvXP29e/8AsOa3Yr26h+Gyagkz/a00gTiV/mO8Q53HOc8+ua8v8f6Lqmgw2EN74iu9ViuS7eXMWCxlduDgs3ZzXpR/5JJ/3Av/AGhQBlfCrWJ9U0G+iu72e6u4bnJMzs5VGUBcFj0yrcf41ta0b3UdZ02x0vVLSI2tytzfQC4KzNGpX5dq5ypDHIbA5WvNfBOjXviaa/fTNYn0RbeK2SRbXP71ghUsdrL3UnnP3vxO74W0vUPDXjzVbnXLiV7VLXyzqdzuWOXLx7f3jHrjjGTjGBxQBp/EnxDqugzaNHp2oLZi4aUSu8SuONmGOVY4G49OfrWt8RL6TT/Bd7NBdNbXLNGsTxybHLbwSFIIJO0N07A1578XLn7R4hsPLn8y1awSSMK+UO53+YdjkAc+wrL8S3etp4gSw8ZXF5NbxMCy2zLGrryBIg27CeTyRk4IyD0APUPh1ruoeIPDUlzqMqyTxXDxCQIFLDarAkDA/iI4A4A75Jx9B8cal4p8dQ2unR+Vo0cckkquiiRl2gZY7j0kIxtxwec10Q0q20fwNeWugI5H2OSSCS3O6SVyh2uGXqxwCMewHQCuA+FLSHxMBJbJEo0twjiPaZl88HcT/Eckrn0UDsaAPWdUsTqWk3tgX8v7TA8O/Gdu5SM474zXnPhTxfrEN5qHhe7MV3qVtHcLaSuzOZp0LHY5J5B5IJK4C47jHqeRXglnHcy/GFltC4k/tiVm2sFJQSMX59Nm7I7gkUAeoWaatovw5ma+uGfVraznmaV381lf5nUEnIJXIHccYHFYPhiJ/iL4Lni8Q3Mszx337uWILGyYRcYAGP4mHIPX6Y6nxreR2PgvV5pVYo1s0XyAH5pPkXr2ywrlPg813/YmoI0aC0FyDG+eWcqNwIz6BD07nr2AN/wD4fvPDWkX1hdLj/TpHifg+bHhQr4BO3OD8vaiutooAKKKKACiiigAooooAKKKKACiiigBK4z4ieFm8Q6D5tsM3ljuliUqzb1x8yADucAjg8jHGTXZ0UAfO/hrxvqnhu8lkhEc1tcOJJrYjamTySgGAhxxwMdODgY0tV8ca/40U6Fa2UCpdSjZFCpMjANuClycADAJIA+7ngZFesat4Q0DW5ludQ0yKWfkGRSUZuB1KkE/dGM9O2KtaVoemaFavFpllFbqcbiuSz9SNzHlsbjjJ47UAeAajo134V14wXwtnltfLnRGR2iuBkHaOBkdQc4GFYdQM19d1y61+9S5uY7eIRRLDDDBHtjjjB4UDnHX+nGMD6MvdN0/UvLN/YWt15asU8+FX2cjOMjjOB+QpkugaPLbw28mlWLwwBvKja2QrHk/NtGMDPfHWgDw3xvfahq7aLq2o2vkS3VgcbY2RDiWTG3dn+Eq3X+IHuKz9f8AFWp+JfJ/tJom8mSRotibdofblR7DaMZyeTknivom7sLPUYFivbWC5iDkiOaNXXPIzgjrgn8zUNzo+luqrJptm6+WlvtaBSPLDAqnT7oPIHTIoA8P1fxpHrHhjStEl010isWi3yJcfNII0KED5flJB68gHqDWOIL7WNLU29jLIulQMJpo+QIjIzcjqG3O54OMAHA2sT9I29pb2MUdtawRQQLnbHEgVV5zwBwKkY4crjjbn+dAHzxY+IfFGp2UPhqyvZ5opl8hIEC7ivXbvIztHI64AHPFZmrSXRe1sryy+xvZQeQITGyNgln3MGJOWLluw5GAK+lo7W3jupbiOCJJ5sebKqANJt4Xce+ATjPSpV+6x9Cf8KAPItZ8R+JfFPgiBItEeRbyWSOd7eCRxiNkZWTHQE5U5zkqcYrn9JXxlo2nX+n2+i6i9nfQtFLDLZylQWGNyjja2M5PQ8cHAx78AAcDvmnUAeC+Gl8beHWvF0zRLxTcRHd51m2FKhiGUkfeGWwDnJOMHIrMsPD/AInieW3i0K/23aeQ6y20iqQWBGW424ZVbJOBgZypOfo6igD511TwLr2k3L2raVdXcnyslxZo0kW3ByOFyTnHBxjB4III9G+Gng+50O3k1TUI/Lu7qMIkRyGijzk7hnGSQvGMgKMnJIr0OigDiPiFB4mn09ItBjeS3kimW9RFjYshAwAG5P8AHwvPP0rzjRdP8Y2WpxyaNol1Y3LQeSztbMFcA7izGbKhiQO4BxgAZr3+igCpp6XcenWqX0qy3axKJ3UcO4A3EcDvnsK868cfDa41K+udX0ba88zIZbQhUDN0LK3HPQnOO5yeleoUUAeGfaPiV5f9k7dZx5nl+Z5RzndnPn4zjP8AFuxj2rtfAnw/k8NXM97qTWs963ywtEGYRL/EcnHJzjpwB15IrvqKAPMPiB8Pr/WdTOr6QqSSuirPbs+1nYYUMpPy/dwCMgfJkZJrCTVPifqLG0WHUVMqsuWskhHQ/wAZUBfY5BzivbKQ9KAOD8G+E9Q8KeHb64ULLrFzDvWAkGNXUMUTPHc88gdh0yfPtSsPGTXN39s0nUZNQeeCf7Vbw52mNGACmNdvAccg8Fea96Y4jGKXJ2A0Aec3miav488HNc6zYfYdXt3kayjjUpvXA+Vlc8bipGTgjAPQkHktBn8d6VFHptvpF5PZSMym0vLJmiO/ggswG1eTxkDPJ4Jz7tRQB4RrvgLxB4Z1Y3OireXFtu/cXFpnzUzn5WCcggZ+bGDn1OKsf2x8Tbz/AEXytUTzv3e4WAixnjO/YNvrnIx617dRQB4jrml6l4J0CXS7O0lkW+gR9S1FEfYvznESkYVQOQd2d3mHpwKPhveaxo2rz26aLd3FtdTx29xII3X7O4bkscEDAY5B56cjBz7YQCcHtil2gZx9aAPEviJNr+t6nIsmhXUOn6bJMsUy274ZcjLs2MEHZuGMYzznrVc+PtcPg1dPGmw/YREdPa7MT4I8sKFBzgPtyT25GAMHPuYwx2kDBXNLj58fjmgDwHQ9Y8SeA4bmYaO8UV0UVnvraRVyu7AByOeW/Knan4v8R+NvI0ZIYh5sg/cWisvnHg/MWY8DrzwMc9Bj3oHOfZsUrfdB9SP8KAPnLxXrA1jULcLpraeLG1WzFu8hcxhC3UkA55A9eOtd5qMcXxK8H3WswaX9m1Sydo4dkpdpVCqxThQTkMdoH8XcZNeojgA+px+dITg49WwaAPBfCvxC1HwxaLY/ZoruzEjPsdmVxnsrZIUA8429SfXNXtY0DUvAHi2PWrC2kl0xJjKjopKohODG5OdpIbaGOc5BznIHuGKaQCcHtigDyC++MV3NZSxWelLa3LLhJmnEmw9zt2gE46Z79QRxWz8NvA82jka1qaFLyVCIbdlyYVbqzEjhz0wMYBIPXA71LGzS9kvktLdbt02vOIwHZcDgt1I4HHsKuUAea/FTxLBa6ZL4eMEj3V0kcvmcBUQOT9ScpjHoc57Vi/Djxfp+jbtCeG5kF5fj7NOEUbt+EG9c/L90HgnqfTn1u6tbe9t5Le6gingYDdFKgZWxzyDx1A/Kqlt4f0azuVntdKsbeZCdskNuiMMjnBA9OPpQBqUUUUAf/9k="/>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     DÉLAIS ET VOIES DE RECOURS
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Conformément à l’
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="R181-50" data-type="article">
+      article R.181-50
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+      code de l’environnement
+     </a>
+     , la présente décision peut être déférée à la juridiction administrative compétente, le tribunal administratif de Toulouse (
+     <address data-spec="address">
+      68 rue Raymond IV
+     </address>
+     – 31000 Toulouse – Tél : 05.62.73.57.57), dans les délais ci-dessous :
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <ul>
+      <li>
+       1° Par les pétitionnaires ou exploitants, dans un délai de deux mois à compter du jour où la décision leur a été notifiée ;
+      </li>
+      <li>
+       2° Par les tiers intéressés en raison des inconvénients ou des dangers pour les intérêts mentionnés à l’
+       <a data-spec="section_reference" data-start_num="L181-3" data-type="article">
+        article L.181-3
+       </a>
+       , dans un délai de quatre mois à compter de :
+      </li>
+      <li>
+       a) L’affichage en mairie dans les conditions prévues au 2° de l’
+       <a data-spec="section_reference" data-start_num="R181-44" data-type="article">
+        article R.181-44
+       </a>
+       ;
+      </li>
+      <li>
+       b) La publication de la décision sur le site internet de la préfecture prévue au 4° du même article.
+      </li>
+     </ul>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Le délai court à compter de la dernière formalité accomplie. Si l’affichage constitue cette dernière formalité, le délai court à compter du premier jour d’affichage de la décision.
+    </div>
+    <div data-number="9" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     peut aussi faire l’objet d’un recours gracieux ou hiérarchique dans le délai de deux mois :
+    </div>
+    <div data-number="10" data-spec="alinea">
+     <ul>
+      <li>
+       - soit d’un recours gracieux auprès du préfet de Tarn-et-Garonne –
+       <address data-spec="address">
+        2 Allée de l’Empereur
+       </address>
+       , 82000 Montauban. Le recours doit être écrit et exposer les arguments et faits nouveaux. Une copie de la décision contestée doit être jointe à votre recours ;
+      </li>
+      <li>
+       - soit d’un recours hiérarchique auprès du Ministre de l’intérieur – Place Beauvau – 75008 Paris Cédex 08. Le recours doit être écrit et exposer les arguments et faits nouveaux. Une copie de la décision contestée doit être jointe à votre recours.
+      </li>
+     </ul>
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Ce recours administratif prolonge de deux mois les délais mentionnés aux 1° et 2°.
+    </div>
+    <div data-number="12" data-spec="alinea">
+     Le tribunal administratif peut être saisi au moyen de l’application informatique Télerecours Citoyen accessible depuis le site www.telerecours.fr
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      3/3
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>
