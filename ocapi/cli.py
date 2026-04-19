@@ -27,13 +27,11 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 from ocapi.config import settings
 from ocapi.exceptions import OcapiError
 from ocapi.pipeline import run_pipeline
 from ocapi.snapshots.config import SNAPSHOT_CASES
-from ocapi.snapshots.llm_mock import mock_call_llm_api_for_subtarget
 from ocapi.types import Operation
 from ocapi.utils.io_utils import (
     InputOutputError,
@@ -198,16 +196,13 @@ def cmd_update_snapshots(args: argparse.Namespace) -> int:
             _LOGGER.warning(f"Skipping {aiot}: no arrêtés loaded (incompatible Arrêtify version?)")
             continue
         operations = load_operations(consolidation_dir)
-        with patch(
-            "ocapi.step_resolution.apply_ops.call_llm_api",
-            side_effect=mock_call_llm_api_for_subtarget,
-        ):
-            ops, history, _arretes, permis = run_pipeline(
-                arrete_files,
-                enable_detection=False,
-                enable_rendering=True,
-                operations=operations,
-            )
+        ops, history, _arretes, permis = run_pipeline(
+            arrete_files,
+            enable_detection=False,
+            enable_rendering=True,
+            enable_llm=False,
+            operations=operations,
+        )
         consolidation_dir.mkdir(parents=True, exist_ok=True)
         ops_dict = [op.model_dump(mode="json") for op in ops]
         write_json_output(ops_dict, consolidation_dir / "operations.json")

@@ -189,7 +189,8 @@ def apply_replace(
     soup_input: Content | BeautifulSoup,
     *,
     source_content: str | None = None,
-) -> Content:
+    enable_llm: bool = True,
+) -> tuple[StatusCode, Content]:
     """Apply a REPLACE operation to an article's content.
 
     Simple sub-targets are resolved via regex; complex or ambiguous ones fall
@@ -204,11 +205,13 @@ def apply_replace(
     source_content : str | None
         Optional HTML of the source article (arrêté modifiant), passed to the LLM
         when regex resolution fails or the sub-target is complex.
+    enable_llm : bool
+        When ``False``, return ``DISABLED_LLM_CALL`` instead of calling the LLM.
 
     Returns
     -------
-    Content
-        HTML content of the article after replacement.
+    tuple[StatusCode, Content]
+        Resolution status and HTML content after replacement.
 
     Raises
     ------
@@ -221,13 +224,15 @@ def apply_replace(
     if is_simple_subtarget(operation.sub_target):
         try:
             modified_soup = replace_subtarget(soup, operation.sub_target, operation.operand)
-            return str(modified_soup)
+            return StatusCode.RESOLVED, str(modified_soup)
         except ValueError:
             # Ambiguity detected, fall back to LLM
             _llm_consolidation_log(operation, "replace")
     else:
         _llm_consolidation_log(operation, "replace")
-    # Complex or ambiguous case: use the LLM
+    # Complex or ambiguous case: use the LLM (or skip if disabled)
+    if not enable_llm:
+        return StatusCode.DISABLED_LLM_CALL, str(soup)
     prompt = query_llm_for_subtarget(
         OperationType.REPLACE,
         str(soup),
@@ -237,7 +242,7 @@ def apply_replace(
         source_content=source_content,
     )
     raw = call_llm_api(LLM_CFG, prompt)
-    return _extract_html_from_llm_response(raw, str(soup))
+    return StatusCode.RESOLVED, _extract_html_from_llm_response(raw, str(soup))
 
 
 def apply_remove(
@@ -245,7 +250,8 @@ def apply_remove(
     soup_input: Content | BeautifulSoup,
     *,
     source_content: str | None = None,
-) -> Content:
+    enable_llm: bool = True,
+) -> tuple[StatusCode, Content]:
     """Apply a REMOVE operation to an article's content.
 
     Simple sub-targets are resolved via regex; complex or ambiguous ones fall
@@ -257,11 +263,15 @@ def apply_remove(
         REMOVE operation; must have ``sub_target``.
     soup_input : Content | BeautifulSoup
         Current HTML content of the target article.
+    source_content : str | None
+        Optional HTML of the source article (arrêté modifiant).
+    enable_llm : bool
+        When ``False``, return ``DISABLED_LLM_CALL`` instead of calling the LLM.
 
     Returns
     -------
-    Content
-        HTML content of the article after removal of the sub-target.
+    tuple[StatusCode, Content]
+        Resolution status and HTML content after removal.
 
     Raises
     ------
@@ -275,12 +285,14 @@ def apply_remove(
     if is_simple_subtarget(sub_target):
         try:
             modified_soup = replace_subtarget(soup, sub_target, "")
-            return str(modified_soup)
+            return StatusCode.RESOLVED, str(modified_soup)
         except ValueError:
             _llm_consolidation_log(operation, "remove")
     else:
         _llm_consolidation_log(operation, "remove")
-    # Complex or ambiguous case: use the LLM
+    # Complex or ambiguous case: use the LLM (or skip if disabled)
+    if not enable_llm:
+        return StatusCode.DISABLED_LLM_CALL, str(soup)
     prompt = query_llm_for_subtarget(
         OperationType.REMOVE,
         str(soup),
@@ -289,7 +301,7 @@ def apply_remove(
         source_content=source_content,
     )
     raw = call_llm_api(LLM_CFG, prompt)
-    return _extract_html_from_llm_response(raw, str(soup))
+    return StatusCode.RESOLVED, _extract_html_from_llm_response(raw, str(soup))
 
 
 def _append_operand_to_section_body(soup: BeautifulSoup, operand: str) -> str:
@@ -338,7 +350,8 @@ def apply_add(
     soup_input: Content | BeautifulSoup,
     *,
     source_content: str | None = None,
-) -> Content:
+    enable_llm: bool = True,
+) -> tuple[StatusCode, Content]:
     """Apply an ADD operation to an article's content.
 
     - ``FULL_SECTION`` + ``NEW_ARTICLE:…``: wrap operand as a new section (no LLM).
@@ -352,11 +365,15 @@ def apply_add(
         ADD operation; must have both ``sub_target`` and ``operand``.
     soup_input : Content | BeautifulSoup
         Current HTML content of the target article.
+    source_content : str | None
+        Optional HTML of the source article (arrêté modifiant).
+    enable_llm : bool
+        When ``False``, return ``DISABLED_LLM_CALL`` instead of calling the LLM.
 
     Returns
     -------
-    Content
-        HTML content of the article after inserting the new content.
+    tuple[StatusCode, Content]
+        Resolution status and HTML content after insertion.
 
     Raises
     ------
@@ -367,7 +384,9 @@ def apply_add(
         raise OperationError("ADD operations require operand.")
 
     if _is_new_article_full_section_add(operation):
-        return _wrap_new_article_section_html(operation.target_id.article_id, operation.operand)
+        return StatusCode.RESOLVED, _wrap_new_article_section_html(
+            operation.target_id.article_id, operation.operand
+        )
 
     if operation.sub_target is None:
         raise OperationError("ADD operations require sub_target.")
@@ -378,13 +397,16 @@ def apply_add(
         st = SubTargetType(st)
 
     if st == SubTargetType.FULL_SECTION:
-        return _append_operand_to_section_body(soup, operation.operand)
+        return StatusCode.RESOLVED, _append_operand_to_section_body(soup, operation.operand)
 
     if is_simple_subtarget(sub_target):
         modified = insert_content_after_subtarget(soup, sub_target, operation.operand)
-        return str(modified)
+        return StatusCode.RESOLVED, str(modified)
 
+    # Complex sub-target: use the LLM (or skip if disabled)
     _llm_consolidation_log(operation, "add")
+    if not enable_llm:
+        return StatusCode.DISABLED_LLM_CALL, str(soup)
     desc = sub_target.description or ""
     prompt = query_llm_for_subtarget(
         OperationType.ADD,
@@ -395,11 +417,11 @@ def apply_add(
         source_content=source_content,
     )
     raw = call_llm_api(LLM_CFG, prompt)
-    return _extract_html_from_llm_response(raw, str(soup))
+    return StatusCode.RESOLVED, _extract_html_from_llm_response(raw, str(soup))
 
 
 def apply_subgraph_operations(
-    subG: nx.MultiDiGraph, history: ArticleHistory
+    subG: nx.MultiDiGraph, history: ArticleHistory, *, enable_llm: bool = True
 ) -> tuple[ArticleHistory, list[tuple[OperationId, str]]]:
     """Apply sub-graph operations and update the article history.
 
@@ -507,26 +529,26 @@ def apply_subgraph_operations(
                                 )
                                 if cleaned != op.operand:
                                     op = op.model_copy(update={"operand": cleaned})
-                            new_content = apply_replace(
+                            article_status_code, new_content = apply_replace(
                                 op,
                                 BeautifulSoup(current_content, "html.parser"),
                                 source_content=source_html,
+                                enable_llm=enable_llm,
                             )
-                            article_status_code = StatusCode.RESOLVED
                         elif op.operation_type == OperationType.REMOVE:
-                            new_content = apply_remove(
+                            article_status_code, new_content = apply_remove(
                                 op,
                                 BeautifulSoup(current_content, "html.parser"),
                                 source_content=source_html,
+                                enable_llm=enable_llm,
                             )
-                            article_status_code = StatusCode.RESOLVED
                         elif op.operation_type == OperationType.ADD:
-                            new_content = apply_add(
+                            article_status_code, new_content = apply_add(
                                 op,
                                 BeautifulSoup(current_content, "html.parser"),
                                 source_content=source_html,
+                                enable_llm=enable_llm,
                             )
-                            article_status_code = StatusCode.RESOLVED
                         else:
                             raise OperationError(f"Unknown operation type: {op.operation_type}")
                     except SubtargetNotFoundError as e:
@@ -569,6 +591,8 @@ def apply_subgraph_operations(
 def apply_all_ops(
     operations_graph: nx.MultiDiGraph,
     arrete_list: list[ArreteFile],
+    *,
+    enable_llm: bool = True,
 ) -> tuple[ArticleHistory, list[tuple[OperationId, str]]]:
     """Build the complete article history by processing arrêtés chronologically.
 
@@ -581,7 +605,7 @@ def apply_all_ops(
     for arrete_file in arrete_list:
         subG = build_next_subgraph(operations_graph, history, arrete_file.id)
         if subG.number_of_edges() > 0:
-            history, skipped_ops = apply_subgraph_operations(subG, history)
+            history, skipped_ops = apply_subgraph_operations(subG, history, enable_llm=enable_llm)
             all_skipped_ops.extend(skipped_ops)
 
     if all_skipped_ops:
