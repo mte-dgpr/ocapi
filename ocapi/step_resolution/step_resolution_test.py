@@ -22,7 +22,15 @@ from unittest.mock import MagicMock, patch
 from bs4 import BeautifulSoup
 
 from ocapi.step_resolution.step_resolution import step_resolution
-from ocapi.types import ArreteFile, ArticleHistory, FileType, NodeId, Operation, OperationType
+from ocapi.types import (
+    ArreteFile,
+    ArticleHistory,
+    FileType,
+    NodeId,
+    Operation,
+    OperationType,
+    StatusCode,
+)
 
 
 @patch("ocapi.step_resolution.step_resolution.apply_all_ops")
@@ -101,3 +109,61 @@ def test_step_resolution_replace_all_marks_target_arrete_abrogated() -> None:
     assert arrete_2020.status is False
     arrete_2021 = next(af for af in updated_arrete_files if af.id == "2021-09-24")
     assert arrete_2021.status is True
+
+
+@patch("ocapi.step_resolution.step_resolution.apply_all_ops")
+@patch("ocapi.step_resolution.step_resolution.build_graph")
+def test_step_resolution_sets_resolved_status_on_operations(
+    mock_build_graph: MagicMock,
+    mock_apply_all_ops: MagicMock,
+) -> None:
+    """Operations returned by step_resolution carry their resolved status_code."""
+    op_ok = Operation(
+        id="op-ok",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+    )
+    op_err = Operation(
+        id="op-err",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
+        operation_type=OperationType.ADD,
+    )
+    mock_build_graph.return_value = (MagicMock(), [], [])
+    mock_apply_all_ops.return_value = (
+        {},
+        [],
+        {
+            "op-ok": StatusCode.RESOLVED,
+            "op-err": StatusCode.ERROR_FINDING_SUBTARGET,
+        },
+    )
+
+    _history, _arretes, updated_ops = step_resolution([op_ok, op_err], cast(list[ArreteFile], []))
+
+    by_id = {op.id: op for op in updated_ops}
+    assert by_id["op-ok"].status_code == StatusCode.RESOLVED
+    assert by_id["op-err"].status_code == StatusCode.ERROR_FINDING_SUBTARGET
+
+
+@patch("ocapi.step_resolution.step_resolution.apply_all_ops")
+@patch("ocapi.step_resolution.step_resolution.build_graph")
+def test_step_resolution_preserves_status_for_unprocessed_operations(
+    mock_build_graph: MagicMock,
+    mock_apply_all_ops: MagicMock,
+) -> None:
+    """Operations absent from resolved_status keep their original status_code."""
+    op_skipped = Operation(
+        id="op-skipped",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+        status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
+    )
+    mock_build_graph.return_value = (MagicMock(), [], [])
+    mock_apply_all_ops.return_value = ({}, [], {})
+
+    _history, _arretes, updated_ops = step_resolution([op_skipped], cast(list[ArreteFile], []))
+
+    assert updated_ops[0].status_code == StatusCode.ERROR_EXTRACTING_OPERAND

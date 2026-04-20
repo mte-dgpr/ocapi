@@ -35,30 +35,14 @@ from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main
 _WHOLE_ARRETE_ARTICLE_IDS = frozenset({"ALL", "END", "APPENDIX"})
 
 
-def has_unresolved_or_zero_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
-    """Return True when the arrêté has no outgoing ops or at least one is unresolved.
+def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
+    """Return True when the arrêté has no outgoing operations (pure complement)."""
+    return not any(op.source_id.arrete_id == arrete_file.id for op in operations)
 
-    An arrêté qualifies for the "other" section when it either generates no
-    outgoing operations (pure complement) or when at least one outgoing
-    operation failed (the arrêté content is still relevant since consolidation
-    was incomplete).
 
-    Parameters
-    ----------
-    arrete_file : ArreteFile
-        Arrêté to test.
-    operations : list[Operation]
-        List of all detected operations (with resolved ``status_code``).
-
-    Returns
-    -------
-    bool
-        ``True`` if the arrêté has no outgoing operations or has at least one
-        unresolved operation.
-    """
+def has_unresolved_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
+    """Return True when at least one outgoing operation is not resolved."""
     outgoing = [op for op in operations if op.source_id.arrete_id == arrete_file.id]
-    if not outgoing:
-        return True
     return any(op.status_code != StatusCode.RESOLVED for op in outgoing)
 
 
@@ -185,11 +169,18 @@ def make_permit_other(
         arrete_title = extract_first_spec_html(arrete_file.soup, "arrete_title")
         main_content = extract_main(arrete_file.soup)
 
-        has_ops = not has_unresolved_or_zero_ops(arrete_file, operations) or any(
-            op.source_id.arrete_id == arrete_file.id for op in operations
-        )
+        if has_no_ops(arrete_file, operations):
+            complement_sections.append(
+                f"""
+   <article data-spec="permit_complement" data-date="{arrete_file.id}">
+    {identification}
+    {arrete_title}
+    {main_content}
+   </article>
+"""
+            )
 
-        if has_ops and history is not None:
+        if has_unresolved_ops(arrete_file, operations) and history is not None:
             messages = _build_source_operation_messages(
                 arrete_file.id,
                 operations,
@@ -202,16 +193,6 @@ def make_permit_other(
     {identification}
     {arrete_title}
     {annotated_main}
-   </article>
-"""
-            )
-        elif has_unresolved_or_zero_ops(arrete_file, operations):
-            complement_sections.append(
-                f"""
-   <article data-spec="permit_complement" data-date="{arrete_file.id}">
-    {identification}
-    {arrete_title}
-    {main_content}
    </article>
 """
             )

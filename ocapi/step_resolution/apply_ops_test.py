@@ -1052,3 +1052,70 @@ def test_strip_duplicate_section_title_applied_in_replace() -> None:
     )
     assert "new body" in content
     assert out[tgt][-1].get("title") == target_title
+
+
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
+@mock.patch("ocapi.step_resolution.apply_ops.apply_add")
+def test_apply_subgraph_operations_resolved_status_dict(
+    mock_add: mock.Mock, mock_replace: mock.Mock
+) -> None:
+    """Each processed operation must appear in the resolved_status mapping."""
+    mock_replace.return_value = (StatusCode.RESOLVED, "ok replace")
+    mock_add.return_value = (StatusCode.RESOLVED, "ok add")
+
+    G = nx.MultiDiGraph()
+    src_ok = NodeId(arrete_id="1981-01-01", article_id="2")
+    src_err = NodeId(arrete_id="1981-01-01", article_id="3")
+    tgt_replace = NodeId(arrete_id="1980-01-01", article_id="1")
+    tgt_add = NodeId(arrete_id="1980-01-01", article_id="2")
+    tgt_propagated = NodeId(arrete_id="1980-01-01", article_id="4")
+    add_node(G, src_ok)
+    add_node(G, src_err)
+    add_node(G, tgt_replace)
+    add_node(G, tgt_add)
+    add_node(G, tgt_propagated)
+    add_edge(
+        G,
+        Operation(
+            id="op-ok",
+            source_id=src_ok,
+            target_id=tgt_replace,
+            operation_type=OperationType.REPLACE,
+            operand="x",
+        ),
+    )
+    add_edge(
+        G,
+        Operation(
+            id="op-add",
+            source_id=src_err,
+            target_id=tgt_add,
+            operation_type=OperationType.ADD,
+            operand="y",
+        ),
+    )
+    add_edge(
+        G,
+        Operation(
+            id="op-err",
+            source_id=src_err,
+            target_id=tgt_propagated,
+            operation_type=OperationType.REPLACE,
+            operand=None,
+            status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
+        ),
+    )
+    history: ArticleHistory = {
+        tgt_replace: [{"version": 0, "title": "", "content": "v0", "operation_id": None}],
+        tgt_add: [{"version": 0, "title": "", "content": "v0", "operation_id": None}],
+        tgt_propagated: [{"version": 0, "title": "", "content": "v0", "operation_id": None}],
+    }
+
+    _out, skipped, resolved = apply_subgraph_operations(G, history)
+
+    assert skipped == []
+    assert resolved == {
+        "op-ok": StatusCode.RESOLVED,
+        "op-add": StatusCode.RESOLVED,
+        "op-err": StatusCode.ERROR_EXTRACTING_OPERAND,
+    }
