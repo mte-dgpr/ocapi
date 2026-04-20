@@ -26,7 +26,7 @@ from ocapi.types import ArreteFile, NodeId, Operation, OperationType
 
 def _make_arrete(arrete_id: str) -> ArreteFile:
     html = f"""
-    <html><body data-arretify_version="0.1.0">
+    <html><body data-arretify_version="0.2.0">
      <main data-spec="main">
       <section data-spec="section" data-number="1"><p>{arrete_id}</p></section>
      </main>

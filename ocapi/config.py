@@ -49,8 +49,8 @@ try:
     SUPPORTED_ARRETIFY_VERSION = f"{_major}.{_minor}.X"
     SUPPORTED_ARRETIFY_VERSION_PATTERN = rf"^{_major}\.{_minor}\.\d+$"
 except Exception:
-    SUPPORTED_ARRETIFY_VERSION = "0.1.X"
-    SUPPORTED_ARRETIFY_VERSION_PATTERN = r"^0\.1\.\d+$"
+    SUPPORTED_ARRETIFY_VERSION = "0.2.X"
+    SUPPORTED_ARRETIFY_VERSION_PATTERN = r"^0\.2\.\d+$"
 
 
 class FullSectionName(str, Enum):

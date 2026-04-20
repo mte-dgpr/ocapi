@@ -28,7 +28,7 @@ class TestIntegrationWithArticleFilter:
 
     def test_superfluous_articles_excluded_from_permit(self) -> None:
         html = """
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <main data-spec="main">
   <section data-spec="section" data-number="1" data-title="DISPOSITIONS GÉNÉRALES">
    <h1 data-spec="section_title">ARTICLE 1 DISPOSITIONS GÉNÉRALES</h1>
