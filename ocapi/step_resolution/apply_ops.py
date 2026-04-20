@@ -540,6 +540,7 @@ def _apply_single_edge(
             history[tgt] = [new_version]
             return
 
+        # Carry the title forward from the previous version
         prev_title = history[tgt][-1]["title"]
         new_version = ArticleVersion(
             version=len(history[tgt]),
@@ -686,6 +687,7 @@ def build_next_subgraph(
                     _collect_downstream_chain(operations_graph, successor, visited)
                 )
 
+    # Build subgraph with deterministic node/edge ordering (set iteration is random)
     ordered = sorted(filtered_nodes, key=lambda n: (n.arrete_id, n.article_id))
     new_graph = nx.MultiDiGraph()
     for node in ordered:
@@ -698,6 +700,7 @@ def build_next_subgraph(
             if v in filtered_nodes:
                 new_graph.add_edge(u, v, key=k, **data)
 
+    # Update node contents with their latest version from the history
     for node in new_graph.nodes:
         if node in history and len(history[node]) > 0:
             latest_version = history[node][-1]
