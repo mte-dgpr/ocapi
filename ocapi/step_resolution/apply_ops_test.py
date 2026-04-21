@@ -876,6 +876,91 @@ def test_disabled_llm_returns_unchanged_content_and_status() -> None:
 # ---------------------------------------------------------------------------
 
 
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
+def test_chain_branch_size_2_propagates_updated_operand(mock_replace: mock.Mock) -> None:
+    """Chain C → B → A: when C replaces B, B → A is re-applied with updated operand.
+
+    Three arrêtés form a chain:
+      A (2005) defines article 1 with original content.
+      B (2012) article 3 replaces A article 1.
+      C (2025) article 2 replaces B article 3.
+
+    After processing all three, A article 1 should have 3 versions:
+      v0 = original, v1 = B's operand, v2 = C's operand (propagated through B).
+    """
+    mock_replace.side_effect = lambda op, soup, **kw: (StatusCode.RESOLVED, op.operand)
+
+    G = nx.MultiDiGraph()
+    node_a = NodeId(arrete_id="2005-11-08", article_id="1")
+    node_b = NodeId(arrete_id="2012-09-03", article_id="3")
+    node_c = NodeId(arrete_id="2025-02-24", article_id="2")
+
+    add_node(G, node_a, "<section>original A content</section>")
+    add_node(G, node_b, "<section>original B content</section>")
+    add_node(G, node_c, "<section>original C content</section>")
+
+    add_edge(
+        G,
+        Operation(
+            id="op-b-to-a",
+            source_id=node_b,
+            target_id=node_a,
+            operation_type=OperationType.REPLACE,
+            operand="content from B",
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
+        ),
+    )
+    add_edge(
+        G,
+        Operation(
+            id="op-c-to-b",
+            source_id=node_c,
+            target_id=node_b,
+            operation_type=OperationType.REPLACE,
+            operand="content from C",
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
+        ),
+    )
+
+    arrete_list = [
+        ArreteFile(
+            id="2005-11-08",
+            aiot="aiot1",
+            filename="a.html",
+            soup=BeautifulSoup("<section/>", "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+        ArreteFile(
+            id="2012-09-03",
+            aiot="aiot1",
+            filename="b.html",
+            soup=BeautifulSoup("<section/>", "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+        ArreteFile(
+            id="2025-02-24",
+            aiot="aiot1",
+            filename="c.html",
+            soup=BeautifulSoup("<section/>", "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
+    history, skipped = apply_all_ops(G, arrete_list)
+
+    assert skipped == []
+
+    versions_a = history[node_a]
+    assert len(versions_a) == 3
+    assert versions_a[0]["content"] == "<section>original A content</section>"
+    assert versions_a[1]["content"] == "content from B"
+    assert versions_a[2]["content"] == "content from C"
+
+    versions_b = history[node_b]
+    assert len(versions_b) == 2
+    assert versions_b[0]["content"] == "<section>original B content</section>"
+    assert versions_b[1]["content"] == "content from C"
+
+
 def test_strip_duplicate_section_title_removes_matching_title() -> None:
     target_title = "<h2>Article 1.1. Dispositions générales</h2>"
     operand = (

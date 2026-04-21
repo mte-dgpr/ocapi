@@ -24,7 +24,7 @@ Each operation is extracted by calling a LLM with a specific prompt.
 
 from langchain_core.documents import Document
 
-from ocapi.exceptions import InvalidArticleIdError, OperationError
+from ocapi.exceptions import InvalidArreteIdError, InvalidArticleIdError, OperationError
 from ocapi.step_detection.extract_operand import extract_operand_with_images
 from ocapi.step_detection.prompts import prompt_detection
 from ocapi.types import (
@@ -37,6 +37,7 @@ from ocapi.types import (
     RawOperationType,
     StatusCode,
     SubTargetType,
+    parse_arrete_id,
     parse_article_id,
 )
 from ocapi.utils.llm_utils import (
@@ -85,6 +86,15 @@ def _parse_and_validate_raw_operations(
                 f"Operation skipped (missing target_article): "
                 f"type={raw_op.operation_type}, source_article={raw_op.source_article}, "
                 f"target_arrete={raw_op.target_arrete}"
+            )
+            continue
+        try:
+            parse_arrete_id(raw_op.target_arrete)
+        except InvalidArreteIdError:
+            _LOGGER.warning(
+                f"Operation skipped (invalid target_arrete format): "
+                f"type={raw_op.operation_type}, source_article={raw_op.source_article}, "
+                f"target_arrete={raw_op.target_arrete}, target_article={raw_op.target_article}"
             )
             continue
         try:

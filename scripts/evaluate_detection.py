@@ -28,27 +28,62 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
+
+from openpyxl import Workbook  # noqa: E402
+from openpyxl.styles import Alignment, Font, PatternFill  # noqa: E402
 
 from ocapi.step_chunking.step_chunking import step_chunking  # noqa: E402
 from ocapi.step_detection import step_detection as step_detection_module  # noqa: E402
 from ocapi.step_detection.step_detection import step_detection  # noqa: E402
 from ocapi.types import Operation  # noqa: E402
 from ocapi.utils.io_utils import load_arrete_files  # noqa: E402
-from ocapi.utils.llm_utils import config_model_llm  # noqa: E402
+from ocapi.utils.llm_utils import (  # noqa: E402
+    TokenUsage,
+    config_model_llm,
+    get_accumulated_usage,
+    reset_accumulated_usage,
+)
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger  # noqa: E402
 
 _LOGGER = get_logger(__name__)
 
-_GROUND_TRUTH_DIR = _PROJECT_ROOT / "examples" / "ground-truth"
-_ARRETES_HTML_DIR = _PROJECT_ROOT / "examples" / "arretes_html"
+_GROUND_TRUTH_DIR = _PROJECT_ROOT / "snapshots" / "ground-truth"
+_ARRETES_HTML_DIR = _PROJECT_ROOT / "snapshots" / "arretes_html"
 
 _VALID_OP_TYPES = {"ADD", "REPLACE", "REMOVE"}
+
+# Cost per 1M tokens (USD): {model_id: (input_cost, output_cost)}
+_COST_PER_1M_TOKENS: dict[str, tuple[float, float]] = {
+    "mistral-medium-latest": (0.40, 2.00),
+    "mistral-large-latest": (0.50, 1.50),
+    "gpt-4o": (2.50, 10.00),
+    "gpt-5": (1.25, 10.00),
+    "gpt-5-mini": (0.25, 2.00),
+    "gpt-5-nano": (0.05, 0.40),
+    "gpt-5.4": (2.50, 15.00),
+    "gpt-5.4-mini": (0.75, 4.50),
+    "gpt-5.4-nano": (0.20, 1.25),
+    "claude-sonnet-4-20250514": (3.00, 15.00),
+    "claude-haiku-4-20250414": (0.80, 4.00),
+    "claude-opus-4-6": (5.00, 25.00),
+    "gemini-3.1-flash-lite-preview": (0.25, 1.50),
+    "gemini-3.1-pro-preview": (4.00, 18.00),
+}
+
+
+def _compute_cost(model_id: str, usage: TokenUsage) -> float:
+    """Compute cost in USD from token usage."""
+    rates = _COST_PER_1M_TOKENS.get(model_id, (0.0, 0.0))
+    return (usage.prompt_tokens * rates[0] + usage.completion_tokens * rates[1]) / 1_000_000
+
 
 # (source_arrete, source_article, target_arrete, target_article, operation_type)
 OperationKey = tuple[str, str, str, str, str]
@@ -141,6 +176,103 @@ def _available_aiots() -> list[str]:
     return sorted(d.name for d in _GROUND_TRUTH_DIR.iterdir() if d.is_dir())
 
 
+@dataclass
+class AiotResult:
+    aiot: str
+    gt_count: int
+    detected_count: int
+    tp: int
+    fp: int
+    fn: int
+    scores: Scores
+    elapsed_seconds: float = 0.0
+    usage: TokenUsage = field(default_factory=TokenUsage)
+    cost_usd: float = 0.0
+
+
+def _write_xlsx(
+    results: list[AiotResult],
+    overall: Scores,
+    total_tp: int,
+    total_fp: int,
+    total_fn: int,
+    model_key: str,
+    output_path: Path,
+) -> None:
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Résultats"
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    pct_fmt = "0.0%"
+
+    headers = [
+        "AIOT",
+        "Ground-truth",
+        "Détectées",
+        "TP",
+        "FP",
+        "FN",
+        "Precision",
+        "Recall",
+        "F1",
+        "Temps (s)",
+        "Tokens in",
+        "Tokens out",
+        "Coût ($)",
+    ]
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    for row_idx, r in enumerate(results, 2):
+        ws.cell(row=row_idx, column=1, value=r.aiot)
+        ws.cell(row=row_idx, column=2, value=r.gt_count)
+        ws.cell(row=row_idx, column=3, value=r.detected_count)
+        ws.cell(row=row_idx, column=4, value=r.tp)
+        ws.cell(row=row_idx, column=5, value=r.fp)
+        ws.cell(row=row_idx, column=6, value=r.fn)
+        ws.cell(row=row_idx, column=7, value=r.scores.precision).number_format = pct_fmt
+        ws.cell(row=row_idx, column=8, value=r.scores.recall).number_format = pct_fmt
+        ws.cell(row=row_idx, column=9, value=r.scores.f1).number_format = pct_fmt
+        ws.cell(row=row_idx, column=10, value=round(r.elapsed_seconds, 1))
+        ws.cell(row=row_idx, column=11, value=r.usage.prompt_tokens)
+        ws.cell(row=row_idx, column=12, value=r.usage.completion_tokens)
+        ws.cell(row=row_idx, column=13, value=round(r.cost_usd, 4)).number_format = "0.0000"
+
+    total_row = len(results) + 2
+    total_font = Font(bold=True)
+    ws.cell(row=total_row, column=1, value="TOTAL").font = total_font
+    ws.cell(row=total_row, column=4, value=total_tp).font = total_font
+    ws.cell(row=total_row, column=5, value=total_fp).font = total_font
+    ws.cell(row=total_row, column=6, value=total_fn).font = total_font
+    ws.cell(row=total_row, column=7, value=overall.precision).number_format = pct_fmt
+    ws.cell(row=total_row, column=7).font = total_font
+    ws.cell(row=total_row, column=8, value=overall.recall).number_format = pct_fmt
+    ws.cell(row=total_row, column=8).font = total_font
+    ws.cell(row=total_row, column=9, value=overall.f1).number_format = pct_fmt
+    ws.cell(row=total_row, column=9).font = total_font
+    total_time = sum(r.elapsed_seconds for r in results)
+    total_cost = sum(r.cost_usd for r in results)
+    total_in = sum(r.usage.prompt_tokens for r in results)
+    total_out = sum(r.usage.completion_tokens for r in results)
+    ws.cell(row=total_row, column=10, value=round(total_time, 1)).font = total_font
+    ws.cell(row=total_row, column=11, value=total_in).font = total_font
+    ws.cell(row=total_row, column=12, value=total_out).font = total_font
+    c = ws.cell(row=total_row, column=13, value=round(total_cost, 4))
+    c.number_format = "0.0000"
+    c.font = total_font
+
+    for col in range(1, len(headers) + 1):
+        ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = 14
+
+    wb.save(output_path)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Evaluate LLM operation detection against ground-truth.",
@@ -154,6 +286,14 @@ def main(argv: list[str] | None = None) -> int:
         "--aiot",
         nargs="*",
         help="AIOT(s) to evaluate (default: all available ground-truth AIOTs)",
+    )
+    parser.add_argument(
+        "--xlsx",
+        type=Path,
+        nargs="?",
+        const=None,
+        default=False,
+        help="Export results to XLSX (optional path; default: eval_<model>_<date>.xlsx)",
     )
     parser.add_argument(
         "-v",
@@ -175,6 +315,10 @@ def main(argv: list[str] | None = None) -> int:
     _LOGGER.info(f"AIOTs: {', '.join(aiots)}")
 
     total_tp, total_fp, total_fn = 0, 0, 0
+    results: list[AiotResult] = []
+
+    model_cfg = config_model_llm(model_key)
+    model_id = model_cfg.model_name
 
     for aiot in aiots:
         _LOGGER.info(f"\n{'=' * 50}")
@@ -184,12 +328,33 @@ def main(argv: list[str] | None = None) -> int:
         gt_keys = load_ground_truth(aiot)
         _LOGGER.info(f"Ground-truth: {len(gt_keys)} operations")
 
+        reset_accumulated_usage()
+        t0 = time.monotonic()
         detected_ops = run_detection_for_aiot(aiot, model_key)
+        elapsed = time.monotonic() - t0
+        usage = get_accumulated_usage()
+        cost = _compute_cost(model_id, usage)
+
         detected_keys = [_operation_key(op) for op in detected_ops]
         _LOGGER.info(f"Detected: {len(detected_keys)} operations")
 
         tp, fp, fn = compare_operations(detected_keys, gt_keys)
         scores = compute_scores(tp, fp, fn)
+
+        results.append(
+            AiotResult(
+                aiot,
+                len(gt_keys),
+                len(detected_keys),
+                tp,
+                fp,
+                fn,
+                scores,
+                elapsed_seconds=elapsed,
+                usage=usage,
+                cost_usd=cost,
+            )
+        )
 
         print(f"\n--- {aiot} ---")
         print(f"  Ground-truth: {len(gt_keys)}  |  Detected: {len(detected_keys)}")
@@ -197,6 +362,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  Precision: {scores.precision:.3f}")
         print(f"  Recall:    {scores.recall:.3f}")
         print(f"  F1:        {scores.f1:.3f}")
+        print(f"  Time: {elapsed:.1f}s  |  Tokens: {usage.total_tokens}  |  Cost: ${cost:.4f}")
 
         total_tp += tp
         total_fp += fp
@@ -210,6 +376,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Precision: {overall.precision:.3f}")
     print(f"  Recall:    {overall.recall:.3f}")
     print(f"  F1:        {overall.f1:.3f}")
+
+    if args.xlsx is not False:
+        xlsx_path = args.xlsx
+        if xlsx_path is None:
+            ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+            xlsx_path = _PROJECT_ROOT / f"eval_{model_key}_{ts}.xlsx"
+        _write_xlsx(results, overall, total_tp, total_fp, total_fn, model_key, xlsx_path)
+        print(f"\nResults exported to {xlsx_path}")
 
     return 0
 

@@ -417,6 +417,165 @@ def apply_add(
     return StatusCode.RESOLVED, _extract_html_from_llm_response(raw, str(soup))
 
 
+def _apply_single_edge(
+    subG: nx.MultiDiGraph,
+    src: NodeId,
+    tgt: NodeId,
+    key: int,
+    history: ArticleHistory,
+    skipped_ops: list[tuple[OperationId, str]],
+    *,
+    chain_depth: int = 0,
+    enable_llm: bool = True,
+) -> None:
+    """Apply one edge and recursively propagate to downstream targets."""
+    op_id = None
+    try:
+        op = _edge_to_operation(subG, src, tgt, key)
+        op_id = op.id
+
+        # When re-applying a downstream edge in a chain, use the source's
+        # latest resolved content as the operand.
+        if chain_depth > 0 and tgt in history:
+            source_latest = history[src][-1]["content"] if src in history else None
+            if source_latest is not None and op.operand is not None:
+                op = op.model_copy(update={"operand": source_latest})
+
+        creation = _is_new_article_full_section_add(op)
+
+        # Retrieve current content (latest version) of the target article
+        if tgt not in history:
+            if not creation:
+                initial_content = subG.nodes[tgt].get("content", "")
+                initial_title = subG.nodes[tgt].get("title", "")
+                history[tgt] = [
+                    ArticleVersion(
+                        version=0,
+                        title=initial_title,
+                        content=initial_content,
+                        operation_id=None,
+                    )
+                ]
+
+        if tgt not in history:
+            current_content = subG.nodes[tgt].get("content", "") or ""
+        else:
+            current_content = history[tgt][-1]["content"]
+
+        # HTML of the source article (arrêté modifiant), for LLM consolidation prompts.
+        raw_src = subG.nodes[src].get("content", "") or ""
+        source_html = raw_src if isinstance(raw_src, str) else str(raw_src)
+
+        # Propagate an earlier error unless the operation is unambiguous
+        # (i.e. it replaces/removes the full article and does not rely on
+        # the current — potentially corrupted — content).
+        previous_status = history[tgt][-1].get("status_code") if tgt in history else None
+        previous_has_error = previous_status is not None and previous_status != StatusCode.RESOLVED
+
+        article_status_code: StatusCode
+        new_content = current_content
+        if previous_has_error and not _is_unambiguous_all_operation(op):
+            article_status_code = StatusCode.PROPAGATED_ERROR
+            _LOGGER.warning(
+                f"Operation {op.id} skipped (propagated_error): "
+                f"target={tgt} had previous status_code={previous_status}"
+            )
+        else:
+            try:
+                if op.status_code in (
+                    StatusCode.ERROR_EXTRACTING_OPERAND,
+                    StatusCode.ERROR_EXTRACTING_TARGET,
+                ):
+                    article_status_code = op.status_code
+                elif op.operation_type == OperationType.REPLACE:
+                    if op.operand:
+                        target_title_html = (
+                            history[tgt][-1].get("title", "")
+                            if tgt in history
+                            else subG.nodes[tgt].get("title", "")
+                        )
+                        cleaned = _strip_duplicate_section_title(
+                            op.operand,
+                            article_display_number(op.target_id.article_id),
+                            target_title_html,
+                        )
+                        if cleaned != op.operand:
+                            op = op.model_copy(update={"operand": cleaned})
+                    article_status_code, new_content = apply_replace(
+                        op,
+                        BeautifulSoup(current_content, "html.parser"),
+                        source_content=source_html,
+                        enable_llm=enable_llm,
+                    )
+                elif op.operation_type == OperationType.REMOVE:
+                    article_status_code, new_content = apply_remove(
+                        op,
+                        BeautifulSoup(current_content, "html.parser"),
+                        source_content=source_html,
+                        enable_llm=enable_llm,
+                    )
+                elif op.operation_type == OperationType.ADD:
+                    article_status_code, new_content = apply_add(
+                        op,
+                        BeautifulSoup(current_content, "html.parser"),
+                        source_content=source_html,
+                        enable_llm=enable_llm,
+                    )
+                else:
+                    raise OperationError(f"Unknown operation type: {op.operation_type}")
+            except SubtargetNotFoundError as e:
+                _LOGGER.warning(f"Operation {op_id}: sub-target element not found — {e}")
+                article_status_code = StatusCode.ERROR_FINDING_SUBTARGET
+
+        if creation:
+            created_title, created_content = split_section_title(new_content)
+            new_version = ArticleVersion(
+                version=0,
+                title=created_title,
+                content=created_content,
+                operation_id=op.id,
+            )
+            if article_status_code != StatusCode.RESOLVED:
+                new_version["status_code"] = article_status_code
+            history[tgt] = [new_version]
+            return
+
+        # Carry the title forward from the previous version
+        prev_title = history[tgt][-1]["title"]
+        new_version = ArticleVersion(
+            version=len(history[tgt]),
+            title=prev_title,
+            content=new_content,
+            operation_id=op.id,
+        )
+        if article_status_code != StatusCode.RESOLVED:
+            new_version["status_code"] = article_status_code
+        history[tgt].append(new_version)
+
+        # Propagate downstream: if the target itself has outgoing edges,
+        # re-apply them with the updated content.
+        downstream_edges = sorted(
+            subG.out_edges(tgt, keys=True),
+            key=lambda e: (e[1].arrete_id, e[1].article_id, e[2]),
+        )
+        for d_src, d_tgt, d_key in downstream_edges:
+            _apply_single_edge(
+                subG,
+                d_src,
+                d_tgt,
+                d_key,
+                history,
+                skipped_ops,
+                chain_depth=chain_depth + 1,
+                enable_llm=enable_llm,
+            )
+
+    except Exception as e:
+        error_msg = f"Operation {op_id or 'unknown'} skipped: {str(e)}"
+        _LOGGER.warning(error_msg)
+        skipped_ops.append((op_id or "unknown", str(e)))
+
+
 def apply_subgraph_operations(
     subG: nx.MultiDiGraph, history: ArticleHistory, *, enable_llm: bool = True
 ) -> tuple[ArticleHistory, list[tuple[OperationId, str]]]:
@@ -442,145 +601,26 @@ def apply_subgraph_operations(
     (REPLACE or REMOVE with ``sub_target.type == FULL_SECTION``) discard the
     existing content entirely, so the previous error is irrelevant and the
     operation is applied normally.
+
+    Chain propagation
+    -----------------
+    When a target node itself has outgoing edges in the subgraph (i.e. it is
+    the source of downstream operations), those downstream operations are
+    re-applied with the target's updated content as the operand.  This handles
+    transitive chains like C → B → A.
     """
-    skipped_ops: list[tuple[OperationId, str]] = []  # list of (operation_id, error_message)
+    skipped_ops: list[tuple[OperationId, str]] = []
     start_nodes = sorted(
         [node for node in subG.nodes if subG.in_degree(node) == 0],
         key=lambda n: (n.arrete_id, n.article_id),
     )
     for start_node in start_nodes:
-        for succ in subG.successors(start_node):
-            if len(list(subG.successors(succ))) > 1:
-                raise NotImplementedError(
-                    "Branches with multiple successors are not supported yet."
-                )
-
         edges = sorted(
             subG.out_edges(start_node, keys=True),
             key=lambda e: (e[1].arrete_id, e[1].article_id, e[2]),
         )
         for src, tgt, key in edges:
-            op_id = None
-            try:
-                op = _edge_to_operation(subG, src, tgt, key)
-                op_id = op.id
-
-                creation = _is_new_article_full_section_add(op)
-
-                # Retrieve current content (latest version) of the target article
-                if tgt not in history:
-                    if not creation:
-                        initial_content = subG.nodes[tgt].get("content", "")
-                        initial_title = subG.nodes[tgt].get("title", "")
-                        version_0: ArticleVersion = ArticleVersion(
-                            version=0,
-                            title=initial_title,
-                            content=initial_content,
-                            operation_id=None,
-                        )
-                        history[tgt] = [version_0]
-
-                if tgt not in history:
-                    current_content = subG.nodes[tgt].get("content", "") or ""
-                else:
-                    current_content = history[tgt][-1]["content"]
-
-                # HTML of the source article (arrêté modifiant), for LLM consolidation prompts.
-                raw_src = subG.nodes[src].get("content", "") or ""
-                source_html = raw_src if isinstance(raw_src, str) else str(raw_src)
-
-                # Propagate an earlier error unless the operation is unambiguous
-                # (i.e. it replaces/removes the full article and does not rely on
-                # the current — potentially corrupted — content).
-                previous_status = history[tgt][-1].get("status_code") if tgt in history else None
-                previous_has_error = (
-                    previous_status is not None and previous_status != StatusCode.RESOLVED
-                )
-
-                article_status_code: StatusCode
-                new_content = current_content
-                if previous_has_error and not _is_unambiguous_all_operation(op):
-                    article_status_code = StatusCode.PROPAGATED_ERROR
-                    _LOGGER.warning(
-                        f"Operation {op.id} skipped (propagated_error): "
-                        f"target={tgt} had previous status_code={previous_status}"
-                    )
-                else:
-                    try:
-                        if op.status_code in (
-                            StatusCode.ERROR_EXTRACTING_OPERAND,
-                            StatusCode.ERROR_EXTRACTING_TARGET,
-                        ):
-                            article_status_code = op.status_code
-                        elif op.operation_type == OperationType.REPLACE:
-                            if op.operand:
-                                target_title_html = (
-                                    history[tgt][-1].get("title", "")
-                                    if tgt in history
-                                    else subG.nodes[tgt].get("title", "")
-                                )
-                                cleaned = _strip_duplicate_section_title(
-                                    op.operand,
-                                    article_display_number(op.target_id.article_id),
-                                    target_title_html,
-                                )
-                                if cleaned != op.operand:
-                                    op = op.model_copy(update={"operand": cleaned})
-                            article_status_code, new_content = apply_replace(
-                                op,
-                                BeautifulSoup(current_content, "html.parser"),
-                                source_content=source_html,
-                                enable_llm=enable_llm,
-                            )
-                        elif op.operation_type == OperationType.REMOVE:
-                            article_status_code, new_content = apply_remove(
-                                op,
-                                BeautifulSoup(current_content, "html.parser"),
-                                source_content=source_html,
-                                enable_llm=enable_llm,
-                            )
-                        elif op.operation_type == OperationType.ADD:
-                            article_status_code, new_content = apply_add(
-                                op,
-                                BeautifulSoup(current_content, "html.parser"),
-                                source_content=source_html,
-                                enable_llm=enable_llm,
-                            )
-                        else:
-                            raise OperationError(f"Unknown operation type: {op.operation_type}")
-                    except SubtargetNotFoundError as e:
-                        _LOGGER.warning(f"Operation {op_id}: sub-target element not found — {e}")
-                        article_status_code = StatusCode.ERROR_FINDING_SUBTARGET
-
-                if creation:
-                    created_title, created_content = split_section_title(new_content)
-                    new_version = ArticleVersion(
-                        version=0,
-                        title=created_title,
-                        content=created_content,
-                        operation_id=op.id,
-                    )
-                    if article_status_code != StatusCode.RESOLVED:
-                        new_version["status_code"] = article_status_code
-                    history[tgt] = [new_version]
-                    continue
-
-                # Carry the title forward from the previous version
-                prev_title = history[tgt][-1]["title"]
-                new_version = ArticleVersion(
-                    version=len(history[tgt]),
-                    title=prev_title,
-                    content=new_content,
-                    operation_id=op.id,
-                )
-                if article_status_code != StatusCode.RESOLVED:
-                    new_version["status_code"] = article_status_code
-                history[tgt].append(new_version)
-            except Exception as e:
-                error_msg = f"Operation {op_id or 'unknown'} skipped: {str(e)}"
-                _LOGGER.warning(error_msg)
-                skipped_ops.append((op_id or "unknown", str(e)))
-                continue
+            _apply_single_edge(subG, src, tgt, key, history, skipped_ops, enable_llm=enable_llm)
 
     return history, skipped_ops
 
@@ -611,21 +651,41 @@ def apply_all_ops(
     return history, all_skipped_ops
 
 
+def _collect_downstream_chain(
+    graph: nx.MultiDiGraph, node: NodeId, visited: set[NodeId]
+) -> set[NodeId]:
+    """Recursively collect nodes reachable through downstream operation chains."""
+    collected: set[NodeId] = set()
+    for successor in graph.successors(node):
+        if successor in visited:
+            continue
+        collected.add(successor)
+        visited.add(successor)
+        collected.update(_collect_downstream_chain(graph, successor, visited))
+    return collected
+
+
 def build_next_subgraph(
     operations_graph: nx.MultiDiGraph, history: ArticleHistory, arrete_id: ArreteId
 ) -> nx.MultiDiGraph:
     """Build the sub-graph of operations defined by the given arrêté.
 
+    Includes downstream chain nodes so that transitive dependencies (e.g.
+    C → B → A) are processed within a single subgraph pass.
+
     Updates node contents with their latest version from the history.
     """
     filtered_nodes: set[NodeId] = set()
     for node in operations_graph.nodes:
-        node_arrete_id = node.arrete_id
-
-        if node_arrete_id == arrete_id:
+        if node.arrete_id == arrete_id:
             filtered_nodes.add(node)
+            visited: set[NodeId] = {node}
             for successor in operations_graph.successors(node):
                 filtered_nodes.add(successor)
+                visited.add(successor)
+                filtered_nodes.update(
+                    _collect_downstream_chain(operations_graph, successor, visited)
+                )
 
     # Build subgraph with deterministic node/edge ordering (set iteration is random)
     ordered = sorted(filtered_nodes, key=lambda n: (n.arrete_id, n.article_id))
