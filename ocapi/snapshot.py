@@ -20,8 +20,8 @@
 
 from pathlib import Path
 
-# Base path: project root (parent of ocapi package)
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+# Repo root (parent of the ``ocapi`` package directory)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Snapshot cases: (arretes_dir, consolidation_dir)
 # Each case runs pipeline with --no-detection using pre-loaded operations (no LLM).

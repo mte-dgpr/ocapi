@@ -22,9 +22,16 @@ Each operation is extracted by calling a LLM with a specific prompt.
 """
 
 from ocapi.exceptions import InvalidArreteIdError, InvalidArticleIdError, OperationError
+from ocapi.llm_utils import (
+    ConfidenceScoreConfig,
+    call_llm_api,
+    config_model_llm,
+    get_confidence_score_config,
+    parse_llm_json_list_response,
+    prompt_detection,
+)
 from ocapi.step_detection.chunking import chunk_arrete
 from ocapi.step_detection.extract_operand import extract_operand_with_images
-from ocapi.step_detection.prompts import prompt_detection
 from ocapi.types import (
     ArreteFile,
     ArreteId,
@@ -38,13 +45,6 @@ from ocapi.types import (
     SubTargetType,
     parse_arrete_id,
     parse_article_id,
-)
-from ocapi.utils.llm_utils import (
-    ConfidenceScoreConfig,
-    call_llm_api,
-    config_model_llm,
-    get_confidence_score_config,
-    parse_llm_json_list_response,
 )
 from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.subtarget_utils import parse_subtarget

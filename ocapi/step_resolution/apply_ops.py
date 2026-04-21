@@ -50,7 +50,9 @@ from ocapi.types import (
     SubTargetType,
     article_display_number,
 )
-from ocapi.utils.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
+from ocapi.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
+from ocapi.llm_utils.logging import llm_consolidation_log
+from ocapi.llm_utils.prompts import extract_html_from_llm_response
 from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.subtarget_utils import (
     insert_content_after_subtarget,
@@ -109,33 +111,6 @@ def _ensure_soup(soup_input: Content | BeautifulSoup) -> BeautifulSoup:
         soup_input
         if isinstance(soup_input, BeautifulSoup)
         else BeautifulSoup(soup_input, "html.parser")
-    )
-
-
-def _extract_html_from_llm_response(raw: str, fallback: str) -> str:
-    """Extract HTML content from an LLM response, stripping code fences if present."""
-    text = raw.strip()
-    if not text:
-        return fallback
-    m = re.search(r"```(?:html)?\s*\n([\s\S]*?)\n```", text)
-    if m:
-        return m.group(1).strip()
-    return text
-
-
-def _llm_consolidation_log(operation: Operation, action: str) -> None:
-    """Log LLM fallback for add / replace / remove (complex or ambiguous sub-target)."""
-    op_type = (
-        operation.operation_type.value
-        if isinstance(operation.operation_type, OperationType)
-        else str(operation.operation_type)
-    )
-    _LOGGER.info(
-        "LLM consolidation fallback: operation_id=%s action=%s operation_type=%s target=%s",
-        operation.id,
-        action,
-        op_type,
-        operation.target_id,
     )
 
 
@@ -227,9 +202,9 @@ def apply_replace(
             return StatusCode.RESOLVED, str(modified_soup)
         except ValueError:
             # Ambiguity detected, fall back to LLM
-            _llm_consolidation_log(operation, "replace")
+            llm_consolidation_log(operation, "replace")
     else:
-        _llm_consolidation_log(operation, "replace")
+        llm_consolidation_log(operation, "replace")
     # Complex or ambiguous case: use the LLM (or skip if disabled)
     if not enable_llm:
         return StatusCode.DISABLED_LLM_CALL, str(soup)
@@ -242,7 +217,7 @@ def apply_replace(
         source_content=source_content,
     )
     raw = call_llm_api(LLM_CFG, prompt)
-    return StatusCode.RESOLVED, _extract_html_from_llm_response(raw, str(soup))
+    return StatusCode.RESOLVED, extract_html_from_llm_response(raw, str(soup))
 
 
 def apply_remove(
@@ -287,9 +262,9 @@ def apply_remove(
             modified_soup = replace_subtarget(soup, sub_target, "")
             return StatusCode.RESOLVED, str(modified_soup)
         except ValueError:
-            _llm_consolidation_log(operation, "remove")
+            llm_consolidation_log(operation, "remove")
     else:
-        _llm_consolidation_log(operation, "remove")
+        llm_consolidation_log(operation, "remove")
     # Complex or ambiguous case: use the LLM (or skip if disabled)
     if not enable_llm:
         return StatusCode.DISABLED_LLM_CALL, str(soup)
@@ -301,7 +276,7 @@ def apply_remove(
         source_content=source_content,
     )
     raw = call_llm_api(LLM_CFG, prompt)
-    return StatusCode.RESOLVED, _extract_html_from_llm_response(raw, str(soup))
+    return StatusCode.RESOLVED, extract_html_from_llm_response(raw, str(soup))
 
 
 def _append_operand_to_section_body(soup: BeautifulSoup, operand: str) -> str:
@@ -401,7 +376,7 @@ def apply_add(
         return StatusCode.RESOLVED, str(modified)
 
     # Complex sub-target: use the LLM (or skip if disabled)
-    _llm_consolidation_log(operation, "add")
+    llm_consolidation_log(operation, "add")
     if not enable_llm:
         return StatusCode.DISABLED_LLM_CALL, str(soup)
     desc = sub_target.description or ""
@@ -414,7 +389,7 @@ def apply_add(
         source_content=source_content,
     )
     raw = call_llm_api(LLM_CFG, prompt)
-    return StatusCode.RESOLVED, _extract_html_from_llm_response(raw, str(soup))
+    return StatusCode.RESOLVED, extract_html_from_llm_response(raw, str(soup))
 
 
 def _apply_single_edge(

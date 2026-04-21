@@ -44,7 +44,7 @@ from ocapi.step_detection import step_detection as step_detection_module  # noqa
 from ocapi.step_detection.step_detection import step_detection  # noqa: E402
 from ocapi.types import Operation  # noqa: E402
 from ocapi.utils.io_utils import load_arrete_files  # noqa: E402
-from ocapi.utils.llm_utils import (  # noqa: E402
+from ocapi.llm_utils import (  # noqa: E402
     TokenUsage,
     config_model_llm,
     get_accumulated_usage,

@@ -226,9 +226,15 @@ ocapi/
 │   │   ├── make_main_content.py
 │   │   └── make_other.py
 │   │
+│   ├── llm_utils/                # Appels et prompts LLM
+│   │   ├── config.py
+│   │   ├── core.py
+│   │   ├── prompts.py
+│   │   ├── logging.py
+│   │   └── mocks.py
+│   ├── snapshot.py               # Cas de tests snapshot ICPE
 │   └── utils/                    # Utilitaires
 │       ├── logging_utils.py
-│       ├── llm_utils.py
 │       ├── arretify_utils.py
 │       ├── documents.py
 │       ├── io_utils.py
@@ -388,7 +394,7 @@ ocapi update-snapshots
 UPDATE_SNAPSHOTS=1 pytest -m snapshot -v
 ```
 
-Les cas de test sont configurés dans `ocapi/snapshots/config.py`.
+Les cas de test sont configurés dans `ocapi/snapshot.py`.
 
 ## 📏 Évaluation de la détection
 

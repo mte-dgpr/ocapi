@@ -19,8 +19,23 @@
 import re
 import unicodedata
 from dataclasses import dataclass
+from typing import Any
 
 from bs4 import BeautifulSoup
+
+
+def to_int_or_default(value: Any, default: int, minimum: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(parsed, minimum)
+
+
+def to_bool_or_default(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    return default
 
 
 @dataclass

@@ -16,8 +16,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Snapshot testing configuration and fixtures for OCAPI."""
+from ocapi.types import Operation, OperationType
+from ocapi.utils.logging_utils import get_logger
 
-from ocapi.snapshots.config import SNAPSHOT_CASES
+_LOGGER = get_logger(__name__)
 
-__all__ = ["SNAPSHOT_CASES"]
+
+def llm_consolidation_log(operation: Operation, action: str) -> None:
+    """Log LLM fallback for add / replace / remove (complex or ambiguous sub-target)."""
+    op_type = (
+        operation.operation_type.value
+        if isinstance(operation.operation_type, OperationType)
+        else str(operation.operation_type)
+    )
+    _LOGGER.info(
+        "LLM consolidation fallback: operation_id=%s action=%s operation_type=%s target=%s",
+        operation.id,
+        action,
+        op_type,
+        operation.target_id,
+    )

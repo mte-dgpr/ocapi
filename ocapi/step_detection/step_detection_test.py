@@ -24,7 +24,7 @@ import pytest
 from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 
-from ocapi.step_detection.prompts import prompt_detection
+from ocapi.llm_utils import prompt_detection
 from ocapi.step_detection.step_detection import (
     _OPERATION_ID_COUNTER,
     _filter_low_confidence_operations,
@@ -41,7 +41,7 @@ from ocapi.types import (
     SubTarget,
     SubTargetType,
 )
-from ocapi.utils.llm_utils import ConfidenceScoreConfig
+from ocapi.llm_utils import ConfidenceScoreConfig
 
 
 def _fake_arrete(arrete_id: str = "2022-01-01") -> ArreteFile:

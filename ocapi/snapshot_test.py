@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 
 from ocapi.pipeline import run_pipeline
-from ocapi.snapshots.config import SNAPSHOT_CASES
+from ocapi.snapshot import SNAPSHOT_CASES
 from ocapi.utils.io_utils import article_history_to_json_dict, load_arrete_files, load_operations
 
 # Set UPDATE_SNAPSHOTS=1 to regenerate expected snapshots
