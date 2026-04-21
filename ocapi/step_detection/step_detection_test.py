@@ -42,6 +42,7 @@ from ocapi.types import (
     SubTargetType,
 )
 from ocapi.llm_utils import ConfidenceScoreConfig
+from ocapi.utils.testing import make_raw_op
 
 
 def _fake_arrete(arrete_id: str = "2022-01-01") -> ArreteFile:
@@ -257,25 +258,15 @@ def test_convert_raw_operation_confidence_score_none_when_absent(
 # ---------------------------------------------------------------------------
 
 
-def _make_raw_op(score: int | None, source: str = "1", target: str = "2") -> RawOperation:
-    return RawOperation(
-        operation_type=RawOperationType.REPLACE,
-        source_article=source,
-        target_arrete="2021-01-01",
-        target_article=target,
-        confidence_score=score,
-    )
-
-
 def test_filter_low_confidence_keeps_all_when_above_threshold() -> None:
-    ops = [_make_raw_op(80), _make_raw_op(100), _make_raw_op(70)]
+    ops = [make_raw_op(80), make_raw_op(100), make_raw_op(70)]
     kept, had_low = _filter_low_confidence_operations(ops, min_threshold=70, arrete_id="2022-01-01")
     assert len(kept) == 3
     assert had_low is False
 
 
 def test_filter_low_confidence_drops_below_threshold(caplog: pytest.LogCaptureFixture) -> None:
-    ops = [_make_raw_op(80), _make_raw_op(40), _make_raw_op(None)]
+    ops = [make_raw_op(80), make_raw_op(40), make_raw_op(None)]
     with caplog.at_level("WARNING"):
         kept, had_low = _filter_low_confidence_operations(
             ops, min_threshold=70, arrete_id="2022-01-01"
@@ -287,7 +278,7 @@ def test_filter_low_confidence_drops_below_threshold(caplog: pytest.LogCaptureFi
 
 def test_filter_low_confidence_keeps_op_with_none_score() -> None:
     """Operations without a confidence score are always kept (score is optional)."""
-    ops = [_make_raw_op(None)]
+    ops = [make_raw_op(None)]
     kept, had_low = _filter_low_confidence_operations(ops, min_threshold=70, arrete_id="2022-01-01")
     assert len(kept) == 1
     assert had_low is False

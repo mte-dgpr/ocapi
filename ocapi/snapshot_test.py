@@ -28,15 +28,10 @@ import pytest
 from ocapi.pipeline import run_pipeline
 from ocapi.snapshot import SNAPSHOT_CASES
 from ocapi.utils.io_utils import article_history_to_json_dict, load_arrete_files, load_operations
+from ocapi.utils.testing import normalize_html
 
 # Set UPDATE_SNAPSHOTS=1 to regenerate expected snapshots
 UPDATE_SNAPSHOTS = os.environ.get("UPDATE_SNAPSHOTS", "").strip() in ("1", "true", "yes")
-
-
-def _normalize_html(html: str) -> str:
-    """Normalize trailing whitespace so stored snapshots match pipeline output."""
-    lines = [line.rstrip() for line in html.splitlines()]
-    return "\n".join(lines).strip() + "\n"
 
 
 def _strip_none_values(obj: Any) -> Any:
@@ -95,9 +90,7 @@ def test_snapshot_pipeline_output(
                 json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8"
             )
         if permis_html:
-            (snapshot_dir / "permis.html").write_text(
-                _normalize_html(permis_html), encoding="utf-8"
-            )
+            (snapshot_dir / "permis.html").write_text(normalize_html(permis_html), encoding="utf-8")
         pytest.skip("Snapshots updated. Run without UPDATE_SNAPSHOTS=1 to verify.")
 
     if not snapshot_dir.exists():
@@ -115,7 +108,7 @@ def test_snapshot_pipeline_output(
     expected_html_path = snapshot_dir / "permis.html"
     if expected_html_path.exists() and permis_html:
         expected_html = expected_html_path.read_text(encoding="utf-8")
-        assert _normalize_html(permis_html) == _normalize_html(
+        assert normalize_html(permis_html) == normalize_html(
             expected_html
         ), "Snapshot mismatch: permis.html"
 
@@ -137,4 +130,4 @@ def test_snapshot_pipeline_is_deterministic(arretes_dir: Path, consolidation_dir
 
     assert ops_1 == ops_2, "operations.json differs between runs"
     assert history_1 == history_2, "history.json differs between runs"
-    assert _normalize_html(html_1) == _normalize_html(html_2), "permis.html differs between runs"
+    assert normalize_html(html_1) == normalize_html(html_2), "permis.html differs between runs"
