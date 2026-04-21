@@ -19,7 +19,7 @@
 from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 
-from ocapi.step_chunking.step_chunking import _extract_and_strip_images, split_blocks
+from ocapi.step_detection.chunking import split_blocks
 from ocapi.types import ArreteFile, FileType
 from ocapi.utils.utils import _assert_html_equal, minify_html_fragment
 
@@ -125,24 +125,3 @@ def test_split_section_with_mixed_content() -> None:
         blocs[1].page_content,
         """<section data-spec="section"><h2>Article 2</h2>Content part 2.</section>""",
     )
-
-
-def test_extract_and_strip_images() -> None:
-    """Verify that image src attributes are replaced by tokens and that the map is correct."""
-    html_content = """
-    <p>Here is an image: <img src="http://example.com/image1.png" alt="Image 1"></p>
-    <p>Another image: <img src="http://example.com/image2.jpg" alt="Image 2"></p>
-    """
-    modified_html, img_map = _extract_and_strip_images(minify_html_fragment(html_content))
-
-    expected_modified_html = """
-    <p>Here is an image: <img src="IMG_000" alt="Image 1"></p>
-    <p>Another image: <img src="IMG_001" alt="Image 2"></p>
-    """
-    expected_img_map = {
-        "IMG_000": "http://example.com/image1.png",
-        "IMG_001": "http://example.com/image2.jpg",
-    }
-
-    _assert_html_equal(modified_html, minify_html_fragment(expected_modified_html))
-    assert img_map == expected_img_map

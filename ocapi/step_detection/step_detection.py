@@ -17,17 +17,16 @@
 # limitations under the License.
 #
 """
-This step takes a list of HTML blocks (Document) with their corresponding ArreteId
-and returns a list of detected operations (Operation).
+This step chunks an ``ArreteFile`` and returns the operations detected by the LLM.
 Each operation is extracted by calling a LLM with a specific prompt.
 """
 
-from langchain_core.documents import Document
-
 from ocapi.exceptions import InvalidArreteIdError, InvalidArticleIdError, OperationError
+from ocapi.step_detection.chunking import chunk_arrete
 from ocapi.step_detection.extract_operand import extract_operand_with_images
 from ocapi.step_detection.prompts import prompt_detection
 from ocapi.types import (
+    ArreteFile,
     ArreteId,
     ImageMap,
     NodeId,
@@ -165,12 +164,10 @@ def _filter_low_confidence_operations(
     return kept, had_low_confidence
 
 
-def step_detection(
-    html_blocks: list[Document], arrete_id: ArreteId, img_map: ImageMap
-) -> list[Operation]:
+def step_detection(arrete_file: ArreteFile) -> list[Operation]:
     """Detect operations in an arrêté via the LLM.
 
-    For each HTML block, queries the LLM, parses the JSON response,
+    Chunks the arrêté, queries the LLM block by block, parses the JSON response,
     filters invalid operations and converts them into typed ``Operation`` objects.
 
     When confidence-score filtering is enabled (``llm_resilience.json``), operations
@@ -181,18 +178,16 @@ def step_detection(
 
     Parameters
     ----------
-    html_blocks : list[Document]
-        HTML blocks produced by ``step_chunking``.
-    arrete_id : ArreteId
-        Source arrêté identifier (YYYY-MM-DD date).
-    img_map : ImageMap
-        Token → image URL mapping for rehydrating operands.
+    arrete_file : ArreteFile
+        Source arrêté to chunk and analyse.
 
     Returns
     -------
     list[Operation]
         Detected and validated operations, ready for resolution.
     """
+    arrete_id = arrete_file.id
+    html_blocks, img_map = chunk_arrete(arrete_file)
     confidence_cfg: ConfidenceScoreConfig = get_confidence_score_config()
 
     _LOGGER.info(f"Detection: processing {len(html_blocks)} block(s)")

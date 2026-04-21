@@ -21,6 +21,7 @@ from unittest import mock
 from unittest.mock import Mock, patch
 
 import pytest
+from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 
 from ocapi.step_detection.prompts import prompt_detection
@@ -31,6 +32,7 @@ from ocapi.step_detection.step_detection import (
     step_detection,
 )
 from ocapi.types import (
+    ArreteFile,
     NodeId,
     OperationType,
     RawOperation,
@@ -40,6 +42,15 @@ from ocapi.types import (
     SubTargetType,
 )
 from ocapi.utils.llm_utils import ConfidenceScoreConfig
+
+
+def _fake_arrete(arrete_id: str = "2022-01-01") -> ArreteFile:
+    return ArreteFile(
+        id=arrete_id,
+        aiot="0001",
+        filename=f"{arrete_id}.html",
+        soup=BeautifulSoup("<html/>", "html.parser"),
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -301,6 +312,7 @@ def _llm_response_with_ops(*scores: int | None) -> str:
     return json.dumps(ops)
 
 
+@patch("ocapi.step_detection.step_detection.chunk_arrete")
 @patch("ocapi.step_detection.step_detection.get_confidence_score_config")
 @patch("ocapi.step_detection.step_detection.call_llm_api")
 @patch("ocapi.step_detection.step_detection.extract_operand_with_images", return_value=(None, None))
@@ -308,21 +320,23 @@ def test_step_detection_pass_skips_low_confidence_ops(
     _mock_extract: mock.Mock,
     mock_llm: mock.Mock,
     mock_conf: mock.Mock,
+    mock_chunk: mock.Mock,
 ) -> None:
     """action=pass -> low-confidence operation is dropped, no retry."""
     mock_conf.return_value = ConfidenceScoreConfig(
         enabled=True, min_threshold=70, action_below_threshold="pass"
     )
     mock_llm.return_value = _llm_response_with_ops(90, 40)
+    mock_chunk.return_value = ([Document(page_content="<section/>", metadata={})], {})
 
-    blocks = [Document(page_content="<section/>", metadata={})]
-    ops = step_detection(blocks, arrete_id="2022-01-01", img_map={})
+    ops = step_detection(_fake_arrete())
 
     assert len(ops) == 1
     assert ops[0].confidence_score == 90
     mock_llm.assert_called_once()
 
 
+@patch("ocapi.step_detection.step_detection.chunk_arrete")
 @patch("ocapi.step_detection.step_detection.get_confidence_score_config")
 @patch("ocapi.step_detection.step_detection.call_llm_api")
 @patch("ocapi.step_detection.step_detection.extract_operand_with_images", return_value=(None, None))
@@ -330,6 +344,7 @@ def test_step_detection_retry_reruns_llm_on_low_confidence(
     _mock_extract: mock.Mock,
     mock_llm: mock.Mock,
     mock_conf: mock.Mock,
+    mock_chunk: mock.Mock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """action=retry -> LLM is called a second time when low confidence detected."""
@@ -340,10 +355,10 @@ def test_step_detection_retry_reruns_llm_on_low_confidence(
         _llm_response_with_ops(40),
         _llm_response_with_ops(95),
     ]
+    mock_chunk.return_value = ([Document(page_content="<section/>", metadata={})], {})
 
-    blocks = [Document(page_content="<section/>", metadata={})]
     with caplog.at_level("WARNING"):
-        ops = step_detection(blocks, arrete_id="2022-01-01", img_map={})
+        ops = step_detection(_fake_arrete())
 
     assert mock_llm.call_count == 2
     assert len(ops) == 1
@@ -351,6 +366,7 @@ def test_step_detection_retry_reruns_llm_on_low_confidence(
     assert any("Retrying LLM call" in msg for msg in caplog.messages)
 
 
+@patch("ocapi.step_detection.step_detection.chunk_arrete")
 @patch("ocapi.step_detection.step_detection.get_confidence_score_config")
 @patch("ocapi.step_detection.step_detection.call_llm_api")
 @patch("ocapi.step_detection.step_detection.extract_operand_with_images", return_value=(None, None))
@@ -358,6 +374,7 @@ def test_step_detection_retry_still_drops_low_confidence_after_retry(
     _mock_extract: mock.Mock,
     mock_llm: mock.Mock,
     mock_conf: mock.Mock,
+    mock_chunk: mock.Mock,
 ) -> None:
     """action=retry -> if the retry also returns low confidence, the op is still dropped."""
     mock_conf.return_value = ConfidenceScoreConfig(
@@ -367,14 +384,15 @@ def test_step_detection_retry_still_drops_low_confidence_after_retry(
         _llm_response_with_ops(30),
         _llm_response_with_ops(20),
     ]
+    mock_chunk.return_value = ([Document(page_content="<section/>", metadata={})], {})
 
-    blocks = [Document(page_content="<section/>", metadata={})]
-    ops = step_detection(blocks, arrete_id="2022-01-01", img_map={})
+    ops = step_detection(_fake_arrete())
 
     assert mock_llm.call_count == 2
     assert len(ops) == 0
 
 
+@patch("ocapi.step_detection.step_detection.chunk_arrete")
 @patch("ocapi.step_detection.step_detection.get_confidence_score_config")
 @patch("ocapi.step_detection.step_detection.call_llm_api")
 @patch("ocapi.step_detection.step_detection.extract_operand_with_images", return_value=(None, None))
@@ -382,15 +400,16 @@ def test_step_detection_disabled_keeps_all_ops_regardless_of_score(
     _mock_extract: mock.Mock,
     mock_llm: mock.Mock,
     mock_conf: mock.Mock,
+    mock_chunk: mock.Mock,
 ) -> None:
     """When confidence filtering is disabled all operations pass through."""
     mock_conf.return_value = ConfidenceScoreConfig(
         enabled=False, min_threshold=70, action_below_threshold="pass"
     )
     mock_llm.return_value = _llm_response_with_ops(10, 0)
+    mock_chunk.return_value = ([Document(page_content="<section/>", metadata={})], {})
 
-    blocks = [Document(page_content="<section/>", metadata={})]
-    ops = step_detection(blocks, arrete_id="2022-01-01", img_map={})
+    ops = step_detection(_fake_arrete())
 
     assert len(ops) == 2
     mock_llm.assert_called_once()

@@ -41,10 +41,7 @@ def _make_arrete(arrete_id: str) -> ArreteFile:
 
 
 @patch("ocapi.pipeline.step_detection", return_value=[])
-@patch("ocapi.pipeline.step_chunking", return_value=([], {}))
-def test_start_date_skips_earlier_arretes(
-    mock_chunking: MagicMock, mock_detection: MagicMock
-) -> None:
+def test_start_date_skips_earlier_arretes(mock_detection: MagicMock) -> None:
     """start_date excludes the initial arrêté (<=): only strictly later arrêtés are detected."""
     arretes = [
         _make_arrete("2009-12-08"),
@@ -54,47 +51,39 @@ def test_start_date_skips_earlier_arretes(
 
     run_pipeline(arretes, start_date="2014-01-09", enable_rendering=False)
 
-    chunked_ids = [call.args[0].id for call in mock_chunking.call_args_list]
-    assert "2009-12-08" not in chunked_ids
-    assert "2014-01-09" not in chunked_ids
-    assert "2023-12-04" in chunked_ids
-    assert mock_chunking.call_count == 1
+    detected_ids = [call.args[0].id for call in mock_detection.call_args_list]
+    assert "2009-12-08" not in detected_ids
+    assert "2014-01-09" not in detected_ids
+    assert "2023-12-04" in detected_ids
+    assert mock_detection.call_count == 1
 
 
 @patch("ocapi.pipeline.step_detection", return_value=[])
-@patch("ocapi.pipeline.step_chunking", return_value=([], {}))
-def test_start_date_none_defaults_to_first_arrete(
-    mock_chunking: MagicMock, mock_detection: MagicMock
-) -> None:
+def test_start_date_none_defaults_to_first_arrete(mock_detection: MagicMock) -> None:
     """Without start_date, the first arrêté is excluded from detection by default."""
     arretes = [_make_arrete("2009-12-08"), _make_arrete("2014-01-09")]
 
     run_pipeline(arretes, start_date=None, enable_rendering=False)
 
-    chunked_ids = [call.args[0].id for call in mock_chunking.call_args_list]
-    assert "2009-12-08" not in chunked_ids
-    assert "2014-01-09" in chunked_ids
-    assert mock_chunking.call_count == 1
+    detected_ids = [call.args[0].id for call in mock_detection.call_args_list]
+    assert "2009-12-08" not in detected_ids
+    assert "2014-01-09" in detected_ids
+    assert mock_detection.call_count == 1
 
 
 @patch("ocapi.pipeline.step_detection", return_value=[])
-@patch("ocapi.pipeline.step_chunking", return_value=([], {}))
-def test_start_date_after_all_arretes_processes_none(
-    mock_chunking: MagicMock, mock_detection: MagicMock
-) -> None:
+def test_start_date_after_all_arretes_processes_none(mock_detection: MagicMock) -> None:
     arretes = [_make_arrete("2009-12-08"), _make_arrete("2014-01-09")]
 
     run_pipeline(arretes, start_date="2025-01-01", enable_rendering=False)
 
-    assert mock_chunking.call_count == 0
+    assert mock_detection.call_count == 0
 
 
 @patch("ocapi.pipeline.step_rendering")
 @patch("ocapi.pipeline.step_resolution", return_value=({}, [], []))
 @patch("ocapi.pipeline.step_detection", return_value=[])
-@patch("ocapi.pipeline.step_chunking", return_value=([], {}))
 def test_start_date_passes_all_arretes_to_resolution(
-    mock_chunking: MagicMock,
     mock_detection: MagicMock,
     mock_resolution: MagicMock,
     mock_rendering: MagicMock,
@@ -108,7 +97,7 @@ def test_start_date_passes_all_arretes_to_resolution(
 
     run_pipeline(arretes, start_date="2014-01-09", enable_rendering=False)
 
-    assert mock_chunking.call_count == 1
+    assert mock_detection.call_count == 1
     mock_resolution.assert_called_once()
     resolved_arretes = mock_resolution.call_args[0][1]
     resolved_ids = [a.id for a in resolved_arretes]
@@ -119,9 +108,7 @@ def test_start_date_passes_all_arretes_to_resolution(
 
 @patch("ocapi.pipeline.step_resolution", return_value=({}, [], []))
 @patch("ocapi.pipeline.step_detection", return_value=[])
-@patch("ocapi.pipeline.step_chunking", return_value=([], {}))
 def test_run_pipeline_with_preloaded_operations(
-    mock_chunking: MagicMock,
     mock_detection: MagicMock,
     mock_resolution: MagicMock,
 ) -> None:
@@ -147,22 +134,18 @@ def test_run_pipeline_with_preloaded_operations(
     )
 
     assert ops == preloaded
-    assert mock_chunking.call_count == 0
     assert mock_detection.call_count == 0
     mock_resolution.assert_called_once_with(preloaded, arretes, enable_llm=True)
 
 
 @patch("ocapi.pipeline.step_detection", return_value=[])
-@patch("ocapi.pipeline.step_chunking", return_value=([], {}))
-def test_start_date_equal_to_first_arrete_skips_it(
-    mock_chunking: MagicMock, mock_detection: MagicMock
-) -> None:
+def test_start_date_equal_to_first_arrete_skips_it(mock_detection: MagicMock) -> None:
     """Boundary: start_date == earliest arrêté excludes that arrêté from detection (<=)."""
     arretes = [_make_arrete("2009-12-08"), _make_arrete("2014-01-09")]
 
     run_pipeline(arretes, start_date="2009-12-08", enable_rendering=False)
 
-    chunked_ids = [call.args[0].id for call in mock_chunking.call_args_list]
-    assert "2009-12-08" not in chunked_ids
-    assert "2014-01-09" in chunked_ids
-    assert mock_chunking.call_count == 1
+    detected_ids = [call.args[0].id for call in mock_detection.call_args_list]
+    assert "2009-12-08" not in detected_ids
+    assert "2014-01-09" in detected_ids
+    assert mock_detection.call_count == 1

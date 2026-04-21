@@ -16,7 +16,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import Tuple
+
 from bs4 import BeautifulSoup, Tag
+
+from ocapi.types import ImageMap
 
 
 def list_top_sections(soup: BeautifulSoup | Tag) -> list[Tag]:
@@ -69,6 +73,38 @@ def extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
     if not tags:
         return ""
     return str(tags[0].get_text(" ", strip=True))
+
+
+def extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
+    """Replace <img> src attributes with IMG_n tokens and return (modified_html, img_map).
+
+    img_map: { "IMG_n": original_src }
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    img_map: ImageMap = {}
+    for i, img in enumerate(soup.find_all("img")):
+        src = str(img.get("src") or img.get("data-src") or "")
+        key = f"IMG_{i:03d}"
+        if src:
+            img_map[key] = src
+        img["src"] = key
+    return str(soup), img_map
+
+
+def is_arretify_section(tag: object) -> bool:
+    if not isinstance(tag, Tag):
+        return False
+    if tag.get("data-spec") == "section":
+        return True
+    return False
+
+
+def is_arretify_section_title(tag: object) -> bool:
+    if not isinstance(tag, Tag):
+        return False
+    if tag.get("data-spec") == "section-title":
+        return True
+    return False
 
 
 def extract_main(soup: BeautifulSoup) -> str:
