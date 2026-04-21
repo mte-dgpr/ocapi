@@ -36,13 +36,10 @@ from ocapi.types import (
     ArreteFile,
     ArreteId,
     ImageMap,
-    NodeId,
     Operation,
-    OperationType,
     RawOperation,
     RawOperationType,
     StatusCode,
-    SubTargetType,
     parse_arrete_id,
     parse_article_id,
 )
@@ -216,54 +213,28 @@ def step_detection(arrete_file: ArreteFile) -> list[Operation]:
             )
 
         all_ops.extend(
-            convert_raw_operation_to_operation(html_block.page_content, raw_op, arrete_id, img_map)
+            _raw_operation_to_operation(html_block.page_content, raw_op, arrete_id, img_map)
             for raw_op in valid_operations
         )
     _LOGGER.info(f"Detection: {len(all_ops)} operation(s) detected")
     return all_ops
 
 
-def convert_raw_operation_to_operation(
+def _raw_operation_to_operation(
     html_block: str,
     raw_operation: RawOperation,
     source_arrete_id: ArreteId,
     img_map: ImageMap,
 ) -> Operation:
-    """Convert a LLM ``RawOperation`` into a fully typed ``Operation``.
-
-    Extracts the operand between content markers, parses the sub_target,
-    assigns a unique ID and builds the source and target ``NodeId``.
-
-    Parameters
-    ----------
-    html_block : str
-        Raw HTML of the block in which the operation was detected.
-    raw_operation : RawOperation
-        Raw operation parsed from the LLM JSON response.
-    source_arrete_id : ArreteId
-        Identifier of the arrêté from which this operation originates.
-    img_map : ImageMap
-        Token → URL mapping for rehydrating images in the operand.
-
-    Returns
-    -------
-    Operation
-        Typed operation with ID, source, target, type, operand and sub_target.
-
-    Raises
-    ------
-    OperationError
-        If ``source_article`` or ``target_article`` is missing from the ``RawOperation``.
-    """
+    """Extract the operand and sub-target for a raw detection and build the ``Operation``."""
     if raw_operation.source_article is None:
         raise OperationError("raw operation is missing source_article")
     if raw_operation.target_article is None:
         raise OperationError("raw operation is missing target_article")
 
-    # Generate the operation ID first so it can be used in logging
     operation_id = make_id(_OPERATION_ID_COUNTER)
 
-    operand = None
+    operand: str | None = None
     op_status_code: StatusCode | None = None
     if raw_operation.new_content_start_marker and raw_operation.new_content_end_marker:
         operand, op_status_code = extract_operand_with_images(
@@ -274,52 +245,14 @@ def convert_raw_operation_to_operation(
             img_map,
             operation_id=operation_id,
         )
-    sub_target = None
-    if raw_operation.sub_target:
-        sub_target = parse_subtarget(raw_operation.sub_target)
 
-    raw_op_type = raw_operation.operation_type
-    op_type_value = getattr(raw_op_type, "value", raw_op_type)
-    op_type = OperationType(op_type_value)
+    sub_target = parse_subtarget(raw_operation.sub_target) if raw_operation.sub_target else None
 
-    # target_article=ALL with a non-FULL_SECTION sub-target is incoherent:
-    # the LLM tried to target something specific inside "all articles".
-    if raw_operation.target_article == "ALL" and sub_target is not None:
-        st = (
-            sub_target.type
-            if isinstance(sub_target.type, SubTargetType)
-            else SubTargetType(sub_target.type)
-        )
-        if st != SubTargetType.FULL_SECTION:
-            _LOGGER.warning(
-                f"Operation {operation_id}: target_article=ALL with "
-                f"sub_target={sub_target.type} is not fully defined "
-                f"(target_arrete={raw_operation.target_arrete})"
-            )
-            op_status_code = StatusCode.ERROR_EXTRACTING_OPERAND
-
-    # A full-arrêté REPLACE (target_article=ALL) is in practice an abrogation.
-    if op_type == OperationType.REPLACE and raw_operation.target_article == "ALL":
-        _LOGGER.info(
-            f"Operation {operation_id}: REPLACE ALL converted to REMOVE "
-            f"(target_arrete={raw_operation.target_arrete})"
-        )
-        op_type = OperationType.REMOVE
-        operand = None
-
-    return Operation(
-        id=operation_id,
-        source_id=NodeId(
-            arrete_id=source_arrete_id,
-            article_id=raw_operation.source_article,
-        ),
-        target_id=NodeId(
-            arrete_id=raw_operation.target_arrete,
-            article_id=raw_operation.target_article,
-        ),
-        operation_type=op_type,
+    return Operation.from_raw_detection(
+        raw_operation=raw_operation,
+        source_arrete_id=source_arrete_id,
+        operation_id=operation_id,
         operand=operand,
+        op_status_code=op_status_code,
         sub_target=sub_target,
-        status_code=op_status_code,
-        confidence_score=raw_operation.confidence_score,
     )

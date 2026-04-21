@@ -24,11 +24,13 @@ import pytest
 from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 
-from ocapi.llm_utils import prompt_detection
+from ocapi.exceptions import OperationError
+from ocapi.llm_utils import ConfidenceScoreConfig, prompt_detection
+from ocapi.utils.testing import make_raw_op
 from ocapi.step_detection.step_detection import (
     _OPERATION_ID_COUNTER,
     _filter_low_confidence_operations,
-    convert_raw_operation_to_operation,
+    _raw_operation_to_operation,
     step_detection,
 )
 from ocapi.types import (
@@ -41,8 +43,6 @@ from ocapi.types import (
     SubTarget,
     SubTargetType,
 )
-from ocapi.llm_utils import ConfidenceScoreConfig
-from ocapi.utils.testing import make_raw_op
 
 
 def _fake_arrete(arrete_id: str = "2022-01-01") -> ArreteFile:
@@ -92,7 +92,7 @@ def test_convert_raw_operation_to_operation(
         ),
     ]
     operations = [
-        convert_raw_operation_to_operation(html_block.page_content, raw_op, source_arrete_id, {})
+        _raw_operation_to_operation(html_block.page_content, raw_op, source_arrete_id, {})
         for raw_op in raw_operations
     ]
 
@@ -133,7 +133,7 @@ def test_status_code_error_when_operand_extraction_fails(
         new_content_end_marker="<end>",
     )
 
-    operation = convert_raw_operation_to_operation(
+    operation = _raw_operation_to_operation(
         html_block.page_content, raw_operation, "1980-01-01", {}
     )
 
@@ -154,9 +154,7 @@ def test_convert_raw_operation_replace_all_refonte() -> None:
         new_content_end_marker=None,
     )
 
-    operation = convert_raw_operation_to_operation(
-        html_block.page_content, raw_op, "2021-09-24", {}
-    )
+    operation = _raw_operation_to_operation(html_block.page_content, raw_op, "2021-09-24", {})
 
     assert operation.operation_type == OperationType.REMOVE
     assert operation.source_id == NodeId(arrete_id="2021-09-24", article_id="1.1.2")
@@ -181,7 +179,7 @@ def test_all_with_non_full_section_subtarget_sets_error(
         sub_target="annexe 1",
     )
     with caplog.at_level("WARNING"):
-        op = convert_raw_operation_to_operation("<section/>", raw_op, "2025-02-10", {})
+        op = _raw_operation_to_operation("<section/>", raw_op, "2025-02-10", {})
 
     assert op.status_code == StatusCode.ERROR_EXTRACTING_OPERAND
     assert any("not fully defined" in msg for msg in caplog.messages)
@@ -196,11 +194,33 @@ def test_all_with_full_section_subtarget_converts_to_remove() -> None:
         target_article="ALL",
         sub_target=None,
     )
-    op = convert_raw_operation_to_operation("<section/>", raw_op, "2021-09-24", {})
+    op = _raw_operation_to_operation("<section/>", raw_op, "2021-09-24", {})
 
     assert op.operation_type == OperationType.REMOVE
     assert op.status_code is None
     assert op.operand is None
+
+
+def test_raw_operation_to_operation_requires_source_article() -> None:
+    raw = RawOperation(
+        operation_type=RawOperationType.REMOVE,
+        target_arrete="2021-01-01",
+        source_article=None,
+        target_article="1",
+    )
+    with pytest.raises(OperationError, match="source_article"):
+        _raw_operation_to_operation("<p/>", raw, "2022-01-01", {})
+
+
+def test_raw_operation_to_operation_requires_target_article() -> None:
+    raw = RawOperation(
+        operation_type=RawOperationType.REMOVE,
+        target_arrete="2021-01-01",
+        source_article="1",
+        target_article=None,
+    )
+    with pytest.raises(OperationError, match="target_article"):
+        _raw_operation_to_operation("<p/>", raw, "2022-01-01", {})
 
 
 def test_prompt_detection_includes_replace_all_schema() -> None:
@@ -234,7 +254,7 @@ def test_convert_raw_operation_propagates_confidence_score(
         target_article="2",
         confidence_score=85,
     )
-    op = convert_raw_operation_to_operation("<section/>", raw_op, "2022-01-01", {})
+    op = _raw_operation_to_operation("<section/>", raw_op, "2022-01-01", {})
     assert op.confidence_score == 85
 
 
@@ -249,7 +269,7 @@ def test_convert_raw_operation_confidence_score_none_when_absent(
         target_arrete="2021-01-01",
         target_article="2",
     )
-    op = convert_raw_operation_to_operation("<section/>", raw_op, "2022-01-01", {})
+    op = _raw_operation_to_operation("<section/>", raw_op, "2022-01-01", {})
     assert op.confidence_score is None
 
 
@@ -306,7 +326,10 @@ def _llm_response_with_ops(*scores: int | None) -> str:
 @patch("ocapi.step_detection.step_detection.chunk_arrete")
 @patch("ocapi.step_detection.step_detection.get_confidence_score_config")
 @patch("ocapi.step_detection.step_detection.call_llm_api")
-@patch("ocapi.step_detection.step_detection.extract_operand_with_images", return_value=(None, None))
+@patch(
+    "ocapi.step_detection.step_detection.extract_operand_with_images",
+    return_value=(None, None),
+)
 def test_step_detection_pass_skips_low_confidence_ops(
     _mock_extract: mock.Mock,
     mock_llm: mock.Mock,
@@ -330,7 +353,10 @@ def test_step_detection_pass_skips_low_confidence_ops(
 @patch("ocapi.step_detection.step_detection.chunk_arrete")
 @patch("ocapi.step_detection.step_detection.get_confidence_score_config")
 @patch("ocapi.step_detection.step_detection.call_llm_api")
-@patch("ocapi.step_detection.step_detection.extract_operand_with_images", return_value=(None, None))
+@patch(
+    "ocapi.step_detection.step_detection.extract_operand_with_images",
+    return_value=(None, None),
+)
 def test_step_detection_retry_reruns_llm_on_low_confidence(
     _mock_extract: mock.Mock,
     mock_llm: mock.Mock,
@@ -360,7 +386,10 @@ def test_step_detection_retry_reruns_llm_on_low_confidence(
 @patch("ocapi.step_detection.step_detection.chunk_arrete")
 @patch("ocapi.step_detection.step_detection.get_confidence_score_config")
 @patch("ocapi.step_detection.step_detection.call_llm_api")
-@patch("ocapi.step_detection.step_detection.extract_operand_with_images", return_value=(None, None))
+@patch(
+    "ocapi.step_detection.step_detection.extract_operand_with_images",
+    return_value=(None, None),
+)
 def test_step_detection_retry_still_drops_low_confidence_after_retry(
     _mock_extract: mock.Mock,
     mock_llm: mock.Mock,
@@ -386,7 +415,10 @@ def test_step_detection_retry_still_drops_low_confidence_after_retry(
 @patch("ocapi.step_detection.step_detection.chunk_arrete")
 @patch("ocapi.step_detection.step_detection.get_confidence_score_config")
 @patch("ocapi.step_detection.step_detection.call_llm_api")
-@patch("ocapi.step_detection.step_detection.extract_operand_with_images", return_value=(None, None))
+@patch(
+    "ocapi.step_detection.step_detection.extract_operand_with_images",
+    return_value=(None, None),
+)
 def test_step_detection_disabled_keeps_all_ops_regardless_of_score(
     _mock_extract: mock.Mock,
     mock_llm: mock.Mock,

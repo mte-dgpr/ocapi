@@ -20,7 +20,11 @@ import pytest
 from bs4 import BeautifulSoup
 from pydantic import ValidationError
 
-from .exceptions import InvalidArreteIdError, InvalidArticleIdError, InvalidFileFormatError
+from .exceptions import (
+    InvalidArreteIdError,
+    InvalidArticleIdError,
+    InvalidFileFormatError,
+)
 from .types import (
     FileType,
     NodeId,
