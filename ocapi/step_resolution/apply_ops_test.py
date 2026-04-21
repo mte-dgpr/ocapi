@@ -155,7 +155,7 @@ def test_apply_subgraph_operations(
             {"version": 0, "title": "", "content": "original content 2", "operation_id": None}
         ],
     }
-    output_history, _skipped = apply_subgraph_operations(G, history)
+    output_history, _skipped, _resolved = apply_subgraph_operations(G, history)
 
     history_content_1 = output_history[NodeId(arrete_id="1980-01-01", article_id="1")][-1][
         "content"
@@ -191,7 +191,7 @@ def test_complex_subtarget_on_operation_still_applies_replace(mock_replace: mock
     history: ArticleHistory = {
         target: [{"version": 0, "title": "", "content": "content v0", "operation_id": None}],
     }
-    output_history, skipped_ops = apply_subgraph_operations(G, history)
+    output_history, skipped_ops, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped_ops == []
     mock_replace.assert_called_once()
@@ -229,7 +229,7 @@ def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) ->
             }
         ]
     }
-    output_history, skipped_ops = apply_subgraph_operations(G, history)
+    output_history, skipped_ops, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped_ops == []
     mock_replace.assert_not_called()
@@ -266,7 +266,7 @@ def test_subtarget_not_found_sets_error_finding_subtarget(mock_replace: mock.Moc
     history: ArticleHistory = {
         target: [{"version": 0, "title": "", "content": "content v0", "operation_id": None}]
     }
-    output_history, skipped_ops = apply_subgraph_operations(G, history)
+    output_history, skipped_ops, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped_ops == []
     assert output_history[target][-1] == {
@@ -299,7 +299,7 @@ def test_initialize_history_from_graph_node_content(mock_replace: mock.Mock) -> 
     )
 
     history: ArticleHistory = {}
-    output_history, skipped_ops = apply_subgraph_operations(G, history)
+    output_history, skipped_ops, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped_ops == []
     assert output_history[target][0] == {
@@ -348,7 +348,7 @@ def test_multiple_operations_same_target_preserve_single_initial_version(
     )
 
     history: ArticleHistory = {}
-    output_history, skipped_ops = apply_subgraph_operations(G, history)
+    output_history, skipped_ops, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped_ops == []
     assert len(output_history[target]) == 3
@@ -455,7 +455,7 @@ def test_apply_all_operations(
             file_type=FileType.AUTRE,
         ),
     ]
-    history, _skipped = apply_all_ops(G, arrete_list)
+    history, _skipped, _resolved = apply_all_ops(G, arrete_list)
 
     assert NodeId(arrete_id="1980-01-01", article_id="1") in history
     assert NodeId(arrete_id="1980-01-01", article_id="2") in history
@@ -487,7 +487,7 @@ def test_error_extracting_target_keeps_content_and_stores_status(
     history: ArticleHistory = {
         target: [{"version": 0, "title": "", "content": "", "operation_id": None}],
     }
-    output_history, skipped_ops = apply_subgraph_operations(G, history)
+    output_history, skipped_ops, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped_ops == []
     mock_replace.assert_not_called()
@@ -580,7 +580,7 @@ def test_propagated_error_when_previous_version_has_error(mock_replace: mock.Moc
             },
         ]
     }
-    output_history, skipped = apply_subgraph_operations(G, history)
+    output_history, skipped, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped == []
     mock_replace.assert_not_called()
@@ -622,7 +622,7 @@ def test_propagated_error_chains_from_previous_propagated_error(mock_replace: mo
             },
         ]
     }
-    output_history, skipped = apply_subgraph_operations(G, history)
+    output_history, skipped, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped == []
     mock_replace.assert_not_called()
@@ -662,7 +662,7 @@ def test_replace_all_bypasses_propagation(mock_replace: mock.Mock) -> None:
             },
         ]
     }
-    output_history, skipped = apply_subgraph_operations(G, history)
+    output_history, skipped, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped == []
     mock_replace.assert_called_once()
@@ -711,7 +711,7 @@ def test_replace_all_with_extraction_error_records_own_error_not_propagated(
             },
         ]
     }
-    output_history, skipped = apply_subgraph_operations(G, history)
+    output_history, skipped, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped == []
     mock_replace.assert_not_called()
@@ -751,7 +751,7 @@ def test_remove_all_bypasses_propagation(mock_remove: mock.Mock) -> None:
             },
         ]
     }
-    output_history, skipped = apply_subgraph_operations(G, history)
+    output_history, skipped, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped == []
     mock_remove.assert_called_once()
@@ -827,7 +827,7 @@ def test_new_article_full_section_history_is_single_version_with_op_id() -> None
         ),
     )
     history: ArticleHistory = {}
-    out, skipped = apply_subgraph_operations(G, history)
+    out, skipped, _resolved = apply_subgraph_operations(G, history)
     assert skipped == []
     versions = out[tgt]
     assert len(versions) == 1
@@ -863,7 +863,7 @@ def test_disabled_llm_returns_unchanged_content_and_status() -> None:
     history: ArticleHistory = {
         target: [{"version": 0, "title": "", "content": "content v0", "operation_id": None}],
     }
-    output_history, skipped = apply_subgraph_operations(G, history, enable_llm=False)
+    output_history, skipped, _resolved = apply_subgraph_operations(G, history, enable_llm=False)
 
     assert skipped == []
     last = output_history[target][-1]
@@ -945,7 +945,7 @@ def test_chain_branch_size_2_propagates_updated_operand(mock_replace: mock.Mock)
             file_type=FileType.AUTRE,
         ),
     ]
-    history, skipped = apply_all_ops(G, arrete_list)
+    history, skipped, _resolved = apply_all_ops(G, arrete_list)
 
     assert skipped == []
 
@@ -1042,7 +1042,7 @@ def test_strip_duplicate_section_title_applied_in_replace() -> None:
         ),
     )
     history: ArticleHistory = {}
-    out, skipped = apply_subgraph_operations(G, history)
+    out, skipped, _resolved = apply_subgraph_operations(G, history)
     assert skipped == []
     content = out[tgt][-1]["content"]
     titles = BeautifulSoup(content, "html.parser").find_all(["h1", "h2", "h3", "h4", "h5", "h6"])
@@ -1052,3 +1052,70 @@ def test_strip_duplicate_section_title_applied_in_replace() -> None:
     )
     assert "new body" in content
     assert out[tgt][-1].get("title") == target_title
+
+
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
+@mock.patch("ocapi.step_resolution.apply_ops.apply_add")
+def test_apply_subgraph_operations_resolved_status_dict(
+    mock_add: mock.Mock, mock_replace: mock.Mock
+) -> None:
+    """Each processed operation must appear in the resolved_status mapping."""
+    mock_replace.return_value = (StatusCode.RESOLVED, "ok replace")
+    mock_add.return_value = (StatusCode.RESOLVED, "ok add")
+
+    G = nx.MultiDiGraph()
+    src_ok = NodeId(arrete_id="1981-01-01", article_id="2")
+    src_err = NodeId(arrete_id="1981-01-01", article_id="3")
+    tgt_replace = NodeId(arrete_id="1980-01-01", article_id="1")
+    tgt_add = NodeId(arrete_id="1980-01-01", article_id="2")
+    tgt_propagated = NodeId(arrete_id="1980-01-01", article_id="4")
+    add_node(G, src_ok)
+    add_node(G, src_err)
+    add_node(G, tgt_replace)
+    add_node(G, tgt_add)
+    add_node(G, tgt_propagated)
+    add_edge(
+        G,
+        Operation(
+            id="op-ok",
+            source_id=src_ok,
+            target_id=tgt_replace,
+            operation_type=OperationType.REPLACE,
+            operand="x",
+        ),
+    )
+    add_edge(
+        G,
+        Operation(
+            id="op-add",
+            source_id=src_err,
+            target_id=tgt_add,
+            operation_type=OperationType.ADD,
+            operand="y",
+        ),
+    )
+    add_edge(
+        G,
+        Operation(
+            id="op-err",
+            source_id=src_err,
+            target_id=tgt_propagated,
+            operation_type=OperationType.REPLACE,
+            operand=None,
+            status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
+        ),
+    )
+    history: ArticleHistory = {
+        tgt_replace: [{"version": 0, "title": "", "content": "v0", "operation_id": None}],
+        tgt_add: [{"version": 0, "title": "", "content": "v0", "operation_id": None}],
+        tgt_propagated: [{"version": 0, "title": "", "content": "v0", "operation_id": None}],
+    }
+
+    _out, skipped, resolved = apply_subgraph_operations(G, history)
+
+    assert skipped == []
+    assert resolved == {
+        "op-ok": StatusCode.RESOLVED,
+        "op-add": StatusCode.RESOLVED,
+        "op-err": StatusCode.ERROR_EXTRACTING_OPERAND,
+    }

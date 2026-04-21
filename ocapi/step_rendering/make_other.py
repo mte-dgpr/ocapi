@@ -35,25 +35,15 @@ from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main
 _WHOLE_ARRETE_ARTICLE_IDS = frozenset({"ALL", "END", "APPENDIX"})
 
 
-def has_not_out_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
-    """Return True if an arrêté generates no outgoing operations.
+def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
+    """Return True when the arrêté has no outgoing operations (pure complement)."""
+    return not any(op.source_id.arrete_id == arrete_file.id for op in operations)
 
-    An arrêté without outgoing operations is a non-modifying complementary
-    arrêté (it does not modify any article of the initial AP).
 
-    Parameters
-    ----------
-    arrete_file : ArreteFile
-        Arrêté to test.
-    operations : list[Operation]
-        List of all detected operations.
-
-    Returns
-    -------
-    bool
-        ``True`` if the arrêté generates no outgoing operations.
-    """
-    return all(op.source_id.arrete_id != arrete_file.id for op in operations)
+def has_unresolved_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
+    """Return True when at least one outgoing operation is not resolved."""
+    outgoing = [op for op in operations if op.source_id.arrete_id == arrete_file.id]
+    return any(op.status_code != StatusCode.RESOLVED for op in outgoing)
 
 
 def detect_additional_prescriptions(arrete_files: list[ArreteFile]) -> str:
@@ -179,7 +169,7 @@ def make_permit_other(
         arrete_title = extract_first_spec_html(arrete_file.soup, "arrete_title")
         main_content = extract_main(arrete_file.soup)
 
-        if has_not_out_ops(arrete_file, operations):
+        if has_no_ops(arrete_file, operations):
             complement_sections.append(
                 f"""
    <article data-spec="permit_complement" data-date="{arrete_file.id}">
@@ -189,7 +179,8 @@ def make_permit_other(
    </article>
 """
             )
-        elif history is not None:
+
+        if has_unresolved_ops(arrete_file, operations) and history is not None:
             messages = _build_source_operation_messages(
                 arrete_file.id,
                 operations,

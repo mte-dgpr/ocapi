@@ -100,7 +100,7 @@ def run_pipeline(
     _LOGGER.info("STEP 3: RESOLUTION")
     _LOGGER.info("=" * 60)
 
-    history, arrete_files = step_resolution(ops, arrete_files, enable_llm=enable_llm)
+    history, arrete_files, ops = step_resolution(ops, arrete_files, enable_llm=enable_llm)
     if history:
         _LOGGER.info(f"{len(history)} articles with history")
     else:

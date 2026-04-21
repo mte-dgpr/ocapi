@@ -424,6 +424,7 @@ def _apply_single_edge(
     key: int,
     history: ArticleHistory,
     skipped_ops: list[tuple[OperationId, str]],
+    resolved_status: dict[OperationId, StatusCode],
     *,
     chain_depth: int = 0,
     enable_llm: bool = True,
@@ -527,6 +528,8 @@ def _apply_single_edge(
                 _LOGGER.warning(f"Operation {op_id}: sub-target element not found — {e}")
                 article_status_code = StatusCode.ERROR_FINDING_SUBTARGET
 
+        resolved_status[op.id] = article_status_code
+
         if creation:
             created_title, created_content = split_section_title(new_content)
             new_version = ArticleVersion(
@@ -566,6 +569,7 @@ def _apply_single_edge(
                 d_key,
                 history,
                 skipped_ops,
+                resolved_status,
                 chain_depth=chain_depth + 1,
                 enable_llm=enable_llm,
             )
@@ -578,14 +582,15 @@ def _apply_single_edge(
 
 def apply_subgraph_operations(
     subG: nx.MultiDiGraph, history: ArticleHistory, *, enable_llm: bool = True
-) -> tuple[ArticleHistory, list[tuple[OperationId, str]]]:
+) -> tuple[ArticleHistory, list[tuple[OperationId, str]], dict[OperationId, StatusCode]]:
     """Apply sub-graph operations and update the article history.
 
     For each operation, appends a new version to the target article's history.
     For ADD + ``FULL_SECTION`` + ``NEW_ARTICLE:…``, a **single** version ``0`` is
     stored with ``operation_id`` set to the creation operation.
 
-    Returns the updated history and the list of failed operations.
+    Returns the updated history, the list of failed operations, and a mapping
+    of ``{operation_id: resolved_status_code}`` for every processed operation.
 
     Operations may carry ``status_code=COMPLEX_SUBTARGET`` to indicate that the
     sub-target requires LLM consolidation; that code is **not** copied onto the
@@ -610,6 +615,7 @@ def apply_subgraph_operations(
     transitive chains like C → B → A.
     """
     skipped_ops: list[tuple[OperationId, str]] = []
+    resolved_status: dict[OperationId, StatusCode] = {}
     start_nodes = sorted(
         [node for node in subG.nodes if subG.in_degree(node) == 0],
         key=lambda n: (n.arrete_id, n.article_id),
@@ -620,9 +626,18 @@ def apply_subgraph_operations(
             key=lambda e: (e[1].arrete_id, e[1].article_id, e[2]),
         )
         for src, tgt, key in edges:
-            _apply_single_edge(subG, src, tgt, key, history, skipped_ops, enable_llm=enable_llm)
+            _apply_single_edge(
+                subG,
+                src,
+                tgt,
+                key,
+                history,
+                skipped_ops,
+                resolved_status,
+                enable_llm=enable_llm,
+            )
 
-    return history, skipped_ops
+    return history, skipped_ops, resolved_status
 
 
 def apply_all_ops(
@@ -630,25 +645,29 @@ def apply_all_ops(
     arrete_list: list[ArreteFile],
     *,
     enable_llm: bool = True,
-) -> tuple[ArticleHistory, list[tuple[OperationId, str]]]:
+) -> tuple[ArticleHistory, list[tuple[OperationId, str]], dict[OperationId, StatusCode]]:
     """Build the complete article history by processing arrêtés chronologically.
 
-    Returns a dict ``{NodeId: [versions]}`` with all modifications and the list
-    of failed operations.
+    Returns a dict ``{NodeId: [versions]}`` with all modifications, the list
+    of failed operations, and a mapping of ``{operation_id: resolved_status_code}``.
     """
     history: ArticleHistory = {}
     all_skipped_ops: list[tuple[OperationId, str]] = []
+    all_resolved_status: dict[OperationId, StatusCode] = {}
 
     for arrete_file in arrete_list:
         subG = build_next_subgraph(operations_graph, history, arrete_file.id)
         if subG.number_of_edges() > 0:
-            history, skipped_ops = apply_subgraph_operations(subG, history, enable_llm=enable_llm)
+            history, skipped_ops, resolved_status = apply_subgraph_operations(
+                subG, history, enable_llm=enable_llm
+            )
             all_skipped_ops.extend(skipped_ops)
+            all_resolved_status.update(resolved_status)
 
     if all_skipped_ops:
         _LOGGER.warning(f"{len(all_skipped_ops)} operation(s) skipped during application")
 
-    return history, all_skipped_ops
+    return history, all_skipped_ops, all_resolved_status
 
 
 def _collect_downstream_chain(

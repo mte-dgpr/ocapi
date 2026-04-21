@@ -90,7 +90,7 @@ def test_start_date_after_all_arretes_processes_none(
 
 
 @patch("ocapi.pipeline.step_rendering")
-@patch("ocapi.pipeline.step_resolution", return_value=({}, []))
+@patch("ocapi.pipeline.step_resolution", return_value=({}, [], []))
 @patch("ocapi.pipeline.step_detection", return_value=[])
 @patch("ocapi.pipeline.step_chunking", return_value=([], {}))
 def test_start_date_passes_all_arretes_to_resolution(
@@ -117,7 +117,7 @@ def test_start_date_passes_all_arretes_to_resolution(
     assert "2023-12-04" in resolved_ids
 
 
-@patch("ocapi.pipeline.step_resolution", return_value=({}, []))
+@patch("ocapi.pipeline.step_resolution", return_value=({}, [], []))
 @patch("ocapi.pipeline.step_detection", return_value=[])
 @patch("ocapi.pipeline.step_chunking", return_value=([], {}))
 def test_run_pipeline_with_preloaded_operations(
@@ -137,6 +137,7 @@ def test_run_pipeline_with_preloaded_operations(
             sub_target=None,
         )
     ]
+    mock_resolution.return_value = ({}, arretes, preloaded)
 
     ops, history, _arretes, _permis = run_pipeline(
         arretes,
