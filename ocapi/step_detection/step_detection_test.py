@@ -157,7 +157,7 @@ def test_all_with_non_full_section_subtarget_sets_error(
     mock_parse_subtarget: Mock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """target_article=ALL with a COMPLEX sub-target → ERROR_EXTRACTING_TARGET."""
+    """target_article=ALL with a COMPLEX sub-target → ERROR_EXTRACTING_OPERAND."""
     mock_parse_subtarget.return_value = SubTarget(
         type=SubTargetType.COMPLEX, description="annexe 1"
     )
@@ -171,7 +171,7 @@ def test_all_with_non_full_section_subtarget_sets_error(
     with caplog.at_level("WARNING"):
         op = convert_raw_operation_to_operation("<section/>", raw_op, "2025-02-10", {})
 
-    assert op.status_code == StatusCode.ERROR_EXTRACTING_TARGET
+    assert op.status_code == StatusCode.ERROR_EXTRACTING_OPERAND
     assert any("not fully defined" in msg for msg in caplog.messages)
 
 

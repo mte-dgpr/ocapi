@@ -28,7 +28,16 @@ import networkx as nx
 from bs4 import BeautifulSoup
 
 from ocapi.exceptions import SectionNotFoundError
-from ocapi.types import ArreteFile, ArreteId, Content, NodeId, Operation, OperationType, StatusCode
+from ocapi.types import (
+    ArreteFile,
+    ArreteId,
+    Content,
+    NodeId,
+    Operation,
+    OperationType,
+    StatusCode,
+    SubTargetType,
+)
 from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
@@ -218,7 +227,16 @@ def _is_abrogation_arrete(operation: Operation) -> bool:
     """
     if operation.target_id.article_id != "ALL":
         return False
-    return operation.operation_type in (
+    if operation.operation_type not in (
         OperationType.REMOVE,
         OperationType.REPLACE,
-    )
+    ):
+        return False
+    # A target=ALL with a narrower sub_target is ill-defined: the LLM tried to
+    # target something specific inside "all articles". Do not abrogate.
+    if operation.sub_target is not None and operation.sub_target.type != SubTargetType.FULL_SECTION:
+        return False
+    # Only abrogate when the operation was cleanly resolved.
+    if operation.status_code is not None and operation.status_code != StatusCode.RESOLVED:
+        return False
+    return True

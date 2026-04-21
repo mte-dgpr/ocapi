@@ -301,7 +301,7 @@ def convert_raw_operation_to_operation(
                 f"sub_target={sub_target.type} is not fully defined "
                 f"(target_arrete={raw_operation.target_arrete})"
             )
-            op_status_code = StatusCode.ERROR_EXTRACTING_TARGET
+            op_status_code = StatusCode.ERROR_EXTRACTING_OPERAND
 
     # A full-arrêté REPLACE (target_article=ALL) is in practice an abrogation.
     if op_type == OperationType.REPLACE and raw_operation.target_article == "ALL":
