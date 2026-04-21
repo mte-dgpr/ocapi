@@ -215,6 +215,73 @@ def test_is_abrogation_arrete_replace_single_article() -> None:
     assert _is_abrogation_arrete(op_replace) is False
 
 
+def test_is_abrogation_arrete_remove_all_with_complex_subtarget() -> None:
+    """REMOVE ALL with a narrower sub_target (e.g. annexe 1) is ill-defined, not an abrogation."""
+    op = Operation(
+        id="13",
+        source_id=NodeId(arrete_id="2025-02-10", article_id="5"),
+        target_id=NodeId(arrete_id="2006-12-14", article_id="ALL"),
+        operation_type=OperationType.REMOVE,
+        sub_target=SubTarget(type=SubTargetType.COMPLEX, description="annexe 1"),
+        status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
+    )
+    assert _is_abrogation_arrete(op) is False
+
+
+def test_is_abrogation_arrete_remove_all_with_error_status() -> None:
+    """REMOVE ALL with a non-RESOLVED status_code is not a valid abrogation."""
+    op = Operation(
+        id="1",
+        source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
+        target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
+        operation_type=OperationType.REMOVE,
+        status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
+    )
+    assert _is_abrogation_arrete(op) is False
+
+
+def test_is_abrogation_arrete_remove_all_full_section_subtarget() -> None:
+    """REMOVE ALL with FULL_SECTION sub_target is a valid abrogation."""
+    op = Operation(
+        id="1",
+        source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
+        target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
+        operation_type=OperationType.REMOVE,
+        sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
+    )
+    assert _is_abrogation_arrete(op) is True
+
+
+def test_build_graph_ill_defined_remove_all_does_not_abrogate() -> None:
+    """An ill-defined REMOVE ALL (narrow sub_target + error) must not abrogate the arrêté."""
+    html_2006 = """
+    <section data-spec="section" data-number="1">Article 1</section>
+    """
+    arrete_files = [
+        ArreteFile(
+            id="2006-12-14",
+            aiot="aiot1",
+            filename="2006-12-14.html",
+            soup=BeautifulSoup(html_2006, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
+
+    ill_defined_op = Operation(
+        id="13",
+        source_id=NodeId(arrete_id="2025-02-10", article_id="5"),
+        target_id=NodeId(arrete_id="2006-12-14", article_id="ALL"),
+        operation_type=OperationType.REMOVE,
+        sub_target=SubTarget(type=SubTargetType.COMPLEX, description="annexe 1"),
+        status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
+    )
+
+    _, updated_arrete_files, _ = build_graph([ill_defined_op], arrete_files)
+
+    arrete_2006 = updated_arrete_files[0]
+    assert arrete_2006.status is True
+
+
 def test_build_graph_remove_all_marks_arrete_abrogated() -> None:
     """REMOVE with target_article ALL must mark the target arrêté as abrogated."""
     html_2020 = """
