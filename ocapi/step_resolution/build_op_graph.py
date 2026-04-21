@@ -175,7 +175,7 @@ def build_graph(
 
     for op in ops:
         try:
-            if _is_abrogation_arrete(op):
+            if _is_full_removal_op(op):
                 for arrete_file in arrete_files:
                     if arrete_file.id == op.target_id.arrete_id:
                         arrete_file.status = False
@@ -218,8 +218,8 @@ def build_graph(
     return G, arrete_files, skipped_ops
 
 
-def _is_abrogation_arrete(operation: Operation) -> bool:
-    """Return True if the operation abrogates an entire arrêté (REMOVE ALL or REPLACE ALL).
+def _is_full_removal_op(operation: Operation) -> bool:
+    """Return True if the operation removes or replaces an entire arrêté (REMOVE ALL or REPLACE ALL).
 
     REMOVE with target ALL = explicit abrogation.
     REPLACE with target ALL = arrêté refonte : the source arrêté replaces the entire

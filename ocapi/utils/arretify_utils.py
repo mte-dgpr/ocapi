@@ -107,6 +107,19 @@ def is_arretify_section_title(tag: object) -> bool:
     return False
 
 
+def rehydrate_images(html_fragment: str, img_map: ImageMap) -> str:
+    """Replace image placeholder tokens with their original URLs."""
+    if not img_map:
+        return html_fragment
+    soup = BeautifulSoup(html_fragment, "html.parser")
+    for img in soup.find_all("img"):
+        src_attr = img.get("src")
+        src = str(src_attr) if src_attr is not None else None
+        if src and src in img_map:
+            img["src"] = img_map[src]
+    return str(soup)
+
+
 def extract_main(soup: BeautifulSoup) -> str:
     """Return the HTML of the ``<main>`` tag from the document.
 

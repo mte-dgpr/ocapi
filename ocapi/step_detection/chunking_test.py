@@ -21,7 +21,8 @@ from langchain_core.documents import Document
 
 from ocapi.step_detection.chunking import split_blocks
 from ocapi.types import ArreteFile, FileType
-from ocapi.utils.utils import _assert_html_equal, minify_html_fragment
+from ocapi.utils.testing import assert_html_equal
+from ocapi.utils.utils import minify_html_fragment
 
 
 def test_split_in_single_bloc() -> None:
@@ -47,7 +48,7 @@ def test_split_in_single_bloc() -> None:
     blocs = list(split_blocks(arrete_file.soup, arrete_file, target_per_block=70000))
     assert len(blocs) == 1
     assert isinstance(blocs[0], Document)
-    _assert_html_equal(
+    assert_html_equal(
         blocs[0].page_content,
         """
     <section data-spec="section">Content of article 1.</section>
@@ -115,13 +116,13 @@ def test_split_section_with_mixed_content() -> None:
     )
     blocs = list(split_blocks(arrete_file.soup, arrete_file, target_per_block=10))
     assert len(blocs) == 2
-    _assert_html_equal(
+    assert_html_equal(
         blocs[0].page_content,
         """<section data-spec="section"> Content part 1.
         <section data-spec="section">Nested section 1</section>
         <section data-spec="section">Nested section 2</section>""",
     )
-    _assert_html_equal(
+    assert_html_equal(
         blocs[1].page_content,
         """<section data-spec="section"><h2>Article 2</h2>Content part 2.</section>""",
     )

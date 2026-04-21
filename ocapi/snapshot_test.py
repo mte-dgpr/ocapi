@@ -29,18 +29,10 @@ from ocapi.pipeline import run_pipeline
 from ocapi.snapshot import SNAPSHOT_CASES
 from ocapi.utils.io_utils import article_history_to_json_dict, load_arrete_files, load_operations
 from ocapi.utils.testing import normalize_html
+from ocapi.utils.utils import strip_none_values
 
 # Set UPDATE_SNAPSHOTS=1 to regenerate expected snapshots
 UPDATE_SNAPSHOTS = os.environ.get("UPDATE_SNAPSHOTS", "").strip() in ("1", "true", "yes")
-
-
-def _strip_none_values(obj: Any) -> Any:
-    """Recursively drop ``None`` values so snapshot JSON matches across Pydantic versions."""
-    if isinstance(obj, dict):
-        return {k: _strip_none_values(v) for k, v in obj.items() if v is not None}
-    if isinstance(obj, list):
-        return [_strip_none_values(x) for x in obj]
-    return obj
 
 
 def _run_snapshot_pipeline(
@@ -59,8 +51,8 @@ def _run_snapshot_pipeline(
         operations=operations,
     )
 
-    ops_json = _strip_none_values([op.model_dump(mode="json") for op in ops])
-    history_json = _strip_none_values(article_history_to_json_dict(history))
+    ops_json = strip_none_values([op.model_dump(mode="json") for op in ops])
+    history_json = strip_none_values(article_history_to_json_dict(history))
     permis_html = permis.to_html() if permis else ""
     return ops_json, history_json, permis_html
 
@@ -102,7 +94,7 @@ def test_snapshot_pipeline_output(
     for filename, actual_data in [("operations.json", ops_json), ("history.json", history_json)]:
         expected_path = snapshot_dir / filename
         if expected_path.exists():
-            expected = _strip_none_values(json.loads(expected_path.read_text(encoding="utf-8")))
+            expected = strip_none_values(json.loads(expected_path.read_text(encoding="utf-8")))
             assert actual_data == expected, f"Snapshot mismatch: {filename}"
 
     expected_html_path = snapshot_dir / "permis.html"

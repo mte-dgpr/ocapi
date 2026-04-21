@@ -30,7 +30,10 @@ from ocapi.types import (
     operation_type_label,
     status_code_reason,
 )
-from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main
+from ocapi.utils.arretify_utils import (
+    extract_first_spec_html,
+    extract_main,
+)
 
 _WHOLE_ARRETE_ARTICLE_IDS = frozenset({"ALL", "END", "APPENDIX"})
 
@@ -44,11 +47,6 @@ def has_unresolved_ops(arrete_file: ArreteFile, operations: list[Operation]) -> 
     """Return True when at least one outgoing operation is not resolved."""
     outgoing = [op for op in operations if op.source_id.arrete_id == arrete_file.id]
     return any(op.status_code != StatusCode.RESOLVED for op in outgoing)
-
-
-def detect_additional_prescriptions(arrete_files: list[ArreteFile]) -> str:
-    # TODO: add LLM calls to detect non-modifying additional prescriptions?
-    return ""
 
 
 def _format_target_reference(op: Operation) -> str:

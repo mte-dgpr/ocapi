@@ -434,6 +434,14 @@ class Operation(_BaseModelWithConfig):
         return v if isinstance(v, OperationType) else OperationType(v)
 
 
+def _to_operation_type(raw_type: OperationType | str) -> OperationType:
+    """Ensure we always work with an OperationType instance."""
+    if isinstance(raw_type, OperationType):
+        return raw_type
+    raw_str = getattr(raw_type, "value", raw_type)
+    return OperationType(raw_str)
+
+
 def categorize_arrete(filename: str) -> FileType:
     """Categorise an arrêté file based on its filename.
 

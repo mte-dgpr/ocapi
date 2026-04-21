@@ -19,7 +19,8 @@
 from bs4 import BeautifulSoup
 
 from ocapi.utils.arretify_utils import extract_and_strip_images, extract_specs
-from ocapi.utils.utils import _assert_html_equal, minify_html_fragment
+from ocapi.utils.testing import assert_html_equal
+from ocapi.utils.utils import minify_html_fragment
 
 
 def test_extract_specs_returns_only_requested_data_spec() -> None:
@@ -63,5 +64,5 @@ def test_extract_and_strip_images() -> None:
         "IMG_001": "http://example.com/image2.jpg",
     }
 
-    _assert_html_equal(modified_html, minify_html_fragment(expected_modified_html))
+    assert_html_equal(modified_html, minify_html_fragment(expected_modified_html))
     assert img_map == expected_img_map

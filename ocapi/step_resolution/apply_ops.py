@@ -48,6 +48,7 @@ from ocapi.types import (
     OperationType,
     StatusCode,
     SubTargetType,
+    _to_operation_type,
     article_display_number,
 )
 from ocapi.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
@@ -59,6 +60,7 @@ from ocapi.utils.subtarget_utils import (
     is_simple_subtarget,
     replace_subtarget,
 )
+from ocapi.utils.utils import ensure_soup, normalize_title_text
 
 _LOGGER = get_logger(__name__)
 LLM_CFG = config_model_llm()
@@ -80,14 +82,6 @@ def _is_unambiguous_all_operation(op: Operation) -> bool:
     return op.sub_target is not None and op.sub_target.type == SubTargetType.FULL_SECTION
 
 
-def _to_operation_type(raw_type: OperationType | str) -> OperationType:
-    """Ensure we always work with an OperationType instance."""
-    if isinstance(raw_type, OperationType):
-        return raw_type
-    raw_str = getattr(raw_type, "value", raw_type)
-    return OperationType(raw_str)
-
-
 def _edge_to_operation(
     operations_graph: nx.MultiDiGraph, src: NodeId, tgt: NodeId, key: int
 ) -> Operation:
@@ -104,18 +98,6 @@ def _edge_to_operation(
         status_code=data.get("status_code", None),
     )
     return operation
-
-
-def _ensure_soup(soup_input: Content | BeautifulSoup) -> BeautifulSoup:
-    return (
-        soup_input
-        if isinstance(soup_input, BeautifulSoup)
-        else BeautifulSoup(soup_input, "html.parser")
-    )
-
-
-def _normalize_title_text(text: str) -> str:
-    return re.sub(r"\s+", " ", text).strip().lower()
 
 
 def _strip_duplicate_section_title(
@@ -144,7 +126,7 @@ def _strip_duplicate_section_title(
     if target_title is None:
         return operand
 
-    if _normalize_title_text(operand_title.get_text()) != _normalize_title_text(
+    if normalize_title_text(operand_title.get_text()) != normalize_title_text(
         target_title.get_text()
     ):
         return operand
@@ -195,7 +177,7 @@ def apply_replace(
     """
     if operation.sub_target is None or operation.operand is None:
         raise OperationError("REPLACE operations require sub_target and operand.")
-    soup = _ensure_soup(soup_input)
+    soup = ensure_soup(soup_input)
     if is_simple_subtarget(operation.sub_target):
         try:
             modified_soup = replace_subtarget(soup, operation.sub_target, operation.operand)
@@ -256,7 +238,7 @@ def apply_remove(
     if operation.sub_target is None:
         raise OperationError("REMOVE operations require sub_target.")
     sub_target = operation.sub_target
-    soup = _ensure_soup(soup_input)
+    soup = ensure_soup(soup_input)
     if is_simple_subtarget(sub_target):
         try:
             modified_soup = replace_subtarget(soup, sub_target, "")
@@ -363,7 +345,7 @@ def apply_add(
     if operation.sub_target is None:
         raise OperationError("ADD operations require sub_target.")
     sub_target = operation.sub_target
-    soup = _ensure_soup(soup_input)
+    soup = ensure_soup(soup_input)
     st = sub_target.type
     if isinstance(st, str):
         st = SubTargetType(st)

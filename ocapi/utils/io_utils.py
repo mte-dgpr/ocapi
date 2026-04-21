@@ -19,7 +19,6 @@
 """
 Utilities for input/output operations.
 """
-import hashlib
 import json
 from pathlib import Path
 from typing import Any, cast
@@ -27,6 +26,7 @@ from typing import Any, cast
 from bs4 import BeautifulSoup
 
 from ocapi.exceptions import InputOutputError, InvalidFileFormatError
+from ocapi.utils.utils import html_checksum
 from ocapi.types import (
     ArreteFile,
     ArticleHistory,
@@ -135,11 +135,6 @@ def _is_excluded_file_type(filename: str) -> bool:
     return any(pattern in filename_lower for pattern in EXCLUDED_FILE_TYPE_PATTERNS)
 
 
-def _html_checksum(soup: BeautifulSoup) -> str:
-    """Return an MD5 hex digest of the serialised HTML."""
-    return hashlib.md5(str(soup).encode("utf-8")).hexdigest()
-
-
 def filter_and_deduplicate_arrete_files(
     arrete_files: list[ArreteFile],
 ) -> list[ArreteFile]:
@@ -181,9 +176,9 @@ def filter_and_deduplicate_arrete_files(
         for ft, type_files in by_type.items():
             keeper = type_files[0]
             if len(type_files) > 1:
-                keeper_cs = _html_checksum(keeper.soup)
+                keeper_cs = html_checksum(keeper.soup)
                 for other in type_files[1:]:
-                    if _html_checksum(other.soup) == keeper_cs:
+                    if html_checksum(other.soup) == keeper_cs:
                         _LOGGER.info(
                             f"AP doublon rencontré: {other.filename} "
                             f"(identique à {keeper.filename})"

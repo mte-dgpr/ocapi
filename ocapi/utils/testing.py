@@ -35,6 +35,13 @@ from ocapi.types import (
 )
 
 
+def assert_html_equal(minified_html1: str, minified_html2: str) -> None:
+    """Compare HTML fragments after normalising whitespace."""
+    soup1 = BeautifulSoup(minified_html1, "html.parser")
+    soup2 = BeautifulSoup(minified_html2, "html.parser")
+    assert soup1.prettify() == soup2.prettify()
+
+
 def normalize_html(html: str) -> str:
     """Normalize trailing whitespace so stored snapshots match pipeline output."""
     lines = [line.rstrip() for line in html.splitlines()]

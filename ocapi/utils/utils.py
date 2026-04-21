@@ -16,12 +16,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import hashlib
+import html
 import re
 import unicodedata
 from dataclasses import dataclass
 from typing import Any
 
 from bs4 import BeautifulSoup
+
+from ocapi.types import Content
 
 
 def to_int_or_default(value: Any, default: int, minimum: int) -> int:
@@ -73,8 +77,40 @@ def minify_html_fragment(html: str) -> str:
     return s.strip()
 
 
-def _assert_html_equal(minified_html1: str, minified_html2: str) -> None:
-    """Compare deux HTML en normalisant les espaces blancs"""
-    soup1 = BeautifulSoup(minified_html1, "html.parser")
-    soup2 = BeautifulSoup(minified_html2, "html.parser")
-    assert soup1.prettify() == soup2.prettify()
+def html_checksum(soup: BeautifulSoup) -> str:
+    """Return an MD5 hex digest of the serialised HTML."""
+    return hashlib.md5(str(soup).encode("utf-8")).hexdigest()
+
+
+def find_marker(haystack: str, marker: str) -> int:
+    """Return the start index of marker in haystack, or -1 if not found."""
+    if not marker:
+        return -1
+    i = haystack.find(marker)
+    if i != -1:
+        return i
+    n = html.unescape(marker)
+    pattern = re.sub(r"\s+", r"\\s+", re.escape(n))
+    m = re.search(pattern, haystack, flags=re.IGNORECASE | re.DOTALL)
+    return m.start() if m else -1
+
+
+def ensure_soup(soup_input: Content | BeautifulSoup) -> BeautifulSoup:
+    return (
+        soup_input
+        if isinstance(soup_input, BeautifulSoup)
+        else BeautifulSoup(soup_input, "html.parser")
+    )
+
+
+def normalize_title_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def strip_none_values(obj: Any) -> Any:
+    """Recursively drop ``None`` values so snapshot JSON matches across Pydantic versions."""
+    if isinstance(obj, dict):
+        return {k: strip_none_values(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, list):
+        return [strip_none_values(x) for x in obj]
+    return obj
