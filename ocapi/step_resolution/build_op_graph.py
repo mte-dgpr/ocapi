@@ -28,6 +28,7 @@ import networkx as nx
 from bs4 import BeautifulSoup
 
 from ocapi.exceptions import SectionNotFoundError
+from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC, ARRETIFY_SECTION_DATA_SPEC
 from ocapi.types import (
     ArreteFile,
     ArreteId,
@@ -141,12 +142,12 @@ def get_node_content(node: NodeId, soup: BeautifulSoup) -> Tuple[str, str]:
 
     if article_id.startswith("APPENDIX"):
         article_id = article_id.split("APPENDIX:", 1)[1]
-        appendix_tag = soup.select_one('footer[data-spec="appendix"]')
+        appendix_tag = soup.select_one(f'footer[data-spec="{ARRETIFY_APPENDIX_DATA_SPEC}"]')
         if appendix_tag is None:
             raise SectionNotFoundError(f"Section {article_id} not found in arrete {arrete_id}")
         else:
             section_tag = appendix_tag.select_one(
-                f'section[data-spec="section"][data-number="{article_id}"]'
+                f'section[data-spec="{ARRETIFY_SECTION_DATA_SPEC}"][data-number="{article_id}"]'
             )
             if section_tag is None:
                 raise SectionNotFoundError(
@@ -154,7 +155,9 @@ def get_node_content(node: NodeId, soup: BeautifulSoup) -> Tuple[str, str]:
                 )
             return split_section_title(str(section_tag))
 
-    section_tag = soup.select_one(f'section[data-spec="section"][data-number="{article_id}"]')
+    section_tag = soup.select_one(
+        f'section[data-spec="{ARRETIFY_SECTION_DATA_SPEC}"][data-number="{article_id}"]'
+    )
     if section_tag is None:
         raise SectionNotFoundError(f"Section {article_id} not found in arrete {arrete_id}")
     return split_section_title(str(section_tag))

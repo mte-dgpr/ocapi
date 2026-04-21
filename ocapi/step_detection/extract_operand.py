@@ -25,6 +25,8 @@ from bs4 import BeautifulSoup
 
 from ocapi.types import StatusCode
 from ocapi.utils.arretify_utils import (
+    ARRETIFY_APPENDIX_DATA_SPEC,
+    ARRETIFY_SECTION_DATA_SPEC,
     rehydrate_images,
 )
 from ocapi.utils.logging_utils import get_logger
@@ -57,7 +59,7 @@ def pick_arretify_section(
 
     # Case 1: "APPENDIX" — return the entire appendix footer
     if source_article == "APPENDIX":
-        footer = soup.find("footer", attrs={"data-spec": "appendix"})
+        footer = soup.find("footer", attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC})
         if footer:
             return str(footer)
         _LOGGER.error(
@@ -69,9 +71,11 @@ def pick_arretify_section(
     # Case 2: "APPENDIX:X" or "APPENDIX:X.Y.Z" — search inside the appendix footer
     if source_article.startswith("APPENDIX:"):
         appendix_number = source_article.split("APPENDIX:", 1)[1]
-        footer = soup.find("footer", attrs={"data-spec": "appendix"})
+        footer = soup.find("footer", attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC})
         if footer:
-            for section in footer.find_all("section", attrs={"data-spec": "section"}):
+            for section in footer.find_all(
+                "section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC}
+            ):
                 data_number = section.get("data-number")
                 if data_number == appendix_number:
                     return str(section)
@@ -82,7 +86,7 @@ def pick_arretify_section(
         return None
 
     # Case 3: Normal article (e.g. "2.1.3")
-    for section in soup.find_all("section", attrs={"data-spec": "section"}):
+    for section in soup.find_all("section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC}):
         data_number = section.get("data-number")
         if data_number == source_article:
             return str(section)

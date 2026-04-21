@@ -121,6 +121,11 @@ def test_article_id_sort_tuple_unknown_falls_back_to_sentinel() -> None:
     assert article_id_sort_tuple("ZZZ") == (999_999,)
 
 
+def test_article_id_sort_tuple_appendix_orders_by_numeric_suffix() -> None:
+    assert article_id_sort_tuple("APPENDIX:2.1") < article_id_sort_tuple("APPENDIX:2.2")
+    assert article_id_sort_tuple("APPENDIX:2.1") < article_id_sort_tuple("APPENDIX:10")
+
+
 class TestParseArreteId:
 
     def test_valid_date(self) -> None:

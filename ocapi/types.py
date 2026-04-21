@@ -21,15 +21,14 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Optional, TypedDict
 
-import roman
+from arretify.parsing_utils.numbering import str_to_levels
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, field_validator
 from typing_extensions import NotRequired
 
-from ocapi.utils.logging_utils import get_logger
-
 from .config import SUPPORTED_ARRETIFY_VERSION, SUPPORTED_ARRETIFY_VERSION_PATTERN, settings
 from .exceptions import InvalidArreteIdError, InvalidArticleIdError, InvalidFileFormatError
+from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
 
@@ -82,29 +81,25 @@ def article_display_number(article_id: str) -> str:
     return article_id
 
 
-def _parse_segment(token: str) -> int:
-    """Convert a single article-id segment to an integer for sorting.
-
-    Tries, in order: plain integer, Roman numeral, single letter A–H.
-    Falls back to a high sentinel so unknown tokens sort last.
-    """
-    try:
-        return int(token)
-    except ValueError:
-        pass
-    try:
-        return int(roman.fromRoman(token.upper()))
-    except roman.InvalidRomanNumeralError:
-        pass
-    if len(token) == 1 and "A" <= token.upper() <= "H":
-        return ord(token.upper()) - ord("A") + 1
-    return 999_999
+def _numbering_fragment_for_sort(article_id: str) -> str:
+    s = article_display_number(article_id)
+    if s.startswith("APPENDIX:"):
+        return s[len("APPENDIX:") :]
+    return s
 
 
 def article_id_sort_tuple(article_id: str) -> tuple[int, ...]:
     """Lexicographic order key for dotted article ids (e.g. ``4.1`` < ``4.2`` < ``10``)."""
-    s = article_display_number(article_id)
-    return tuple(_parse_segment(tok) for tok in re.split(r"[.\-]", s))
+    fragment = _numbering_fragment_for_sort(article_id).strip()
+    if not fragment:
+        return (999_999,)
+    try:
+        levels = str_to_levels(fragment)
+    except ValueError:
+        return (999_999,)
+    if levels is None:
+        return (999_999,)
+    return tuple(levels)
 
 
 def parse_arrete_id(v: str) -> str:
@@ -421,8 +416,6 @@ class SubTarget(_BaseModelWithConfig):
 
 
 class Operation(_BaseModelWithConfig):
-    # TODO: keep a reference to source arrêté and an incrementing index
-    # for each identical target in that arrêté
     id: OperationId
     source_id: NodeId
     target_id: NodeId

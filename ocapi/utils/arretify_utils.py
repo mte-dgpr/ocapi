@@ -18,9 +18,13 @@
 #
 from typing import Tuple
 
+from arretify.semantic_tag_specs import AppendixSpec, SectionSpec
 from bs4 import BeautifulSoup, Tag
 
 from ocapi.types import ImageMap
+
+ARRETIFY_SECTION_DATA_SPEC = SectionSpec.spec_name
+ARRETIFY_APPENDIX_DATA_SPEC = AppendixSpec.spec_name
 
 
 def list_top_sections(soup: BeautifulSoup | Tag) -> list[Tag]:
@@ -94,7 +98,7 @@ def extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
 def is_arretify_section(tag: object) -> bool:
     if not isinstance(tag, Tag):
         return False
-    if tag.get("data-spec") == "section":
+    if tag.get("data-spec") == ARRETIFY_SECTION_DATA_SPEC:
         return True
     return False
 

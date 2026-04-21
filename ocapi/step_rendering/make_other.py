@@ -31,6 +31,7 @@ from ocapi.types import (
     status_code_reason,
 )
 from ocapi.utils.arretify_utils import (
+    ARRETIFY_SECTION_DATA_SPEC,
     extract_first_spec_html,
     extract_main,
 )
@@ -108,7 +109,7 @@ def _inject_messages_into_main(main_html: str, messages: dict[str, list[str]]) -
     if not messages:
         return main_html
     soup = BeautifulSoup(main_html, "html.parser")
-    for section in soup.find_all("section", attrs={"data-spec": "section"}):
+    for section in soup.find_all("section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC}):
         article_id = section.get("data-number")
         if not isinstance(article_id, str) or article_id not in messages:
             continue

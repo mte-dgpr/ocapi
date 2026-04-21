@@ -33,6 +33,7 @@ from ocapi.types import (
     RawOperationType,
     SubTarget,
 )
+from ocapi.utils.arretify_utils import ARRETIFY_SECTION_DATA_SPEC
 
 
 def assert_html_equal(minified_html1: str, minified_html2: str) -> None:
@@ -61,7 +62,7 @@ def make_arrete(
         html = f"""
     <html><body data-arretify_version="0.2.0">
      <main data-spec="main">
-      <section data-spec="section" data-number="1"><p>{arrete_id}</p></section>
+      <section data-spec="{ARRETIFY_SECTION_DATA_SPEC}" data-number="1"><p>{arrete_id}</p></section>
      </main>
     </body></html>
     """

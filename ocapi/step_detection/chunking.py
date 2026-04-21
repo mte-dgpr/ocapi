@@ -29,6 +29,7 @@ from langchain_core.documents import Document
 
 from ocapi.types import ArreteFile, ImageMap
 from ocapi.utils.arretify_utils import (
+    ARRETIFY_SECTION_DATA_SPEC,
     extract_and_strip_images,
     is_arretify_section,
     is_arretify_section_title,
@@ -39,7 +40,7 @@ from ocapi.utils.utils import minify_html_fragment
 
 _LOGGER = get_logger(__name__)
 
-_ARRETIFY_SECTION_SELECTOR = '*[data-spec="section"]'
+_ARRETIFY_SECTION_SELECTOR = f'*[data-spec="{ARRETIFY_SECTION_DATA_SPEC}"]'
 
 
 def split_blocks(
