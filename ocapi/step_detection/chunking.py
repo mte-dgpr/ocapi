@@ -29,7 +29,7 @@ from langchain_core.documents import Document
 
 from ocapi.types import ArreteFile, ImageMap
 from ocapi.utils.arretify_utils import (
-    ARRETIFY_SECTION_DATA_SPEC,
+    ARRETIFY_SECTION_SELECTOR,
     extract_and_strip_images,
     is_arretify_section,
     is_arretify_section_title,
@@ -39,8 +39,6 @@ from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.utils import minify_html_fragment
 
 _LOGGER = get_logger(__name__)
-
-_ARRETIFY_SECTION_SELECTOR = f'*[data-spec="{ARRETIFY_SECTION_DATA_SPEC}"]'
 
 
 def split_blocks(
@@ -70,7 +68,7 @@ def split_blocks(
     ignored_sections: list[Tag] = []
     selected_sections: list[Tag] = []
 
-    for section in minified_soup.select(_ARRETIFY_SECTION_SELECTOR):
+    for section in minified_soup.select(ARRETIFY_SECTION_SELECTOR):
         if section in ignored_sections:
             continue
         if all(
@@ -79,7 +77,7 @@ def split_blocks(
         ):
             continue
 
-        child_sections = section.select(_ARRETIFY_SECTION_SELECTOR)
+        child_sections = section.select(ARRETIFY_SECTION_SELECTOR)
         selected_sections.append(section)
         if child_sections:
             ignored_sections.extend(child_sections)

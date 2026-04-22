@@ -26,6 +26,8 @@ from ocapi.types import ImageMap
 ARRETIFY_SECTION_DATA_SPEC = SectionSpec.spec_name
 ARRETIFY_APPENDIX_DATA_SPEC = AppendixSpec.spec_name
 
+ARRETIFY_SECTION_SELECTOR = f'*[data-spec="{ARRETIFY_SECTION_DATA_SPEC}"]'
+
 
 def list_top_sections(soup: BeautifulSoup | Tag) -> list[Tag]:
     """Return top-level sections in the document (with no parent section)."""
