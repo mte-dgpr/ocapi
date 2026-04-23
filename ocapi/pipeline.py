@@ -16,9 +16,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from arretify.types import DocumentContext
+
 from ocapi.step_detection.step_detection import _OPERATION_ID_COUNTER, step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
+from ocapi.step_tagging import step_tagging
 from ocapi.types import ArreteFile, ArticleHistory, Operation, Permis
 from ocapi.utils.logging_utils import get_logger
 
@@ -32,6 +35,8 @@ def run_pipeline(
     enable_rendering: bool = True,
     enable_llm: bool = True,
     operations: list[Operation] | None = None,
+    document_contexts: list[DocumentContext] | None = None,
+    enable_tagging: bool = True,
 ) -> tuple[list[Operation], ArticleHistory, list[ArreteFile], Permis | None]:
     """Run the full OCAPI pipeline.
 
@@ -50,6 +55,13 @@ def run_pipeline(
     operations : list[Operation] | None
         Pre-loaded operations to use when enable_detection is False (snapshot mode).
         Callers load from disk via :func:`ocapi.utils.io_utils.load_operations` when needed.
+    document_contexts : list[DocumentContext] | None
+        Arrêtify document contexts paired index-for-index with ``arrete_files``.
+        Required when ``enable_tagging`` is True; obtained via
+        :func:`ocapi.utils.io_utils.load_document_contexts`.
+    enable_tagging : bool
+        If True, run :func:`ocapi.step_tagging.step_tagging` on each document
+        context before detection. No-op when ``document_contexts`` is None.
 
     Returns
     -------
@@ -65,6 +77,20 @@ def run_pipeline(
         _LOGGER.info(f"Detection start date: {start_date}")
 
     ops: list[Operation] = operations if operations is not None else []
+
+    if enable_tagging and document_contexts is not None:
+        if len(document_contexts) != len(arrete_files):
+            raise ValueError(
+                "document_contexts must align index-for-index with arrete_files "
+                f"(got {len(document_contexts)} vs {len(arrete_files)})"
+            )
+        _LOGGER.info("=" * 60)
+        _LOGGER.info("STEP 0: TAGGING")
+        _LOGGER.info("=" * 60)
+        for arrete_file, document_context in zip(arrete_files, document_contexts):
+            _LOGGER.info(f"Tagging operations in {arrete_file.id}...")
+            step_tagging(document_context)
+            arrete_file.soup = document_context.soup
 
     if enable_detection:
         # ========================================
