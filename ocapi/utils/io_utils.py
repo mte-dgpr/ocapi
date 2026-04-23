@@ -23,6 +23,8 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
+from arretify.settings import Settings
+from arretify.types import DocumentContext, SessionContext
 from bs4 import BeautifulSoup, Tag
 
 from ocapi.exceptions import InputOutputError, InvalidFileFormatError
@@ -76,6 +78,7 @@ __all__ = [
     "initialize_arrete_files",
     "filter_and_deduplicate_arrete_files",
     "load_arrete_files",
+    "load_document_contexts",
     "write_permis_output",
     "write_json_output",
     "read_json",
@@ -331,6 +334,81 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
     arrete_files = initialize_arrete_files(html_files, aiot)
     _LOGGER.info(f"{len(arrete_files)} arrêté(s) loaded")
     return arrete_files
+
+
+def _make_session_context() -> SessionContext:
+    """Build a minimal Arrêtify session context for local HTML processing."""
+    return SessionContext(settings=Settings())
+
+
+def _load_document_context(session_context: SessionContext, input_path: Path) -> DocumentContext:
+    # Equivalent to ``arretify.pipeline.load_html_file``, inlined to avoid pulling
+    # ``arretify.step_segmentation`` (and its spaCy model) at import time.
+    with open(input_path, encoding="utf-8") as f:
+        html_content = f.read()
+    soup = BeautifulSoup(html_content, features="html.parser")
+    return DocumentContext.from_session_context(
+        session_context,
+        input_path=input_path,
+        soup=soup,
+    )
+
+
+def load_document_contexts(
+    input_dir: Path,
+    aiot: str,
+) -> list[tuple[ArreteFile, DocumentContext]]:
+    """Load HTML files into paired Arrêtify ``DocumentContext`` / ocapi ``ArreteFile``.
+
+    Each returned ``ArreteFile`` shares its ``soup`` with the paired
+    ``DocumentContext`` so that steps mutating the soup through Arrêtify
+    APIs remain visible on the ocapi side.
+
+    Parameters
+    ----------
+    input_dir : Path
+        Directory containing the HTML files.
+    aiot : str
+        AIOT identifier of the installation.
+    """
+    _LOGGER.info(f"Loading arrêtés (arretify I/O) from: {input_dir}")
+    html_files = load_html_files(input_dir)
+
+    session_context = _make_session_context()
+    pairs: list[tuple[ArreteFile, DocumentContext]] = []
+    for html_path in html_files:
+        try:
+            arrete_id, file_type = parse_filename(html_path.name)
+        except InvalidFileFormatError as e:
+            _LOGGER.warning(f"File skipped (invalid format): {html_path.name} - Reason: {e}")
+            continue
+
+        document_context = _load_document_context(session_context, html_path)
+
+        try:
+            validate_arretify_version(document_context.soup, html_path.name)
+        except InvalidFileFormatError as e:
+            _LOGGER.warning(
+                f"File skipped (incompatible Arrêtify version): {html_path.name} - Reason: {e}"
+            )
+            continue
+
+        arrete = ArreteFile(
+            id=arrete_id,
+            aiot=aiot,
+            filename=html_path.name,
+            soup=document_context.soup,
+            file_type=file_type,
+        )
+        pairs.append((arrete, document_context))
+        file_type_str = file_type.value if file_type else "unknown"
+        _LOGGER.info(f"Loaded: {html_path.name} (id={arrete_id}, type={file_type_str})")
+
+    kept = filter_and_deduplicate_arrete_files([af for af, _ in pairs])
+    dc_by_filename = {af.filename: dc for af, dc in pairs}
+    result = [(af, dc_by_filename[af.filename]) for af in kept]
+    _LOGGER.info(f"{len(result)} arrêté(s) loaded")
+    return result
 
 
 def write_permis_output(permis_html: str, output_path: Path) -> None:
