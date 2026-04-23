@@ -205,6 +205,7 @@ class ErrorCode(str, Enum):
     # Sub-target requires LLM consolidation; must not block later operations as an error.
     COMPLEX_SUBTARGET = "complex_subtarget"
     ERROR_EXTRACTING_TARGET = "error_extracting_target"
+    ERROR_EXTRACTING_SOURCE = "error_extracting_source"
     PROPAGATED_ERROR = "propagated_error"
     DISABLED_LLM_CALL = "disabled_llm_call"
 
@@ -232,6 +233,9 @@ ERROR_CODE_MESSAGES: dict[ErrorCode, str] = {
     ),
     ErrorCode.ERROR_EXTRACTING_TARGET: (
         "L'article cible de l'opération n'a pas pu être extrait de l'arrêté concerné"
+    ),
+    ErrorCode.ERROR_EXTRACTING_SOURCE: (
+        "L'article source de l'opération n'a pas pu être extrait de l'arrêté concerné"
     ),
     ErrorCode.ERROR_FINDING_SUBTARGET: (
         "La sous-cible de l'opération n'a pas pu être trouvée dans l'article cible"

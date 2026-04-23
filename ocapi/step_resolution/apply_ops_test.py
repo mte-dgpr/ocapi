@@ -29,6 +29,7 @@ from ocapi.step_resolution.apply_ops import (
     apply_add,
     apply_all_ops,
     apply_remove,
+    apply_replace,
     apply_subgraph_operations,
     build_next_subgraph,
 )
@@ -1177,3 +1178,93 @@ def test_apply_subgraph_operations_resolved_status_dict(
         "op-add": frozenset(),
         "op-err": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
     }
+
+
+# ---------------------------------------------------------------------------
+# ERROR_EXTRACTING_SOURCE short-circuits the LLM fallback in apply_*
+# ---------------------------------------------------------------------------
+
+
+@mock.patch("ocapi.step_resolution.apply_ops.call_llm_api")
+def test_apply_replace_complex_subtarget_error_extracting_source(
+    mock_llm: mock.Mock,
+) -> None:
+    """REPLACE with a complex sub-target and ERROR_EXTRACTING_SOURCE returns unchanged content."""
+    op = Operation(
+        id="op-replace-src-err",
+        source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+        operand="<p>new</p>",
+        sub_target=SubTarget(type=SubTargetType.COMPLEX, description="ligne 3"),
+        error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE}),
+    )
+    html = "<section data-number='1'><p>keep me</p></section>"
+
+    error_codes, out = apply_replace(op, BeautifulSoup(html, "html.parser"))
+
+    assert error_codes == frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE})
+    assert "keep me" in out
+    mock_llm.assert_not_called()
+
+
+@mock.patch("ocapi.step_resolution.apply_ops.call_llm_api")
+def test_apply_remove_complex_subtarget_error_extracting_source(mock_llm: mock.Mock) -> None:
+    """REMOVE with a complex sub-target and ERROR_EXTRACTING_SOURCE returns unchanged content."""
+    op = Operation(
+        id="op-remove-src-err",
+        source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
+        operation_type=OperationType.REMOVE,
+        sub_target=SubTarget(type=SubTargetType.COMPLEX, description="ligne 3"),
+        error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE}),
+    )
+    html = "<section data-number='1'><p>keep me</p></section>"
+
+    error_codes, out = apply_remove(op, BeautifulSoup(html, "html.parser"))
+
+    assert error_codes == frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE})
+    assert "keep me" in out
+    mock_llm.assert_not_called()
+
+
+@mock.patch("ocapi.step_resolution.apply_ops.call_llm_api")
+def test_apply_add_complex_subtarget_error_extracting_source(mock_llm: mock.Mock) -> None:
+    """ADD with a complex sub-target and ERROR_EXTRACTING_SOURCE returns unchanged content."""
+    op = Operation(
+        id="op-add-src-err",
+        source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
+        operation_type=OperationType.ADD,
+        operand="<p>new</p>",
+        sub_target=SubTarget(type=SubTargetType.COMPLEX, description="après la ligne 3"),
+        error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE}),
+    )
+    html = "<section data-number='1'><p>keep me</p></section>"
+
+    error_codes, out = apply_add(op, BeautifulSoup(html, "html.parser"))
+
+    assert error_codes == frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE})
+    assert "keep me" in out
+    mock_llm.assert_not_called()
+
+
+@mock.patch("ocapi.step_resolution.apply_ops.call_llm_api")
+def test_apply_replace_simple_subtarget_ignores_source_error(mock_llm: mock.Mock) -> None:
+    """Simple sub-targets don't use the source, so the operation still resolves."""
+    op = Operation(
+        id="op-replace-simple-src-err",
+        source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+        operand="remplacé",
+        sub_target=SubTarget(type=SubTargetType.PHRASE, description="à changer"),
+        error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE}),
+    )
+    html = "<p>phrase à changer ici</p>"
+
+    error_codes, out = apply_replace(op, BeautifulSoup(html, "html.parser"))
+
+    assert error_codes == frozenset()
+    assert "remplacé" in out
+    mock_llm.assert_not_called()

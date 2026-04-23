@@ -235,7 +235,19 @@ def build_graph(
                 )
 
             source_soup = soups[op.source_id.arrete_id]
-            source_title, source_content = get_node_content(op.source_id, source_soup)
+            try:
+                source_title, source_content = get_node_content(op.source_id, source_soup)
+            except SectionNotFoundError:
+                _LOGGER.warning(
+                    "Operation %s: source section %s not found — "
+                    "creating empty node with ERROR_EXTRACTING_SOURCE",
+                    op.id,
+                    op.source_id,
+                )
+                source_title, source_content = "", ""
+                op = op.model_copy(
+                    update={"error_codes": op.error_codes | {ErrorCode.ERROR_EXTRACTING_SOURCE}}
+                )
             add_node(G, op.source_id, node_content=source_content, node_title=source_title)
             add_node(G, op.target_id, node_content=target_content, node_title=target_title)
             add_edge(G, op)

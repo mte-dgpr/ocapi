@@ -454,3 +454,50 @@ def test_build_graph_missing_target_section_creates_empty_node_with_error() -> N
     edge_data = G.get_edge_data(NodeId(arrete_id="1981-01-01", article_id="1"), target, 0)
     assert edge_data is not None
     assert edge_data["error_codes"] == [ErrorCode.ERROR_EXTRACTING_TARGET.value]
+
+
+def test_build_graph_missing_source_section_creates_empty_node_with_error() -> None:
+    """When the source section is not found, the node is created with empty content
+    and the operation carries ERROR_EXTRACTING_SOURCE."""
+    html_1980 = """
+    <section data-spec="section" data-number="2">Article 2 content</section>
+    """
+    html_1981 = """
+    <section data-spec="section" data-number="1">Article 1 source</section>
+    """
+    arrete_files = [
+        ArreteFile(
+            id="1980-01-01",
+            aiot="aiot1",
+            filename="1980-01-01.html",
+            soup=BeautifulSoup(html_1980, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+        ArreteFile(
+            id="1981-01-01",
+            aiot="aiot1",
+            filename="1981-01-01.html",
+            soup=BeautifulSoup(html_1981, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
+    source = NodeId(arrete_id="1981-01-01", article_id="42")
+    target = NodeId(arrete_id="1980-01-01", article_id="2")
+    operations = [
+        Operation(
+            id="op-missing-source",
+            source_id=source,
+            target_id=target,
+            operation_type=OperationType.REPLACE,
+            operand="new",
+            sub_target=SubTarget(type=SubTargetType.COMPLEX, description="ligne 3"),
+        ),
+    ]
+    G, _, skipped_ops, _ = build_graph(operations, arrete_files)
+
+    assert len(skipped_ops) == 0
+    assert G.has_node(source)
+    assert G.nodes[source].get("content") == ""
+    edge_data = G.get_edge_data(source, target, 0)
+    assert edge_data is not None
+    assert edge_data["error_codes"] == [ErrorCode.ERROR_EXTRACTING_SOURCE.value]
