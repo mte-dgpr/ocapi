@@ -21,8 +21,10 @@ from typing import cast
 import pytest
 from bs4 import BeautifulSoup
 
+from ocapi.exceptions import OcapiError
 from ocapi.step_rendering.make_main_content import (
     _is_abrogated,
+    _select_initial_ap,
     make_permit_content,
     make_section_version,
 )
@@ -778,3 +780,29 @@ class TestIsAbrogated:
             sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="titre uniquement"),
         )
         assert _is_abrogated(make_article_version("op-other"), {"op-other": op}) is False
+
+
+class TestSelectInitialAp:
+    """Cover the user-provided principal flag in _select_initial_ap."""
+
+    def test_principal_flag_overrides_heuristic(self) -> None:
+        older = make_arrete("2018-01-01", file_type=FileType.AP_AUTORISATION)
+        refonte = make_arrete("2022-01-01", file_type=FileType.AP_AUTORISATION)
+        older.principal = True
+
+        assert _select_initial_ap([older, refonte]) is older
+
+    def test_multiple_principals_raise(self) -> None:
+        first = make_arrete("2018-01-01")
+        second = make_arrete("2022-01-01")
+        first.principal = True
+        second.principal = True
+
+        with pytest.raises(OcapiError):
+            _select_initial_ap([first, second])
+
+    def test_no_principal_keeps_existing_heuristic(self) -> None:
+        older = make_arrete("2018-01-01", file_type=FileType.AP_AUTORISATION)
+        refonte = make_arrete("2022-01-01", file_type=FileType.AP_AUTORISATION)
+
+        assert _select_initial_ap([older, refonte]) is refonte

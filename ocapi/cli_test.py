@@ -19,7 +19,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from ocapi.cli import main
+from ocapi.cli import main, run_main
+from ocapi.utils.testing import make_arrete
 
 
 @patch("ocapi.cli.initialize_root_logger")
@@ -150,3 +151,56 @@ def test_cli_defaults(
     assert kwargs.get("enable_rendering") is True
     assert kwargs.get("output_dir") is None
     assert kwargs.get("aiot") is None
+    assert kwargs.get("principal_id") is None
+
+
+@patch("ocapi.cli.initialize_root_logger")
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_principal_id_is_forwarded(
+    mock_main: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
+    """--principal-id is parsed and forwarded to run_main."""
+    main(["run", "some/arretes_html/0005804239", "--principal-id", "2024-09-27"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("principal_id") == "2024-09-27"
+
+
+@patch("ocapi.cli.run_pipeline")
+@patch("ocapi.cli.load_arrete_files")
+def test_run_main_principal_id_flags_matching_arrete(
+    mock_load: MagicMock, mock_pipeline: MagicMock
+) -> None:
+    """--principal-id marks the matching arrêté before the pipeline runs."""
+    arretes = [make_arrete("2020-01-01"), make_arrete("2024-09-27")]
+    mock_load.return_value = arretes
+    mock_pipeline.return_value = ([], {}, arretes, None)
+
+    exit_code = run_main(
+        Path("ignored"),
+        enable_rendering=False,
+        principal_id="2024-09-27",
+    )
+
+    assert exit_code == 0
+    assert arretes[0].principal is False
+    assert arretes[1].principal is True
+
+
+@patch("ocapi.cli.run_pipeline")
+@patch("ocapi.cli.load_arrete_files")
+def test_run_main_principal_id_missing_returns_error(
+    mock_load: MagicMock, mock_pipeline: MagicMock
+) -> None:
+    """--principal-id with no matching arrêté returns exit code 1 and skips the pipeline."""
+    mock_load.return_value = [make_arrete("2020-01-01")]
+
+    exit_code = run_main(
+        Path("ignored"),
+        enable_rendering=False,
+        principal_id="2030-01-01",
+    )
+
+    assert exit_code == 1
+    mock_pipeline.assert_not_called()

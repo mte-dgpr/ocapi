@@ -61,6 +61,7 @@ def main(
     start_date: str | None = None,
     enable_rendering: bool = True,
     operations_from: Path | None = None,
+    principal_id: str | None = None,
 ) -> int:
     """Run the complete OCAPI pipeline end to end.
 
@@ -74,6 +75,8 @@ def main(
         start_date: Detection start date (YYYY-MM-DD).
         enable_rendering: If True, generate the consolidated permit.
         operations_from: If set, loads ``operations.json`` from that directory; skips detection.
+        principal_id: Date (YYYY-MM-DD) of the arrêté to flag as principal.
+            Returns an error when no loaded arrêté matches that date.
 
     Returns:
         Exit code (0 = success, 1 = error).
@@ -109,6 +112,15 @@ def main(
         if not arrete_files:
             _LOGGER.error("No arrêté matches the specified IDs")
             return 1
+
+    if principal_id is not None:
+        matches = [af for af in arrete_files if af.id == principal_id]
+        if not matches:
+            _LOGGER.error(f"No arrêté found for --principal-id {principal_id}")
+            return 1
+        for af in matches:
+            af.principal = True
+        _LOGGER.info(f"Principal arrêté: {principal_id}")
 
     # Determine output paths
     if output_dir:
@@ -234,6 +246,11 @@ Examples:
         help="Directory containing operations.json (skips detection; snapshot mode, no LLM)",
     )
     parser.add_argument(
+        "--principal-id",
+        metavar="YYYY-MM-DD",
+        help="Date of the arrêté to flag as principal (must match a loaded arrêté)",
+    )
+    parser.add_argument(
         "--no-rendering",
         action="store_true",
         help="Skip consolidated permit generation (step 4)",
@@ -280,6 +297,7 @@ Examples:
         start_date=args.start_date,
         enable_rendering=not args.no_rendering,
         operations_from=operations_from,
+        principal_id=args.principal_id,
     )
 
     sys.exit(exit_code)

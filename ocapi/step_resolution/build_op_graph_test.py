@@ -282,6 +282,46 @@ def test_build_graph_ill_defined_remove_all_does_not_abrogate() -> None:
     assert arrete_2006.status is True
 
 
+def test_build_graph_full_removal_on_principal_is_not_resolved() -> None:
+    """Full removal targeting the principal arrêté is blocked and marked as an error."""
+    html_2020 = """
+    <section data-spec="section" data-number="1">Article 1</section>
+    """
+    principal = ArreteFile(
+        id="2020-04-20",
+        aiot="aiot1",
+        filename="2020-04-20.html",
+        soup=BeautifulSoup(html_2020, "html.parser"),
+        file_type=FileType.AUTRE,
+        principal=True,
+    )
+    later = ArreteFile(
+        id="2021-01-01",
+        aiot="aiot1",
+        filename="2021-01-01.html",
+        soup=BeautifulSoup(
+            '<section data-spec="section" data-number="1">x</section>', "html.parser"
+        ),
+        file_type=FileType.AUTRE,
+    )
+
+    ops = [
+        Operation(
+            id="1",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
+            operation_type=OperationType.REMOVE,
+        )
+    ]
+
+    G, updated_arrete_files, _ = build_graph(ops, [principal, later])
+
+    assert len(G.nodes) == 0
+    assert len(G.edges) == 0
+    assert next(af for af in updated_arrete_files if af.id == "2020-04-20").status is True
+    assert ops[0].status_code == StatusCode.ERROR_EXTRACTING_TARGET
+
+
 def test_build_graph_remove_all_marks_arrete_abrogated() -> None:
     """REMOVE with target_article ALL must mark the target arrêté as abrogated."""
     html_2020 = """
