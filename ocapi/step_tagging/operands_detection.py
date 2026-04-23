@@ -27,24 +27,24 @@ from arretify.semantic_tag_specs import (
     SectionReferenceSpec,
 )
 from arretify.types import DocumentContext, ProtectedTag
-from arretify.utils.html_semantic import SemanticTagSpec
-
-PAGINATION_TAG_SPECS: list[SemanticTagSpec] = [
-    PageSeparatorSpec,
-    PageHeaderSpec,
-    PageFooterSpec,
-]
 from arretify.utils.html import ensure_tag_id, is_tag
 from arretify.utils.html_element_ranges import (
     get_contiguous_elements_left,
     get_contiguous_elements_right,
 )
 from arretify.utils.html_semantic import (
+    SemanticTagSpec,
     get_semantic_tag_data,
     is_semantic_tag,
     update_semantic_tag_data,
 )
 from arretify.utils.references import build_reference_tree
+
+PAGINATION_TAG_SPECS: list[SemanticTagSpec] = [
+    PageSeparatorSpec,
+    PageHeaderSpec,
+    PageFooterSpec,
+]
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Iterator, Sequence
+from typing import Iterator, Sequence, cast
 
 from arretify.parsing_utils.numbering import COUNT_PATTERN_S
 from arretify.regex_utils import (
@@ -315,11 +315,14 @@ def parse_operations(
     document_context: DocumentContext,
     contents: Sequence[ProtectedTagOrStr],
 ) -> list[ProtectedTagOrStr]:
-    return split_and_map_elements(
-        contents,
-        make_regex_tree_splitter(RTL_OPERATION_NODE),
-        lambda operation_match: _render_operation_match(
-            document_context.protected_soup, operation_match
+    return cast(
+        list[ProtectedTagOrStr],
+        split_and_map_elements(
+            contents,
+            make_regex_tree_splitter(RTL_OPERATION_NODE),
+            lambda operation_match: _render_operation_match(
+                document_context.protected_soup, operation_match
+            ),
         ),
     )
 

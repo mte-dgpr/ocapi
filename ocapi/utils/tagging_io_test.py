@@ -26,14 +26,15 @@ from arretify.semantic_tag_specs import (
 )
 from arretify.types import DocumentType
 from arretify.utils.testing import BaseTestCaseHtml
+from bs4 import Tag
 
 from ocapi.step_tagging import step_tagging
 from ocapi.types import RawOperationType
 from ocapi.utils.tagging_io import extract_operations_from_tagged_soup
 
 
-def _build_replace_alinea(case: BaseTestCaseHtml):
-    return case.make_semantic_tag(
+def _build_replace_alinea(case: BaseTestCaseHtml) -> Tag:
+    return case.make_semantic_tag(  # type: ignore[no-any-return]
         AlineaSpec,
         data=AlineaData(number=1),
         contents=[
@@ -62,8 +63,8 @@ def _build_replace_alinea(case: BaseTestCaseHtml):
     )
 
 
-def _build_add_alinea(case: BaseTestCaseHtml):
-    return case.make_semantic_tag(
+def _build_add_alinea(case: BaseTestCaseHtml) -> Tag:
+    return case.make_semantic_tag(  # type: ignore[no-any-return]
         AlineaSpec,
         data=AlineaData(number=1),
         contents=[
@@ -88,8 +89,8 @@ def _build_add_alinea(case: BaseTestCaseHtml):
     )
 
 
-def _build_delete_alinea(case: BaseTestCaseHtml):
-    return case.make_semantic_tag(
+def _build_delete_alinea(case: BaseTestCaseHtml) -> Tag:
+    return case.make_semantic_tag(  # type: ignore[no-any-return]
         AlineaSpec,
         data=AlineaData(number=1),
         contents=[
@@ -114,8 +115,8 @@ def _build_delete_alinea(case: BaseTestCaseHtml):
     )
 
 
-class TestExtractOperationsFromTaggedSoup(BaseTestCaseHtml):
-    def test_replace_operation(self):
+class TestExtractOperationsFromTaggedSoup(BaseTestCaseHtml):  # type: ignore[misc]
+    def test_replace_operation(self) -> None:
         self.soup_extend([_build_replace_alinea(self)])
         step_tagging(self.context)
 
@@ -129,7 +130,7 @@ class TestExtractOperationsFromTaggedSoup(BaseTestCaseHtml):
         assert op.source_article is None
         assert op.failure_message is None
 
-    def test_add_operation(self):
+    def test_add_operation(self) -> None:
         self.soup_extend([_build_add_alinea(self)])
         step_tagging(self.context)
 
@@ -140,7 +141,7 @@ class TestExtractOperationsFromTaggedSoup(BaseTestCaseHtml):
         assert ops[0].target_arrete == "2010-05-11"
         assert ops[0].target_article == "article 8 .6"
 
-    def test_delete_operation(self):
+    def test_delete_operation(self) -> None:
         self.soup_extend([_build_delete_alinea(self)])
         step_tagging(self.context)
 
@@ -151,7 +152,7 @@ class TestExtractOperationsFromTaggedSoup(BaseTestCaseHtml):
         assert ops[0].target_arrete == "2005-02-15"
         assert ops[0].target_article == "article 1 .2 .2"
 
-    def test_no_tags_returns_empty(self):
+    def test_no_tags_returns_empty(self) -> None:
         self.soup_extend(
             [
                 self.make_semantic_tag(

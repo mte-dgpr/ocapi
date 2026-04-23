@@ -35,9 +35,9 @@ from arretify.utils.testing import BaseTestCaseHtml, assert_elements_equal
 from .operands_detection import resolve_references_and_operands
 
 
-class TestParseOperations(BaseTestCaseHtml):
+class TestParseOperations(BaseTestCaseHtml):  # type: ignore[misc]
 
-    def test_several_references_no_operand(self):
+    def test_several_references_no_operand(self) -> None:
         # Arrange
         self.soup_extend(
             [
@@ -166,7 +166,7 @@ class TestParseOperations(BaseTestCaseHtml):
             ),
         )
 
-    def test_one_reference_one_operand(self):
+    def test_one_reference_one_operand(self) -> None:
         # Arrange
         self.soup_extend(
             [
@@ -283,7 +283,7 @@ class TestParseOperations(BaseTestCaseHtml):
             ),
         )
 
-    def test_with_single_document_reference(self):
+    def test_with_single_document_reference(self) -> None:
         # Arrange
         self.soup_extend(
             [
@@ -359,7 +359,7 @@ class TestParseOperations(BaseTestCaseHtml):
             ),
         )
 
-    def test_with_inline_tag_between_operands(self):
+    def test_with_inline_tag_between_operands(self) -> None:
         # Arrange
         self.soup_extend(
             [

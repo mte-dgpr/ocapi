@@ -22,12 +22,11 @@ Convert tagged HTML (after ``step_tagging``) into ocapi domain objects.
 This module is not wired into the pipeline yet; it lives alongside the LLM-based
 ``step_detection`` so downstream code can progressively consume Arrêtify tags.
 """
-from arretify.semantic_tag_specs import (
-    DocumentReferenceSpec,
-    OperationSpec,
-    SectionReferenceSpec,
-)
-from arretify.types import DocumentContext, OperationType as ArretifyOperationType
+from dataclasses import replace
+
+from arretify.semantic_tag_specs import DocumentReferenceSpec, OperationSpec, SectionReferenceSpec
+from arretify.types import DocumentContext
+from arretify.types import OperationType as ArretifyOperationType
 from arretify.utils.html import TAG_ID_ATTR
 from arretify.utils.html_semantic import css_selector, get_semantic_tag_data, is_semantic_tag
 from bs4 import BeautifulSoup, Tag
@@ -60,12 +59,10 @@ def document_context_to_arrete_file(
     For now we only ensure the soup matches whatever ``step_tagging`` produced
     so downstream code sees the tagged DOM.
     """
-    return base.model_copy(update={"soup": document_context.soup})
+    return replace(base, soup=document_context.soup)
 
 
-def extract_operations_from_tagged_soup(
-    soup: BeautifulSoup, arrete_id: str
-) -> list[RawOperation]:
+def extract_operations_from_tagged_soup(soup: BeautifulSoup, arrete_id: str) -> list[RawOperation]:
     """Extract ``RawOperation`` objects from a tagged soup.
 
     Parameters
@@ -139,7 +136,7 @@ def _resolve_document_reference(soup: BeautifulSoup, ref_tag: Tag) -> Tag | None
     # Walk parent_reference chain until we land on a DocumentReference or hit a dead end.
     while True:
         parent_id = current.get(_PARENT_REF_ATTR)
-        if not parent_id:
+        if not parent_id or not isinstance(parent_id, str):
             return None
         parent = _find_by_tag_id(soup, parent_id)
         if parent is None:

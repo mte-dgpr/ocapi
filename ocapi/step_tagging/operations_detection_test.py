@@ -23,8 +23,8 @@ from arretify.utils.testing import BaseTestCaseHtml, assert_element_lists_equal
 from .operations_detection import parse_operations
 
 
-class TestReplaceOperations(BaseTestCaseHtml):
-    def test_has_operand(self):
+class TestReplaceOperations(BaseTestCaseHtml):  # type: ignore[misc]
+    def test_has_operand(self) -> None:
         # Arrange
         elements = ["sont remplacées comme suit :"]
 
@@ -52,7 +52,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_replace_substituted(self):
+    def test_replace_substituted(self) -> None:
         # Arrange
         elements = [
             "Le deuxième alinéa de l'article 4.3.8 de l'arrêté préfectoral précité est supprimé. "
@@ -86,7 +86,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_canceled_and_replaced(self):
+    def test_canceled_and_replaced(self) -> None:
         # Arrange
         elements = [
             (
@@ -119,7 +119,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_revoked_and_replaced(self):
+    def test_revoked_and_replaced(self) -> None:
         # Arrange
         elements = [
             "Les prescriptions de cet article sont abrogées et remplacées par celles ci-après :"
@@ -149,7 +149,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_deleted_and_replaced(self):
+    def test_deleted_and_replaced(self) -> None:
         # Arrange
         elements = [
             "L' article 1 .2 .2 SITUATION DE L'ÉTABLISSEMENT est supprimé et remplacé par :"
@@ -179,7 +179,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_modified_and_replaced(self):
+    def test_modified_and_replaced(self) -> None:
         # Arrange
         elements = [
             "2 .4 .2 L' article 15 .2 de l' arrêté préfectoral du 19 mars 2003 "
@@ -210,7 +210,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_modified_and_completed_by(self):
+    def test_modified_and_completed_by(self) -> None:
         # Arrange
         elements = [
             "L'article 5 des prescriptions techniques annexées à l'arrêté préfectoral du "
@@ -244,7 +244,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_modified_completed_or_annulled(self):
+    def test_modified_completed_or_annulled(self) -> None:
         # Arrange
         elements = [
             "Les dispositions de l'arrêté préfectoral n09-0150 du 20 janvier 2009 susvisé "
@@ -282,7 +282,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_modified_simple_disposition(self):
+    def test_modified_simple_disposition(self) -> None:
         # Arrange
         elements = [
             "La dernière phrase de l'article 8.1.1.2 de l'arrêté préfectoral du 10 décembre 2008 "
@@ -316,7 +316,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_modified_operand(self):
+    def test_modified_operand(self) -> None:
         # Arrange
         elements = [
             "La dernière phrase de l'article 8.1.1.2 de l'arrêté préfectoral du 10 décembre 2008 "
@@ -350,7 +350,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_delete_replace_plural(self):
+    def test_delete_replace_plural(self) -> None:
         # Arrange
         elements = [
             "Les dispositions de l'article 2.8 - Arrêtés types sont supprimées et sont remplacées "
@@ -381,7 +381,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_update(self):
+    def test_update(self) -> None:
         # Arrange
         elements = [
             "Le tableau de l'article 1.2.1 de l'arrêté préfectoral du 10 décembre 2008 "
@@ -416,8 +416,8 @@ class TestReplaceOperations(BaseTestCaseHtml):
         )
 
 
-class TestAddOperations(BaseTestCaseHtml):
-    def test_add_completed_as_follows(self):
+class TestAddOperations(BaseTestCaseHtml):  # type: ignore[misc]
+    def test_add_completed_as_follows(self) -> None:
         # Arrange
         elements = [
             "Le paragraphe 4.14 - Postes de chargement -déchargement est complété comme suit :"
@@ -447,7 +447,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_add_completed(self):
+    def test_add_completed(self) -> None:
         # Arrange
         elements = ["Le paragraphe 4.19.1 - Réseau d'eau incendie est complété ainsi"]
 
@@ -474,7 +474,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_completed_d_multiple_articles(self):
+    def test_completed_d_multiple_articles(self) -> None:
         # Arrange
         elements = [
             "Les prescriptions de l' article 8.3. dispositions spécifiques à l'installation de "
@@ -510,7 +510,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_add_operation(self):
+    def test_add_operation(self) -> None:
         # Arrange
         elements = ["Il est créé un article 4.3.14 à l'arrêté préfectoral du 10 décembre 2008"]
 
@@ -534,7 +534,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_created_article_end(self):
+    def test_created_article_end(self) -> None:
         # Arrange
         elements = [
             "Un article additionnel 8.2.5 relatif au fonctionnement du casier VIII en mode "
@@ -572,7 +572,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_created_new_chapter(self):
+    def test_created_new_chapter(self) -> None:
         # Arrange
         elements = [
             (
@@ -601,7 +601,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_created_new_article(self):
+    def test_created_new_article(self) -> None:
         # Arrange
         elements = [
             "Il est créé un nouvel article 8.2.3 à l' arrêté du 16 juillet 2010 rédigé comme suit :"
@@ -627,7 +627,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_created_two_new_articles(self):
+    def test_created_two_new_articles(self) -> None:
         # Arrange
         elements = [
             (
@@ -660,7 +660,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_add_operation_(self):
+    def test_add_operation_(self) -> None:
         # Arrange
         elements = [
             (
@@ -693,7 +693,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_add_operation_with_article_references(self):
+    def test_add_operation_with_article_references(self) -> None:
         # Arrange
         elements = ["L' article 8 .6 suivant est ajouté à l'arrêté préfectoral"]
 
@@ -721,7 +721,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_modified_by_addition_operation(self):
+    def test_modified_by_addition_operation(self) -> None:
         # Arrange
         elements = [
             "Le chapitre 6.7 relatif aux déchets produits par l'établissement de l'arrêté "
@@ -755,7 +755,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_insert_paragraph_at_start(self):
+    def test_insert_paragraph_at_start(self) -> None:
         # Arrange
         elements = ["2.4.3 Le paragraphe suivant est inséré au début de l' article 15.4"]
 
@@ -783,7 +783,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_insert_after_alinea(self):
+    def test_insert_after_alinea(self) -> None:
         # Arrange
         elements = [
             (
@@ -819,7 +819,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_insert_new_alinea_after(self):
+    def test_insert_new_alinea_after(self) -> None:
         # Arrange
         elements = [
             "Après le 4ème alinéa de l'article 4.3.8 de l'arrêté préfectoral précité, "
@@ -853,7 +853,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_insert_two_new_alinea(self):
+    def test_insert_two_new_alinea(self) -> None:
         # Arrange
         elements = [
             "Après lé 6ème alinéa de l'article 4.3.8 de l'arrêté préfectoral précité, "
@@ -887,7 +887,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_insert_article_after(self):
+    def test_insert_article_after(self) -> None:
         # Arrange
         elements = [
             (
@@ -924,7 +924,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_insert_article_in_chapter(self):
+    def test_insert_article_in_chapter(self) -> None:
         # Arrange
         elements = [
             (
@@ -960,7 +960,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_insert_article(self):
+    def test_insert_article(self) -> None:
         # Arrange
         elements = ["un article numéroté 11.4.5. est inséré et est ainsi rédigé :"]
 
@@ -988,7 +988,7 @@ class TestAddOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_insert_title_after_another(self):
+    def test_insert_title_after_another(self) -> None:
         # Arrange
         elements = [
             "Un titre 15, intitulé Dispositions particulières - Fabrication de crème enzymatique "
@@ -1023,8 +1023,8 @@ class TestAddOperations(BaseTestCaseHtml):
         )
 
 
-class TestDeleteOperations(BaseTestCaseHtml):
-    def test_delete_abroge(self):
+class TestDeleteOperations(BaseTestCaseHtml):  # type: ignore[misc]
+    def test_delete_abroge(self) -> None:
         # Arrange
         elements = [
             "Le dernier alinéa de l' article 1 .2 .2 de l'arrêté préfectoral précité est abrogé."
@@ -1056,7 +1056,7 @@ class TestDeleteOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_delete_supprime(self):
+    def test_delete_supprime(self) -> None:
         # Arrange
         elements = [
             "L' article 11.1.2 relatif à la dérivation du bassin d'orage n° 1 vers le n° 2 "
@@ -1088,7 +1088,7 @@ class TestDeleteOperations(BaseTestCaseHtml):
             ],
         )
 
-    def test_delete_annule(self):
+    def test_delete_annule(self) -> None:
         # Arrange
         elements = [
             "L' article 2.13  Arrêté type  des prescriptions annexées à l' arrêté préfectoral "

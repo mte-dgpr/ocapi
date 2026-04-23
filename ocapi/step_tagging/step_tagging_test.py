@@ -32,8 +32,8 @@ from arretify.utils.testing import BaseTestCaseHtml
 from ocapi.step_tagging import step_tagging
 
 
-class TestStepTagging(BaseTestCaseHtml):
-    def test_tags_replace_operation_and_resolves_operand(self):
+class TestStepTagging(BaseTestCaseHtml):  # type: ignore[misc]
+    def test_tags_replace_operation_and_resolves_operand(self) -> None:
         self.soup_extend(
             [
                 self.make_semantic_tag(
@@ -82,7 +82,7 @@ class TestStepTagging(BaseTestCaseHtml):
         assert data.references
         assert data.operand
 
-    def test_noop_when_no_references(self):
+    def test_noop_when_no_references(self) -> None:
         self.soup_extend(
             [
                 self.make_semantic_tag(
