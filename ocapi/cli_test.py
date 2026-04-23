@@ -149,6 +149,7 @@ def test_cli_defaults(
     mock_main.assert_called_once()
     _, kwargs = mock_main.call_args
     assert kwargs.get("enable_rendering") is True
+    assert kwargs.get("enable_tagging") is True
     assert kwargs.get("output_dir") is None
     assert kwargs.get("aiot") is None
     assert kwargs.get("principal_id") is None
@@ -165,6 +166,30 @@ def test_cli_principal_id_is_forwarded(
     mock_main.assert_called_once()
     _, kwargs = mock_main.call_args
     assert kwargs.get("principal_id") == "2024-09-27"
+
+
+@patch("ocapi.cli.initialize_root_logger")
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_no_tagging_is_forwarded(
+    mock_main: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
+    main(["run", "some/arretes_html/0005804239", "--no-tagging"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("enable_tagging") is False
+
+
+@patch("ocapi.cli.initialize_root_logger")
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_tagged_output_is_forwarded(
+    mock_main: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
+    main(["run", "some/arretes_html/0005804239", "--tagged-output", "/tmp/tagged"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("tagged_output_dir") == Path("/tmp/tagged")
 
 
 @patch("ocapi.cli.save_tagged_html_file")

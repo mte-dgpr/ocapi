@@ -54,6 +54,7 @@ def run_main(
     input_dir: Path,
     *,
     enable_rendering: bool = True,
+    enable_tagging: bool = True,
     include_ids: list[str] | None = None,
     aiot: str | None = None,
     output_dir: Path | None = None,
@@ -70,6 +71,9 @@ def run_main(
         Directory containing the arrêté HTML files.
     enable_rendering : bool
         If False, skip the rendering step (step 4).
+    enable_tagging : bool
+        If False, skip ``step_tagging`` and do not write tagged HTML outputs.
+        Pre-existing Arrêtify tags in the input HTML are used as-is.
     include_ids : list[str] | None
         Arrêté IDs to include; all arrêtés are included when None.
     aiot : str | None
@@ -140,18 +144,20 @@ def run_main(
             start_date=start_date,
             enable_detection=enable_detection,
             enable_rendering=enable_rendering,
+            enable_tagging=enable_tagging,
             operations=preloaded_ops,
             document_contexts=document_contexts,
         )
         _LOGGER.info("Pipeline completed successfully.")
 
-        if tagged_output_dir:
-            tagged_dir = tagged_output_dir
-        else:
-            tagged_dir = input_dir.parent.parent / "arretes_tagged" / resolved_aiot
-        for arrete_file, document_context in zip(arrete_files, document_contexts):
-            save_tagged_html_file(document_context, tagged_dir / arrete_file.filename)
-        _LOGGER.info(f"Tagged HTML saved → {tagged_dir}")
+        if enable_tagging:
+            if tagged_output_dir:
+                tagged_dir = tagged_output_dir
+            else:
+                tagged_dir = input_dir.parent.parent / "arretes_tagged" / resolved_aiot
+            for arrete_file, document_context in zip(arrete_files, document_contexts):
+                save_tagged_html_file(document_context, tagged_dir / arrete_file.filename)
+            _LOGGER.info(f"Tagged HTML saved → {tagged_dir}")
 
         if output_dir:
             consolidation_dir = output_dir
@@ -252,6 +258,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     return run_main(
         input_dir=Path(args.input_dir),
         enable_rendering=not args.no_rendering,
+        enable_tagging=not args.no_tagging,
         include_ids=args.include or None,
         aiot=args.aiot or None,
         output_dir=Path(args.output) if args.output else None,
@@ -375,6 +382,14 @@ Examples:
         "--no-rendering",
         action="store_true",
         help="Skip the rendering step (step 4).",
+    )
+    run_parser.add_argument(
+        "--no-tagging",
+        action="store_true",
+        help=(
+            "Skip step_tagging and the tagged HTML output. Pre-existing "
+            "Arrêtify tags in the input HTML are still read as-is."
+        ),
     )
     run_parser.add_argument(
         "--operations-from",

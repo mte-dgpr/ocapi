@@ -62,6 +62,7 @@ def main(
     include_ids: list[str] | None = None,
     start_date: str | None = None,
     enable_rendering: bool = True,
+    enable_tagging: bool = True,
     operations_from: Path | None = None,
     principal_id: str | None = None,
     tagged_output_dir: Path | None = None,
@@ -77,6 +78,8 @@ def main(
         include_ids: List of arrêté IDs to include (defaults to all).
         start_date: Detection start date (YYYY-MM-DD).
         enable_rendering: If True, generate the consolidated permit.
+        enable_tagging: If False, skip ``step_tagging`` and the tagged HTML output.
+            Pre-existing Arrêtify tags in the input HTML are used as-is.
         operations_from: If set, loads ``operations.json`` from that directory; skips detection.
         principal_id: Date (YYYY-MM-DD) of the arrêté to flag as principal.
             Returns an error when no loaded arrêté matches that date.
@@ -160,14 +163,16 @@ def main(
             start_date=start_date,
             enable_detection=enable_detection,
             enable_rendering=enable_rendering,
+            enable_tagging=enable_tagging,
             operations=preloaded_ops,
             document_contexts=document_contexts,
         )
 
         # Save tagged HTMLs
-        for arrete_file, document_context in zip(arrete_files, document_contexts):
-            save_tagged_html_file(document_context, tagged_dir / arrete_file.filename)
-        _LOGGER.info(f"Tagged HTML saved → {tagged_dir}")
+        if enable_tagging:
+            for arrete_file, document_context in zip(arrete_files, document_contexts):
+                save_tagged_html_file(document_context, tagged_dir / arrete_file.filename)
+            _LOGGER.info(f"Tagged HTML saved → {tagged_dir}")
 
         # Save operations
         operations_path = consolidation_dir / "operations.json"
@@ -284,6 +289,14 @@ Examples:
         help="Skip consolidated permit generation (step 4)",
     )
     parser.add_argument(
+        "--no-tagging",
+        action="store_true",
+        help=(
+            "Skip step_tagging and the tagged HTML output. Pre-existing "
+            "Arrêtify tags in the input HTML are still read as-is."
+        ),
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -325,6 +338,7 @@ Examples:
         include_ids=args.include,
         start_date=args.start_date,
         enable_rendering=not args.no_rendering,
+        enable_tagging=not args.no_tagging,
         operations_from=operations_from,
         principal_id=args.principal_id,
         tagged_output_dir=tagged_output,
