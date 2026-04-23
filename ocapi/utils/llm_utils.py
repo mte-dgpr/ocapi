@@ -100,6 +100,82 @@ _RATE_LIMIT_LAST_CALL_MONOTONIC: float | None = None
 
 
 @dataclass(frozen=True)
+class TokenUsage:
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+
+_USAGE_LOCK = threading.Lock()
+_ACCUMULATED_USAGE = TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+
+
+def reset_accumulated_usage() -> None:
+    global _ACCUMULATED_USAGE
+    with _USAGE_LOCK:
+        _ACCUMULATED_USAGE = TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+
+
+def get_accumulated_usage() -> TokenUsage:
+    with _USAGE_LOCK:
+        return TokenUsage(
+            prompt_tokens=_ACCUMULATED_USAGE.prompt_tokens,
+            completion_tokens=_ACCUMULATED_USAGE.completion_tokens,
+            total_tokens=_ACCUMULATED_USAGE.total_tokens,
+        )
+
+
+def _extract_usage(data: Any) -> TokenUsage:
+    if not isinstance(data, dict):
+        return TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+
+    usage = data.get("usage")
+    if not isinstance(usage, dict):
+        return TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+
+    # OpenAI/Mistral style
+    prompt_tokens = usage.get("prompt_tokens")
+    completion_tokens = usage.get("completion_tokens")
+    total_tokens = usage.get("total_tokens")
+
+    # Anthropic style fallback
+    if prompt_tokens is None:
+        prompt_tokens = usage.get("input_tokens")
+    if completion_tokens is None:
+        completion_tokens = usage.get("output_tokens")
+
+    def _to_non_negative_int(value: Any) -> int:
+        try:
+            parsed = int(value)
+            return parsed if parsed >= 0 else 0
+        except (TypeError, ValueError):
+            return 0
+
+    prompt = _to_non_negative_int(prompt_tokens)
+    completion = _to_non_negative_int(completion_tokens)
+    total = _to_non_negative_int(total_tokens)
+    if total == 0:
+        total = prompt + completion
+
+    return TokenUsage(
+        prompt_tokens=prompt,
+        completion_tokens=completion,
+        total_tokens=total,
+    )
+
+
+def _accumulate_usage(data: Any) -> None:
+    usage = _extract_usage(data)
+    global _ACCUMULATED_USAGE
+    with _USAGE_LOCK:
+        _ACCUMULATED_USAGE = TokenUsage(
+            prompt_tokens=_ACCUMULATED_USAGE.prompt_tokens + usage.prompt_tokens,
+            completion_tokens=_ACCUMULATED_USAGE.completion_tokens + usage.completion_tokens,
+            total_tokens=_ACCUMULATED_USAGE.total_tokens + usage.total_tokens,
+        )
+
+
+@dataclass(frozen=True)
 class ResolvedLLMModel:
     model_key: str
     provider: str
@@ -242,8 +318,9 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
         }
         if model.reasoning_model:
             payload["reasoning_effort"] = "high"
-            payload["verbosity"] = 0
-        if model.temperature is not None:
+            payload["verbosity"] = "low"
+        elif model.temperature is not None:
+            # Reasoning models only accept the default temperature.
             payload["temperature"] = model.temperature
         return payload
 
@@ -364,6 +441,7 @@ def _execute_model_call(
             )
             response.raise_for_status()
             data: Any = response.json()
+            _accumulate_usage(data)
             try:
                 if model.provider == "anthropic":
                     return str(data["content"][0]["text"])
@@ -377,10 +455,17 @@ def _execute_model_call(
         except requests.exceptions.RequestException as exc:
             retryable = _is_retryable_http_error(exc)
             is_last_attempt = attempt >= max_attempts
+            body = None
+            resp = getattr(exc, "response", None)
+            if resp is not None:
+                try:
+                    body = resp.text[:500]
+                except Exception:
+                    body = None
             if not retryable or is_last_attempt:
                 _LOGGER.error(
                     f"LLM API call failed ({model.model_name}) "
-                    f"attempt {attempt}/{max_attempts}: {exc}"
+                    f"attempt {attempt}/{max_attempts}: {exc}" + (f" | body={body}" if body else "")
                 )
                 raise LLMNetworkError(f"LLM API call failed ({model.model_name}): {exc}") from exc
 
