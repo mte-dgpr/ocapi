@@ -79,6 +79,7 @@ __all__ = [
     "filter_and_deduplicate_arrete_files",
     "load_arrete_files",
     "load_document_contexts",
+    "save_tagged_html_file",
     "write_permis_output",
     "write_json_output",
     "read_json",
@@ -409,6 +410,16 @@ def load_document_contexts(
     result = [(af, dc_by_filename[af.filename]) for af in kept]
     _LOGGER.info(f"{len(result)} arrêté(s) loaded")
     return result
+
+
+def save_tagged_html_file(document_context: DocumentContext, output_path: Path) -> None:
+    # Equivalent to ``arretify.pipeline.save_html_file``, inlined to avoid pulling
+    # ``arretify.step_segmentation`` (and its spaCy model) at import time.
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(document_context.soup.prettify(), encoding="utf-8")
+    except OSError as e:
+        raise InputOutputError(f"Cannot write tagged HTML file: {e}") from e
 
 
 def write_permis_output(permis_html: str, output_path: Path) -> None:

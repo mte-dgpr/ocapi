@@ -47,6 +47,7 @@ from ocapi.utils.io_utils import (
     load_operations,
     save_history,
     save_operations,
+    save_tagged_html_file,
 )
 from ocapi.utils.testing import make_testing_arrete, make_testing_op
 
@@ -165,6 +166,29 @@ class TestLoadDocumentContexts:
         result = load_document_contexts(tmp_path, aiot="0001234567")
 
         assert result == []
+
+
+class TestSaveTaggedHtmlFile:
+    def test_writes_prettified_soup(self, tmp_path: Path) -> None:
+        _write(tmp_path / "2021-06-15_ap prescriptions complémentaires_foo.html", _VALID_HTML)
+        pairs = load_document_contexts(tmp_path, aiot="0001234567")
+        _, document_context = pairs[0]
+
+        output_path = tmp_path / "out" / "tagged.html"
+        save_tagged_html_file(document_context, output_path)
+
+        assert output_path.exists()
+        assert "<p>" in output_path.read_text(encoding="utf-8")
+
+    def test_creates_parent_directories(self, tmp_path: Path) -> None:
+        _write(tmp_path / "2021-06-15_ap prescriptions complémentaires_foo.html", _VALID_HTML)
+        pairs = load_document_contexts(tmp_path, aiot="0001234567")
+        _, document_context = pairs[0]
+
+        nested = tmp_path / "deep" / "nested" / "path" / "tagged.html"
+        save_tagged_html_file(document_context, nested)
+
+        assert nested.exists()
 
 
 class TestSaveOperations:
