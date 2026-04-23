@@ -26,9 +26,10 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, field_validator
 from typing_extensions import NotRequired
 
+from ocapi.utils.logging_utils import get_logger
+
 from .config import SUPPORTED_ARRETIFY_VERSION, SUPPORTED_ARRETIFY_VERSION_PATTERN, settings
 from .exceptions import InvalidArreteIdError, InvalidArticleIdError, InvalidFileFormatError
-from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
 
@@ -455,6 +456,8 @@ class Operation(_BaseModelWithConfig):
         op_type_value = getattr(raw_op_type, "value", raw_op_type)
         op_type = OperationType(op_type_value)
 
+        # target_article=ALL with a non-FULL_SECTION sub-target is incoherent:
+        # the LLM tried to target something specific inside "all articles".
         if raw_operation.target_article == "ALL" and sub_target is not None:
             st = (
                 sub_target.type
@@ -469,6 +472,7 @@ class Operation(_BaseModelWithConfig):
                 )
                 op_status_code = StatusCode.ERROR_EXTRACTING_OPERAND
 
+        # A full-arrêté REPLACE (target_article=ALL) is in practice an abrogation.
         if op_type == OperationType.REPLACE and raw_operation.target_article == "ALL":
             _LOGGER.info(
                 f"Operation {operation_id}: REPLACE ALL converted to REMOVE "
