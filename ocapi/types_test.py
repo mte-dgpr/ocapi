@@ -367,23 +367,23 @@ class TestParseFilename:
 class TestValidateArretifyVersion:
     """Tests pour la validation de la version Arrêtify."""
 
-    def test_validate_version_0_1_0(self) -> None:
+    def test_validate_version_0_2_0(self) -> None:
         soup = BeautifulSoup(
-            '<html><body data-arretify_version="0.1.0"><p>Contenu</p></body></html>',
+            '<html><body data-arretify_version="0.2.0"><p>Contenu</p></body></html>',
             "html.parser",
         )
         validate_arretify_version(soup, "test.html")
 
-    def test_validate_version_0_1_1(self) -> None:
+    def test_validate_version_0_2_1(self) -> None:
         soup = BeautifulSoup(
-            '<html><body data-arretify_version="0.1.1"><p>Contenu</p></body></html>',
+            '<html><body data-arretify_version="0.2.1"><p>Contenu</p></body></html>',
             "html.parser",
         )
         validate_arretify_version(soup, "test.html")
 
-    def test_validate_version_0_1_99(self) -> None:
+    def test_validate_version_0_2_99(self) -> None:
         soup = BeautifulSoup(
-            '<html><body data-arretify_version="0.1.99"><p>Contenu</p></body></html>',
+            '<html><body data-arretify_version="0.2.99"><p>Contenu</p></body></html>',
             "html.parser",
         )
         validate_arretify_version(soup, "test.html")
@@ -393,9 +393,9 @@ class TestValidateArretifyVersion:
         with pytest.raises(InvalidFileFormatError, match="Missing Arrêtify version"):
             validate_arretify_version(soup, "test.html")
 
-    def test_validate_version_0_2_0_raises_error(self) -> None:
+    def test_validate_version_0_1_0_raises_error(self) -> None:
         soup = BeautifulSoup(
-            '<html><body data-arretify_version="0.2.0"><p>Contenu</p></body></html>',
+            '<html><body data-arretify_version="0.1.0"><p>Contenu</p></body></html>',
             "html.parser",
         )
         with pytest.raises(InvalidFileFormatError, match="Unsupported Arrêtify version"):

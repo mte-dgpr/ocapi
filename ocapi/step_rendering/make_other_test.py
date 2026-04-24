@@ -32,7 +32,7 @@ def _make_arrete(arrete_id: str, html: str, aiot: str = "0001", status: bool = T
     )
 
 
-_EMPTY_AP = '<html><body data-arretify_version="0.1.0"><main data-spec="main"></main></body></html>'
+_EMPTY_AP = '<html><body data-arretify_version="0.2.0"><main data-spec="main"></main></body></html>'
 
 
 def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
@@ -40,7 +40,7 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
     complement_no_ops = _make_arrete(
         "2021-01-01",
         """
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="identification">ID COMPLEMENT A</div>
  <div data-spec="arrete_title">TITLE COMPLEMENT A</div>
  <main data-spec="main"><p>MAIN A</p></main>
@@ -50,7 +50,7 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
     complement_with_ops = _make_arrete(
         "2022-01-01",
         """
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="identification">ID COMPLEMENT B</div>
  <div data-spec="arrete_title">TITLE COMPLEMENT B</div>
  <main data-spec="main"><p>MAIN B</p></main>
@@ -83,7 +83,7 @@ def test_make_permit_other_includes_modifying_arretes_with_operation_messages() 
     modifying = _make_arrete(
         "2022-01-01",
         """
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="identification">ID MOD</div>
  <div data-spec="arrete_title">TITLE MOD</div>
  <main data-spec="main">
@@ -127,7 +127,7 @@ def test_make_permit_other_shows_unresolved_message_for_failed_operation() -> No
     modifying = _make_arrete(
         "2022-01-01",
         """
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="identification">ID MOD</div>
  <div data-spec="arrete_title">TITLE MOD</div>
  <main data-spec="main">
@@ -168,7 +168,7 @@ def test_make_permit_other_skips_abrogated_modifying_arrete() -> None:
     abrogated = _make_arrete(
         "2022-01-01",
         """
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <main data-spec="main">
   <section data-spec="section" data-number="1"><p>Gone</p></section>
  </main>
@@ -194,7 +194,7 @@ def test_target_all_shows_arrete_only() -> None:
     modifying = _make_arrete(
         "2022-01-01",
         """
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="identification">ID</div>
  <div data-spec="arrete_title">TITLE</div>
  <main data-spec="main">
@@ -228,7 +228,7 @@ def test_target_new_article_strips_prefix() -> None:
     modifying = _make_arrete(
         "2022-01-01",
         """
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="identification">ID</div>
  <div data-spec="arrete_title">TITLE</div>
  <main data-spec="main">
@@ -262,14 +262,14 @@ def test_target_new_article_strips_prefix() -> None:
 
 def test_has_no_ops_returns_true_without_operation() -> None:
     arrete_file = _make_arrete(
-        "2021-01-01", '<html><body data-arretify_version="0.1.0"></body></html>'
+        "2021-01-01", '<html><body data-arretify_version="0.2.0"></body></html>'
     )
     assert has_no_ops(arrete_file, []) is True
 
 
 def test_has_no_ops_returns_true_when_operations_target_this_arrete() -> None:
     arrete_file = _make_arrete(
-        "2021-01-01", '<html><body data-arretify_version="0.1.0"></body></html>'
+        "2021-01-01", '<html><body data-arretify_version="0.2.0"></body></html>'
     )
     operations = [
         Operation(

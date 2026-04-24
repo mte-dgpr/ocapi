@@ -75,7 +75,7 @@ def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
         aiot="0001",
         filename="arrete_2021",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="arrete_title"><h1>Titre 2021</h1></div>
  <div data-spec="visa">VISA UNIQUE 1</div>
  <div data-spec="visa">VISA UNIQUE 2</div>
@@ -88,7 +88,7 @@ def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
         aiot="0001",
         filename="arrete_2020",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="arrete_title"><h1>Titre 2020</h1></div>
  <div data-spec="visa">VISA UNIQUE 1</div>
  <div data-spec="motifs">MOTIF 2020</div>
@@ -119,7 +119,7 @@ def test_make_permit_sources_marks_abrogated_arretes() -> None:
         aiot="0001",
         filename="ap_initial",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="arrete_title"><h1>AP Initial</h1></div>
 </body></html>
 """,
@@ -130,7 +130,7 @@ def test_make_permit_sources_marks_abrogated_arretes() -> None:
         aiot="0001",
         filename="ap_abroge",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="arrete_title"><h1>AP Abrogé</h1></div>
 </body></html>
 """,
@@ -158,7 +158,7 @@ def test_make_permit_header_includes_abrogated_arrete_with_visas_and_motifs() ->
         aiot="0001",
         filename="ap_2020",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="arrete_title"><h1>AP 2020</h1></div>
  <div data-spec="visa">VISA ARRETE 2020</div>
  <div data-spec="motifs">CONSIDERANT ARRETE 2020</div>
@@ -171,7 +171,7 @@ def test_make_permit_header_includes_abrogated_arrete_with_visas_and_motifs() ->
         aiot="0001",
         filename="ap_2021",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="arrete_title"><h1>AP 2021 Refonte</h1></div>
  <div data-spec="visa">VISA ARRETE 2021</div>
  <div data-spec="motifs">CONSIDERANT ARRETE 2021</div>
@@ -203,7 +203,7 @@ def test_make_permit_visa_is_collapsible() -> None:
         aiot="0001",
         filename="arrete",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="visa">VISA 1</div>
 </body></html>
 """,
@@ -224,7 +224,7 @@ def test_make_permit_motif_is_collapsible() -> None:
         aiot="0001",
         filename="arrete",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <div data-spec="arrete_title"><h1>Titre</h1></div>
  <div data-spec="motifs">MOTIF 1</div>
 </body></html>
@@ -244,13 +244,13 @@ def test_make_permit_header_raises_when_multiple_aiot_detected() -> None:
         arrete_id="2021-01-01",
         aiot="0001",
         filename="arrete_1",
-        html='<html><body data-arretify_version="0.1.0"></body></html>',
+        html='<html><body data-arretify_version="0.2.0"></body></html>',
     )
     arrete_2 = _make_testing_arrete_file(
         arrete_id="2022-01-01",
         aiot="0002",
         filename="arrete_2",
-        html='<html><body data-arretify_version="0.1.0"></body></html>',
+        html='<html><body data-arretify_version="0.2.0"></body></html>',
     )
 
     with pytest.raises(ValueError, match="multiple AIOT"):
@@ -438,7 +438,7 @@ def test_make_permit_content_starts_from_first_non_abrogated_arrete() -> None:
         aiot="0001",
         filename="ap_2020_abroge",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <main data-spec="main">
   <section data-spec="section" data-number="1"><p>Article 1 ancien</p></section>
  </main>
@@ -451,7 +451,7 @@ def test_make_permit_content_starts_from_first_non_abrogated_arrete() -> None:
         aiot="0001",
         filename="ap_2021_refonte",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <main data-spec="main">
   <section data-spec="section" data-number="1"><p>Article 1 refonte</p></section>
   <section data-spec="section" data-number="2"><p>Article 2 refonte</p></section>
@@ -480,7 +480,7 @@ def test_make_permit_content_prefers_last_ap_autorisation_as_initial() -> None:
         aiot="0001",
         filename="ap_complement_old",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <main data-spec="main">
   <section data-spec="section" data-number="1"><p>Old complement</p></section>
  </main>
@@ -494,7 +494,7 @@ def test_make_permit_content_prefers_last_ap_autorisation_as_initial() -> None:
         aiot="0001",
         filename="ap_refonte",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <main data-spec="main">
   <section data-spec="section" data-number="1"><p>Refonte content</p></section>
  </main>
@@ -521,7 +521,7 @@ def test_make_permit_content_renders_full_main_with_section_versions() -> None:
         aiot="0001",
         filename="ap_initial",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <main data-spec="main">
   <section data-spec="section" data-number="1"><p>Article 1 initial</p></section>
   <section data-spec="section" data-number="2"><p>Article 2 initial</p></section>
@@ -575,7 +575,7 @@ def test_make_permit_content_inserts_new_article_after_predecessor() -> None:
         aiot="0001",
         filename="ap_initial",
         html="""
-<html><body data-arretify_version="0.1.0">
+<html><body data-arretify_version="0.2.0">
  <main data-spec="main">
   <section data-spec="section" data-number="1"><p>Article 1 initial</p></section>
   <section data-spec="section" data-number="3"><p>Article 3 initial</p></section>

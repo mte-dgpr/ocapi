@@ -50,12 +50,12 @@ from ocapi.utils.io_utils import (
     save_operations,
 )
 
-# Minimal valid Arrêtify HTML (version 0.1.0)
-_VALID_HTML = '<html><body data-arretify_version="0.1.0"><p>Content</p></body></html>'
+# Minimal valid Arrêtify HTML (version 0.2.0)
+_VALID_HTML = '<html><body data-arretify_version="0.2.0"><p>Content</p></body></html>'
 # HTML without data-arretify_version attribute
 _HTML_NO_VERSION = "<html><body><p>Content without version</p></body></html>"
 # HTML with unsupported Arrêtify version
-_HTML_UNSUPPORTED_VERSION = '<html><body data-arretify_version="0.2.0"><p>Content</p></body></html>'
+_HTML_UNSUPPORTED_VERSION = '<html><body data-arretify_version="0.1.0"><p>Content</p></body></html>'
 
 
 def _write(path: Path, content: str) -> None:
@@ -362,7 +362,7 @@ class TestFilterAndDeduplicateArreteFiles:
     # --- same date + same type + identical checksum ---
 
     def test_dedup_same_date_type_identical_content(self, caplog: pytest.LogCaptureFixture) -> None:
-        html = '<html><body data-arretify_version="0.1.0"><p>Same</p></body></html>'
+        html = '<html><body data-arretify_version="0.2.0"><p>Same</p></body></html>'
         files = [
             _make_arrete_file(
                 "2023-09-12",
@@ -387,8 +387,8 @@ class TestFilterAndDeduplicateArreteFiles:
     # --- same date + same type + different checksum ---
 
     def test_dedup_same_date_type_different_content(self, caplog: pytest.LogCaptureFixture) -> None:
-        html_a = '<html><body data-arretify_version="0.1.0"><p>Version A</p></body></html>'
-        html_b = '<html><body data-arretify_version="0.1.0"><p>Version B</p></body></html>'
+        html_a = '<html><body data-arretify_version="0.2.0"><p>Version A</p></body></html>'
+        html_b = '<html><body data-arretify_version="0.2.0"><p>Version B</p></body></html>'
         files = [
             _make_arrete_file(
                 "2023-09-12",
@@ -454,7 +454,7 @@ class TestFilterAndDeduplicateArreteFiles:
         assert result[0].file_type == FileType.ARRETE_PREFECTORAL
 
     def test_five_identical_duplicates_keeps_one(self) -> None:
-        html = '<html><body data-arretify_version="0.1.0"><p>Same content</p></body></html>'
+        html = '<html><body data-arretify_version="0.2.0"><p>Same content</p></body></html>'
         files = [
             _make_arrete_file(
                 "2024-01-17",
