@@ -505,6 +505,137 @@ class TestFilterAndDeduplicateArreteFiles:
         assert len(result) == 1
         assert result[0] is files[0]
 
+    # --- annexe handling (ticket #64) ---
+
+    def test_annexes_merged_into_base_with_existing_appendix(self) -> None:
+        base_html = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='base-main'>base</section></main>"
+            "<footer data-spec=\"appendix\"><section id='orig-app'>orig</section></footer>"
+            "</body></html>"
+        )
+        annexe_html = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='ann1'>annexe 1</section></main>"
+            "</body></html>"
+        )
+        files = [
+            _make_arrete_file(
+                "2024-09-26",
+                "2024-09-26_ap d'autorisation.html",
+                FileType.AP_AUTORISATION,
+                base_html,
+            ),
+            _make_arrete_file(
+                "2024-09-26",
+                "2024-09-26_ap d'autorisation_Annexe 1.html",
+                FileType.AP_AUTORISATION,
+                annexe_html,
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0].filename == "2024-09-26_ap d'autorisation.html"
+        appendix = result[0].soup.find("footer", attrs={"data-spec": "appendix"})
+        assert appendix is not None
+        section_ids = [s.get("id") for s in appendix.find_all("section")]
+        assert section_ids == ["orig-app", "ann1"]
+
+    def test_annexes_merged_creates_appendix_when_missing(self) -> None:
+        base_html = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='base-main'>base</section></main>"
+            "</body></html>"
+        )
+        annexe_a = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='ann2a'>2-a</section></main>"
+            "</body></html>"
+        )
+        annexe_b = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='ann1'>1</section></main>"
+            "</body></html>"
+        )
+        files = [
+            _make_arrete_file(
+                "2024-09-26",
+                "2024-09-26_ap d'autorisation.html",
+                FileType.AP_AUTORISATION,
+                base_html,
+            ),
+            _make_arrete_file(
+                "2024-09-26",
+                "2024-09-26_ap d'autorisation_Annexe 2-a.html",
+                FileType.AP_AUTORISATION,
+                annexe_a,
+            ),
+            _make_arrete_file(
+                "2024-09-26",
+                "2024-09-26_ap d'autorisation_Annexe 1.html",
+                FileType.AP_AUTORISATION,
+                annexe_b,
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0].filename == "2024-09-26_ap d'autorisation.html"
+        appendix = result[0].soup.find("footer", attrs={"data-spec": "appendix"})
+        assert appendix is not None
+        section_ids = [s.get("id") for s in appendix.find_all("section")]
+        assert section_ids == ["ann2a", "ann1"]
+
+    def test_single_annexe_is_kept(self) -> None:
+        annexe_html = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='ann2a'>2-a</section></main>"
+            "</body></html>"
+        )
+        files = [
+            _make_arrete_file(
+                "2024-09-26",
+                "2024-09-26_ap d'autorisation_Annexe 2-a.html",
+                FileType.AP_AUTORISATION,
+                annexe_html,
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0] is files[0]
+
+    def test_only_annexes_first_becomes_base(self) -> None:
+        annexe_a = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='ann2a'>2-a</section></main>"
+            "</body></html>"
+        )
+        annexe_b = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='ann1'>1</section></main>"
+            "</body></html>"
+        )
+        files = [
+            _make_arrete_file(
+                "2024-09-26",
+                "2024-09-26_ap d'autorisation_Annexe 2-a.html",
+                FileType.AP_AUTORISATION,
+                annexe_a,
+            ),
+            _make_arrete_file(
+                "2024-09-26",
+                "2024-09-26_ap d'autorisation_Annexe 1.html",
+                FileType.AP_AUTORISATION,
+                annexe_b,
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0].filename == "2024-09-26_ap d'autorisation_Annexe 2-a.html"
+        appendix = result[0].soup.find("footer", attrs={"data-spec": "appendix"})
+        assert appendix is not None
+        section_ids = [s.get("id") for s in appendix.find_all("section")]
+        assert section_ids == ["ann1"]
+
 
 def test_article_history_to_json_dict_matches_save_history_shape() -> None:
     node_id = NodeId(arrete_id="2020-01-01", article_id="1")
