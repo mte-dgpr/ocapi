@@ -16,15 +16,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from arretify.semantic_tag_specs import (
-    AlineaSpec,
-    DocumentReferenceSpec,
-    OperationSpec,
-    SectionReferenceSpec,
-)
+from arretify.semantic_tag_specs import AlineaSpec, DocumentReferenceSpec, SectionReferenceSpec
 from arretify.types import DocumentContext, ProtectedTagOrStr
 from arretify.utils.html_create import replace_contents
 from arretify.utils.html_semantic import css_selector
+
+from ocapi.semantic_tag_specs import OperationSpec
 
 from .operands_detection import resolve_references_and_operands
 from .operations_detection import parse_operations

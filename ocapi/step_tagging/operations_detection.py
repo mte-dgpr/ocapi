@@ -26,18 +26,13 @@ from arretify.regex_utils import (
     join_with_or,
     regex_tree,
 )
-from arretify.semantic_tag_specs import OperationData, OperationSpec
-from arretify.types import (
-    DocumentContext,
-    OperationType,
-    ProtectedSoup,
-    ProtectedTag,
-    ProtectedTagOrStr,
-)
+from arretify.types import DocumentContext, ProtectedSoup, ProtectedTag, ProtectedTagOrStr
 from arretify.utils.html_create import make_semantic_tag, make_tag
 from arretify.utils.html_split_merge import make_regex_tree_splitter
 from arretify.utils.split_merge import split_and_map_elements
 from arretify.utils.strings import merge_strings
+
+from ocapi.semantic_tag_specs import OperationData, OperationSpec, OperationType
 
 OPERATION_TYPES_GROUP_NAMES = [
     OperationType.ADD.value,

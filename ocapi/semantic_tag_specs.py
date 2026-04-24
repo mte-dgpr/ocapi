@@ -16,8 +16,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from arretify.semantic_tag_specs import OperationData, OperationSpec
-from arretify.types import OperationType
+from enum import Enum
+from typing import Annotated, Literal
+
+from arretify.utils.html_semantic import (
+    Bool,
+    Contents,
+    SemanticTagData,
+    SemanticTagSpec,
+    StrList,
+    enum_serializer,
+)
 
 __all__ = [
     "OperationData",
@@ -25,5 +34,30 @@ __all__ = [
     "OperationType",
     "OPERATION_DATA_SPEC",
 ]
+
+
+class OperationType(Enum):
+    ADD = "add"
+    DELETE = "delete"
+    REPLACE = "replace"
+
+
+class OperationData(SemanticTagData):  # type: ignore[misc]
+    operation_type: Annotated[OperationType, enum_serializer]
+    direction: Literal["ltr", "rtl"]
+    references: StrList | None = None
+    keyword: str
+    has_operand: Bool = False
+    operand: str | None = None
+
+
+OperationSpec: SemanticTagSpec[OperationData] = SemanticTagSpec(
+    spec_name="operation",
+    tag_name="span",
+    data_model=OperationData,
+    allowed_contents=(Contents.Str(),),
+    is_allowed_anywhere=True,
+)
+
 
 OPERATION_DATA_SPEC: str = OperationSpec.spec_name

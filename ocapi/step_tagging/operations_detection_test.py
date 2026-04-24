@@ -17,8 +17,9 @@
 # limitations under the License.
 #
 
-from arretify.semantic_tag_specs import OperationData, OperationSpec
 from arretify.utils.testing import BaseTestCaseHtml, assert_element_lists_equal
+
+from ocapi.semantic_tag_specs import OperationData, OperationSpec
 
 from .operations_detection import parse_operations
 

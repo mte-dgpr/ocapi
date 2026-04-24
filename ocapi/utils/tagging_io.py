@@ -24,13 +24,13 @@ This module is not wired into the pipeline yet; it lives alongside the LLM-based
 """
 from dataclasses import replace
 
-from arretify.semantic_tag_specs import DocumentReferenceSpec, OperationSpec, SectionReferenceSpec
+from arretify.semantic_tag_specs import DocumentReferenceSpec, SectionReferenceSpec
 from arretify.types import DocumentContext
-from arretify.types import OperationType as ArretifyOperationType
 from arretify.utils.html import TAG_ID_ATTR
 from arretify.utils.html_semantic import css_selector, get_semantic_tag_data, is_semantic_tag
 from bs4 import BeautifulSoup, Tag
 
+from ocapi.semantic_tag_specs import OperationSpec, OperationType
 from ocapi.types import ArreteFile, RawOperation, RawOperationType
 from ocapi.utils.logging_utils import get_logger
 
@@ -43,10 +43,10 @@ _LOGGER = get_logger(__name__)
 
 _PARENT_REF_ATTR = "data-parent_reference"
 
-_OPERATION_TYPE_MAP: dict[ArretifyOperationType, RawOperationType] = {
-    ArretifyOperationType.ADD: RawOperationType.ADD,
-    ArretifyOperationType.DELETE: RawOperationType.REMOVE,
-    ArretifyOperationType.REPLACE: RawOperationType.REPLACE,
+_OPERATION_TYPE_MAP: dict[OperationType, RawOperationType] = {
+    OperationType.ADD: RawOperationType.ADD,
+    OperationType.DELETE: RawOperationType.REMOVE,
+    OperationType.REPLACE: RawOperationType.REPLACE,
 }
 
 
@@ -83,7 +83,7 @@ def _operation_tag_to_raw_operation(
 ) -> RawOperation:
     data = get_semantic_tag_data(OperationSpec, operation_tag)
     operation_type = _OPERATION_TYPE_MAP.get(
-        ArretifyOperationType(data.operation_type), RawOperationType.AUTRE
+        OperationType(data.operation_type), RawOperationType.AUTRE
     )
 
     target_arrete = ""

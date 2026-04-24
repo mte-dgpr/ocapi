@@ -21,8 +21,6 @@ from arretify.semantic_tag_specs import (
     AlineaSpec,
     DocumentReferenceData,
     DocumentReferenceSpec,
-    OperationData,
-    OperationSpec,
     PageSeparatorData,
     PageSeparatorSpec,
     SectionReferenceData,
@@ -31,6 +29,8 @@ from arretify.semantic_tag_specs import (
 from arretify.types import DocumentType
 from arretify.utils.html_semantic import css_selector
 from arretify.utils.testing import BaseTestCaseHtml, assert_elements_equal
+
+from ocapi.semantic_tag_specs import OperationData, OperationSpec
 
 from .operands_detection import resolve_references_and_operands
 

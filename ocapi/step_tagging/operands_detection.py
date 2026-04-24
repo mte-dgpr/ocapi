@@ -20,7 +20,6 @@ import logging
 
 from arretify.semantic_tag_specs import (
     DocumentReferenceSpec,
-    OperationSpec,
     PageFooterSpec,
     PageHeaderSpec,
     PageSeparatorSpec,
@@ -39,6 +38,8 @@ from arretify.utils.html_semantic import (
     update_semantic_tag_data,
 )
 from arretify.utils.references import build_reference_tree
+
+from ocapi.semantic_tag_specs import OperationSpec
 
 PAGINATION_TAG_SPECS: list[SemanticTagSpec] = [
     PageSeparatorSpec,

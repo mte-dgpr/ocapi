@@ -16,9 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from arretify.semantic_tag_specs import OperationSpec as ArretifyOperationSpec
-from arretify.types import OperationType as ArretifyOperationType
-
 from ocapi.semantic_tag_specs import (
     OPERATION_DATA_SPEC,
     OperationData,
@@ -27,14 +24,13 @@ from ocapi.semantic_tag_specs import (
 )
 
 
-def test_operation_data_spec_matches_arretify_spec_name() -> None:
+def test_operation_data_spec_matches_spec_name() -> None:
     assert OPERATION_DATA_SPEC == "operation"
-    assert OPERATION_DATA_SPEC == ArretifyOperationSpec.spec_name
+    assert OPERATION_DATA_SPEC == OperationSpec.spec_name
 
 
-def test_reexports_point_to_arretify_symbols() -> None:
-    assert OperationSpec is ArretifyOperationSpec
-    assert OperationType is ArretifyOperationType
+def test_operation_type_values() -> None:
+    assert {t.value for t in OperationType} == {"add", "delete", "replace"}
 
 
 def test_operation_data_fields() -> None:

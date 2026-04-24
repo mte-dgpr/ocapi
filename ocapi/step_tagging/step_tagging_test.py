@@ -21,14 +21,14 @@ from arretify.semantic_tag_specs import (
     AlineaSpec,
     DocumentReferenceData,
     DocumentReferenceSpec,
-    OperationSpec,
     SectionReferenceData,
     SectionReferenceSpec,
 )
-from arretify.types import DocumentType, OperationType
+from arretify.types import DocumentType
 from arretify.utils.html_semantic import css_selector, get_semantic_tag_data
 from arretify.utils.testing import BaseTestCaseHtml
 
+from ocapi.semantic_tag_specs import OperationSpec, OperationType
 from ocapi.step_tagging import step_tagging
 
 
