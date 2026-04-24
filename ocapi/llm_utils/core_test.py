@@ -19,7 +19,7 @@
 from unittest.mock import Mock, patch
 
 import pytest
-import requests  # type: ignore[import-untyped]
+import requests
 
 import ocapi.llm_utils.core as llm_utils_module
 from ocapi.exceptions import LLMNetworkError, LLMResponseError

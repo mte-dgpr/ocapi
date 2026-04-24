@@ -22,14 +22,14 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-import requests  # type: ignore[import-untyped]
+import requests
 
 from ocapi.exceptions import LLMConfigError, LLMNetworkError, LLMResponseError
 from ocapi.llm_utils.config import (
     ResolvedLLMModel,
     _load_llm_models_config,
-    _load_llm_resilience_config,
     _load_llm_rate_limit_config,
+    _load_llm_resilience_config,
     _primary_secondary_keys,
     config_model_llm,
 )

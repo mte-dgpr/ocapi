@@ -42,7 +42,7 @@ def test_step_resolution_returns_history_and_arretes(
     """Verify that step_resolution orchestrates build_graph and apply_all_ops and returns their results."""  # noqa: E501
     fake_history: ArticleHistory = {NodeId(arrete_id="2020-01-01", article_id="1"): []}
     fake_arretes = cast(list[ArreteFile], [MagicMock(id="2020-01-01")])
-    mock_build_graph.return_value = (MagicMock(), fake_arretes, [])
+    mock_build_graph.return_value = (MagicMock(), fake_arretes, [], [])
     mock_apply_all_ops.return_value = (fake_history, [], {})
 
     history, arretes, _ops = step_resolution([], fake_arretes)
@@ -59,7 +59,7 @@ def test_step_resolution_empty_history(
     mock_build_graph: MagicMock,
     mock_apply_all_ops: MagicMock,
 ) -> None:
-    mock_build_graph.return_value = (MagicMock(), [], [])
+    mock_build_graph.return_value = (MagicMock(), [], [], [])
     mock_apply_all_ops.return_value = ({}, [], {})
 
     history, arretes, _ops = step_resolution([], cast(list[ArreteFile], []))
@@ -130,7 +130,7 @@ def test_step_resolution_sets_resolved_status_on_operations(
         target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
         operation_type=OperationType.ADD,
     )
-    mock_build_graph.return_value = (MagicMock(), [], [])
+    mock_build_graph.return_value = (MagicMock(), [], [], [op_ok, op_err])
     mock_apply_all_ops.return_value = (
         {},
         [],
@@ -161,7 +161,7 @@ def test_step_resolution_preserves_status_for_unprocessed_operations(
         operation_type=OperationType.REPLACE,
         status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
     )
-    mock_build_graph.return_value = (MagicMock(), [], [])
+    mock_build_graph.return_value = (MagicMock(), [], [], [op_skipped])
     mock_apply_all_ops.return_value = ({}, [], {})
 
     _history, _arretes, updated_ops = step_resolution([op_skipped], cast(list[ArreteFile], []))

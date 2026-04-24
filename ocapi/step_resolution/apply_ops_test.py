@@ -19,14 +19,16 @@
 from unittest import mock
 
 import networkx as nx
+import pytest
 from bs4 import BeautifulSoup
 
-from ocapi.exceptions import SubtargetNotFoundError
+from ocapi.exceptions import OperationError, SubtargetNotFoundError
 from ocapi.step_resolution.apply_ops import (
     _is_unambiguous_all_operation,
     _strip_duplicate_section_title,
     apply_add,
     apply_all_ops,
+    apply_remove,
     apply_subgraph_operations,
     build_next_subgraph,
 )
@@ -42,7 +44,7 @@ from ocapi.types import (
     SubTarget,
     SubTargetType,
 )
-from ocapi.utils.testing import make_op
+from ocapi.utils.testing import make_testing_op
 
 
 def test_build_subgraph() -> None:
@@ -197,7 +199,7 @@ def test_complex_subtarget_on_operation_still_applies_replace(mock_replace: mock
     assert skipped_ops == []
     mock_replace.assert_called_once()
     assert output_history[target][-1]["content"] == "consolidated"
-    assert output_history[target][-1].get("status_code") is None
+    assert output_history[target][-1]["status_code"] == StatusCode.RESOLVED
 
 
 @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
@@ -364,12 +366,14 @@ def test_multiple_operations_same_target_preserve_single_initial_version(
         "title": "",
         "content": "updated once",
         "operation_id": "op-1",
+        "status_code": StatusCode.RESOLVED,
     }
     assert output_history[target][2] == {
         "version": 2,
         "title": "",
         "content": "updated twice",
         "operation_id": "op-2",
+        "status_code": StatusCode.RESOLVED,
     }
 
 
@@ -504,32 +508,32 @@ def test_error_extracting_target_keeps_content_and_stores_status(
 
 
 def test_is_unambiguous_all_replace_full_section() -> None:
-    op = make_op(OperationType.REPLACE, SubTarget(type=SubTargetType.FULL_SECTION))
+    op = make_testing_op(OperationType.REPLACE, SubTarget(type=SubTargetType.FULL_SECTION))
     assert _is_unambiguous_all_operation(op) is True
 
 
 def test_is_unambiguous_all_remove_full_section() -> None:
-    op = make_op(OperationType.REMOVE, SubTarget(type=SubTargetType.FULL_SECTION))
+    op = make_testing_op(OperationType.REMOVE, SubTarget(type=SubTargetType.FULL_SECTION))
     assert _is_unambiguous_all_operation(op) is True
 
 
 def test_is_unambiguous_all_replace_partial() -> None:
-    op = make_op(OperationType.REPLACE, SubTarget(type=SubTargetType.PHRASE, position=1))
+    op = make_testing_op(OperationType.REPLACE, SubTarget(type=SubTargetType.PHRASE, position=1))
     assert _is_unambiguous_all_operation(op) is False
 
 
 def test_is_unambiguous_all_add_returns_false() -> None:
-    op = make_op(OperationType.ADD, SubTarget(type=SubTargetType.FULL_SECTION))
+    op = make_testing_op(OperationType.ADD, SubTarget(type=SubTargetType.FULL_SECTION))
     assert _is_unambiguous_all_operation(op) is False
 
 
 def test_is_unambiguous_all_replace_no_subtarget() -> None:
-    op = make_op(OperationType.REPLACE, sub_target=None)
+    op = make_testing_op(OperationType.REPLACE, sub_target=None)
     assert _is_unambiguous_all_operation(op) is False
 
 
 def test_is_unambiguous_all_remove_no_subtarget() -> None:
-    op = make_op(OperationType.REMOVE, sub_target=None)
+    op = make_testing_op(OperationType.REMOVE, sub_target=None)
     assert _is_unambiguous_all_operation(op) is False
 
 
@@ -658,7 +662,7 @@ def test_replace_all_bypasses_propagation(mock_replace: mock.Mock) -> None:
     mock_replace.assert_called_once()
     last = output_history[target][-1]
     assert last["content"] == "replaced all content"
-    assert last.get("status_code") is None  # RESOLVED is not stored explicitly
+    assert last["status_code"] == StatusCode.RESOLVED
 
 
 @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
@@ -747,7 +751,7 @@ def test_remove_all_bypasses_propagation(mock_remove: mock.Mock) -> None:
     mock_remove.assert_called_once()
     last = output_history[target][-1]
     assert last["content"] == ""
-    assert last.get("status_code") is None  # RESOLVED
+    assert last["status_code"] == StatusCode.RESOLVED
 
 
 def test_apply_add_full_section_new_article_returns_inner_content() -> None:
@@ -797,6 +801,70 @@ def test_apply_add_simple_inserts_after_table() -> None:
     status, out = apply_add(op, BeautifulSoup(html, "html.parser"))
     assert status == StatusCode.RESOLVED
     assert out.index("<table") < out.index("Suite")
+
+
+def test_apply_remove_without_subtarget_raises() -> None:
+    op = Operation(
+        id="rm-no-sub",
+        source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
+        operation_type=OperationType.REMOVE,
+    )
+    with pytest.raises(OperationError):
+        apply_remove(op, BeautifulSoup("", "html.parser"))
+
+
+def test_apply_remove_simple_drops_table() -> None:
+    html = """
+    <section data-spec="section" data-number="1">
+      <p>Before</p>
+      <table><tr><td>a</td></tr></table>
+      <p>After</p>
+    </section>
+    """
+    op = Operation(
+        id="rm-table",
+        source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
+        operation_type=OperationType.REMOVE,
+        sub_target=SubTarget(type=SubTargetType.TABLEAU, position=None, description="le tableau"),
+    )
+    status, out = apply_remove(op, BeautifulSoup(html, "html.parser"))
+    assert status == StatusCode.RESOLVED
+    assert "<table" not in out
+    assert "Before" in out
+    assert "After" in out
+
+
+@mock.patch("ocapi.step_resolution.apply_ops.call_llm_api")
+def test_apply_remove_complex_falls_back_to_llm(mock_llm: mock.Mock) -> None:
+    mock_llm.return_value = "<section>cleaned</section>"
+    html = "<section data-spec='section' data-number='1'><p>some content</p></section>"
+    op = Operation(
+        id="rm-complex",
+        source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
+        operation_type=OperationType.REMOVE,
+        sub_target=SubTarget(type=SubTargetType.COMPLEX, description="le dernier alinéa"),
+    )
+    status, out = apply_remove(op, BeautifulSoup(html, "html.parser"))
+    assert status == StatusCode.RESOLVED
+    mock_llm.assert_called_once()
+    assert "cleaned" in out
+
+
+def test_apply_remove_complex_disabled_llm_returns_unchanged() -> None:
+    html = "<section data-spec='section' data-number='1'><p>keep</p></section>"
+    op = Operation(
+        id="rm-disabled",
+        source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
+        operation_type=OperationType.REMOVE,
+        sub_target=SubTarget(type=SubTargetType.COMPLEX, description="un truc vague"),
+    )
+    status, out = apply_remove(op, BeautifulSoup(html, "html.parser"), enable_llm=False)
+    assert status == StatusCode.DISABLED_LLM_CALL
+    assert "keep" in out
 
 
 def test_new_article_full_section_history_is_single_version_with_op_id() -> None:

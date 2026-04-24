@@ -40,16 +40,16 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 from openpyxl import Workbook  # noqa: E402
 from openpyxl.styles import Alignment, Font, PatternFill  # noqa: E402
 
-from ocapi.step_detection import step_detection as step_detection_module  # noqa: E402
-from ocapi.step_detection.step_detection import step_detection  # noqa: E402
-from ocapi.types import Operation  # noqa: E402
-from ocapi.utils.io_utils import load_arrete_files  # noqa: E402
 from ocapi.llm_utils import (  # noqa: E402
     TokenUsage,
     config_model_llm,
     get_accumulated_usage,
     reset_accumulated_usage,
 )
+from ocapi.step_detection import step_detection as step_detection_module  # noqa: E402
+from ocapi.step_detection.step_detection import step_detection  # noqa: E402
+from ocapi.types import Operation  # noqa: E402
+from ocapi.utils.io_utils import load_arrete_files  # noqa: E402
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger  # noqa: E402
 
 _LOGGER = get_logger(__name__)

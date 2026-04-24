@@ -57,7 +57,9 @@ def step_resolution(
         Operations with their resolved ``status_code``.
     """
     _LOGGER.info(f"Resolution: {len(operations)} operation(s) to process")
-    operations_graph, arrete_files, skipped_ops_graph = build_graph(operations, arrete_files)
+    operations_graph, arrete_files, skipped_ops_graph, graph_ops = build_graph(
+        operations, arrete_files
+    )
     history, skipped_ops_apply, resolved_status = apply_all_ops(
         operations_graph,
         arrete_files,
@@ -70,7 +72,7 @@ def step_resolution(
             if op.id in resolved_status
             else op
         )
-        for op in operations
+        for op in graph_ops
     ]
 
     _LOGGER.info(f"Resolution: {len(history)} article(s) in history")

@@ -16,10 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from ocapi.llm_utils import (
-    parse_llm_json_list_response,
-    query_llm_for_subtarget,
-)
+from ocapi.llm_utils import parse_llm_json_list_response, query_llm_for_subtarget
 from ocapi.types import OperationType
 
 
