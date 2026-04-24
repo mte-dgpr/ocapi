@@ -18,7 +18,9 @@
 #
 from bs4 import BeautifulSoup
 
-from ocapi.utils.arretify_utils import extract_specs
+from ocapi.utils.arretify_utils import extract_and_strip_images, extract_specs
+from ocapi.utils.testing import assert_html_equal
+from ocapi.utils.utils import minify_html_fragment
 
 
 def test_extract_specs_returns_only_requested_data_spec() -> None:
@@ -43,3 +45,24 @@ def test_extract_specs_returns_empty_list_when_missing_spec() -> None:
     soup = BeautifulSoup("<html><body><div>sans spec</div></body></html>", "html.parser")
 
     assert extract_specs(soup, "visa") == []
+
+
+def test_extract_and_strip_images() -> None:
+    """Verify that image src attributes are replaced by tokens and that the map is correct."""
+    html_content = """
+    <p>Here is an image: <img src="http://example.com/image1.png" alt="Image 1"></p>
+    <p>Another image: <img src="http://example.com/image2.jpg" alt="Image 2"></p>
+    """
+    modified_html, img_map = extract_and_strip_images(minify_html_fragment(html_content))
+
+    expected_modified_html = """
+    <p>Here is an image: <img src="IMG_000" alt="Image 1"></p>
+    <p>Another image: <img src="IMG_001" alt="Image 2"></p>
+    """
+    expected_img_map = {
+        "IMG_000": "http://example.com/image1.png",
+        "IMG_001": "http://example.com/image2.jpg",
+    }
+
+    assert_html_equal(modified_html, minify_html_fragment(expected_modified_html))
+    assert img_map == expected_img_map

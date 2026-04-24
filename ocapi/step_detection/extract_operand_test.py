@@ -20,7 +20,8 @@ import unittest
 
 from ocapi.step_detection.extract_operand import extract_operand_with_images, pick_arretify_section
 from ocapi.types import StatusCode
-from ocapi.utils.utils import _assert_html_equal, minify_html_fragment
+from ocapi.utils.testing import assert_html_equal
+from ocapi.utils.utils import minify_html_fragment
 
 
 class TestPickArretifySection(unittest.TestCase):
@@ -40,7 +41,7 @@ class TestPickArretifySection(unittest.TestCase):
             Ceci est le contenu de l'article 1.2.
         </section>
         """
-        _assert_html_equal(result, minify_html_fragment(expected))
+        assert_html_equal(result, minify_html_fragment(expected))
 
     def test_pick_normal_section_not_found(self) -> None:
         html = '<section data-spec="section" data-number="1.1">Contenu</section>'
@@ -115,7 +116,7 @@ class TestExtractOperand(unittest.TestCase):
         assert operand is not None
         assert "Voici le nouveau" in operand
         assert "http://example.com/image1.png" in operand
-        _assert_html_equal(
+        assert_html_equal(
             operand,
             minify_html_fragment(
                 """

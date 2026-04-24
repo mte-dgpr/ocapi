@@ -21,33 +21,19 @@ Logic for extracting an operation's content (operand) from a parsed HTML block,
 using start and end markers to locate the relevant text.
 """
 
-import html
-import re
-
 from bs4 import BeautifulSoup
 
 from ocapi.types import StatusCode
+from ocapi.utils.arretify_utils import (
+    ARRETIFY_APPENDIX_DATA_SPEC,
+    ARRETIFY_SECTION_DATA_SPEC,
+    rehydrate_images,
+)
 from ocapi.utils.logging_utils import get_logger
+from ocapi.utils.utils import find_marker
 
 _LOGGER = get_logger(__name__)
 ImageMap = dict[str, str]  # mapping from placeholder src to real src
-
-
-def _find_marker(haystack: str, marker: str) -> int:
-    """Return the start index of marker in haystack, or -1 if not found.
-
-    Tries an exact string search first, then a whitespace-normalised regex
-    search on the HTML-unescaped marker.
-    """
-    if not marker:
-        return -1
-    i = haystack.find(marker)
-    if i != -1:
-        return i
-    n = html.unescape(marker)
-    pattern = re.sub(r"\s+", r"\\s+", re.escape(n))
-    m = re.search(pattern, haystack, flags=re.IGNORECASE | re.DOTALL)
-    return m.start() if m else -1
 
 
 def pick_arretify_section(
@@ -73,7 +59,7 @@ def pick_arretify_section(
 
     # Case 1: "APPENDIX" — return the entire appendix footer
     if source_article == "APPENDIX":
-        footer = soup.find("footer", attrs={"data-spec": "appendix"})
+        footer = soup.find("footer", attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC})
         if footer:
             return str(footer)
         _LOGGER.error(
@@ -85,9 +71,11 @@ def pick_arretify_section(
     # Case 2: "APPENDIX:X" or "APPENDIX:X.Y.Z" — search inside the appendix footer
     if source_article.startswith("APPENDIX:"):
         appendix_number = source_article.split("APPENDIX:", 1)[1]
-        footer = soup.find("footer", attrs={"data-spec": "appendix"})
+        footer = soup.find("footer", attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC})
         if footer:
-            for section in footer.find_all("section", attrs={"data-spec": "section"}):
+            for section in footer.find_all(
+                "section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC}
+            ):
                 data_number = section.get("data-number")
                 if data_number == appendix_number:
                     return str(section)
@@ -98,7 +86,7 @@ def pick_arretify_section(
         return None
 
     # Case 3: Normal article (e.g. "2.1.3")
-    for section in soup.find_all("section", attrs={"data-spec": "section"}):
+    for section in soup.find_all("section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC}):
         data_number = section.get("data-number")
         if data_number == source_article:
             return str(section)
@@ -106,32 +94,6 @@ def pick_arretify_section(
     op_info = f" for operation {operation_id}" if operation_id else ""
     _LOGGER.error(f"Section {source_article} not found when extracting operand{op_info}")
     return None
-
-
-def _rehydrate_images(html_fragment: str, img_map: dict[str, str]) -> str:
-    """Replace image placeholder tokens with their original URLs.
-
-    Parameters
-    ----------
-    html_fragment : str
-        HTML fragment potentially containing ``IMG_000``-style placeholder srcs.
-    img_map : dict[str, str]
-        Mapping from placeholder token to original image URL.
-
-    Returns
-    -------
-    str
-        HTML fragment with all placeholders replaced by real URLs.
-    """
-    if not img_map:
-        return html_fragment
-    soup = BeautifulSoup(html_fragment, "html.parser")
-    for img in soup.find_all("img"):
-        src_attr = img.get("src")
-        src = str(src_attr) if src_attr is not None else None
-        if src and src in img_map:
-            img["src"] = img_map[src]
-    return str(soup)
 
 
 def extract_operand_with_images(
@@ -174,21 +136,21 @@ def extract_operand_with_images(
     working_html: str = html_block
     start_idx = -1
     if section is not None:
-        start_idx = _find_marker(section, start_marker)
+        start_idx = find_marker(section, start_marker)
         if start_idx != -1:
             working_html = section
 
     if start_idx == -1:
-        start_idx = _find_marker(html_block, start_marker)
+        start_idx = find_marker(html_block, start_marker)
         working_html = html_block
         if start_idx == -1:
             _LOGGER.warning("Start marker not found%s", op_info)
             return None, StatusCode.ERROR_EXTRACTING_OPERAND
 
-    end_idx = _find_marker(working_html, end_marker)
+    end_idx = find_marker(working_html, end_marker)
     if end_idx != -1:
         html_fragment = working_html[start_idx : end_idx + len(end_marker)]
-        html_fragment = _rehydrate_images(html_fragment, img_map)
+        html_fragment = rehydrate_images(html_fragment, img_map)
         return html_fragment, StatusCode.RESOLVED
     else:
         _LOGGER.warning("End marker not found%s", op_info)

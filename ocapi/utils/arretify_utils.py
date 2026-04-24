@@ -16,7 +16,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import Tuple
+
+from arretify.semantic_tag_specs import AppendixSpec, SectionSpec
 from bs4 import BeautifulSoup, Tag
+
+from ocapi.types import ImageMap
+
+ARRETIFY_SECTION_DATA_SPEC = SectionSpec.spec_name
+ARRETIFY_APPENDIX_DATA_SPEC = AppendixSpec.spec_name
+
+ARRETIFY_SECTION_SELECTOR = f'*[data-spec="{ARRETIFY_SECTION_DATA_SPEC}"]'
 
 
 def list_top_sections(soup: BeautifulSoup | Tag) -> list[Tag]:
@@ -69,6 +79,51 @@ def extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
     if not tags:
         return ""
     return str(tags[0].get_text(" ", strip=True))
+
+
+def extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:
+    """Replace <img> src attributes with IMG_n tokens and return (modified_html, img_map).
+
+    img_map: { "IMG_n": original_src }
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    img_map: ImageMap = {}
+    for i, img in enumerate(soup.find_all("img")):
+        src = str(img.get("src") or img.get("data-src") or "")
+        key = f"IMG_{i:03d}"
+        if src:
+            img_map[key] = src
+        img["src"] = key
+    return str(soup), img_map
+
+
+def is_arretify_section(tag: object) -> bool:
+    if not isinstance(tag, Tag):
+        return False
+    if tag.get("data-spec") == ARRETIFY_SECTION_DATA_SPEC:
+        return True
+    return False
+
+
+def is_arretify_section_title(tag: object) -> bool:
+    if not isinstance(tag, Tag):
+        return False
+    if tag.get("data-spec") == "section-title":
+        return True
+    return False
+
+
+def rehydrate_images(html_fragment: str, img_map: ImageMap) -> str:
+    """Replace image placeholder tokens with their original URLs."""
+    if not img_map:
+        return html_fragment
+    soup = BeautifulSoup(html_fragment, "html.parser")
+    for img in soup.find_all("img"):
+        src_attr = img.get("src")
+        src = str(src_attr) if src_attr is not None else None
+        if src and src in img_map:
+            img["src"] = img_map[src]
+    return str(soup)
 
 
 def extract_main(soup: BeautifulSoup) -> str:

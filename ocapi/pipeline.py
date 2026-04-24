@@ -16,7 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from ocapi.step_chunking.step_chunking import step_chunking
 from ocapi.step_detection.step_detection import step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
@@ -45,9 +44,9 @@ def run_pipeline(
         during detection but remain available for resolution and rendering.
         Defaults to the id of the first arrêté.
     enable_detection : bool
-        If True, run the detection step (steps 1-2).
+        If True, run the detection step (step 1).
     enable_rendering : bool
-        If True, generate the consolidated permit (step 4).
+        If True, generate the consolidated permit (step 3).
     operations : list[Operation] | None
         Pre-loaded operations to use when enable_detection is False (snapshot mode).
         Callers load from disk via :func:`ocapi.utils.io_utils.load_operations` when needed.
@@ -67,13 +66,13 @@ def run_pipeline(
 
     if enable_detection:
         # ========================================
-        # STEP 1-2: CHUNKING + DETECTION
+        # STEP 1: DETECTION
         # ========================================
         _LOGGER.info("=" * 60)
-        _LOGGER.info("STEP 1-2: CHUNKING + DETECTION")
+        _LOGGER.info("STEP 1: DETECTION")
         _LOGGER.info("=" * 60)
 
-        for _i, arrete_file in enumerate(arrete_files):
+        for arrete_file in arrete_files:
             if start_date and arrete_file.id <= start_date:
                 _LOGGER.info(
                     f"Arrêté {arrete_file.id} dated on or before {start_date},"
@@ -81,11 +80,7 @@ def run_pipeline(
                 )
                 continue
             _LOGGER.info(f"Processing arrêté {arrete_file.id}...")
-            docs, img_map = step_chunking(arrete_file)
-            _LOGGER.info(f"  → {len(docs)} documents chunked")
-            _LOGGER.debug(f"  → {len(img_map)} images mapped")
-
-            detected_ops = step_detection(docs, arrete_file.id, img_map)
+            detected_ops = step_detection(arrete_file)
             ops.extend(detected_ops)
             _LOGGER.info(f"  → {len(detected_ops)} operations detected")
     else:
@@ -94,10 +89,10 @@ def run_pipeline(
     _LOGGER.info(f"Total: {len(ops)} operation(s) detected")
 
     # ========================================
-    # STEP 3: RESOLUTION
+    # STEP 2: RESOLUTION
     # ========================================
     _LOGGER.info("=" * 60)
-    _LOGGER.info("STEP 3: RESOLUTION")
+    _LOGGER.info("STEP 2: RESOLUTION")
     _LOGGER.info("=" * 60)
 
     history, arrete_files, ops = step_resolution(ops, arrete_files, enable_llm=enable_llm)
@@ -107,12 +102,12 @@ def run_pipeline(
         _LOGGER.info("0 articles with history")
 
     # ========================================
-    # STEP 4: RENDERING (optional)
+    # STEP 3: RENDERING (optional)
     # ========================================
     permis = None
     if enable_rendering:
         _LOGGER.info("=" * 60)
-        _LOGGER.info("STEP 4: RENDERING")
+        _LOGGER.info("STEP 3: RENDERING")
         _LOGGER.info("=" * 60)
 
         permis = step_rendering(history, ops, arrete_files)

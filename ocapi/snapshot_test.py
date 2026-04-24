@@ -26,26 +26,13 @@ from typing import Any
 import pytest
 
 from ocapi.pipeline import run_pipeline
-from ocapi.snapshots.config import SNAPSHOT_CASES
+from ocapi.snapshot import SNAPSHOT_CASES
 from ocapi.utils.io_utils import article_history_to_json_dict, load_arrete_files, load_operations
+from ocapi.utils.testing import normalize_html
+from ocapi.utils.utils import strip_none_values
 
 # Set UPDATE_SNAPSHOTS=1 to regenerate expected snapshots
 UPDATE_SNAPSHOTS = os.environ.get("UPDATE_SNAPSHOTS", "").strip() in ("1", "true", "yes")
-
-
-def _normalize_html(html: str) -> str:
-    """Normalize trailing whitespace so stored snapshots match pipeline output."""
-    lines = [line.rstrip() for line in html.splitlines()]
-    return "\n".join(lines).strip() + "\n"
-
-
-def _strip_none_values(obj: Any) -> Any:
-    """Recursively drop ``None`` values so snapshot JSON matches across Pydantic versions."""
-    if isinstance(obj, dict):
-        return {k: _strip_none_values(v) for k, v in obj.items() if v is not None}
-    if isinstance(obj, list):
-        return [_strip_none_values(x) for x in obj]
-    return obj
 
 
 def _run_snapshot_pipeline(
@@ -64,8 +51,8 @@ def _run_snapshot_pipeline(
         operations=operations,
     )
 
-    ops_json = _strip_none_values([op.model_dump(mode="json") for op in ops])
-    history_json = _strip_none_values(article_history_to_json_dict(history))
+    ops_json = strip_none_values([op.model_dump(mode="json") for op in ops])
+    history_json = strip_none_values(article_history_to_json_dict(history))
     permis_html = permis.to_html() if permis else ""
     return ops_json, history_json, permis_html
 
@@ -95,9 +82,7 @@ def test_snapshot_pipeline_output(
                 json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8"
             )
         if permis_html:
-            (snapshot_dir / "permis.html").write_text(
-                _normalize_html(permis_html), encoding="utf-8"
-            )
+            (snapshot_dir / "permis.html").write_text(normalize_html(permis_html), encoding="utf-8")
         pytest.skip("Snapshots updated. Run without UPDATE_SNAPSHOTS=1 to verify.")
 
     if not snapshot_dir.exists():
@@ -109,13 +94,13 @@ def test_snapshot_pipeline_output(
     for filename, actual_data in [("operations.json", ops_json), ("history.json", history_json)]:
         expected_path = snapshot_dir / filename
         if expected_path.exists():
-            expected = _strip_none_values(json.loads(expected_path.read_text(encoding="utf-8")))
+            expected = strip_none_values(json.loads(expected_path.read_text(encoding="utf-8")))
             assert actual_data == expected, f"Snapshot mismatch: {filename}"
 
     expected_html_path = snapshot_dir / "permis.html"
     if expected_html_path.exists() and permis_html:
         expected_html = expected_html_path.read_text(encoding="utf-8")
-        assert _normalize_html(permis_html) == _normalize_html(
+        assert normalize_html(permis_html) == normalize_html(
             expected_html
         ), "Snapshot mismatch: permis.html"
 
@@ -137,4 +122,4 @@ def test_snapshot_pipeline_is_deterministic(arretes_dir: Path, consolidation_dir
 
     assert ops_1 == ops_2, "operations.json differs between runs"
     assert history_1 == history_2, "history.json differs between runs"
-    assert _normalize_html(html_1) == _normalize_html(html_2), "permis.html differs between runs"
+    assert normalize_html(html_1) == normalize_html(html_2), "permis.html differs between runs"

@@ -42,6 +42,7 @@ from ocapi.types import (
     SubTarget,
     SubTargetType,
 )
+from ocapi.utils.testing import make_op
 
 
 def test_build_subgraph() -> None:
@@ -502,44 +503,33 @@ def test_error_extracting_target_keeps_content_and_stores_status(
 # ---------------------------------------------------------------------------
 
 
-def _op(op_type: OperationType, sub_target: SubTarget | None = None) -> Operation:
-    return Operation(
-        id="x",
-        source_id=NodeId(arrete_id="1981-01-01", article_id="2"),
-        target_id=NodeId(arrete_id="1980-01-01", article_id="1"),
-        operation_type=op_type,
-        operand="content",
-        sub_target=sub_target,
-    )
-
-
 def test_is_unambiguous_all_replace_full_section() -> None:
-    op = _op(OperationType.REPLACE, SubTarget(type=SubTargetType.FULL_SECTION))
+    op = make_op(OperationType.REPLACE, SubTarget(type=SubTargetType.FULL_SECTION))
     assert _is_unambiguous_all_operation(op) is True
 
 
 def test_is_unambiguous_all_remove_full_section() -> None:
-    op = _op(OperationType.REMOVE, SubTarget(type=SubTargetType.FULL_SECTION))
+    op = make_op(OperationType.REMOVE, SubTarget(type=SubTargetType.FULL_SECTION))
     assert _is_unambiguous_all_operation(op) is True
 
 
 def test_is_unambiguous_all_replace_partial() -> None:
-    op = _op(OperationType.REPLACE, SubTarget(type=SubTargetType.PHRASE, position=1))
+    op = make_op(OperationType.REPLACE, SubTarget(type=SubTargetType.PHRASE, position=1))
     assert _is_unambiguous_all_operation(op) is False
 
 
 def test_is_unambiguous_all_add_returns_false() -> None:
-    op = _op(OperationType.ADD, SubTarget(type=SubTargetType.FULL_SECTION))
+    op = make_op(OperationType.ADD, SubTarget(type=SubTargetType.FULL_SECTION))
     assert _is_unambiguous_all_operation(op) is False
 
 
 def test_is_unambiguous_all_replace_no_subtarget() -> None:
-    op = _op(OperationType.REPLACE, sub_target=None)
+    op = make_op(OperationType.REPLACE, sub_target=None)
     assert _is_unambiguous_all_operation(op) is False
 
 
 def test_is_unambiguous_all_remove_no_subtarget() -> None:
-    op = _op(OperationType.REMOVE, sub_target=None)
+    op = make_op(OperationType.REMOVE, sub_target=None)
     assert _is_unambiguous_all_operation(op) is False
 
 

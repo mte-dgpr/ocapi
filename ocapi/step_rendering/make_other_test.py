@@ -20,24 +20,15 @@ from bs4 import BeautifulSoup, Tag
 
 from ocapi.step_rendering.make_other import has_no_ops, has_unresolved_ops, make_permit_other
 from ocapi.types import ArreteFile, ArticleHistory, NodeId, Operation, OperationType, StatusCode
-
-
-def _make_arrete(arrete_id: str, html: str, aiot: str = "0001", status: bool = True) -> ArreteFile:
-    return ArreteFile(
-        id=arrete_id,
-        aiot=aiot,
-        filename=f"{arrete_id}.html",
-        soup=BeautifulSoup(html, "html.parser"),
-        status=status,
-    )
+from ocapi.utils.testing import make_arrete
 
 
 _EMPTY_AP = '<html><body data-arretify_version="0.2.0"><main data-spec="main"></main></body></html>'
 
 
 def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
-    ap_initial = _make_arrete("2020-01-01", _EMPTY_AP)
-    complement_no_ops = _make_arrete(
+    ap_initial = make_arrete("2020-01-01", _EMPTY_AP)
+    complement_no_ops = make_arrete(
         "2021-01-01",
         """
 <html><body data-arretify_version="0.2.0">
@@ -47,7 +38,7 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
 </body></html>
 """,
     )
-    complement_with_ops = _make_arrete(
+    complement_with_ops = make_arrete(
         "2022-01-01",
         """
 <html><body data-arretify_version="0.2.0">
@@ -79,8 +70,8 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
 
 def test_make_permit_other_includes_modifying_arretes_with_operation_messages() -> None:
     """Modifying arrêtés appear with operation result messages in source articles."""
-    ap_initial = _make_arrete("2020-01-01", _EMPTY_AP)
-    modifying = _make_arrete(
+    ap_initial = make_arrete("2020-01-01", _EMPTY_AP)
+    modifying = make_arrete(
         "2022-01-01",
         """
 <html><body data-arretify_version="0.2.0">
@@ -123,8 +114,8 @@ def test_make_permit_other_includes_modifying_arretes_with_operation_messages() 
 
 def test_make_permit_other_shows_unresolved_message_for_failed_operation() -> None:
     """Unresolved operations get a reason in source article messages."""
-    ap_initial = _make_arrete("2020-01-01", _EMPTY_AP)
-    modifying = _make_arrete(
+    ap_initial = make_arrete("2020-01-01", _EMPTY_AP)
+    modifying = make_arrete(
         "2022-01-01",
         """
 <html><body data-arretify_version="0.2.0">
@@ -164,8 +155,8 @@ def test_make_permit_other_shows_unresolved_message_for_failed_operation() -> No
 
 def test_make_permit_other_skips_abrogated_modifying_arrete() -> None:
     """Abrogated modifying arrêtés are not displayed."""
-    ap_initial = _make_arrete("2020-01-01", _EMPTY_AP)
-    abrogated = _make_arrete(
+    ap_initial = make_arrete("2020-01-01", _EMPTY_AP)
+    abrogated = make_arrete(
         "2022-01-01",
         """
 <html><body data-arretify_version="0.2.0">
@@ -190,8 +181,8 @@ def test_make_permit_other_skips_abrogated_modifying_arrete() -> None:
 
 def test_target_all_shows_arrete_only() -> None:
     """Target article_id=ALL displays only the arrêté reference, no article number."""
-    ap_initial = _make_arrete("2020-01-01", _EMPTY_AP)
-    modifying = _make_arrete(
+    ap_initial = make_arrete("2020-01-01", _EMPTY_AP)
+    modifying = make_arrete(
         "2022-01-01",
         """
 <html><body data-arretify_version="0.2.0">
@@ -224,8 +215,8 @@ def test_target_all_shows_arrete_only() -> None:
 
 def test_target_new_article_strips_prefix() -> None:
     """Target article_id=NEW_ARTICLE:4.1 renders as 'l'article 4.1'."""
-    ap_initial = _make_arrete("2020-01-01", _EMPTY_AP)
-    modifying = _make_arrete(
+    ap_initial = make_arrete("2020-01-01", _EMPTY_AP)
+    modifying = make_arrete(
         "2022-01-01",
         """
 <html><body data-arretify_version="0.2.0">
@@ -261,14 +252,14 @@ def test_target_new_article_strips_prefix() -> None:
 
 
 def test_has_no_ops_returns_true_without_operation() -> None:
-    arrete_file = _make_arrete(
+    arrete_file = make_arrete(
         "2021-01-01", '<html><body data-arretify_version="0.2.0"></body></html>'
     )
     assert has_no_ops(arrete_file, []) is True
 
 
 def test_has_no_ops_returns_true_when_operations_target_this_arrete() -> None:
-    arrete_file = _make_arrete(
+    arrete_file = make_arrete(
         "2021-01-01", '<html><body data-arretify_version="0.2.0"></body></html>'
     )
     operations = [
@@ -283,7 +274,7 @@ def test_has_no_ops_returns_true_when_operations_target_this_arrete() -> None:
 
 
 def test_has_no_ops_returns_false_with_outgoing_ops() -> None:
-    arrete = _make_arrete("2021-01-01", _EMPTY_AP)
+    arrete = make_arrete("2021-01-01", _EMPTY_AP)
     ops = [
         Operation(
             id="op-1",
@@ -301,7 +292,7 @@ def test_has_no_ops_returns_false_with_outgoing_ops() -> None:
 
 
 def test_has_unresolved_ops_returns_true_with_unresolved_outgoing_ops() -> None:
-    arrete = _make_arrete("2021-01-01", _EMPTY_AP)
+    arrete = make_arrete("2021-01-01", _EMPTY_AP)
     ops = [
         Operation(
             id="op-1",
@@ -314,7 +305,7 @@ def test_has_unresolved_ops_returns_true_with_unresolved_outgoing_ops() -> None:
 
 
 def test_has_unresolved_ops_returns_false_when_all_outgoing_ops_resolved() -> None:
-    arrete = _make_arrete("2021-01-01", _EMPTY_AP)
+    arrete = make_arrete("2021-01-01", _EMPTY_AP)
     ops = [
         Operation(
             id="op-1",
@@ -335,7 +326,7 @@ def test_has_unresolved_ops_returns_false_when_all_outgoing_ops_resolved() -> No
 
 
 def test_has_unresolved_ops_returns_true_when_some_ops_have_errors() -> None:
-    arrete = _make_arrete("2021-01-01", _EMPTY_AP)
+    arrete = make_arrete("2021-01-01", _EMPTY_AP)
     ops = [
         Operation(
             id="op-1",
@@ -356,7 +347,7 @@ def test_has_unresolved_ops_returns_true_when_some_ops_have_errors() -> None:
 
 
 def test_has_unresolved_ops_returns_false_without_outgoing_ops() -> None:
-    arrete = _make_arrete("2021-01-01", _EMPTY_AP)
+    arrete = make_arrete("2021-01-01", _EMPTY_AP)
     ops = [
         Operation(
             id="op-1",
