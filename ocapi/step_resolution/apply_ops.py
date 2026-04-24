@@ -75,7 +75,10 @@ def _is_unambiguous_all_operation(op: Operation) -> bool:
     Unambiguous cases:
     - REPLACE with ``sub_target.type == FULL_SECTION`` ("replace all")
     - REMOVE  with ``sub_target.type == FULL_SECTION`` ("remove all")
+    - ``NOT_AN_OPERATION``: no content change, only a status message.
     """
+    if ErrorCode.NOT_AN_OPERATION in op.error_codes:
+        return True
     if op.operation_type not in (OperationType.REPLACE, OperationType.REMOVE):
         return False
     return op.sub_target is not None and op.sub_target.type == SubTargetType.FULL_SECTION
@@ -450,6 +453,7 @@ def _apply_single_edge(
                 detection_errors = op.error_codes & {
                     ErrorCode.ERROR_EXTRACTING_OPERAND,
                     ErrorCode.ERROR_EXTRACTING_TARGET,
+                    ErrorCode.NOT_AN_OPERATION,
                 }
                 if detection_errors:
                     article_error_codes = frozenset(op.error_codes)

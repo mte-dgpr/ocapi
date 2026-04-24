@@ -469,6 +469,39 @@ def test_apply_all_operations(
     assert len(history[NodeId(arrete_id="1980-01-01", article_id="2")]) > 1
 
 
+@mock.patch("ocapi.step_resolution.apply_ops.apply_add")
+def test_not_an_operation_short_circuits_apply_and_stores_status(
+    mock_add: mock.Mock,
+) -> None:
+    """NOT_AN_OPERATION must not call apply_* and must store the status code on
+    the target history version."""
+    G = nx.MultiDiGraph()
+    source = NodeId(arrete_id="2010-12-24", article_id="1")
+    target = NodeId(arrete_id="2008-12-10", article_id="ALL")
+    add_node(G, source)
+    add_node(G, target, "")
+    add_edge(
+        G,
+        Operation(
+            id="op-complement",
+            source_id=source,
+            target_id=target,
+            operation_type=OperationType.ADD,
+            error_codes=frozenset({ErrorCode.NOT_AN_OPERATION}),
+        ),
+    )
+    history: ArticleHistory = {}
+    output_history, skipped_ops, resolved = apply_subgraph_operations(G, history)
+
+    assert skipped_ops == []
+    mock_add.assert_not_called()
+    last = output_history[target][-1]
+    assert last["content"] == ""
+    assert last["error_codes"] == frozenset({ErrorCode.NOT_AN_OPERATION})
+    assert last["operation_id"] == "op-complement"
+    assert resolved["op-complement"] == frozenset({ErrorCode.NOT_AN_OPERATION})
+
+
 @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
 def test_error_extracting_target_keeps_content_and_stores_status(
     mock_replace: mock.Mock,
@@ -536,6 +569,12 @@ def test_is_unambiguous_all_replace_no_subtarget() -> None:
 def test_is_unambiguous_all_remove_no_subtarget() -> None:
     op = make_testing_op(OperationType.REMOVE, sub_target=None)
     assert _is_unambiguous_all_operation(op) is False
+
+
+def test_is_unambiguous_all_not_an_operation() -> None:
+    op = make_testing_op(OperationType.ADD, sub_target=None)
+    op = op.model_copy(update={"error_codes": frozenset({ErrorCode.NOT_AN_OPERATION})})
+    assert _is_unambiguous_all_operation(op) is True
 
 
 # ---------------------------------------------------------------------------
