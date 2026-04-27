@@ -20,11 +20,7 @@ import pytest
 from bs4 import BeautifulSoup
 from pydantic import ValidationError
 
-from .exceptions import (
-    InvalidArreteIdError,
-    InvalidArticleIdError,
-    InvalidFileFormatError,
-)
+from .exceptions import InvalidArreteIdError, InvalidArticleIdError, InvalidFileFormatError
 from .types import (
     FileType,
     NodeId,
@@ -91,6 +87,27 @@ class TestParseArticleId:
             parse_article_id("abc")
         with pytest.raises(InvalidArticleIdError):
             parse_article_id("1.2.")
+
+    def test_dashed_numbering(self) -> None:
+        assert parse_article_id("1-2") == "1-2"
+        assert parse_article_id("4-1-3") == "4-1-3"
+
+    def test_roman_numeral_levels(self) -> None:
+        assert parse_article_id("I") == "I"
+        assert parse_article_id("IV") == "IV"
+        assert parse_article_id("I.1") == "I.1"
+        assert parse_article_id("2.IX") == "2.IX"
+        assert parse_article_id("III-2") == "III-2"
+
+    def test_letter_levels(self) -> None:
+        assert parse_article_id("A") == "A"
+        assert parse_article_id("A.3") == "A.3"
+        assert parse_article_id("3.B") == "3.B"
+        assert parse_article_id("a-2") == "a-2"
+
+    def test_mixed_levels_in_prefixes(self) -> None:
+        assert parse_article_id("APPENDIX:I.1") == "APPENDIX:I.1"
+        assert parse_article_id("NEW_ARTICLE:A.3") == "NEW_ARTICLE:A.3"
 
 
 def test_article_display_number_strips_new_article_prefix() -> None:
