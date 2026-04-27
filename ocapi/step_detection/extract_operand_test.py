@@ -19,7 +19,6 @@
 import unittest
 
 from ocapi.step_detection.extract_operand import extract_operand_with_images, pick_arretify_section
-from ocapi.types import StatusCode
 from ocapi.utils.testing import assert_html_equal
 from ocapi.utils.utils import minify_html_fragment
 
@@ -105,14 +104,13 @@ class TestExtractOperand(unittest.TestCase):
         end_marker = '<img src="image1.png"/>'
         img_map = {"image1.png": "http://example.com/image1.png"}
 
-        operand, status_code = extract_operand_with_images(
+        operand = extract_operand_with_images(
             html_block=minified_html,
             source_article="1.2",
             start_marker=start_marker,
             end_marker=end_marker,
             img_map=img_map,
         )
-        assert status_code == StatusCode.RESOLVED
         assert operand is not None
         assert "Voici le nouveau" in operand
         assert "http://example.com/image1.png" in operand
@@ -130,7 +128,7 @@ class TestExtractOperand(unittest.TestCase):
         html = '<section data-spec="section" data-number="1"><p>Contenu</p></section>'
 
         with self.assertLogs("ocapi.step_detection.extract_operand", level="WARNING") as cm:
-            operand, status_code = extract_operand_with_images(
+            operand = extract_operand_with_images(
                 html_block=html,
                 source_article="1",
                 start_marker="INTROUVABLE",
@@ -140,7 +138,6 @@ class TestExtractOperand(unittest.TestCase):
             )
 
         assert operand is None
-        assert status_code == StatusCode.ERROR_EXTRACTING_OPERAND
         assert any("Start marker not found" in msg for msg in cm.output)
         assert any("op-42" in msg for msg in cm.output)
 
@@ -148,7 +145,7 @@ class TestExtractOperand(unittest.TestCase):
         html = '<section data-spec="section" data-number="1"><p>Contenu</p></section>'
 
         with self.assertLogs("ocapi.step_detection.extract_operand", level="WARNING") as cm:
-            operand, status_code = extract_operand_with_images(
+            operand = extract_operand_with_images(
                 html_block=html,
                 source_article="1",
                 start_marker="Contenu",
@@ -158,7 +155,6 @@ class TestExtractOperand(unittest.TestCase):
             )
 
         assert operand is None
-        assert status_code == StatusCode.ERROR_EXTRACTING_OPERAND
         assert any("End marker not found" in msg for msg in cm.output)
         assert any("op-99" in msg for msg in cm.output)
 
@@ -171,7 +167,7 @@ class TestExtractOperand(unittest.TestCase):
         start_marker = "<p>Non-existent start"
         end_marker = "</p>"
 
-        operand, status_code = extract_operand_with_images(
+        operand = extract_operand_with_images(
             html_block=minify_html_fragment(html),
             source_article="L123-4",
             start_marker=start_marker,
@@ -179,4 +175,3 @@ class TestExtractOperand(unittest.TestCase):
             img_map={},
         )
         assert operand is None
-        assert status_code == StatusCode.ERROR_EXTRACTING_OPERAND

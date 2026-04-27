@@ -29,18 +29,18 @@ from ocapi.step_rendering.main_content import (
     make_section_version,
 )
 from ocapi.types import (
-    STATUS_CODE_MESSAGES,
+    ERROR_CODE_MESSAGES,
     ArreteFile,
     ArticleHistory,
     ArticleVersion,
+    ErrorCode,
     FileType,
     NodeId,
     Operation,
     OperationType,
-    StatusCode,
     SubTarget,
     SubTargetType,
-    status_code_reason,
+    status_codes_reason,
 )
 from ocapi.utils.testing import make_testing_arrete, make_testing_article_version
 
@@ -506,7 +506,7 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
         source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
         target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
         operation_type=OperationType.REPLACE,
-        status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
+        status_code=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
     )
     history = {
         NodeId(arrete_id="2020-01-01", article_id="1"): [
@@ -516,7 +516,7 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
                     "version": 0,
                     "content": "<p>Article 1 version 0</p>",
                     "operation_id": None,
-                    "status_code": StatusCode.RESOLVED,
+                    "status_code": frozenset(),
                 },
             ),
             cast(
@@ -525,7 +525,7 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
                     "version": 1,
                     "content": "<p>Article 1 version 0</p>",
                     "operation_id": "op-1",
-                    "status_code": StatusCode.ERROR_EXTRACTING_OPERAND,
+                    "status_code": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
                 },
             ),
         ]
@@ -545,41 +545,53 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
     assert "n'a pas pu être extrait de l'arrêté modificatif" in rendered
 
 
-# status_code_reason helper
+# status_codes_reason helper
 
 
-def test_status_code_reason_returns_none_for_resolved() -> None:
-    assert status_code_reason(StatusCode.RESOLVED) is None
+def test_status_codes_reason_returns_none_for_empty() -> None:
+    assert status_codes_reason(frozenset()) is None
 
 
-def test_status_code_reason_returns_none_for_none() -> None:
-    assert status_code_reason(None) is None
+def test_status_codes_reason_returns_none_for_none() -> None:
+    assert status_codes_reason(None) is None
 
 
-def test_status_code_reason_covers_all_non_resolved_codes() -> None:
-    non_resolved = [sc for sc in StatusCode if sc != StatusCode.RESOLVED]
-    for sc in non_resolved:
-        assert sc in STATUS_CODE_MESSAGES, f"Missing message for StatusCode.{sc.name}"
+def test_status_codes_reason_covers_all_error_codes() -> None:
+    for code in ErrorCode:
+        assert code in ERROR_CODE_MESSAGES, f"Missing message for ErrorCode.{code.name}"
 
 
-def test_status_code_reason_returns_message_for_error_extracting_operand() -> None:
-    reason = status_code_reason(StatusCode.ERROR_EXTRACTING_OPERAND)
+def test_status_codes_reason_returns_message_for_error_extracting_operand() -> None:
+    reason = status_codes_reason(frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}))
     assert reason is not None
     assert "extrait de l'arrêté modificatif" in reason
 
 
-def test_status_code_reason_returns_message_for_error_extracting_target() -> None:
-    reason = status_code_reason(StatusCode.ERROR_EXTRACTING_TARGET)
+def test_status_codes_reason_returns_message_for_error_extracting_target() -> None:
+    reason = status_codes_reason(frozenset({ErrorCode.ERROR_EXTRACTING_TARGET}))
     assert reason is not None
     assert "article cible" in reason
 
 
+def test_status_codes_reason_joins_multiple_messages() -> None:
+    reason = status_codes_reason(
+        frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND, ErrorCode.PROPAGATED_ERROR})
+    )
+    assert reason is not None
+    assert "extrait de l'arrêté modificatif" in reason
+    assert "opération précédente" in reason
+    assert " ; " in reason
+
+
 @pytest.mark.parametrize(
     "status_code",
-    [StatusCode.ERROR_FINDING_SUBTARGET, StatusCode.COMPLEX_SUBTARGET],
+    [
+        frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
+        frozenset({ErrorCode.COMPLEX_SUBTARGET}),
+    ],
 )
 def test_make_section_version_displays_unresolved_message_for_subtarget_errors(
-    status_code: StatusCode,
+    status_code: frozenset[ErrorCode],
 ) -> None:
     section = BeautifulSoup(
         '<section data-spec="section" data-number="1"><p>Article 1 initial</p></section>',
@@ -601,7 +613,7 @@ def test_make_section_version_displays_unresolved_message_for_subtarget_errors(
                     "version": 0,
                     "content": "<p>Article 1 version 0</p>",
                     "operation_id": None,
-                    "status_code": StatusCode.RESOLVED,
+                    "status_code": frozenset(),
                 },
             ),
             cast(
@@ -640,7 +652,7 @@ def test_make_section_version_displays_error_extracting_target_reason() -> None:
         source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
         target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
         operation_type=OperationType.REPLACE,
-        status_code=StatusCode.ERROR_EXTRACTING_TARGET,
+        status_code=frozenset({ErrorCode.ERROR_EXTRACTING_TARGET}),
     )
     history = {
         NodeId(arrete_id="2020-01-01", article_id="1"): [
@@ -654,7 +666,7 @@ def test_make_section_version_displays_error_extracting_target_reason() -> None:
                     "version": 1,
                     "content": "",
                     "operation_id": "op-target",
-                    "status_code": StatusCode.ERROR_EXTRACTING_TARGET,
+                    "status_code": frozenset({ErrorCode.ERROR_EXTRACTING_TARGET}),
                 },
             ),
         ]
