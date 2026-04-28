@@ -16,6 +16,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
+import re
+import textwrap
+from typing import Any
+
+from ocapi.types import OperationType
+from ocapi.utils.logging_utils import get_logger
+
+_LOGGER = get_logger(__name__)
+
+
 def prompt_detection(html: str) -> str:
     return f"""
 Voici un extrait HTML d'arrêté préfectoral :
@@ -131,3 +142,156 @@ Notes CRITIQUES :
   * Le contenu entre start_marker et end_marker doit être extractible tel quel pour insertion dans l'arrêté cible.
 - Liste vide [] si aucune opération detectée.
 """
+
+
+def parse_llm_json_list_response(raw: str) -> list[dict[str, Any]]:
+    """Parse the raw LLM response to extract a JSON list.
+
+    Note: Returns an empty list on parsing errors. Errors are logged but not
+    retried — retries must be handled at the API call level, not the parsing level.
+    """
+    # Find the first JSON array in the response
+    m = re.search(r"\[[\s\S]*\]", raw)
+    if not m:
+        _LOGGER.warning(
+            f"No JSON array found in LLM response. " f"Raw response (first 200 chars): {raw[:200]}"
+        )
+        return []
+
+    # Parse the JSON array
+    try:
+        lst: Any = json.loads(m.group())
+        # Ensure we return a list
+        if not isinstance(lst, list):
+            _LOGGER.warning(
+                f"Parsed JSON is not a list but a {type(lst).__name__}. " f"Returning empty list."
+            )
+            return []
+        return lst
+    except json.JSONDecodeError as e:
+        _LOGGER.error(
+            f"LLM JSON parsing error: {e}. " f"JSON content (first 200 chars): {m.group()[:200]}"
+        )
+        return []
+
+
+def query_llm_for_subtarget(
+    operation_type: OperationType,
+    target_content: str,
+    sub_target: str,
+    *,
+    target_article_id: str | None = None,
+    operand: str | None = None,
+    source_content: str | None = None,
+) -> str:
+    """Build a prompt for LLM-assisted consolidation (locate sub-target in HTML).
+
+    When ``source_content`` is provided, it is the HTML of the *source* article
+    (arrêté modifiant) that motivates the operation; it helps disambiguate
+    complex cases (e.g. table rows, nested structures).
+
+    Returns a prompt string for a REPLACE, REMOVE or ADD operation.
+    The prompt asks the LLM to return the complete modified HTML directly
+    (no placeholder).
+    """
+    source_block = ""
+    if source_content is not None and source_content.strip():
+        source_block = textwrap.dedent(
+            f"""
+            Contexte — article source (arrêté modifiant), d'où provient la modification :
+
+            {source_content}
+
+            ---
+
+            """
+        ).strip()
+        source_block = source_block + "\n\n"
+
+    article_label = f" (article {target_article_id})" if target_article_id else ""
+
+    operand_block = ""
+    if operand is not None and operand.strip():
+        operand_block = f"\n\nNouveau contenu à intégrer :\n\n{operand}"
+
+    preamble = (
+        f"Vous aidez à consolider des arrêtés ICPE."
+        f" Vous recevez l'article **cible**{article_label} en HTML."
+    )
+    output_instruction = (
+        "Renvoyez UNIQUEMENT le HTML modifié complet de l'article,"
+        " sans explication ni balisage markdown."
+    )
+
+    prompt_REPLACE = textwrap.dedent(
+        f"""
+        {preamble}
+        Le sous-emplacement à remplacer est décrit en langage naturel.
+
+        Tâche : localisez précisément le segment décrit et remplacez-le
+        par le nouveau contenu fourni.
+        {output_instruction}
+
+        Article cible (HTML) :
+
+        {target_content}
+
+        {source_block}Description du sous-emplacement à remplacer :
+
+        {sub_target}{operand_block}
+        """
+    ).strip()
+
+    prompt_ADD = textwrap.dedent(
+        f"""
+        {preamble}
+        L'insertion doit se faire à l'endroit décrit.
+
+        Tâche : insérez le nouveau contenu à l'emplacement indiqué.
+        {output_instruction}
+
+        Article cible (HTML) :
+
+        {target_content}
+
+        {source_block}Description de l'emplacement d'insertion :
+
+        {sub_target}{operand_block}
+        """
+    ).strip()
+
+    prompt_REMOVE = textwrap.dedent(
+        f"""
+        {preamble}
+        Le segment à supprimer est décrit en langage naturel.
+
+        Tâche : supprimez le segment décrit.
+        {output_instruction}
+
+        Article cible (HTML) :
+
+        {target_content}
+
+        {source_block}Description du segment à supprimer :
+
+        {sub_target}
+        """
+    ).strip()
+
+    if operation_type == OperationType.REPLACE:
+        return prompt_REPLACE
+    elif operation_type == OperationType.ADD:
+        return prompt_ADD
+    elif operation_type == OperationType.REMOVE:
+        return prompt_REMOVE
+
+
+def extract_html_from_llm_response(raw: str, fallback: str) -> str:
+    """Extract HTML content from an LLM response, stripping code fences if present."""
+    text = raw.strip()
+    if not text:
+        return fallback
+    m = re.search(r"```(?:html)?\s*\n([\s\S]*?)\n```", text)
+    if m:
+        return m.group(1).strip()
+    return text

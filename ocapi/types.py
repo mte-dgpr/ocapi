@@ -21,13 +21,17 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Optional, TypedDict
 
-import roman
+from arretify.parsing_utils.numbering import str_to_levels
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, field_validator
 from typing_extensions import NotRequired
 
+from ocapi.utils.logging_utils import get_logger
+
 from .config import SUPPORTED_ARRETIFY_VERSION, SUPPORTED_ARRETIFY_VERSION_PATTERN, settings
 from .exceptions import InvalidArreteIdError, InvalidArticleIdError, InvalidFileFormatError
+
+_LOGGER = get_logger(__name__)
 
 OperationId = str
 ArreteId = str
@@ -78,29 +82,25 @@ def article_display_number(article_id: str) -> str:
     return article_id
 
 
-def _parse_segment(token: str) -> int:
-    """Convert a single article-id segment to an integer for sorting.
-
-    Tries, in order: plain integer, Roman numeral, single letter A–H.
-    Falls back to a high sentinel so unknown tokens sort last.
-    """
-    try:
-        return int(token)
-    except ValueError:
-        pass
-    try:
-        return int(roman.fromRoman(token.upper()))
-    except roman.InvalidRomanNumeralError:
-        pass
-    if len(token) == 1 and "A" <= token.upper() <= "H":
-        return ord(token.upper()) - ord("A") + 1
-    return 999_999
+def _numbering_fragment_for_sort(article_id: str) -> str:
+    s = article_display_number(article_id)
+    if s.startswith("APPENDIX:"):
+        return s[len("APPENDIX:") :]
+    return s
 
 
 def article_id_sort_tuple(article_id: str) -> tuple[int, ...]:
     """Lexicographic order key for dotted article ids (e.g. ``4.1`` < ``4.2`` < ``10``)."""
-    s = article_display_number(article_id)
-    return tuple(_parse_segment(tok) for tok in re.split(r"[.\-]", s))
+    fragment = _numbering_fragment_for_sort(article_id).strip()
+    if not fragment:
+        return (999_999,)
+    try:
+        levels = str_to_levels(fragment)
+    except ValueError:
+        return (999_999,)
+    if levels is None:
+        return (999_999,)
+    return tuple(levels)
 
 
 def parse_arrete_id(v: str) -> str:
@@ -417,8 +417,6 @@ class SubTarget(_BaseModelWithConfig):
 
 
 class Operation(_BaseModelWithConfig):
-    # TODO: keep a reference to source arrêté and an incrementing index
-    # for each identical target in that arrêté
     id: OperationId
     source_id: NodeId
     target_id: NodeId
@@ -432,6 +430,81 @@ class Operation(_BaseModelWithConfig):
     @classmethod
     def _ensure_operation_type(cls, v: OperationType | str) -> OperationType:
         return v if isinstance(v, OperationType) else OperationType(v)
+
+    @classmethod
+    def from_raw_detection(
+        cls,
+        raw_operation: RawOperation,
+        source_arrete_id: ArreteId,
+        operation_id: OperationId,
+        operand: str | None,
+        op_status_code: "StatusCode | None",
+        sub_target: "SubTarget | None",
+    ) -> "Operation":
+        """Build an ``Operation`` from a validated raw detection and its extracted operand.
+
+        Caller is expected to have validated ``raw_operation.source_article`` and
+        ``raw_operation.target_article`` and to pass the already-extracted ``operand``
+        and ``sub_target``. This method only handles the pure model-level
+        transformations: operation-type coercion, special-case ``ALL`` handling,
+        ``REPLACE ALL`` → ``REMOVE`` conversion, and the final instantiation.
+        """
+        assert raw_operation.source_article is not None
+        assert raw_operation.target_article is not None
+
+        raw_op_type = raw_operation.operation_type
+        op_type_value = getattr(raw_op_type, "value", raw_op_type)
+        op_type = OperationType(op_type_value)
+
+        # target_article=ALL with a non-FULL_SECTION sub-target is incoherent:
+        # the LLM tried to target something specific inside "all articles".
+        if raw_operation.target_article == "ALL" and sub_target is not None:
+            st = (
+                sub_target.type
+                if isinstance(sub_target.type, SubTargetType)
+                else SubTargetType(sub_target.type)
+            )
+            if st != SubTargetType.FULL_SECTION:
+                _LOGGER.warning(
+                    f"Operation {operation_id}: target_article=ALL with "
+                    f"sub_target={sub_target.type} is not fully defined "
+                    f"(target_arrete={raw_operation.target_arrete})"
+                )
+                op_status_code = StatusCode.ERROR_EXTRACTING_OPERAND
+
+        # A full-arrêté REPLACE (target_article=ALL) is in practice an abrogation.
+        if op_type == OperationType.REPLACE and raw_operation.target_article == "ALL":
+            _LOGGER.info(
+                f"Operation {operation_id}: REPLACE ALL converted to REMOVE "
+                f"(target_arrete={raw_operation.target_arrete})"
+            )
+            op_type = OperationType.REMOVE
+            operand = None
+
+        return cls(
+            id=operation_id,
+            source_id=NodeId(
+                arrete_id=source_arrete_id,
+                article_id=raw_operation.source_article,
+            ),
+            target_id=NodeId(
+                arrete_id=raw_operation.target_arrete,
+                article_id=raw_operation.target_article,
+            ),
+            operation_type=op_type,
+            operand=operand,
+            sub_target=sub_target,
+            status_code=op_status_code,
+            confidence_score=raw_operation.confidence_score,
+        )
+
+
+def _to_operation_type(raw_type: OperationType | str) -> OperationType:
+    """Ensure we always work with an OperationType instance."""
+    if isinstance(raw_type, OperationType):
+        return raw_type
+    raw_str = getattr(raw_type, "value", raw_type)
+    return OperationType(raw_str)
 
 
 def categorize_arrete(filename: str) -> FileType:

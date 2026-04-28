@@ -16,20 +16,19 @@ Les exemples ICPE (arrêtés et permis consolidés en HTML) sont consultables da
 
 ## 🏗️ Architecture du pipeline
 
-Le pipeline OCAPI se décompose en 4 étapes principales :
+Le pipeline OCAPI se décompose en 3 étapes principales :
 
 ```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   STEP 1     │────▶│   STEP 2     │────▶│   STEP 3     │────▶│   STEP 4     │
-│   Chunking   │     │  Detection   │     │  Resolution  │     │  Rendering   │
-└──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
-   HTML → Docs         Docs → Ops         Ops → History      History → Permis
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   STEP 1     │────▶│   STEP 2     │────▶│   STEP 3     │
+│  Detection   │     │  Resolution  │     │  Rendering   │
+└──────────────┘     └──────────────┘     └──────────────┘
+ Arrêté → Ops        Ops → History     History → Permis
 ```
 
-1. **Chunking** : Découpe les fichiers HTML en documents structurés de taille maximale fixée
-2. **Detection** : Détecte les opérations via LLM (ajout, modification, suppression)
-3. **Resolution** : Résout les conflits et construit l'historique des versions
-4. **Rendering** : Génère le permis consolidé HTML final
+1. **Detection** : Découpe l'arrêté et détecte les opérations via LLM (ajout, modification, suppression)
+2. **Resolution** : Résout les conflits et construit l'historique des versions
+3. **Rendering** : Génère le permis consolidé HTML final
 
 ### Filtrage des articles superflus
 
@@ -183,7 +182,7 @@ python -m ocapi.main snapshots/arretes_html/0005804239/ \
 # Désactiver la détection (utiliser les opérations préchargées)
 python -m ocapi.main snapshots/arretes_html/0005804239/ --no-detection
 
-# Désactiver le rendering (étapes 1-3 uniquement)
+# Désactiver le rendering (étapes 1-2 uniquement)
 python -m ocapi.main snapshots/arretes_html/0005804239/ --no-rendering
 
 # Combiner plusieurs options
@@ -210,29 +209,32 @@ ocapi/
 │   ├── config.py                 # Configuration Pydantic
 │   ├── types.py                  # Types et modèles de données
 │   │
-│   ├── step_chunking/            # Étape 1 : Chunking
-│   │   └── step_chunking.py
-│   │
-│   ├── step_detection/           # Étape 2 : Detection
+│   ├── step_detection/           # Étape 1 : Détection (chunking + LLM)
+│   │   ├── chunking.py
 │   │   ├── step_detection.py
 │   │   ├── extract_operand.py
-│   │   ├── subtarget_detection.py
 │   │   └── prompts.py
 │   │
-│   ├── step_resolution/          # Étape 3 : Resolution
+│   ├── step_resolution/          # Étape 2 : Resolution
 │   │   ├── step_resolution.py
 │   │   ├── apply_ops.py
 │   │   └── build_op_graph.py
 │   │
-│   ├── step_rendering/           # Étape 4 : Rendering
+│   ├── step_rendering/           # Étape 3 : Rendering
 │   │   ├── step_rendering.py
 │   │   ├── make_header.py
 │   │   ├── make_main_content.py
 │   │   └── make_other.py
 │   │
+│   ├── llm_utils/                # Appels et prompts LLM
+│   │   ├── config.py
+│   │   ├── core.py
+│   │   ├── prompts.py
+│   │   ├── logging.py
+│   │   └── mocks.py
+│   ├── snapshot.py               # Cas de tests snapshot ICPE
 │   └── utils/                    # Utilitaires
 │       ├── logging_utils.py
-│       ├── llm_utils.py
 │       ├── arretify_utils.py
 │       ├── documents.py
 │       ├── io_utils.py
@@ -266,7 +268,7 @@ pytest
 pytest --cov=ocapi --cov-report=html
 
 # Tests d'un module spécifique
-pytest ocapi/step_chunking/step_chunking_test.py
+pytest ocapi/step_detection/chunking_test.py
 
 # Tests en mode verbose
 pytest -v
@@ -392,7 +394,7 @@ ocapi update-snapshots
 UPDATE_SNAPSHOTS=1 pytest -m snapshot -v
 ```
 
-Les cas de test sont configurés dans `ocapi/snapshots/config.py`.
+Les cas de test sont configurés dans `ocapi/snapshot.py`.
 
 ## 📏 Évaluation de la détection
 

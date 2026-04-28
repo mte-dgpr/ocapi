@@ -101,7 +101,7 @@ Les logs suivent ce format détaillé :
 
 ```
 2026-02-04 14:30:45 - ocapi.cli - INFO - Chargement des arrêtés depuis: examples/arretes_html/<AIOT>
-2026-02-04 14:30:45 - ocapi.step_chunking - DEBUG - Processing document 1/10
+2026-02-04 14:30:45 - ocapi.step_detection.chunking - DEBUG - Processing document 1/10
 2026-02-04 14:30:46 - ocapi.step_detection - WARNING - Opération ignorée: format invalide
 ```
 

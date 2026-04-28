@@ -47,7 +47,7 @@ from ocapi.utils.io_utils import (
     write_json_output,
     write_permis_output,
 )
-from ocapi.utils.llm_utils import config_model_llm
+from ocapi.llm_utils import config_model_llm
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 _LOGGER = get_logger(__name__)

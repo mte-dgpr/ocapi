@@ -200,6 +200,14 @@ class TestLoadOperations:
         with pytest.raises(InputOutputError, match="introuvable"):
             load_operations(tmp_path)
 
+    def test_raises_input_output_error_on_invalid_operation_item(self, tmp_path: Path) -> None:
+        (tmp_path / "operations.json").write_text(
+            json.dumps([{"id": "bad", "not_a_valid_operation": True}]),
+            encoding="utf-8",
+        )
+        with pytest.raises(InputOutputError, match="Cannot parse operations file"):
+            load_operations(tmp_path)
+
     def test_roundtrip_preserves_source_and_target(self, tmp_path: Path) -> None:
         op = Operation(
             id="op-rt",

@@ -39,6 +39,7 @@ from ocapi.types import (
     operation_type_label,
     status_code_reason,
 )
+from ocapi.utils.arretify_utils import ARRETIFY_SECTION_DATA_SPEC
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -80,12 +81,12 @@ def make_permit_content(
         return ""
 
     # Find all sections (articles) in the main element
-    sections = main.find_all("section", attrs={"data-spec": "section"})
+    sections = main.find_all("section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC})
     filter_superfluous_sections(sections)
     operation_by_id = {operation.id: operation for operation in operations}
 
     # Re-query after filtering (decomposed sections are gone from the tree)
-    sections = main.find_all("section", attrs={"data-spec": "section"})
+    sections = main.find_all("section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC})
     for section in sections:
         article_id = section.get("data-number")
         if not article_id or not isinstance(article_id, str):

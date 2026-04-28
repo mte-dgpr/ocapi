@@ -29,7 +29,7 @@ from ocapi.types import (
     SubTargetType,
 )
 
-from .build_op_graph import _is_abrogation_arrete, add_node, build_graph, update_node
+from .build_op_graph import _is_full_removal_op, add_node, build_graph, update_node
 
 
 def test_update_node_sets_content_and_title() -> None:
@@ -182,40 +182,40 @@ def test_build_graph_replace_all_marks_arrete_abrogated() -> None:
     assert arrete_2021.status is True
 
 
-def test_is_abrogation_arrete_replace_all() -> None:
-    """_is_abrogation_arrete returns True for REPLACE with target ALL (refonte)."""
+def test_is_full_removal_op_replace_all() -> None:
+    """_is_full_removal_op returns True for REPLACE with target ALL (refonte)."""
     op_replace_all = Operation(
         id="1",
         source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
         target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
         operation_type=OperationType.REPLACE,
     )
-    assert _is_abrogation_arrete(op_replace_all) is True
+    assert _is_full_removal_op(op_replace_all) is True
 
 
-def test_is_abrogation_arrete_remove_all() -> None:
-    """_is_abrogation_arrete returns True for REMOVE with target ALL."""
+def test_is_full_removal_op_remove_all() -> None:
+    """_is_full_removal_op returns True for REMOVE with target ALL."""
     op_remove_all = Operation(
         id="1",
         source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
         target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
         operation_type=OperationType.REMOVE,
     )
-    assert _is_abrogation_arrete(op_remove_all) is True
+    assert _is_full_removal_op(op_remove_all) is True
 
 
-def test_is_abrogation_arrete_replace_single_article() -> None:
-    """_is_abrogation_arrete returns False for REPLACE with single article target."""
+def test_is_full_removal_op_replace_single_article() -> None:
+    """_is_full_removal_op returns False for REPLACE with single article target."""
     op_replace = Operation(
         id="1",
         source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
         target_id=NodeId(arrete_id="2020-04-20", article_id="1.2.1"),
         operation_type=OperationType.REPLACE,
     )
-    assert _is_abrogation_arrete(op_replace) is False
+    assert _is_full_removal_op(op_replace) is False
 
 
-def test_is_abrogation_arrete_remove_all_with_complex_subtarget() -> None:
+def test_is_full_removal_op_remove_all_with_complex_subtarget() -> None:
     """REMOVE ALL with a narrower sub_target (e.g. annexe 1) is ill-defined, not an abrogation."""
     op = Operation(
         id="13",
@@ -225,10 +225,10 @@ def test_is_abrogation_arrete_remove_all_with_complex_subtarget() -> None:
         sub_target=SubTarget(type=SubTargetType.COMPLEX, description="annexe 1"),
         status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
     )
-    assert _is_abrogation_arrete(op) is False
+    assert _is_full_removal_op(op) is False
 
 
-def test_is_abrogation_arrete_remove_all_with_error_status() -> None:
+def test_is_full_removal_op_remove_all_with_error_status() -> None:
     """REMOVE ALL with a non-RESOLVED status_code is not a valid abrogation."""
     op = Operation(
         id="1",
@@ -237,10 +237,10 @@ def test_is_abrogation_arrete_remove_all_with_error_status() -> None:
         operation_type=OperationType.REMOVE,
         status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
     )
-    assert _is_abrogation_arrete(op) is False
+    assert _is_full_removal_op(op) is False
 
 
-def test_is_abrogation_arrete_remove_all_full_section_subtarget() -> None:
+def test_is_full_removal_op_remove_all_full_section_subtarget() -> None:
     """REMOVE ALL with FULL_SECTION sub_target is a valid abrogation."""
     op = Operation(
         id="1",
@@ -249,7 +249,7 @@ def test_is_abrogation_arrete_remove_all_full_section_subtarget() -> None:
         operation_type=OperationType.REMOVE,
         sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
     )
-    assert _is_abrogation_arrete(op) is True
+    assert _is_full_removal_op(op) is True
 
 
 def test_build_graph_ill_defined_remove_all_does_not_abrogate() -> None:

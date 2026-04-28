@@ -40,12 +40,11 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 from openpyxl import Workbook  # noqa: E402
 from openpyxl.styles import Alignment, Font, PatternFill  # noqa: E402
 
-from ocapi.step_chunking.step_chunking import step_chunking  # noqa: E402
 from ocapi.step_detection import step_detection as step_detection_module  # noqa: E402
 from ocapi.step_detection.step_detection import step_detection  # noqa: E402
 from ocapi.types import Operation  # noqa: E402
 from ocapi.utils.io_utils import load_arrete_files  # noqa: E402
-from ocapi.utils.llm_utils import (  # noqa: E402
+from ocapi.llm_utils import (  # noqa: E402
     TokenUsage,
     config_model_llm,
     get_accumulated_usage,
@@ -163,8 +162,7 @@ def run_detection_for_aiot(aiot: str, model_key: str) -> list[Operation]:
     for arrete_file in arrete_files:
         if arrete_file.id <= start_date:
             continue
-        docs, img_map = step_chunking(arrete_file)
-        detected_ops = step_detection(docs, arrete_file.id, img_map)
+        detected_ops = step_detection(arrete_file)
         all_ops.extend(detected_ops)
         _LOGGER.info(f"  {arrete_file.id}: {len(detected_ops)} operations detected")
     return all_ops

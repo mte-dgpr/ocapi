@@ -16,3 +16,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from ocapi.llm_utils.config import (
+    ConfidenceScoreConfig,
+    ResolvedLLMModel,
+    config_model_llm,
+    get_confidence_score_config,
+)
+from ocapi.llm_utils.core import (
+    TokenUsage,
+    call_llm_api,
+    get_accumulated_usage,
+    reset_accumulated_usage,
+)
+from ocapi.llm_utils.prompts import (
+    parse_llm_json_list_response,
+    prompt_detection,
+    query_llm_for_subtarget,
+)
+
+__all__ = [
+    "ConfidenceScoreConfig",
+    "ResolvedLLMModel",
+    "TokenUsage",
+    "call_llm_api",
+    "config_model_llm",
+    "get_accumulated_usage",
+    "get_confidence_score_config",
+    "parse_llm_json_list_response",
+    "prompt_detection",
+    "query_llm_for_subtarget",
+    "reset_accumulated_usage",
+]
