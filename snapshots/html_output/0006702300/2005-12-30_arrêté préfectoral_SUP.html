@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2005-12-30_arrêté préfectoral_SUP.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="entity">
+    <div>
+     DIRECTION DES ACTIONS DE L'ÉTAT
+    </div>
+    <div>
+     Bureau de l'Environnement
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ PREFECTORAL du
+     <time data-spec="date" datetime="2005-12-30">
+      30 décembre 2005
+     </time>
+     instituant des servitudes d'utilité publique dans le périmètre de deux cents mètres autour de la zone en exploitation du Centre de stockage de déchets ultimes (CSDU) de Hochfelden de la société SITA ALSACE
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet de la Région Alsace,
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Préfet du Bas-Rhin
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l'environnement
+    </a>
+    , et notamment son
+    <a data-spec="section_reference" data-start_num="L515-12" data-type="article">
+     article L 515-12
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-type="decret">
+     décret n° 77-1133 du
+     <time data-spec="date" datetime="1977-09-21">
+      21 septembre 1977
+     </time>
+    </a>
+    modifié et notamment ses
+    <a data-spec="section_reference" data-start_num="24" data-type="article">
+     articles 24
+    </a>
+    -1 à 24-8 ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1997-09-09" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="1997-09-09">
+      9 septembre 1997
+     </time>
+    </a>
+    relatif aux installations de stockage de déchets ménagers et assimilés et notamment son
+    <a data-spec="section_reference" data-start_num="9" data-type="article">
+     article 9
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU la demande déposée le 3 janvier 2005 par la société SITA ALSACE par laquelle elle demande l'autorisation d'exploiter et d'étendre le Centre de stockage de déchets ultimes (CSDU) de Hochfelden ainsi que l'institution de servitudes dans la bande de deux cents mètres autour de la zone d'exploitation sollicitée ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport du 4 mars 2005 de la Direction régionale de l'industrie, de la recherche et de l'environnement d'Alsace chargée de l'inspection des installations classées ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport du 22 novembre 2005 de l'inspection des installations classées de la DRIRE Alsace,
+   </div>
+   <div data-spec="visa">
+    VU les avis favorables du 23 novembre 2005 de la Direction départementale de l'équipement et celui du 22 novembre 2005 du Service interministériel régional des affaires civiles et économiques de défense et de la protection civile ;
+   </div>
+   <div data-spec="visa">
+    VU les avis exprimés lors de l'enquête publique qui s'est déroulée du 15 juin au 15 juillet 2005 ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis favorable de la commission d'enquête ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis de la Commission départementale compétente en matière d'environnement, de risques sanitaires et technologiques en date du 6 décembre 2005 ;
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    CONSIDÉRANT que la société SITA Alsace, exploitant du CSDU de Hochfelden, n'a pas pu se rendre maître de la totalité des terrains - situés dans le périmètre de deux cents mètres autour de la zone à exploiter du CSDU - définie dans sa demande du 3 janvier 2005, en vue de poursuivre et d'étendre l'exploitation de son site ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'en l'application de l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="L515-12" data-type="article">
+     article L 515-12
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     Code de l'environnement
+    </a>
+    , il convient de prescrire l'institution de servitudes grevant les terrains non maîtrisés par l'exploitant, afin que ne puissent s'y implanter des constructions ou des ouvrages incompatibles avec l'activité de stockage de déchets ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     APRES communication du projet de servitudes au pétitionnaire et aux maires des communes concernées,
+    </div>
+    <div>
+     SUR proposition du Secrétaire général de la Préfecture du Bas-Rhin,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="DEFINITION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1er - DEFINITION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En référence à l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="L515-12" data-type="article">
+      article L 515-12
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     , sont instituées des servitudes sur les parcelles et parties de parcelles situées dans la bande de deux cents mètres autour de la zone exploitée du CSDU de HOCHFELDEN (selon le plan joint en annexe) et listées ci-après :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Commune
+       </th>
+       <th>
+        Section cadastrale
+       </th>
+       <th>
+        N° de parcelles
+       </th>
+      </tr>
+      <tr>
+       <td rowspan="4">
+        SCHAFFHOUSE/ZORN
+       </td>
+       <td>
+        4
+       </td>
+       <td>
+        9 à 69, 72, 73, (76 à 78)pp, (83 à 85)pp, 142pp, 143pp,81pp
+       </td>
+      </tr>
+      <tr>
+       <td>
+        5
+       </td>
+       <td>
+        3, 5 à 9, 16, 17, 23 à 26, 29, 33, 35
+       </td>
+      </tr>
+      <tr>
+       <td>
+        6
+       </td>
+       <td>
+        1, 8, 10, 12 à 14, 16pp, (41 à 44)pp
+       </td>
+      </tr>
+      <tr>
+       <td>
+        18
+       </td>
+       <td>
+        6pp, 10, 11pp, 36pp, 90pp
+       </td>
+      </tr>
+      <tr>
+       <td>
+        MUTZENHOUSE
+       </td>
+       <td>
+        16
+       </td>
+       <td>
+        (179 à 181)pp
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="2">
+        HOCHFELDEN
+       </td>
+       <td>
+        53
+       </td>
+       <td>
+        139, 142, 143, 150, 152 à 154, (155 à 160)pp, (162 à 164)pp, 200pp, 201, 202, 279, 280, 450pp
+       </td>
+      </tr>
+      <tr>
+       <td>
+        56
+       </td>
+       <td>
+        28, 30, 31, 36pp
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     pp: parties de parcelles
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      3
+     </div>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="INTERDICTIONS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 – INTERDICTIONS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Sur les parcelles listées à l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="1" data-type="article">
+      article 1er
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-type="self">
+      présent arrêté
+     </a>
+     sont interdits : l'implantation de constructions ou d'ouvrages incompatibles avec une activité de stockage de déchets, l'aménagement de terrains de loisirs, de camping ou de stationnement de caravanes ainsi que les modifications de l'état du sous-sol.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Sont ainsi interdits de manière non exhaustive :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - les locaux destinés à être habités ou occupés par des tiers,
+      </li>
+      <li>
+       - les constructions comportant un sous-sol,
+      </li>
+      <li>
+       - les puits destinés à l'alimentation en eau,
+      </li>
+      <li>
+       - les excavations susceptibles de nuire à la stabilité du centre de stockage de déchets.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="INDEMNISATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 : INDEMNISATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Lorsque l'institution des présentes servitudes entraîne un préjudice direct, matériel et certain, elle ouvre droit à une indemnité au profit des propriétaires, des titulaires de droits réels ou de leurs ayants droit.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     La demande d'indemnisation doit être adressée à l'exploitant du CSDU dans un délai de trois ans à dater de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     . Le paiement des indemnités est à la charge de l'exploitant du CSDU.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     A défaut d'accord amiable, l'indemnité est fixée par le juge de l'expropriation.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le préjudice est estimé à la date de la décision de première instance. Toutefois, est seul pris en considération l'usage possible des immeubles et droits immobiliers un an avant l'ouverture de l'enquête publique. La qualification éventuelle de terrains à bâtir est appréciée conformément aux dispositions de l'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="L13-15" data-type="article">
+      article L 13-15
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'expropriation pour cause d'utilité publique" data-type="code">
+      code de l'expropriation pour cause d'utilité publique
+     </a>
+     . Le juge limite ou refuse l'indemnité si une acquisition de droits sur un terrain a, en raison de l'époque à laquelle elle a eu lieu ou de toute autre circonstance, été faite dans le but d'obtenir une indemnité.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="FRAIS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 : FRAIS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les frais inhérents à l'application des prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sont à la charge de la société SITA Alsace.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="ANNEXION AU PLU (POS)" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 : ANNEXION AU PLU (POS)
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les servitudes sont annexées au Plan local d'urbanisme ou au Plan d'Occupation des Sols des communes de HOCHFELDEN, MUTZENHOUSE et SCHAFFHOUSE/ZORN dans les conditions prévues à l'
+     <a data-parent_reference="5" data-spec="section_reference" data-start_num="L126-1" data-type="article">
+      article L 126-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="5" data-title="Code de l'urbanisme" data-type="code">
+      Code de l'urbanisme
+     </a>
+     .
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      4
+     </div>
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="AMPLIATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6 : AMPLIATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - Le Secrétaire général de la préfecture du Bas-Rhin,
+      </li>
+      <li>
+       - le Sous-préfet, secrétaire général adjoint chargé de l'arrondissement chef-lieu,
+      </li>
+      <li>
+       - le Maire de HOCHFELDEN,
+      </li>
+      <li>
+       - le maire de MUTZENHOUSE,
+      </li>
+      <li>
+       - le maire de SCHAFFHOUSE/ZORN,
+      </li>
+      <li>
+       - le Commandant du Groupement de gendarmerie,
+      </li>
+      <li>
+       - les inspecteurs des installations classées de la Direction régionale de l'industrie, de la recherche et de l'environnement d'Alsace, sont chargés, chacun en ce qui le concerne, de l'exécution du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       , dont ampliation sera notifiée à la société SITA ALSACE.
+      </li>
+     </ul>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     LE PRÉFET
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Délais et voie de recours (
+     <a data-parent_reference="6" data-spec="section_reference" data-start_num="L514-6" data-type="article">
+      article L 514-6
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="6" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     )
+    </div>
+    <div data-number="4" data-spec="alinea">
+     La présente décision peut être déférée au tribunal administratif :
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <ul>
+      <li>
+       - par l'exploitant, dans un délai de deux mois à compter du jour où elle a été notifiée,
+      </li>
+      <li>
+       - par les tiers, les communes intéressées ou leurs groupements (...), dans un délai de quatre ans à compter de sa publication
+      </li>
+     </ul>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

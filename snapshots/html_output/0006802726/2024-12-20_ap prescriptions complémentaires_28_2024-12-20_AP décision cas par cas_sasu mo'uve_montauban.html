@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2024-12-20_ap prescriptions complémentaires_28_2024-12-20_AP décision cas par cas_sasu mo'uve_montauban.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DE TARN-ET-GARONNE
+Liberté
+Égalité
+Fraternité
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Direction de la coordination interministérielle et appui territorial
+    </div>
+    <div>
+     Mission des politiques environnementales AP n° 82-2024-12 - 20 - 00004
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ PRÉFECTORAL PORTANT DÉCISION APRÈS EXAMEN AU CAS PAR CAS SASU MoU'VE 786 avenue de Gasseras 82000 Montauban en application de l'article R.122-3 du Code de l'environnement
+    </h1>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Installations Classées pour la Protection de l'Environnement
+    </div>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le préfet de Tarn-et-Garonne,
+    </div>
+    <div>
+     Chevalier de l'Ordre National du Mérite,
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu la
+    <a data-date="2011" data-num="92" data-spec="document_reference" data-type="eu-directive">
+     directive 2011/92/UE
+    </a>
+    du Parlement Européen et du Conseil du 13 décembre 2011 codifiée concernant l'évaluation des incidences de certains projets publics et privés sur l'environnement, notamment son
+    <a data-spec="section_reference" data-start_num="3" data-type="annexe">
+     annexe III
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu la loi n° 2018-727 du 10 août 2018 pour un État au service d'une société de confiance et notamment son
+    <a data-spec="section_reference" data-start_num="62" data-type="article">
+     article 62
+    </a>
+    -II ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , notamment ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L122-1" data-type="article">
+     articles L. 122-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="R122-2" data-type="article">
+     R. 122-2
+    </a>
+    et
+    <a data-group_id="1" data-spec="section_reference" data-start_num="R122-3" data-type="article">
+     R. 122-3
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu l'arrêté de la ministre de l'environnement, de l'énergie et de la mer du 12 janvier 2017 relatif au contenu du formulaire d'examen au cas par cas ;
+   </div>
+   <div data-spec="visa">
+    Vu la demande d'examen au cas par cas déposée par la société S.A.S.U. Mo'UVE à Montauban en date du 10 septembre 2024 et considérée complète le 25 septembre 2024 et pour laquelle il a été accusé réception le 27 septembre 2024, relative à une demande d'augmentation de la capacité d'incinération de 1 500 tonnes/an sans modification de l'installation ;
+   </div>
+   <div data-spec="visa">
+    Vu la contribution de l'Agence Régionale de Santé délégation départementale du Tarn-et-Garonne du 17 octobre 2024 ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Préfecture de Tarn-et-Garonne - 2 Allée de l'Empereur - BP 10779 - MONTAUBAN CEDEX
+Horaires d'ouverture et modalités d'accueil disponibles
+sur le site : http://www.tarn-et-garonne.gouv.fr
+Tél. 05 63 22 82 00
+Fax 05 63 93 33 79
+Mél : prefecture@tarn-et-garonne.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    Vu la contribution de la Direction Départementale des Territoires, Service Eau et Biodiversité, Bureau Police de l’Eau du 24 octobre 2024 ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que le préfet de département est l’autorité de police mentionnée à l’
+    <a data-spec="section_reference" data-start_num="L171-8" data-type="article">
+     article L.171-8
+    </a>
+    et à l’
+    <a data-spec="section_reference" data-start_num="L122-1" data-type="article">
+     article L.122-1
+    </a>
+    et qu’il lui appartient de déterminer si la modification ou l’extension envisagée doit être soumise à évaluation environnementale ;
+   </div>
+   <div data-spec="motifs">
+    Considérant le projet d’augmentation de la capacité d’incinération de 38 500 t/an à 40 000 t/an (soit + 1 500 tonnes/an) sans modification de l’installation ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que le projet relève de la catégorie n° 1. Installations classées pour la protection de l’environnement du tableau annexé à l’
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="R122-2" data-type="article">
+     article R.122-2
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    et de l’
+    <a data-spec="section_reference" data-start_num="R122-2" data-type="article">
+     article R.122-2
+    </a>
+    II de ce même code ;
+   </div>
+   <div data-spec="motifs">
+    Considérant qu’un dossier de porter à connaissance a été déposé le 28 juin 2024 et complété le 10 septembre 2024, conformément aux dispositions de l’
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="R181-46" data-type="article">
+     article R.181-46
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    , et qu’au travers de ce dossier l’exploitant a procédé à une analyse des effets et des impacts potentiels sur l’environnement de ces modifications des conditions d’exploitation ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que les enjeux principaux de la modification soumise à examen au cas par cas sont les rejets atmosphériques et le trafic des véhicules ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que la nouvelle ligne d’incinération (UVE) est entièrement conforme aux Meilleurs techniques disponibles et respecte les prescriptions de l’
+    <a data-date="2021-01-12" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2021-01-12">
+      12 janvier 2021
+     </time>
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que le dossier de porter à connaissance relatif à la modernisation de l’incinérateur, déposé le 15 avril 2021 et complété en dernier lieu le 12 août 2021, contient une évaluation des risques sanitaires liés aux rejets atmosphériques de l’installation pour une capacité d’incinération de 40 000 tonnes par an ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que l’évaluation des risques sanitaires, contenue dans le dossier susvisé, conclut à l’absence d’impact significatif ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que l’installation respecte les niveaux d’émission (NEA-MTD) en matière de rejets atmosphériques et que l’augmentation du trafic reste limitée ;
+   </div>
+   <div data-spec="motifs">
+    Considérant qu’au regard de l’ensemble des éléments fournis par le pétitionnaire et des connaissances disponibles à ce stade, le projet n’est pas susceptible d’avoir des impacts notables sur l’environnement ou sur la santé justifiant une évaluation environnementale ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition de la Secrétaire générale de la Préfecture de Tarn-et-Garonne ;
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrête
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La décision tacite, née le 15 octobre 2024, soumettant à évaluation environnementale le projet de modification des conditions d’exploiter de l’unité de valorisation énergétique (UVE) exploitée par la société S.A.S.U. Mo’UVE situé sur la commune de Montauban est retirée.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le projet de modification des conditions d’exploiter de l’unité de valorisation énergétique (UVE) exploitée par la société S.A.S.U. Mo’UVE situé sur la commune de Montauban n’est pas soumis à évaluation environnementale en application de la section première du chapitre II du titre II du livre premier du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      code de l’environnement
+     </a>
+     .
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La présente décision, délivrée en application de l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="R122-3" data-type="article">
+      article R. 122-3
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , ne dispense pas des autorisations administratives auxquelles le projet peut être soumis.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Elle ne préjuge pas d'exigence ultérieure relevant d'autres procédures réglementaires.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est notifié au pétitionnaire.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     sera publié sur le site Internet de la préfecture de Tarn-et-Garonne.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Fait à Montauban, le 20 DEC. 2024
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le préfet,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le Préfet et par délégation
+    </div>
+    <div data-number="5" data-spec="alinea">
+     la Secrétaire Générale
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Edwige DARRACQ
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Voies et délais de recours :
+    </div>
+    <div data-number="8" data-spec="alinea">
+     <ul>
+      <li>
+       - Décision imposant la réalisation d'une étude d'impact
+      </li>
+     </ul>
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Recours administratif préalable obligatoire sous peine d'irrecevabilité du recours contentieux :
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Monsieur le Préfet de Tarn-et-Garonne
+    </div>
+    <div data-number="11" data-spec="alinea">
+     <address data-spec="address">
+      2 Allée de l'Empereur
+     </address>
+    </div>
+    <div data-number="12" data-spec="alinea">
+     82000 Montauban
+    </div>
+    <div data-number="13" data-spec="alinea">
+     (Formé dans le délai de deux mois suivant la mise en ligne de la décision)
+    </div>
+    <div data-number="14" data-spec="alinea">
+     Recours gracieux, hiérarchique et contentieux, dans les conditions de droit commun, ci-après.
+    </div>
+    <div data-number="15" data-spec="alinea">
+     <ul>
+      <li>
+       - Décision dispensant le projet d'étude d'impact
+      </li>
+     </ul>
+    </div>
+    <div data-number="16" data-spec="alinea">
+     Recours gracieux :
+    </div>
+    <div data-number="17" data-spec="alinea">
+     Monsieur le Préfet de Tarn-et-Garonne
+    </div>
+    <div data-number="18" data-spec="alinea">
+     <address data-spec="address">
+      2 Allée de l'Empereur
+     </address>
+    </div>
+    <div data-number="19" data-spec="alinea">
+     82000 Montauban
+    </div>
+    <div data-number="20" data-spec="alinea">
+     (Formé dans le délai de deux mois, ce recours a pour effet de suspendre le délai du recours contentieux)
+    </div>
+    <div data-number="21" data-spec="alinea">
+     Recours hiérarchique :
+    </div>
+    <div data-number="22" data-spec="alinea">
+     Ministère de la Transition écologique, de l'Énergie, du Climat et de la Prévention des risques – Grande Arche de la Défense – Paroi sud / Tour Séquoia - 92055 La Défense Cedex
+    </div>
+    <div data-number="23" data-spec="alinea">
+     (Formé dans le délai de deux mois, ce recours a pour effet de suspendre le délai du recours contentieux)
+    </div>
+    <div data-number="24" data-spec="alinea">
+     Recours contentieux soit par :
+    </div>
+    <div data-number="25" data-spec="alinea">
+     <ul>
+      <li>
+       - courrier
+      </li>
+     </ul>
+    </div>
+    <div data-number="26" data-spec="alinea">
+     Tribunal administratif de Toulouse
+    </div>
+    <div data-number="27" data-spec="alinea">
+     <address data-spec="address">
+      68 rue Raymond IV
+     </address>
+    </div>
+    <div data-number="28" data-spec="alinea">
+     BP 7007 – 31068 Toulouse Cedex 7
+    </div>
+    <div data-number="29" data-spec="alinea">
+     <ul>
+      <li>
+       - télérecours accessible par le lien : http://www.telerecours
+      </li>
+     </ul>
+    </div>
+    <div data-number="30" data-spec="alinea">
+     (Formé dans le délai de deux mois à compter de la notification/publication de la décision ou bien de deux mois à
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

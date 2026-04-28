@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2019-05-23_rapport_20190507-RAP-DAEN0408RapportCoderstDaeAugmentationCapaciteCharlesAlice.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFET DE LA DRÔME
+    </div>
+    <div>
+     Direction régionale de l’environnement, de l’aménagement et du logement Auvergne - Rhône-Alpes
+    </div>
+    <div>
+     Unité inter-départementale Drôme Ardèche Subdivision 5 – Risques Agroalimentaire
+    </div>
+    <div>
+     Affaire suivie par : Eric GALLAND Tél. : 04 75 82 76 24 Télécopie : 04 75 82 46 49 Courriel : eric.galland@developpement-durable.gouv.fr
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     Ref. : 20190507-RAP-DAEN0408
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PREFECTURE DE LA DRÔME
+    </div>
+    <div>
+     Direction départementale de la protection des populations (DDPP)
+    </div>
+    <div>
+     Bureau de l’environnement 33 avenue de Romans – BP 96 26904 VALENCE CEDEX 9 Valence, le 23 MAI 2019 DÉPARTEMENT DE LA DRÔME Société CHARLES et ALICE à Allex Demande d’autorisation d’augmenter la capacité de production Rapport de l’inspection des installations classées au CODERST Adresse de l’établissement : ZI Route de Livron 26400 Allex Activité principale : Fabrication et conditionnement de desserts de fruits Code S3IC de l’établissement : 103-60 Priorité
+    </div>
+    <div>
+     DREAL : P2 Pièce jointe : projet d’arrêté
+    </div>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Original : DDPP26
+Copies : établissement, inspecteur signataire, chrono sub 5
+Direction régionale de l’environnement de l’aménagement et du logement d’Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.fr/fr/fr/france-d梵鈸
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Présentation du dossier" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     1- Présentation du dossier
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société CHARLES ET ALICE a déposé le 14 juin 2017 un dossier de demande d'autorisation d'augmenter la capacité de production de son site d'Allex. Cette augmentation passe par l'implantation d'une nouvelle ligne de production de compotes de 4 tonnes/heure de capacité à la place d'une ancienne ligne.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le site va ainsi passer d'une capacité de production de 300 t/j à 473 t/j, cette augmentation va le faire relever d'une rubrique relevant de la directive IED.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     La fourniture des compléments demandés (notamment une étude d'incidence des prélèvements d'eau de nappe) a été longue et le dossier n'a été jugé complet et recevable que le 6 septembre 2018.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     L'exploitant a souhaité que ce dossier soit instruit selon les dispositions du chapitre II du titre Ier du livre V du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     (en application du a) du 5° de l'
+     <a data-spec="section_reference" data-start_num="15" data-type="article">
+      article 15
+     </a>
+     de l'Ordonnance n°2017-80 du 26 janvier 2017 relative à l'autorisation environnementale. Cette demande a été acceptée, le dossier initial ayant été déposé avant le 1er juillet 2017.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Présentation de l'exploitant" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2- Présentation de l'exploitant
+    </h2>
+    <section data-number="2.1" data-spec="section" data-title="La société CHARLES et ALICE" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.1-La société CHARLES et ALICE
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La société CHARLES et ALICE est spécialisée dans la transformation de fruits frais pour fabriquer et conditionner des desserts de fruits (essentiellement des compotes). Cette activité a été créée en 1976 à environ 300 mètres du site actuel où elle a été transférée en 1991.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      La société BRUNELLA a été reprise par le groupe HERO en 1991 et suite à un rapprochement avec la société CHARLES FERAUD (84) en 2010, la marque CHARLES ET ALICE a été créée en 2011.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Actuellement le site emploie environ 200 personnes.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Cette société est certifiée ISO 50 001 (performance énergétique) et ISO 14 001 (environnement).
+     </div>
+    </section>
+    <section data-number="2.2" data-spec="section" data-title="Le site" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.2-Le site
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'établissement est implanté route de Livron sur un terrain de la zone d'activité (classée UI au PLU) de la commune d'Allex ayant une superficie totale de 40 966 m².
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les bâtiments occupent une surface de 14 800 m² soit :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - le hall 1 de 7800 m² construit en 1991 qui abrite un atelier de production des locaux de stockage, des chambres à température régulée, des locaux techniques, un laboratoire et des locaux administratifs ;
+       </li>
+       <li>
+        - le hall 2 de 7000 m² construit en 1994 qui abrite un atelier de cuisson, un hall de conditionnement de fûts, une ligne de production et une chambre froide.
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Aux abords des bâtiments sont implantés :
+     </div>
+     <div data-number="5" data-spec="alinea">
+      <ul>
+       <li>
+        - pour le hall 1, 2 bassins de lavage des pommes ;
+       </li>
+       <li>
+        - pour le hall 2, 5 bassins de lavage des pommes ;
+       </li>
+       <li>
+        - des aires de stockage des matières premières ;
+       </li>
+       <li>
+        - des aires de stockage des déchets.
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="2.3" data-spec="section" data-title="L'outil de production" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.3-L'outil de production
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La production de compotes nécessite un chauffage et un dosage à 85 °C suivi d'un refroidissement rapide afin de conserver les caractéristiques gustatives et physiques du produit. Les produits conditionnés sont de ce fait soit refroidis par passage dans un tunnel soit par aspersion pour les lignes les plus anciennes.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       Direction régionale de l'environnement de l'aménagement et du logement d'Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.auevregne-rhone-alpes.fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr
+      </div>
+     </div>
+     <a data-page_index="2" data-spec="page_separator">
+     </a>
+     <div data-number="2" data-spec="alinea">
+      Les lignes de production et leurs caractéristiques présentent dans l'établissement avant l'augmentation de capacité sont les suivantes :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - Ligne ARCIL (pots plastiques de 100 g) implantée en 1997 – 4 t/h ;
+       </li>
+       <li>
+        - Ligne FORMSEAL (pots plastiques de 100 g) implantée en 1993 – 1,5 t/h ;
+       </li>
+       <li>
+        - Ligne HASSIA (pots plastiques de 100 g) implantée en 2006 – 2,2 t/h ;
+       </li>
+       <li>
+        - Ligne ERCA (pots plastiques de 100 g) implantée en 2014 – 2 t/h ;
+       </li>
+       <li>
+        - Ligne GUALA (gourdes plastiques de 100 g) implantée en 2013 – 1 t/h ;
+       </li>
+       <li>
+        - Ligne FENCO (fûts de 200 kg ou conteneurs d’1t) implantée en 1994 – 6 t/h, elle ne fonctionne que 5 mois par an sur l’automne et l’hiver.
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Sur la base d’un fonctionnement en continu (24 h), la capacité théorique de production du site est de 256 t/j en période normale de production.
+     </div>
+    </section>
+    <section data-number="2.4" data-spec="section" data-title="L’augmentation de capacité de production" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.4- L’augmentation de capacité de production
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La demande porte sur le remplacement de la ligne GUALA (gourdes) par la ligne IMA (pots plastiques 100 g) d’une capacité de production de 4 t/h.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Cette ligne implantée à la place d’une existante ne nécessite aucune construction nouvelle. Elle nécessite toutefois l’installation d’un 3ᵉ tunnel de refroidissement dans la chambre froide.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Cette nouvelle ligne va faire passer la capacité de production à 329 t/j en période normale et à 473 t/j en forte saison lorsque la ligne FENCO fonctionne.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Elle devrait permettre de ne plus travailler le week-end et de gagner en flexibilité au niveau de la production.
+     </div>
+    </section>
+    <section data-number="2.5" data-spec="section" data-title="Situation administrative actuelle et future:" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.5- Situation administrative actuelle et future:
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Cet établissement est autorisé et réglementé par l’arrêté préfectoral d’autorisation d’exploiter n°04-0175 du 15 janvier 2004, lequel a été complété et modifié par :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - l’
+        <a data-date="2009-05-12" data-num="09-1837" data-spec="document_reference" data-type="arrete-prefectoral">
+         arrêté préfectoral complémentaire n°09-1837 du
+         <time data-spec="date" datetime="2009-05-12">
+          12 mai 2009
+         </time>
+        </a>
+        ;
+       </li>
+       <li>
+        - l’
+        <a data-date="2014-08-08" data-num="2014220-0014" data-spec="document_reference" data-type="arrete-prefectoral">
+         arrêté préfectoral n°2014220-0014 du
+         <time data-spec="date" datetime="2014-08-08">
+          8 août 2014
+         </time>
+        </a>
+        ;
+       </li>
+       <li>
+        - l’
+        <a data-date="2017-08-09" data-num="26-2017-08-09-002" data-spec="document_reference" data-type="arrete-prefectoral">
+         arrêté préfectoral complémentaire n°26-2017-08-09-002 du
+         <time data-spec="date" datetime="2017-08-09">
+          9 août 2017
+         </time>
+        </a>
+        ;
+       </li>
+       <li>
+        - l’
+        <a data-date="2018-09-14" data-num="2018260-0001" data-spec="document_reference" data-type="arrete-prefectoral">
+         arrêté préfectoral n°2018260-0001 du
+         <time data-spec="date" datetime="2018-09-14">
+          14 septembre 2018
+         </time>
+        </a>
+        .
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      La situation administrative future après augmentation de la capacité de production est reprise dans le tableau ci-après.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Ce tableau permet de comparer l’importance des activités avant et après augmentation de la capacité de production.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Les 3 premières activités figurant dans le tableau changent de classement, le classement des autres rubriques n’est pas modifié par rapport à celui figurant dans l’arrêté réglementant actuellement le site.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      La rubrique 3642 remplace la rubrique 2220 dont relevait jusqu’à présent l’activité principale du site. Ce changement de rubrique découle du franchissement du seuil de production autorisé de 300 t/j qui fait relever l’établissement de la directive IED (Industrial Emissions Directive).
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Dans un tel cas l’établissement doit mettre en œuvre les MTD (meilleures technologies disponibles) décrites dans le BREF relatif à l’activité correspondante.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       Direction régionale de l’environnement de l’aménagement et du logement d’Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.fr/telephone: 01 22 22 22 22
+      </div>
+     </div>
+     <a data-page_index="3" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       Direction régionale de l’environnement de l’aménagement et du logement d’Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE
+      </div>
+     </div>
+     <div data-number="8" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         Nature des activités
+        </th>
+        <th>
+         Volume avant extension
+        </th>
+        <th>
+         Volume après extension
+        </th>
+        <th>
+         Rubrique
+        </th>
+        <th>
+         Régime
+        </th>
+       </tr>
+       <tr>
+        <td>
+         Traitement et transformation de matières premières en vue de la fabrication des produits alimentaires : matières premières animales et végétales, aussi bien en produits combinés qu'en produits séparés, avec une capacité de production, exprimée en tonnes de produits finis par jour : Uniquement de matières premières végétales, la capacité de production étant supérieure à 300 tonnes/jour.
+        </td>
+        <td>
+         300 t/j
+        </td>
+        <td>
+         473 t/j 3642-2 E en A
+        </td>
+        <td>
+        </td>
+        <td>
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Installations de refroidissement évaporatif par dispersion d’eau dans un flux d’air généré par ventilation mécanique ou naturelle (installations de) :
+         <br/>
+         a) La puissance thermique évacuée maximale étant supérieure ou égale à 3 000 kW
+        </td>
+        <td>
+         2300 kW
+        </td>
+        <td>
+         3900 kW
+        </td>
+        <td>
+         2921-a
+        </td>
+        <td>
+         D en E
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Transformation de polymères (matières plastiques, caoutchoucs, élastomères, résines et adhésifs synthétiques) par des procédés exigeant des conditions particulières de température ou de pression (extrusion, injection, moulage, segmentation à chaud, vulcanisation, etc.) la quantité de matières susceptible d'être traitée étant de:
+         <br/>
+         b) supérieure ou égale à 10 t/j mais inférieure à 70 t/j
+        </td>
+        <td>
+         8,64 t/j
+        </td>
+        <td>
+         10,56 t/j
+        </td>
+        <td>
+         2661-1.b
+        </td>
+        <td>
+         D en E
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Entrepôts couverts (stockage de matières ou produits combustibles en quantité supérieure à 500 tonnes dans des), à l’exclusion des dépôts utilisés au stockage de catégories de matières, produits ou substances relevant, par ailleurs, de la présente nomenclature, des bâtiments destinés exclusivement au remisage de véhicules à moteur et de leur remorque, des établissements recevant du public et des entrepôts frigorifiques.
+         <br/>
+         Le volume de l’entrepôt étant :
+         <br/>
+         3) supérieur à 5 000 m³ mais inférieur ou égal à 50 000 m³
+        </td>
+        <td>
+         39400 m³
+        </td>
+        <td>
+         39400 m³
+        </td>
+        <td>
+         1510-3
+        </td>
+        <td>
+         DC
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Combustion à l'exclusion des installations visées par les rubriques 2770, 2771 et 2971.
+         <br/>
+         A. Lorsque l'installation consomme exclusivement, seuls ou en mélange, du gaz naturel, des gaz de pétrole liquéfiés, du fioul domestique, du charbon, des fiouls lourds, de la biomasse telle que définie au a ou au b (i) ou au b (iv) de la définition de biomasse, des produits connexes de scierie issus du b (v) de la définition de biomasse ou lorsque la biomasse est issue de déchets au sens de l'
+         <a data-parent_reference="1" data-spec="section_reference" data-start_num="L541-4-3" data-type="article">
+          article L.541-4-3
+         </a>
+         du
+         <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+          code de l'environnement
+         </a>
+         , à l'exclusion des installations visées par d'autres rubriques de la nomenclature pour lesquelles la combustion participe à la fusion, la cuisson ou au traitement, en mélange avec les gaz de combustion, des matières entrantes,
+        </td>
+        <td>
+         10,8 MW
+        </td>
+        <td>
+         10,8 MW
+        </td>
+        <td>
+         2910-A-2
+        </td>
+        <td>
+         DC
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.fr
+      </div>
+     </div>
+     <a data-page_index="4" data-spec="page_separator">
+     </a>
+     <div data-number="9" data-spec="alinea">
+      <table>
+       <tr>
+        <th>
+         Nature des activités
+        </th>
+        <th>
+         Volume avant extension
+        </th>
+        <th>
+         Volume après extension
+        </th>
+        <th>
+         Rubrique
+        </th>
+        <th>
+         Régime
+        </th>
+       </tr>
+       <tr>
+        <td>
+         Dépôts de papiers, cartons ou matériaux combustibles analogues y compris les produits finis conditionnés, à l'exception des établissements recevant du public.
+         <br/>
+         Le volume susceptible d'être stocké étant :
+         <br/>
+         3. Supérieur à 1 000 m³ mais inférieur ou égal à 20 000 m³.
+        </td>
+        <td>
+         1 400 m³
+        </td>
+        <td>
+         1 400 m³
+        </td>
+        <td>
+         1530-3
+        </td>
+        <td>
+         D
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Bois ou matériaux combustibles analogues y compris les produits finis conditionnés et les produits ou déchets répondant à la définition de la biomasse et visés par la rubrique 2910-A ne relevant pas de la rubrique 1531 (stockage de), à l'exception des établissements recevant du public. Le volume susceptible d'être stocké étant:
+         <br/>
+         3. Supérieur à 1 000 m³ mais inférieur ou égal à 20 000 m³.
+        </td>
+        <td>
+         1 500 m³
+        </td>
+        <td>
+         1 500 m³
+        </td>
+        <td>
+         1532-3
+        </td>
+        <td>
+         D
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Stockage de polymères (matières plastiques, ...)
+         <br/>
+         le volume susceptible d'être stocké étant :
+         <br/>
+         2000 m³ 2000 m³ 2663-2-c
+         <br/>
+         c) Supérieur ou égal à 1 000 m³ mais inférieur à 10 000 m³.
+        </td>
+        <td>
+        </td>
+        <td>
+        </td>
+        <td>
+        </td>
+        <td>
+         D
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Ateliers de charge d'accumulateurs
+         <br/>
+         La puissance maximale de courant continu utilisable pour cette opération étant supérieure à 50 kW
+        </td>
+        <td>
+         58,54 kW
+        </td>
+        <td>
+         74,5 kW
+        </td>
+        <td>
+         2925
+        </td>
+        <td>
+         D
+        </td>
+       </tr>
+      </table>
+     </div>
+    </section>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Impact et dangers présentés par l'établissement (actuels et après extension)" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     3-Impact et dangers présentés par l'établissement (actuels et après extension)
+    </h2>
+    <section data-number="3.1" data-spec="section" data-title="Consommation et rejets d'eau" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.1- Consommation et rejets d'eau
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Généralités
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Le site est alimenté par le réseau public pour les eaux sanitaires et par 3 forages dans la nappe d'un débit unitaire de 95 m³/h.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      L'utilisation de l'eau de la nappe est le problème principal du site, il a notamment nécessité la réalisation d'une étude approfondie sur l'impact des prélèvements.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les autorisations de prélèvement initialement fixées à 6 000 m³/j et 600 000 m³/an ont été réduites en 2013 à 4 000 m³/j et 400 000 m³/an. Même si les volumes prélevés sont inférieurs à ceux autorisés, l'exploitant souhaite que le volume annuel ne soit pas revu à la baisse.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Les eaux prélevées sont utilisées pour le lavage des fruits et le refroidissement des produits finis sur les deux lignes les plus anciennes.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Les eaux de lavage subissent un prétraitement sur lit bactérien (capacité 10 000 Eq habitants) avant d'être dirigées vers la station d'épuration biologique à boues activées située en bordure de la rivière Drôme à côté de la station d'épuration de la commune. Cette station peut accepter un débit de 1200 m³/j et a également une capacité de traitement de 10 000 Eq habitants. En cas de dysfonctionnement il y a la possibilité de diriger les effluents vers la station communale ce qui sécurise le traitement.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      De mai à septembre afin que le rejet ait une qualité baignade, les effluents traités sont dirigés vers un traitement tertiaire (filtre à sable + traitement UV) géré par le S.I.A Allex-Grâne.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       Direction régionale de l'environnement de l'aménagement et du logement d'Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.auregme-rhone-alpes.fr/fr/fr/fr/fr/fr/fr/fr/fr/fr
+      </div>
+     </div>
+     <a data-page_index="5" data-spec="page_separator">
+     </a>
+     <div data-number="8" data-spec="alinea">
+      Le rejet final se fait dans la rivière Drôme au même point de rejet que celui de la station intercommunale voisine.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Les eaux de refroidissement sont déversées dans le canal du moulin qui rejoint la rivière Drôme.
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Les eaux sanitaires sont rejetées au réseau public.
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Les eaux de pluie des toitures sont dirigées vers le canal du moulin et les eaux de pluie des voiries, parkings et aires étanches sont dirigées vers le même exutoire après avoir transité par des séparateurs à hydrocarbures.
+     </div>
+     <div data-number="12" data-spec="alinea">
+      Les réductions de consommation d'eau et l'impact de l'augmentation de production
+     </div>
+     <div data-number="13" data-spec="alinea">
+      Depuis de nombreuses la société CHARLES et ALICE a mis en place une politique visant à réduire la consommation d'eau sur son site :
+     </div>
+     <div data-number="14" data-spec="alinea">
+      <ul>
+       <li>
+        - Les eaux de refroidissement des 2 lignes les plus anciennes sont recyclées et les vannes sont asservies au fonctionnement des lignes.
+       </li>
+       <li>
+        - Les nouvelles lignes ont des tunnels de refroidissement.
+       </li>
+       <li>
+        - Des cuves de récupération des eaux de rinçage des tuyauteries pour une réutilisation ont été mises en place ;
+       </li>
+       <li>
+        - Le personnel a été sensibilisé.
+       </li>
+      </ul>
+     </div>
+     <div data-number="15" data-spec="alinea">
+      Avec toutes ces mesures le ratio m³ d'eau consommé par tonne de produit fabriqué est passé au cours des dix dernières années de 8,6 à 5,2.
+     </div>
+     <div data-number="16" data-spec="alinea">
+      Les prélèvements annuels au cours de la dernière année ont été légèrement inférieurs à 300 000 m³.
+     </div>
+     <div data-number="17" data-spec="alinea">
+      L'augmentation de production aura un impact uniquement sur les eaux de lavage elle devrait se traduire par une augmentation de la consommation d'eau estimée à environ 2 %.
+     </div>
+     <div data-number="18" data-spec="alinea">
+      Impact des prélèvements notamment en période de sécheresse
+     </div>
+     <div data-number="19" data-spec="alinea">
+      Les restrictions d'usage de l'eau étant très pénalisantes en période estivale où la production liée à la récolte des fruits est très importante, la société CHARLES et ALICE a souhaité présenter dans le cadre de la demande d'augmentation de la capacité de production des éléments techniques permettant de démontrer que les prélèvements qu'elle réalise n'ont qu'un impact très limité sur la rivière Drôme et donc que les restrictions qui lui sont imposées ne sont pas justifiées.
+     </div>
+     <div data-number="20" data-spec="alinea">
+      Après plusieurs réunions avec la DDT, il a été convenu qu'une étude de l'incidence des prélèvements en nappe sur les eaux superficielles et souterraines devait être menée par un cabinet spécialisé.
+     </div>
+     <div data-number="21" data-spec="alinea">
+      Cette étude a été confiée au bureau d'études hydrogéologiques
+      <q>
+       IDEES EAUX
+      </q>
+      qui a réalisé de nombreuses études hydrogéologiques sur la nappe d'Allex.
+     </div>
+     <div data-number="22" data-spec="alinea">
+      L'étude datée du 25 mai 2018 conclut :
+     </div>
+     <div data-number="23" data-spec="alinea">
+      <blockquote>
+       <p>
+        Dans ces conditions, les données existantes ainsi que les nombreux programmes de mesures réalisées sur le secteur n'ont pas permis de mettre en évidence une incidence péjorative et quantifiable des prélèvements en nappe de Charles et Alice sur les ressources en eau souterraine et superficielle et sur les autres usages consommateurs d'eau, y compris en période de basses eaux et d'étiage.
+       </p>
+       <p>
+        L'absence d'influence des prélèvements sur les ressources en eau ainsi que le rejet de la quasi-totalité des volumes d'eau prélevés dans les eaux superficielles permettrait à la société Charles et
+       </p>
+       <div data-spec="page_footer">
+        <div>
+         Direction régionale de l'environnement de l'aménagement et du logement d'Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.fr/fr/fr/fr/fr/fr/fr/fr/fr
+        </div>
+       </div>
+       <a data-page_index="6" data-spec="page_separator">
+       </a>
+       <p>
+        Alice de maintenir ses prélèvements durant toute l'année y compris durant les situations de crise, à condition qu'elle maintienne les efforts déjà entrepris pour la préservation et la gestion des ressources en eau
+       </p>
+      </blockquote>
+     </div>
+     <div data-number="24" data-spec="alinea">
+      En s'appuyant sur les conclusions de cette étude et pour ne pas être pénalisée à tort durant l'été 2018 et sans attendre la fin de l'instruction du dossier en cours, la société Charles et Alice a adressé le 5 juillet 2018 à monsieur le préfet de la Drôme une demande de modification des prescriptions à respecter en période de sécheresse qui a été validée par un arrêté complémentaire.
+     </div>
+     <div data-number="25" data-spec="alinea">
+      Bien que l'étude démontre l'absence d'impact notable des prélèvements habituels de Charles et Alice sur les ressources en eaux souterraines et superficielles même en période de basses eaux, dans le cadre de sa politique environnementale et pour limiter encore son impact en période de sécheresse et contribuer à l'effort général, cette société s'est engagée, en plus de toutes les mesures déjà mises en œuvre et ayant contribué à une réduction pérenne de la consommation d'eau, à prendre des mesures de restrictions complémentaires.
+     </div>
+     <div data-number="26" data-spec="alinea">
+      Sur les prélèvements ces engagements en période d'alerte renforcée ou de crise sont rappelés ci-dessous.
+     </div>
+     <div data-number="27" data-spec="alinea">
+      La consommation d'eau de forage sera réduite d'environ 20 % par rapport aux usages habituels, soit les consommations maximales suivantes pendant les périodes susceptibles de faire l'objet de mesures de restriction (chiffres arrondis) :
+     </div>
+     <div data-number="28" data-spec="alinea">
+      <ul>
+       <li>
+        - 1200 m³/j de septembre à janvier (saison de forte activité) ;
+       </li>
+       <li>
+        - 1000 m³/j de février à août (saison d'activité normale).
+       </li>
+      </ul>
+     </div>
+     <div data-number="29" data-spec="alinea">
+      La limitation des prélèvements et les mesures d'accompagnements ont été validées par anticipation par un
+      <a data-date="2018-09-14" data-spec="document_reference" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="2018-09-14">
+        14 septembre 2018
+       </time>
+      </a>
+      et seront reprises intégralement dans le cadre de la procédure actuelle.
+     </div>
+     <div data-number="30" data-spec="alinea">
+      Traitement et suivi des rejets
+     </div>
+     <div data-number="31" data-spec="alinea">
+      Pour les flux spécifiques exprimés en grammes de polluant par tonne produite, par rapport aux fourchettes fixées dans le BREF, CHARLES et ALICE se situe dans les valeurs basses ce qui démontre une bonne maîtrise de la pollution générée.
+     </div>
+     <div data-number="32" data-spec="alinea">
+      Le traitement réalisé sur les effluents avec de très bons rendement (allant de 97 à 99 % selon le paramètre) permet de respecter largement les concentrations limites imposées au rejet (MES = 35 mg/l, DCO = 125 mg/l, DBO5 = 25 mg/l) comme en atteste l'autosurveillance.
+     </div>
+     <div data-number="33" data-spec="alinea">
+      La capacité de traitement de la station permet d'absorber sans problème les rejets supplémentaires générées par l'augmentation de la capacité de production ; en effet, par exemple pour la DCO qui est le principal polluant, la station a une capacité de traitement de 3140 kg/j et le flux à traiter sera au maximum de 1330 kg/j.
+     </div>
+     <div data-number="34" data-spec="alinea">
+      Une étude de l'incidence des flux rejetés dans la rivière Drome a démontré que pour les principaux paramètres déclassant (P, N, DBO5) les rejets de CHARLES et ALICE étaient compris entre 4,17 % et 0,25 % des flux admissibles. L'impact de ces rejets est donc très limité.
+     </div>
+    </section>
+    <section data-number="3.2" data-spec="section" data-title="Pollution de l'air" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.2- Pollution de l'air
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le site dispose de 3 chaudières au gaz dont une de 7 MW utilisée prioritairement. Les principaux rejets de ces chaudières sont le CO2 et le NO2 et ils sont limités compte tenu de la taille modeste des installations.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       Direction régionale de l'environnement de l'aménagement et du logement d'Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.auevrgne-rhone-alpes.uev1@auevrgne-rhone-alpes@developpement-durable.gouv.fr
+      </div>
+     </div>
+     <a data-page_index="7" data-spec="page_separator">
+     </a>
+     <div data-number="2" data-spec="alinea">
+      Les installations frigorifiques sont régulièrement contrôlées pour détecter toute fuite.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Les circuits des tours aéroréfrigérantes sont contrôlés mensuellement pendant les périodes d’utilisation pour prévenir tout risque d’apparition de légionelles.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Pour prévenir les risques d’émission d’odeur, les déchets organiques sont stockés en bennes fermées et étanches et le lit bactérien est équipé d’un système de désodorisation.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Le nombre de poids lourds desservant le site sera augmenté de 2 à 3 de plus par jour par rapport à la quarantaine de mouvements habituels. La pollution générée par les véhicules liés à l’activité du site sera donc légèrement augmentée.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      La mise en place de la nouvelle ligne de production n’aura pas d’impact notable sur la pollution de l’air.
+     </div>
+    </section>
+    <section data-number="3.3" data-spec="section" data-title="Émissions sonores" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.3- Émissions sonores
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L’étude de bruits réalisée dans le cadre de l’étude d’impact du dossier d’extension a démontrée que par rapport aux niveaux admissibles, un seul point du voisinage n’était pas conforme en période nocturne. Ce point se situe en face de l’usine dans le terrain d’une maison, l’étude conclue à la nécessité d’insonoriser un groupe froid.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      La société CHARLES et ALICE s’engage à réaliser les travaux nécessaires.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      La nouvelle ligne de production implantée à l’intérieur des bâtiments existants n’a aucun impact sonore à l’extérieur.
+     </div>
+    </section>
+    <section data-number="3.4" data-spec="section" data-title="Gestion des déchets" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.4- Gestion des déchets
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le site transformant des fruits, les déchets de production sont tous recyclables. Les déchets liés au fonctionnement et à l’entretien des installations sont dirigés vers des filières spécialisées pour être prioritairement valorisés ou recyclés. Le suivi des enlèvements permet de connaître la date, la nature, le tonnage, le transporteur, le centre de traitement et nature du traitement final.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les boues produites par la station d’épuration sont épandues sur des terres agricoles. Le plan d’épandage existant comprend 93 ha de terres épandables alors que la production annuelle d’une centaine de tonnes de matière sèche ne nécessite qu’une quarantaine d’hectares. Cet épandage est suivi par la société SUEZ qui établi un bilan annuel démontrant sur les dernières années, le respect de tous les paramètres imposés.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      La légère augmentation de la production de boues due à l’augmentation de la production ne nécessite pas de revoir le plan d’épandage compte tenu de la marge disponible.
+     </div>
+    </section>
+    <section data-number="3.5" data-spec="section" data-title="Examen de la situation du site au regard des exigences découlant de la directive IED" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.5- Examen de la situation du site au regard des exigences découlant de la directive IED
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le BREF FDM (industries agro-alimentaires et laitières) n’étant pour l’instant qu’au stade de projet, le dossier a comparé les dispositions mises en œuvre au sein du site aux principales BATAEL (émissions associées aux MTD) du projet fixant des seuils à respecter ou des techniques de dépollution à utiliser.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Il apparaît que le site CHARLES et ALICE se situe dans les fourchettes basses (ratio m³/tonne, performance énergétique) et qu’il utilise les techniques préconisées (refroidissement, traitement des effluents, évacuation des déchets végétaux).
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       Direction régionale de l’environnement de l’aménagement et du logement d’Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langontes – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.uevregne-rhone-alpes.fr/fr/fr/fr/fr/fr/fr/fr
+      </div>
+     </div>
+     <a data-page_index="8" data-spec="page_separator">
+     </a>
+     <div data-number="3" data-spec="alinea">
+      Dans le cadre d'une modification d'un site nécessitant une nouvelle demande d'autorisation, un rapport de base est exigé pour les sites IED. Il est toutefois possible de demander d'être exempté d'un tel rapport en fournissant un mémoire justificatif établi conformément au point 3 du guide méthodologique pour l'élaboration du rapport de base prévu par la directive IED.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Ce mémoire doit comprendre les éléments suivants :
+     </div>
+     <div data-number="5" data-spec="alinea">
+      <ul>
+       <li>
+        - une description de l'installation,
+       </li>
+       <li>
+        - une matrice des substances dangereuses utilisées, produites, rejetées sur l'installation IED avec leurs flux massiques annuels et leurs caractéristiques et dangerosités,
+       </li>
+       <li>
+        - des illustrations cartographiques présentant les sources de pollution potentielles (zone de stockage, utilisation, circulation, transfert des substances dangereuses potentiellement polluantes).
+       </li>
+      </ul>
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Le mémoire fourni a démontré que le site n'est pas éligible à l'élaboration du rapport de base.
+     </div>
+    </section>
+    <section data-number="3.6" data-spec="section" data-title="Risques d'incendie" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.6- Risques d'incendie
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le site est entièrement équipé d'un dispositif d'extinction automatique alimenté par une cuve de 800 m³. Il dispose comme tout site industriel d'extincteurs et de RIA répartis dans les locaux.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les besoins en eau d'extinction ont été estimés à 360 m³/h sur 2 heures. Pour fournir ce débit 2 des 3 forages sont équipées avec des colonnes d'aspiration pompier normalisées. 2 bornes incendie alimentées par le réseau public sont implantées en bordure de la route départementale passant au nord du site.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      L'incendie des 2 zones extérieures de stockage de palettes, de la zone de stockage extérieure des emballages ainsi que l'incendie généralisé du bâtiment ont été modélisés. Les seuils des effets thermiques ne sortent pas des limites du site.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Pour les stockages de palettes le seuil des effets dominos n'atteint pas le bâtiment.
+     </div>
+    </section>
+    <section data-number="3.7" data-spec="section" data-title="Risques de nuage toxique" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.7- Risques de nuage toxique
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La nouvelle installation frigorifique fonctionnant avec de l'ammoniac est équipée d'un système de détection de fuite. Au dépassement d'un seuil très bas fixé à 30 ppm ce dispositif déclenche la mise en marche de la ventilation de la salle des machines et le déclenchement d'une alarme sonore.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Bien que la quantité présente dans la nouvelle installation frigorifique fonctionnant avec de l'ammoniac soit inférieure au seuil de classement en déclaration (144 kg pour un seuil à 150 kg), le scénario
+      <q>
+       fuite d'ammoniac
+      </q>
+      a été étudié et modélisé de façon majorante.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Dans le cadre de ce calcul, il a été tenu compte que la salle des machines est équipée d'un extracteur d'un débit total de 2000 m³/h implanté en toiture et rejetant verticalement par une cheminée de 0,40 m de diamètre et de 10 m de hauteur.
+     </div>
+    </section>
+    <section data-number="3.8" data-spec="section" data-title="Risque foudre" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.8- Risque foudre
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le site a fait l'objet d'une analyse du risque foudre par la société DEKRA qui a conclu à la nécessité de :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - protéger les installations d'extinction et d'alarme ;
+       </li>
+       <li>
+        - mettre en place un système de protection contre la foudre de niveau IV ;
+       </li>
+       <li>
+        - mettre en place des liaisons équipotentielles sur les canalisations métalliques entrantes.
+       </li>
+      </ul>
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       Direction régionale de l'environnement de l'aménagement et du logement d'Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.auevrgne-rhone-alpes.sd/telephone/mainiric.gouv.fr
+      </div>
+     </div>
+     <a data-page_index="9" data-spec="page_separator">
+     </a>
+     <div data-number="3" data-spec="alinea">
+      Ces dispositifs doivent être définis précisément par une étude technique foudre que l'exploitant va engager.
+     </div>
+    </section>
+    <section data-number="3.9" data-spec="section" data-title="Rétention des eaux d'incendie" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.9- Rétention des eaux d'incendie
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le volume de rétention nécessaire pour retenir les eaux lors d'un incendie généralisé a été calculé selon les critères de la D9A, il a été estimé à 1890 m³. Le site étant existant avec de multiples points de récupération des eaux, l'exploitant a optimisé au maximum les emplacements aménageables pour retenir le plus grand volume possible.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      La mise en place de 8 vannes d'obturation sur le réseau d'eau pluviale a permis de créer un volume de rétention de 700 m³ aux abords du bâtiment auquel il convient d'ajouter un volume de 226 m³ dans les canalisations.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Le volume ainsi créé ne répond pas intégralement au volume théorique issu du calcul, mais constitue une nette avancée par rapport à la situation antérieure.
+     </div>
+    </section>
+    <section data-number="3.10" data-spec="section" data-title="Implantation de panneaux photovoltaïques" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.10- Implantation de panneaux photovoltaïques
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Pendant l'instruction du dossier, l'exploitant a transmis des éléments portant sur un projet d'implantation de panneaux photovoltaïques sur une 1528 m² des pelouses du site. Cette implantation se faisant au sol a nécessité le dépôt d'une déclaration préalable de travaux qui a fait l'objet d'un arrêté de non-opposition délivré par la mairie d'Allex le 17 octobre 2018. Cette autorisation est délivrée sous réserve du respect de prescriptions techniques spécifiques aux panneaux photovoltaïques.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      L'implantation de tels panneaux peut aussi être réglementée par les prescriptions de la section V de l'
+      <a data-date="2010-10-04" data-spec="document_reference" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="2010-10-04">
+        4 octobre 2010
+       </time>
+       modifié
+      </a>
+      relatif à la prévention des risques accidentels au sein des installations classées soumises à autorisation. Cependant ces équipements ne présentant aucun impact notable pour l'installation classée il est proposé, comme cela est prévu dans cet arrêté, de ne pas rendre ces prescriptions applicables.
+     </div>
+    </section>
+   </section>
+   <section data-number="4" data-spec="section" data-title="La procédure d'instruction du dossier" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     4-La procédure d'instruction du dossier
+    </h2>
+    <section data-number="4.1" data-spec="section" data-title="Avis des services consultés" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.1- Avis des services consultés
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La DDT a indiqué que l'étude hydraulique faite par la société Idées Eaux montre clairement que le prélèvement de CHARLES et ALICE est sans impact sur le débit de la Drôme et les forages voisins. Elle a conclu que ce projet est compatible avec les exigences du SAGE Drôme et son PGRE.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      L'ARS a rappelé tous les domaines développés dans le dossier en matière de protection de l'environnement et toutes les solutions proposées ; elle a retenu deux points sur lesquels le dossier appelait des remarques :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - s'il n'y en a pas, un clapet anti-retour doit être installé sur l'arrivée d'eau du réseau public ;
+       </li>
+       <li>
+        - le plan d'épandage fourni ne contient pas un plan de situation des parcelles.
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      L'INAO n'a pas formulé de remarque particulière dans la mesure où le projet n'a pas d'incidence directe sur les AOP/IGP concernées.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Le BPGE (ex SID PC) a indiqué que l'établissement se situe dans une commune qui est susceptible d'être impactée par un accident dans la centrale nucléaire de MEYSSE-CRUAS.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       Direction régionale de l'environnement de l'aménagement et du logement d'Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langontes – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.auevregne-rhone-alpes.sivreleppement-durable.gouv.fr
+      </div>
+     </div>
+     <a data-page_index="10" data-spec="page_separator">
+     </a>
+     <div data-number="6" data-spec="alinea">
+      Il a rappelé les obligations de l'exploitant découlant de l'application du PPI de cette centrale vis-à-vis de son personnel (évacuation, comprimés d'iode).
+     </div>
+    </section>
+    <section data-number="4.2" data-spec="section" data-title="Avis de l'autorité environnementale" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.2-Avis de l'autorité environnementale
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'autorité environnementale a accusé réception du dossier le 6 septembre 2018.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Conformément aux dispositions de l'
+      <a data-parent_reference="2" data-spec="section_reference" data-start_num="R122-7" data-type="article">
+       article R.122-7
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      , en l'absence d'avis dans le délai de deux mois suivant la date de réception, son avis a été réputé avoir été émis sans observation à la date du 6 novembre 2018.
+     </div>
+    </section>
+    <section data-number="4.3" data-spec="section" data-title="Avis des communes" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.3- Avis des communes
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le conseil municipal d'ALLEX a donné un avis favorable au projet d'augmentation de la capacité de production.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      La commune de GRANE a émis un avis sans observation particulière. Elle s'est interrogée sur le choix de mettre des compotes dans des gourdes, ce qui génère beaucoup de déchets.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      §Les communes de LIVRON et MONTOISON ne se sont pas prononcées sur le dossier.
+     </div>
+    </section>
+    <section data-number="4.4" data-spec="section" data-title="Enquête publique et avis du commissaire enquêteur" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.4- Enquête publique et avis du commissaire enquêteur
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'enquête publique s'est déroulée du 14 janvier au 14 février 2019. Au cours de cette période deux personnes ont rencontré le commissaire enquêteur hors enquête. Aucune observation n'a été consignée sur le registre.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Le commissaire enquêteur après avoir fait une étude approfondie du dossier et après avoir demandé des explications ou des compléments sur les principaux sujets suivants et avoir obtenu des réponses de la part de l'exploitant :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - pourquoi la ligne a été installée en même temps que le dépôt du dossier, (parce qu'il y avait urgence pour satisfaire les marchés et que les éléments techniques nécessaires à l'élaboration du dossier ont été longs à obtenir) ;
+       </li>
+       <li>
+        - la nouvelle ligne permet-elle de ne plus travailler le week-end ? (oui) ;
+       </li>
+       <li>
+        - Les augmentations de production prévues ont-elles été constatées ? (oui) ;
+       </li>
+       <li>
+        - Le volume d'eau à traiter a-t-il été augmenté ? (oui de 2 % environ) ;
+       </li>
+       <li>
+        - les groupes froid sont-ils contrôlés ? (oui par l'entreprise CLAUGER) ;
+       </li>
+       <li>
+        - le tonnage de boues à épandre a-t-il augmenté ? (non pas significativement) ;
+       </li>
+       <li>
+        - des exercices annuels sont-ils réalisés avec les pompiers ? (oui en 2017 et 2018) ;
+       </li>
+       <li>
+        - comment allez-vous traiter le bruit, (des travaux sont prévus dans le prochain plan d'investissement) ;
+       </li>
+       <li>
+        - avez-vous pris en compte les résultats de l'étude foudre ? (des travaux sont prévus dans le prochain plan d'investissement) ;
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Compte tenu des éléments du dossier et des réponses obtenues à ses questions le commissaire enquêteur a émis un avis favorable à la demande d'augmentation de la capacité de production présentée par la société CHARLES et ALICE.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Cet avis est assorti de 3 réserves et 1 recommandation :
+     </div>
+     <div data-number="6" data-spec="alinea">
+      <ul>
+       <li>
+        - réserve 1 : obtenir un avis favorable du CODERST ;
+       </li>
+       <li>
+        - réserve 2 : traiter le dépassement sonore constaté la nuit ;
+       </li>
+       <li>
+        - réserve 3 : prendre en compte l'étude foudre ;
+        <div data-spec="page_footer">
+         <div>
+          Direction régionale de l'environnement de l'aménagement et du logement d'Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.fr/telephone/auvergne-ronne-alpes
+         </div>
+        </div>
+        <a data-page_index="11" data-spec="page_separator">
+        </a>
+       </li>
+       <li>
+        - recommandation : mettre en place les engagements en matière de réduction des prélèvements d’eau en période de sécheresse.
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="4.5" data-spec="section" data-title="Avis du CHSCT" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.5- Avis du CHSCT
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le CHSCT de la société CHARLES et ALICE a émis le 8 mars 2019 à l’unanimité un avis très favorable au projet.
+     </div>
+    </section>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Avis de l’inspection des installations classées" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     5-Avis de l’inspection des installations classées
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le dossier de la société CHARLES et ALICE, déposé comme un projet de demande d’augmentation de capacité de production, n’étant pas complet lors de son dépôt initial, s’est finalement transformé en demande de régularisation, car les compléments nécessaires ont été très longs à être fournis et la nouvelle ligne avait été commandée et sa mise en production était vitale pour le site.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Il convient de rappeler que ce dossier porte seulement sur le remplacement d’une ligne de production par une autre de plus grande capacité et plus polyvalente et que la nécessité de déposer une nouvelle demande d’autorisation complète ne provient que du fait que cette augmentation de la capacité de production fait franchir un seuil au site qui devient IED.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Concernant les restrictions de prélèvement imposées en période de sécheresse, l’établissement ayant dû fortement limiter sa production pour respecter ses obligations, il n’était pas possible d’instruire une demande d’augmentation de production sans avoir trouvé une solution à ce problème.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le dossier n’a donc été jugé complet et recevable qu’après la fourniture d’une étude de l’incidence des prélèvements en nappe sur les eaux superficielles et souterraines menée par un cabinet spécialisé et indépendant.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Cette étude a démontré que les prélèvements nécessaires pour la capacité de production maximale demandée n’avaient aucun impact sur la rivière Drôme et sur les autres prélèvements en nappe existants.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Par ailleurs le fonctionnement anticipé de la nouvelle ligne a permis de valider les hypothèses du dossier et de démontrer que, compte tenu des dispositions prises en matière d’économie d’eau et des améliorations apportées sur l’outil de production, l’impact de l’augmentation de la production est très limité (environ 2 % par rapport à l’existant). Surtout cette augmentation ne nécessite pas de revoir à la hausse les autorisations existantes en matière de prélèvement et de rejet d’eau.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Concernant les rejets autorisés à la rivière Drôme, l’arrêté actuel ne fixe que des limites en concentration ce qui permet des flux autorisés beaucoup trop élevés, nous proposons de revoir à la baisse ces flux en les divisant par deux, pour les adapter aux rejets réels du site même après l’augmentation de la capacité de production. A titre d’exemple actuellement le flux autorisé pour la DCO est de 150 kg/j (concentration X débit maxi) et nous proposons de limiter ce flux à 75 kg/j. L’augmentation de la capacité de production se traduit donc par une nette réduction des autorisations de rejet.
+    </div>
+    <div data-number="8" data-spec="alinea">
+     L’instruction de cette demande aura par ailleurs permis une mise en conformité du site concernant les réglementations bruit et foudre.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Direction régionale de l’environnement de l’aménagement et du logement d’Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langones – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+12/13
+     </div>
+    </div>
+    <a data-page_index="12" data-spec="page_separator">
+    </a>
+    <div data-number="9" data-spec="alinea">
+     Les avis émis dans le cadre de l'instruction de la demande sont tous favorables, concernant les remarques émises il convient de retenir que :
+    </div>
+    <div data-number="10" data-spec="alinea">
+     <ul>
+      <li>
+       - la DDT chargée de la police de l'eau valide l'étude d'incidence des impacts des prélèvements ;
+      </li>
+      <li>
+       - la demande de mise en place d'un clapet anti-retour formulé par l'ARS, fait partie des prescriptions types. Le plan d'épandage n'étant pas revu, l'intégralité de son contenu n'a pas été annexée au dossier ;
+      </li>
+      <li>
+       - la demande relative aux obligations découlant du PPI de la centrale nucléaire peut être reprise dans l'arrêté ;
+      </li>
+      <li>
+       - les réserves 2 et 3 et la recommandation formulée par le commissaire enquêteur seront reprises et imposées dans l'arrêté. Pour la réserve 1 relative à l'avis du CODERST ce n'est que l'application normale de la procédure dans un tel cas.
+      </li>
+     </ul>
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Compte tenu des éléments développés dans le dossier de demande d'autorisation, des engagements pris par l'exploitant et des avis émis dans le cadre de la procédure d'instruction, l'inspection émet un avis favorable à la demande d'autorisation d'augmentation de la capacité de production présentée par la société CHARLES et ALICE même si cette demande s'est transformée en demande de régularisation.
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="Conclusion et proposition" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     6- Conclusion et proposition
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En application de l'article R-181-39 du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     nous proposons à monsieur le préfet après avis du CODERST, d'autoriser l'augmentation de la capacité de production de compotes de fruits présentée par la société CHARLES et ALICE pour son usine implantée sur la commune d'Allex.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le projet d'arrêté joint au présent rapport met à jour le tableau des installations réglementées et leur nouveau classement, reprend une partie des prescriptions de l'arrêté réglementant actuellement ce site et actualise les autres prescriptions. Il permet également de regrouper en un seul texte les prescriptions d'origines et toutes celles imposées via des arrêtés complémentaires.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'inspecteur de l'environnement
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Vérifié, adopté et transmis,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     à monsieur le préfet de La Drôme
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Valence, le 23 MAI 2019
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Pour la directrice,
+    </div>
+    <div data-number="9" data-spec="alinea">
+     L'adjoint au chef de l'unité interdépartementale
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Drôme Ardèche
+    </div>
+    <div data-number="11" data-spec="alinea">
+     <img alt="img-1.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Direction régionale de l'environnement de l'aménagement et du logement d'Auvergne-Rhône-Alpes
+Unité inter-départementale Drôme Ardèche – Plateau de Lautagne – 3 avenue des Langories – 26 000 VALENCE
+Standard : 04 75 82 46 46 – ud-da.dreal-auvergne-rhone-alpes@developpement-durable.gouv.fr
+n.n.r. - n.n.r. - n.n.r. - n.n.r. - n.n.r.
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

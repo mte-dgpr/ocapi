@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2005-05-17_ap prescriptions complémentaires_20050517_AP-diagnostic-Pb.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+PRÉFECTURE DE L'YONNE
+
+DIRECTION REGIONALE
+DE L'INDUSTRIE DE LA RECHERCHE
+ET DE L'ENVIRONNEMENT
+- 9 JUIN 2005
+REGION BOURGOGNE
+Groupe de subdivisions Nièvre/Yonne
+Subdivisions d'AUXERRE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     DIRECTION DES COLLECTIVITES LOCALES ET DU DEVELOPPEMENT
+    </div>
+    <div>
+     BUREAU DE L'ENVIRONNEMENT ET DU CADRE DE VIE
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE n° PREF-DCLD-2005-0297 prescrivant à la société Davey Bickford située sur le territoire de la commune de HERY la réalisation d'un diagnostic au regard d'une éventuelle contamination au plomb,
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le préfet de l'Yonne,
+    </div>
+    <div>
+     Officier de l'ordre national du mérite,
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l'Environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU le décret n° 77-1133 modifié du 21 septembre 1977 relatif aux installations classées pour la
+   </div>
+   <div>
+    protection de l'environnement et notamment l'article 18 ;
+   </div>
+   <div data-spec="visa">
+    VU la circulaire du ministère de l'écologie et du développement durable du 15 janvier 2004 relative aux
+   </div>
+   <div>
+    thèmes d'action nationale de l'inspection des installations classées pour l'année 2004 ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l'inspecteur des installations classées pour la protection de l'environnement en date du
+   </div>
+   <div>
+    17 janvier 2005 ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis du conseil départemental d'hygiène en date du 25 mars 2005 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que les activités de la société Davey Bickford mettent en œuvre du plomb et que ces
+   </div>
+   <div>
+    activités sont susceptibles d'avoir impacté les eaux souterraines à proximité de l'établissement et le
+   </div>
+   <div>
+    Serein ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT qu'il est nécessaire de déterminer si le Serein ou les eaux souterraines à proximité de
+   </div>
+   <div>
+    l'établissement sont impactés par le plomb afin de déterminer, le cas échéant, si ces impacts sont
+   </div>
+   <div>
+    susceptibles de présenter un risque sanitaire ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition du secrétaire général de la préfecture;
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE :
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Objet" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1 - Objet
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société Davey Bikford, ci-après dénommée l'exploitant, située sur le territoire de la commune de HERY
+    </div>
+    <div data-number="2" data-spec="alinea">
+     (89550), est tenue de réaliser un diagnostic de l'état du Serein et des eaux souterraines au droit du site au
+    </div>
+    <div data-number="3" data-spec="alinea">
+     regard d'une contamination au plomb qui serait susceptible de poser un problème sanitaire.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Place de la Préfecture - 89016 AUXERRE CEDEX - Téléphone 03 86 72 79 89
+    </div>
+    <a data-page_index="1" data-spec="page_separator">
+    </a>
+    <div data-number="5" data-spec="alinea">
+     Les prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     s'appliquent au site ci-dessus ainsi qu'aux terrains extérieurs à l'emprise du site qui seraient affectés par la pollution en provenance du site.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le diagnostic plomb sera réalisé conformément au guide méthodologique national
+     <q>
+      Gestion des sites (potentiellement) pollués
+     </q>
+     élaboré par le ministère de l'environnement et le BRGM, version 2 Mars 2000.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le diagnostic comportera deux étapes soumises à l'approbation de l'inspection des installations classées dont les délais de réalisation sont comptés à partir de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - Étape A du diagnostic initial : analyse historique et recueil des données environnementales avec, à son issue, présentation d'un rapport d'étape et une proposition pour l'étape B (investigations légères) dans un délai de 3 mois
+      </li>
+      <li>
+       - Étape B : investigations légères. Les résultats des investigations devront être comparés aux VDSS et VCI et commentés. Les résultats et commentaires devront être transmis dans un délai de 6 mois.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Plan d'échantillonnage" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 - Plan d'échantillonnage
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'analyse historique et le recueil des données environnementales inclura un inventaire exhaustif des points de rejets des eaux susceptibles d'avoir contenu du plomb aqueux (puisards, points de rejet dans le Serein, etc.).
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le plan d'échantillonnage comprendra :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'implantation des sondages et les profondeurs des prélèvements des sédiments du Serein ;
+    </div>
+    <div data-number="4" data-spec="alinea">
+     L'implantation des sondages et les profondeurs des prélèvements dans les puisards ;
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Frais" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 - Frais
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les frais occasionnés par les études et travaux menés en application du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sont à la charge de l'exploitant.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant peut saisir le tribunal administratif sis
+     <address data-spec="address">
+      22 rue d'Assas
+     </address>
+     21000 DIJON compétent d'un recours contentieux dans les deux mois à compter de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     A l'intérieur de ce délai, il peut également saisir le préfet d'un recours gracieux, ou M. le ministre chargé des installations classées pour la protection de l'environnement d'un recours hiérarchique qui n'interrompt en aucune façon le délai de recours contentieux (l'absence de réponse de l'administration au terme d'un délai de deux mois vaut décision implicite de rejet).
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le délai de recours d'un tiers est de quatre ans à compter de la publication ou de l'affichage du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément aux dispositions de l'
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="21" data-type="article">
+      article 21
+     </a>
+     du
+     <a data-date="1977-09-21" data-spec="document_reference" data-tag_id="1" data-type="decret">
+      décret du
+      <time data-spec="date" datetime="1977-09-21">
+       21 septembre 1977
+      </time>
+     </a>
+     , un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sera affiché à la mairie d'HERY pendant une durée minimum d'un mois.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Une copie de l'arrêté sera conservée aux archives de la mairie et pourra être consultée, sans frais, par les personnes intéressées.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Procès-verbal de l'accomplissement de ces deux formalités sera dressé par M le maire d'HERY et renvoyé à la préfecture de l'Yonne (Direction des Collectivités Locales et du Développement - Bureau de l'Environnement et de Cadre de Vie).
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     Un extrait de cet arrêté sera également publié, par les soins du préfet et aux frais du pétitionnaire, dans deux journaux locaux.
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 7 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , notifié à M. le directeur de la Société Davey Bickford chargé d'afficher en permanence et de façon visible dans l'installation un extrait de cet arrêté, sera adressée:
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - au maire d'HERY,
+      </li>
+      <li>
+       - au directeur régional de l'industrie, de la recherche et de l'environnement de Bourgogne, inspecteur des installations classées.
+      </li>
+      <li>
+       - à la directrice régionale de l'environnement
+      </li>
+      <li>
+       - au chef de la subdivision de l'industrie, de la recherche et de l'environnement de l'Yonne
+      </li>
+      <li>
+       - au directeur départemental des affaires sanitaires et sociales (inspection de la santé)
+      </li>
+      <li>
+       - au directeur départemental de l'équipement
+      </li>
+      <li>
+       - au directeur départemental du travail et de l'emploi
+      </li>
+      <li>
+       - au directeur départemental de l'agriculture et de la forêt, ingénieur en chef du génie rural (service hydraulique)
+      </li>
+      <li>
+       - au directeur départemental des services d'incendie et de secours de l'Yonne
+      </li>
+      <li>
+       - au chef du service interministériel de défense et de protection civile
+      </li>
+      <li>
+       - au directeur départemental de la concurrence, de la consommation, de la répression des fraudes
+      </li>
+      <li>
+       - au président du conseil général de l'Yonne
+      </li>
+      <li>
+       - au directeur de l'agence de l'eau Seine Normandie
+      </li>
+      <li>
+       - au lieutenant colonel commandant le groupement de gendarmerie de l'Yonne chargés, chacun en ce qui le concerne, d'en assurer l'application et l'exécution.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Fait à Auxerre, le 17 MAI 2005
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le préfet
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le secrétaire général,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Frédéric ALADJIDI
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

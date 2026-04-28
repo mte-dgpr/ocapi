@@ -19,9 +19,8 @@
 from bs4 import BeautifulSoup, Tag
 
 from ocapi.step_rendering.make_other import has_no_ops, has_unresolved_ops, make_permit_other
-from ocapi.types import ArreteFile, ArticleHistory, NodeId, Operation, OperationType, StatusCode
+from ocapi.types import ArticleHistory, NodeId, Operation, OperationType, StatusCode
 from ocapi.utils.testing import make_arrete
-
 
 _EMPTY_AP = '<html><body data-arretify_version="0.2.0"><main data-spec="main"></main></body></html>'
 

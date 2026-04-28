@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2012-01-16_arrêté préfectoral_Prescriptions complémentaires.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PREFET DES BOUCHES-DU-RHONE
+    </div>
+    <div>
+     PREFECTURE
+    </div>
+    <div>
+     Direction des Collectivités Locales, de l’Utilité Publique et de l’Environnement
+    </div>
+    <div>
+     Bureau des Installations et Travaux Réglementés pour la Protection des Milieux
+    </div>
+    <div>
+     Dossier suivi par : M. ARGUIMBAU Tél. : 91.15.69.35
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     n°1438-2011 PC
+    </div>
+   </div>
+   <div>
+    Marseille le, 16 JAN. 2012
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE PORTANT PRESCRIPTIONS COMPLEMENTAIRES à la société SITA SUD dans le cadre de l’exploitation de l’installation de stockage de déchets non dangereux des Pennes Mirabeau –
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     LE PRÉFET DE LA RÉGION PROVENCE, ALPES, CÔTE D’AZUR,
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFET DES BOUCHES-DU-RHÔNE,
+    </div>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     CHEVALIER DE LA LÉGION D’HONNEUR,
+    </div>
+    <div>
+     CHEVALIER DE L’ORDRE NATIONAL DU MERITE
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l’Environnement
+    </a>
+    et notamment ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     articles L. 511-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="512" data-type="article">
+     512
+    </a>
+    -3 et R 512-31,
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2009-12-15" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2009-12-15">
+      15 décembre 2009
+     </time>
+    </a>
+    , fixant certains seuils et critères mentionnés aux
+    <a data-group_id="2" data-parent_reference="1" data-spec="section_reference" data-start_num="R512-33" data-type="article">
+     articles R 512-33
+    </a>
+    et
+    <a data-group_id="2" data-parent_reference="1" data-spec="section_reference" data-start_num="R512" data-type="article">
+     R 512
+    </a>
+    54 du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l’environnement
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    VU l’
+    <a data-date="2002-05-16" data-num="2002-66/50-2001A" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n°2002-66/50-2001A du
+     <time data-spec="date" datetime="2002-05-16">
+      16 Mai 2002
+     </time>
+    </a>
+    autorisant la société SITA SUD à exploiter une installation de stockage de déchets non dangereux (ISDND) notamment sur la zone des Cadenaux sur la commune des Pennes-Mirabeau, complété par l’
+    <a data-num="61-2006" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 61-2006
+    </a>
+    A du 16 juin 2006
+   </div>
+   <div data-spec="visa">
+    VU la lettre de la demande de la société SITA SUD en date du 10 novembre 2011 en vue d’être autorisée, au titre de l’année 2011, à dépasser de 3000 tonnes la capacité annuelle de réception de déchets sur son ISDND des Pennes-Mirabeau,,
+   </div>
+   <div data-spec="visa">
+    VU la lettre de la société SITA SUD en date du 10 novembre 2011,
+   </div>
+   <div data-spec="visa">
+    VU le rapport du Directeur Régional de l’Environnement, de l’Aménagement et du Logement, Inspecteur des Installations Classée en date du 5 décembre 2011;
+   </div>
+   <div data-spec="visa">
+    VU l’avis du Conseil Départemental de l’Environnement et des Risques Sanitaires et Technologiques en date du 20 décembre 2011,
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que le stockage supplémentaires de 3000 tonnes est un ajout peu significatif (1,2 %) au tonnage annuel de l’exploitation et n’entraîne pas un accroissement réel des impacts sur l’environnement et la population riveraine du site,
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que le caractère non substantiel du dépassement de 3000 tonnes, nécessité par l’apport pour l’année 2011 d’une proportion importante de déchets provenant de départements extérieurs aux Bouches-du-Rhône, est autorisé par l’
+    <a data-date="2009-12-15" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2009-12-15">
+      15 décembre 2009
+     </time>
+    </a>
+    fixant pour la rubrique 2760 dans son
+    <a data-spec="section_reference" data-start_num="3" data-type="annexe">
+     annexe 3
+    </a>
+    , un seuil à 10 t/j de réception de déchets en dessous duquel la modification ne nécessite pas une nouvelle demande d’autorisation,
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    CONSIDERANT qu’en vertu de l’
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="R512-31" data-type="article">
+     article R 512-31
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+     Code de l’environnement
+    </a>
+    , le représentant de l’Etat peut fixer toutes les prescriptions additionnelles que la protection des intérêts mentionnés à l’
+    <a data-spec="section_reference" data-start_num="L511" data-type="article">
+     article L 511
+    </a>
+    du Code précité rend nécessaire ou atténuer celles des prescriptions primitives dont le maintien ne sera plus justifié.
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition du Secrétaire Général de la Préfecture des Bouches-du-Rhône,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1er :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société SITA SUD dont le siège social est situé rue Antoine Becquerel – 11000 Narbonne, qui est autorisée à exploiter l’installation de stockage de déchets non dangereux et les installations contiguës, sise
+     <address data-spec="address">
+      2449 aven
+     </address>
+     ue Paul Brutus commune des PENNES - MIRABEAU, conformément à l’
+     <a data-date="2002-05-16" data-num="2002-66/50-2001A" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral n°2002-66/50-2001A du
+      <time data-spec="date" datetime="2002-05-16">
+       16 Mai 2002
+      </time>
+      modifié
+     </a>
+     par l’
+     <a data-date="2006-06-16" data-num="61-2006A" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral complémentaire n°61-2006A du
+      <time data-spec="date" datetime="2006-06-16">
+       16 juin 2006
+      </time>
+     </a>
+     , pourra à titre exceptionnel pour l’année 2011 dépasser sa capacité annuelle autorisée de 250 000 tonnes à hauteur de 3000 tonnes, à condition que cette quantité supplémentaire soit réservée exclusivement à des déchets en provenance du département des Bouches-du-Rhône.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L’exploitant présentera, avant le 25 janvier 2012 à l’inspection des installations classées, le bilan des 3000 tonnes reçues sur le site au-delà des 250 000 tonnes, en précisant leurs origines.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Des arrêtés complémentaires pourront fixer toutes les prescriptions additionnelles que la protection des intérêts mentionnés à l’
+     <a data-spec="section_reference" data-start_num="L511-1" data-type="article">
+      article L 511-1
+     </a>
+     , Livre V, Titre I, Chapitre I du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      Code de l’environnement
+     </a>
+     rend nécessaire ou atténuer celles des prescriptions primitives dont le maintien ne sera plus justifié.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En cas de non-respect de l’une des dispositions qui précèdent, il pourra être fait application des sanctions prévues par des dispositions de l’
+     <a data-spec="section_reference" data-start_num="L514-1" data-type="article">
+      article L 514-1
+     </a>
+     , Livre V, Titre I, Chapitre IV du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      Code de l’environnement
+     </a>
+     , relative aux Installations Classées pour la Protection de l’Environnement sans préjudice des condamnations qui pourraient être prononcées par les tribunaux compétents.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     devra être tenue au siège de l’exploitation à la disposition des autorités chargées d’en contrôler l’exécution.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     restera affiché en permanence de façon visible dans l’établissement.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les droits des tiers sont et demeurent expressément réservés.
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="6" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 6
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - Le Secrétaire Général de la Préfecture des Bouches-du-Rhône,
+      </li>
+      <li>
+       - Le Sous-Préfet d'Aix en Provence,
+      </li>
+      <li>
+       - Le Maire des Pennes-Mirabeau,
+      </li>
+      <li>
+       - Le Directeur Régional de l'Environnement, de l'Aménagement et du Logement,
+      </li>
+      <li>
+       - Le Directeur du Cabinet,
+      </li>
+      <li>
+       - Le Directeur Régional des Entreprises de la Concurrence, de la Consommation, du Travail et de l'Emploi,
+      </li>
+      <li>
+       - Le Directeur Départemental des Territoires et de la Mer, (Service Environnement, Service Urbanisme)
+      </li>
+      <li>
+       - Le Chef du Service Interministériel Régional des Affaires Civiles et Economiques de Défense et de la Protection Civile,
+      </li>
+      <li>
+       - Le Directeur Général de l'Agence Régionale de Santé PACA - Délégation territoriale des Bouches-du-Rhône,
+      </li>
+      <li>
+       - Le Directeur Départemental des Services d'Incendie et de Secours, et toutes autorités de Police et de Gendarmerie, sont chargés, chacun en ce qui le concerne, de l'exécution du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       dont un extrait sera affiché et un avis publié conformément aux dispositions de l'
+       <a data-spec="section_reference" data-start_num="R512" data-type="article">
+        article R.512
+       </a>
+       .39 du
+       <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+        Code de l'Environnement
+       </a>
+       .
+      </li>
+     </ul>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     MARSEILLE le 17 6 JAN. 2012
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Pour le Préfet
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le Secrétaire Général
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Jean-Paul CELET
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

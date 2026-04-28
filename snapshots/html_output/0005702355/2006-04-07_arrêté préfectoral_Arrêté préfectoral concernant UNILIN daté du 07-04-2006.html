@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2006-04-07_arrêté préfectoral_Arrêté préfectoral concernant UNILIN daté du 07-04-2006.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PREFECTURE DES ARDENNES
+    </div>
+    <div>
+     DIRECTION DES RELATIONS AVEC LES COLLECTIVITES LOCALES
+    </div>
+    <div>
+     BUREAU DE L'URBANISME, DE L'ENVIRONNEMENT ET DE LA CULTURE
+    </div>
+    <div>
+     INSTALLATIONS CLASSEES POUR LA PROTECTION DE L'ENVIRONNEMENT
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE PREFECTORAL COMPLEMENTAIRE N° 2006/235 ABROGEANT I'ARRETE PREFECTORAL DU
+     <time data-spec="date" datetime="2004-05-12">
+      12 MAI 2004
+     </time>
+     RELATIF AUX DECLARATION TRIMESTRIELLES DE PRODUCTION ET D'ELIMINATION DE DECHETS DANGEREUX
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le préfet des Ardennes
+    </div>
+    <div>
+     Chevalier de la Légion d'Honneur
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    Vu le décret modifié n° 77-1133 du 21 septembre 1977,
+   </div>
+   <div data-spec="visa">
+    Vu le décret modifié n° 92-604 du 1er juillet 1992 portant charte de la déconcentration,
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="2002-04-18" data-num="2002-540" data-spec="document_reference" data-type="decret">
+     décret n° 2002-540 du
+     <time data-spec="date" datetime="2002-04-18">
+      18 avril 2002
+     </time>
+    </a>
+    relatif à la classification des déchets,
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="2004-01-09" data-spec="document_reference" data-type="decret">
+     décret du
+     <time data-spec="date" datetime="2004-01-09">
+      9 janvier 2004
+     </time>
+    </a>
+    portant nomination de M. Adolphe Colrat en qualité de préfet des Ardennes,
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="2004-04-29" data-num="2004-374" data-spec="document_reference" data-type="decret">
+     décret n° 2004-374 du
+     <time data-spec="date" datetime="2004-04-29">
+      29 avril 2004
+     </time>
+    </a>
+    relatif aux pouvoirs des préfets, à l'organisation et à l'action des services de l'Etat dans les régions et départements,
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="2005-05-30" data-num="2005-635" data-spec="document_reference" data-type="decret">
+     décret n° 2005-635 du
+     <time data-spec="date" datetime="2005-05-30">
+      30 mai 2005
+     </time>
+    </a>
+    relatif au contrôle des circuits de traitement des déchets,
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2005-07-29" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2005-07-29">
+      29 juillet 2005
+     </time>
+    </a>
+    fixant le formulaire du bordereau de suivi des déchets dangereux mentionné à l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="4" data-type="article">
+     article 4
+    </a>
+    du
+    <a data-date="2005-05-30" data-num="2005-635" data-spec="document_reference" data-tag_id="1" data-type="decret">
+     décret n° 2005-635 du
+     <time data-spec="date" datetime="2005-05-30">
+      30 mai 2005
+     </time>
+    </a>
+    ,
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     1, place de la Préfecture - F 08011 CHARLEVILLE-MEZIERES Cedex - Téléphone 33 03-24-59-66-00
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     2
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2005-12-20" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2005-12-20">
+      20 décembre 2005
+     </time>
+    </a>
+    relatif à la déclaration annuelle à l'administration, pris en application des
+    <a data-group_id="1" data-parent_reference="2" data-spec="section_reference" data-start_num="3" data-type="article">
+     articles 3
+    </a>
+    et
+    <a data-group_id="1" data-parent_reference="2" data-spec="section_reference" data-start_num="5" data-type="article">
+     5
+    </a>
+    du
+    <a data-date="2005-05-30" data-num="2005-635" data-spec="document_reference" data-tag_id="2" data-type="decret">
+     décret n° 2005-635 du
+     <time data-spec="date" datetime="2005-05-30">
+      30 mai 2005
+     </time>
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2004-05-12" data-num="2004-175" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 2004-175 du
+     <time data-spec="date" datetime="2004-05-12">
+      12 mai 2004
+     </time>
+    </a>
+    actualisant la liste des entreprises tenues de transmettre trimestriellement, au service chargé du contrôle des installations classées, un récapitulatif des opérations de production, collecte et regroupement, transport, importation, stockage, traitement et élimination des déchets industriels générateurs de nuisances,
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2006-02-06" data-num="2006-40" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 2006-40 du
+     <time data-spec="date" datetime="2006-02-06">
+      6 février 2006
+     </time>
+    </a>
+    donnant délégation de signature à Mme Marie-Hélène Desbazeille, secrétaire général de la préfecture des Ardennes,
+   </div>
+   <div data-spec="visa">
+    Vu le rapport SA1-AEL/CM-N°06/121 du 1er février 2006 de l'inspection des installations classées,
+   </div>
+   <div data-spec="visa">
+    Vu l'avis du conseil départemental d'hygiène du 4 avril 2006,
+   </div>
+   <div data-spec="motifs">
+    Considérant que l'
+    <a data-date="1985-01-04" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="1985-01-04">
+      4 janvier 1985
+     </time>
+    </a>
+    demandant au commissaire de la République de fixer, chaque année, la liste des entreprises devant transmettre trimestriellement, aux services chargés du contrôle des installations classées, un récapitulatif de leurs opérations effectuées relatives à l'élimination des déchets, est abrogé à compter du 1er décembre 2005,
+   </div>
+   <div data-spec="motifs">
+    Considérant que l'
+    <a data-date="2005-12-20" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2005-12-20">
+      20 décembre 2005
+     </time>
+    </a>
+    prescrit que « les exploitants des installations classées soumises à autorisation produisant plus de 10 tonnes par an de déchets dangereux sont tenus d'effectuer chaque année une déclaration à l'administration... »,
+   </div>
+   <div data-spec="motifs">
+    Considérant que l'
+    <a data-date="2005-12-20" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2005-12-20">
+      20 décembre 2005
+     </time>
+    </a>
+    prescrit que « les exploitants d'installations classées assurant le traitement des déchets dangereux sont tenus d'effectuer chaque année une déclaration à l'administration... »,
+   </div>
+   <div data-spec="motifs">
+    Considérant que l'
+    <a data-date="2005-12-20" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2005-12-20">
+      20 décembre 2005
+     </time>
+    </a>
+    prescrit que « les exploitants d'installations classées de stockage, d'incinération, de compostage et de méthanisation de déchets non dangereux sont tenus d'effectuer chaque année une déclaration à l'administration... »,
+   </div>
+   <div data-spec="motifs">
+    Considérant qu'en conséquence, les dispositions de l'
+    <a data-date="2004-05-12" data-num="2004-175" data-spec="document_reference" data-type="arrete">
+     arrêté 2004-175 du
+     <time data-spec="date" datetime="2004-05-12">
+      12 mai 2004
+     </time>
+    </a>
+    actualisant la liste des entreprises tenues de transmettre trimestriellement, au service chargé du contrôle des installations classées, un récapitulatif des opérations effectuées relatives à l'élimination des déchets ne sont plus au conformes aux dispositions fixées par les textes en vigueur,
+   </div>
+   <div data-spec="motifs">
+    Considérant qu'il convient donc d'abroger les dispositions antérieures dans un souci de transparence et d'équité,
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     3
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1er :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-date="2004-05-12" data-num="2004-175" data-spec="document_reference" data-tag_id="5" data-type="arrete">
+      arrêté 2004-175 du
+      <time data-spec="date" datetime="2004-05-12">
+       12 mai 2004
+      </time>
+     </a>
+     <span data-direction="rtl" data-keyword="abrogé" data-operation_type="delete" data-references="5" data-spec="operation">
+      actualisant la liste des entreprises tenues de transmettre trimestriellement, au service chargé du contrôle des installations classées, un récapitulatif des opérations de production, collecte et regroupement, transport, importation, stockage, traitement et élimination des déchets industriels générateurs de nuisances est
+      <b>
+       abrogé
+      </b>
+     </span>
+     .
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-date="2005-12-20" data-spec="document_reference" data-type="arrete">
+      arrêté du
+      <time data-spec="date" datetime="2005-12-20">
+       20 décembre 2005
+      </time>
+     </a>
+     relatif à la déclaration annuelle à l'administration, pris en application des
+     <a data-group_id="2" data-parent_reference="3" data-spec="section_reference" data-start_num="3" data-type="article">
+      articles 3
+     </a>
+     et
+     <a data-group_id="2" data-parent_reference="3" data-spec="section_reference" data-start_num="5" data-type="article">
+      5
+     </a>
+     du
+     <a data-date="2005-05-30" data-num="2005-635" data-spec="document_reference" data-tag_id="3" data-type="decret">
+      décret n° 2005-635 du
+      <time data-spec="date" datetime="2005-05-30">
+       30 mai 2005
+      </time>
+     </a>
+     relatif au contrôle des circuits de traitement des déchets s'applique de plein droit.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le secrétaire général de la préfecture des Ardennes et l'inspection des installations classées pour la protection de l'environnement sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     qui sera notifié aux industriels concernés.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Charleville-Mézières, le 7 avril 2006
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Pour le Préfet,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le secrétaire général,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Signé Marie-Hélène Desbazeille
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      4
+     </div>
+    </div>
+   </section>
+  </main>
+  <footer data-spec="appendix">
+   <section data-number="1" data-spec="section" data-type="annexe">
+    <h2 data-level="0" data-spec="section_title">
+     ANNEXE 1 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Liste des entreprises soumises à l'
+     <a data-date="2004-05-12" data-num="2004-175" data-spec="document_reference" data-type="arrete">
+      arrêté 2004-175 du
+      <time data-spec="date" datetime="2004-05-12">
+       12 mai 2004
+      </time>
+     </a>
+    </div>
+    <section data-number="1" data-spec="section" data-title="PRODUCTEURS" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1 - PRODUCTEURS
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      AKERS
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <address data-spec="address">
+       80 avenue de la Marne
+      </address>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      08200 SEDAN
+     </div>
+     <div data-number="4" data-spec="alinea">
+      APM
+     </div>
+     <div data-number="5" data-spec="alinea">
+      <address data-spec="address">
+       11 chemin Blanc
+      </address>
+      Mont
+     </div>
+     <div data-number="6" data-spec="alinea">
+      08400 VOUZIERS
+     </div>
+     <div data-number="7" data-spec="alinea">
+      ARDAM ELECTROLUX
+     </div>
+     <div data-number="8" data-spec="alinea">
+      <address data-spec="address">
+       5 Rue Jean-Jacques Rousseau
+      </address>
+     </div>
+     <div data-number="9" data-spec="alinea">
+      08500 REVIN
+     </div>
+     <div data-number="10" data-spec="alinea">
+      ARDENNE CHICOREES
+     </div>
+     <div data-number="11" data-spec="alinea">
+      <address data-spec="address">
+       5 route de Laon
+      </address>
+     </div>
+     <div data-number="12" data-spec="alinea">
+      08190 SAINT-GERMAINMONT
+     </div>
+     <div data-number="13" data-spec="alinea">
+      ATELIER DES JANVES
+     </div>
+     <div data-number="14" data-spec="alinea">
+      ZA de Braux
+     </div>
+     <div data-number="15" data-spec="alinea">
+      Avenue des Marguerites
+     </div>
+     <div data-number="16" data-spec="alinea">
+      BP44
+     </div>
+     <div data-number="17" data-spec="alinea">
+      08120 BOGNY-SUR-MEUSE
+     </div>
+     <div data-number="18" data-spec="alinea">
+      BARET ETS
+     </div>
+     <div data-number="19" data-spec="alinea">
+      <address data-spec="address">
+       156 Rue Saint Louis
+      </address>
+     </div>
+     <div data-number="20" data-spec="alinea">
+      08170 HAYBES
+     </div>
+     <div data-number="21" data-spec="alinea">
+      BEROUDIAUX
+     </div>
+     <div data-number="22" data-spec="alinea">
+      <address data-spec="address">
+       846 rue Waldeck Rousseau
+      </address>
+     </div>
+     <div data-number="23" data-spec="alinea">
+      08500 REVIN
+     </div>
+     <div data-number="24" data-spec="alinea">
+      BH INDUSTRIE
+     </div>
+     <div data-number="25" data-spec="alinea">
+      <address data-spec="address">
+       57 rue Manises
+      </address>
+     </div>
+     <div data-number="26" data-spec="alinea">
+      08440 VIVIER-AU-COURT
+     </div>
+     <div data-number="27" data-spec="alinea">
+      BRENNTAG ARDENNE
+     </div>
+     <div data-number="28" data-spec="alinea">
+      Route de Tournes
+     </div>
+     <div data-number="29" data-spec="alinea">
+      CD n°2
+     </div>
+     <div data-number="30" data-spec="alinea">
+      08090 CLIRON
+     </div>
+     <div data-number="31" data-spec="alinea">
+      CANJAERE
+     </div>
+     <div data-number="32" data-spec="alinea">
+      route de Ham le Moine
+     </div>
+     <div data-number="33" data-spec="alinea">
+      08090 TOURNES
+     </div>
+     <div data-number="34" data-spec="alinea">
+      COLLIGNON
+      <q>
+       CARBONNIERE
+      </q>
+     </div>
+     <div data-number="35" data-spec="alinea">
+      <address data-spec="address">
+       233 rue Carbonnièr
+      </address>
+      e
+     </div>
+     <div data-number="36" data-spec="alinea">
+      08800 DEVILLE
+     </div>
+     <div data-number="37" data-spec="alinea">
+      COLLIGNON
+      <q>
+       SAINT ELOI
+      </q>
+     </div>
+     <div data-number="38" data-spec="alinea">
+      <address data-spec="address">
+       139 rue Bu
+      </address>
+      chis
+     </div>
+     <div data-number="39" data-spec="alinea">
+      08800 DEVILLE
+     </div>
+     <div data-number="40" data-spec="alinea">
+      COLLIGNON PEINTURE
+     </div>
+     <div data-number="41" data-spec="alinea">
+      Grande rue
+     </div>
+     <div data-number="42" data-spec="alinea">
+      08430 VILLERS-LE-TOURNEUR
+     </div>
+     <a data-page_index="4" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       5
+      </div>
+     </div>
+     <div data-number="43" data-spec="alinea">
+      DELPHI France SAS
+     </div>
+     <div data-number="44" data-spec="alinea">
+      ZI
+     </div>
+     <div data-number="45" data-spec="alinea">
+      BP 14
+     </div>
+     <div data-number="46" data-spec="alinea">
+      08350 DONCHERY
+     </div>
+     <div data-number="47" data-spec="alinea">
+      EDF CHOOZ A et B - SENA
+     </div>
+     <div data-number="48" data-spec="alinea">
+      08600 CHOOZ
+     </div>
+     <div data-number="49" data-spec="alinea">
+      ESTAMFOR
+     </div>
+     <div data-number="50" data-spec="alinea">
+      <address data-spec="address">
+       32 rue de l'espérance
+      </address>
+     </div>
+     <div data-number="51" data-spec="alinea">
+      BP 27
+     </div>
+     <div data-number="52" data-spec="alinea">
+      08800 LES-HAUTES-RIVIERES
+     </div>
+     <div data-number="53" data-spec="alinea">
+      FAREMAN
+     </div>
+     <div data-number="54" data-spec="alinea">
+      <address data-spec="address">
+       1 avenue du Général de Gaulle
+      </address>
+     </div>
+     <div data-number="55" data-spec="alinea">
+      08300 RETHEL
+     </div>
+     <div data-number="56" data-spec="alinea">
+      FAURECIA Automotive Industrie
+     </div>
+     <div data-number="57" data-spec="alinea">
+      ZI
+     </div>
+     <div data-number="58" data-spec="alinea">
+      BP 27
+     </div>
+     <div data-number="59" data-spec="alinea">
+      08210 MOUZON
+     </div>
+     <div data-number="60" data-spec="alinea">
+      FAV LCAB
+     </div>
+     <div data-number="61" data-spec="alinea">
+      <address data-spec="address">
+       32 rue Jourde
+      </address>
+      s
+     </div>
+     <div data-number="62" data-spec="alinea">
+      BP 79
+     </div>
+     <div data-number="63" data-spec="alinea">
+      08120 BOGNY-SUR-MEUSE
+     </div>
+     <div data-number="64" data-spec="alinea">
+      FMC GALVARDENNES
+     </div>
+     <div data-number="65" data-spec="alinea">
+      rue Victor Hugo
+     </div>
+     <div data-number="66" data-spec="alinea">
+      08120 BOGNY-SUR-MEUSE
+     </div>
+     <div data-number="67" data-spec="alinea">
+      France Ardenne Aluminium
+     </div>
+     <div data-number="68" data-spec="alinea">
+      Chemin Culot de la Rosière
+     </div>
+     <div data-number="69" data-spec="alinea">
+      08140 BAZEILLES
+     </div>
+     <div data-number="70" data-spec="alinea">
+      GALVA 08
+     </div>
+     <div data-number="71" data-spec="alinea">
+      ZA La Boutillette
+     </div>
+     <div data-number="72" data-spec="alinea">
+      08440 VIVIER-AU-COURT
+     </div>
+     <div data-number="73" data-spec="alinea">
+      GLAVERBEL – AGC Automotive Europe
+     </div>
+     <div data-number="74" data-spec="alinea">
+      ZI
+     </div>
+     <div data-number="75" data-spec="alinea">
+      BP 8
+     </div>
+     <div data-number="76" data-spec="alinea">
+      08350 DONCHERY
+     </div>
+     <div data-number="77" data-spec="alinea">
+      IDEAL STANDARD FRANCE
+     </div>
+     <div data-number="78" data-spec="alinea">
+      08500 REVIN
+     </div>
+     <div data-number="79" data-spec="alinea">
+      ITW Produits Chimiques
+     </div>
+     <div data-number="80" data-spec="alinea">
+      rue Pasteur
+     </div>
+     <div data-number="81" data-spec="alinea">
+      08320 VIREUX-MOHLAIN
+     </div>
+     <div data-number="82" data-spec="alinea">
+      JARDINIER MASSARD
+     </div>
+     <div data-number="83" data-spec="alinea">
+      <address data-spec="address">
+       2 Rue Etienne Dolet
+      </address>
+     </div>
+     <div data-number="84" data-spec="alinea">
+      08330 VRIGNE-AUX-BOIS
+     </div>
+     <div data-number="85" data-spec="alinea">
+      LA FONTE ARDENNAISE, unité FA1
+     </div>
+     <div data-number="86" data-spec="alinea">
+      <address data-spec="address">
+       22 rue Joliot Curie
+      </address>
+     </div>
+     <div data-number="87" data-spec="alinea">
+      08440 VIVIER-AU-COURT
+     </div>
+     <div data-number="88" data-spec="alinea">
+      LA FONTE ARDENNAISE, unité FA3
+     </div>
+     <div data-number="89" data-spec="alinea">
+      <address data-spec="address">
+       7 rue Pierre Viénot
+      </address>
+     </div>
+     <div data-number="90" data-spec="alinea">
+      08300 VRIGNE AUX BOIS
+     </div>
+     <div data-number="91" data-spec="alinea">
+      LA FONTE ARDENNAISE, unité FA4
+     </div>
+     <div data-number="92" data-spec="alinea">
+      Route nationale 51
+     </div>
+     <div data-number="93" data-spec="alinea">
+      08170 HAYBES
+     </div>
+     <a data-page_index="5" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       6
+      </div>
+     </div>
+     <div data-number="94" data-spec="alinea">
+      LA FONTE ARDENNAISE, unité FA5
+     </div>
+     <div data-number="95" data-spec="alinea">
+      Rue du Cimetière
+     </div>
+     <div data-number="96" data-spec="alinea">
+      08440 VIVIER-AU-COURT
+     </div>
+     <div data-number="97" data-spec="alinea">
+      LA PERSEVERANCE
+     </div>
+     <div data-number="98" data-spec="alinea">
+      <address data-spec="address">
+       4 Rue Royale
+      </address>
+     </div>
+     <div data-number="99" data-spec="alinea">
+      08230 ROCROI
+     </div>
+     <div data-number="100" data-spec="alinea">
+      L'AVENIR SIRENE
+     </div>
+     <div data-number="101" data-spec="alinea">
+      <address data-spec="address">
+       9 route petit
+      </address>
+      e Chapelle
+     </div>
+     <div data-number="102" data-spec="alinea">
+      08230 ROCROI
+     </div>
+     <div data-number="103" data-spec="alinea">
+      LE FEUTRE
+     </div>
+     <div data-number="104" data-spec="alinea">
+      Rue du Château
+     </div>
+     <div data-number="105" data-spec="alinea">
+      08210 MOUZON
+     </div>
+     <div data-number="106" data-spec="alinea">
+      MAGOTTEAUX
+     </div>
+     <div data-number="107" data-spec="alinea">
+      <address data-spec="address">
+       1 bis rue du Général Sarrail
+      </address>
+     </div>
+     <div data-number="108" data-spec="alinea">
+      08320 AUBRIVES
+     </div>
+     <div data-number="109" data-spec="alinea">
+      MECANO GALVA
+     </div>
+     <div data-number="110" data-spec="alinea">
+      Route de Donchery
+     </div>
+     <div data-number="111" data-spec="alinea">
+      08330 VRIGNE-AUX-BOIS
+     </div>
+     <div data-number="112" data-spec="alinea">
+      METAL BLANC
+     </div>
+     <div data-number="113" data-spec="alinea">
+      rue Pasteur
+     </div>
+     <div data-number="114" data-spec="alinea">
+      08230 BOURG-FIDELE
+     </div>
+     <div data-number="115" data-spec="alinea">
+      MIG
+     </div>
+     <div data-number="116" data-spec="alinea">
+      <address data-spec="address">
+       3
+      </address>
+      rue 3 fourchettes
+     </div>
+     <div data-number="117" data-spec="alinea">
+      08600 GIVET
+     </div>
+     <div data-number="118" data-spec="alinea">
+      NICOLAS
+     </div>
+     <div data-number="119" data-spec="alinea">
+      rue Haillette
+     </div>
+     <div data-number="120" data-spec="alinea">
+      08700 NOUZONVILLE
+     </div>
+     <div data-number="121" data-spec="alinea">
+      NPL
+     </div>
+     <div data-number="122" data-spec="alinea">
+      route de Pussemange
+     </div>
+     <div data-number="123" data-spec="alinea">
+      08700 GESPUNSART
+     </div>
+     <div data-number="124" data-spec="alinea">
+      PRISMA SA - THYSSENKRUPP
+     </div>
+     <div data-number="125" data-spec="alinea">
+      BP6
+     </div>
+     <div data-number="126" data-spec="alinea">
+      08110 PURE
+     </div>
+     <div data-number="127" data-spec="alinea">
+      PSA PEUGEOT CITROEN
+     </div>
+     <div data-number="128" data-spec="alinea">
+      ZI Les Ayvelles
+     </div>
+     <div data-number="129" data-spec="alinea">
+      BP 1
+     </div>
+     <div data-number="130" data-spec="alinea">
+      08001 CHARLEVILLE-MEZIERES CEDEX
+     </div>
+     <div data-number="131" data-spec="alinea">
+      RAYMOND BARRE
+     </div>
+     <div data-number="132" data-spec="alinea">
+      <address data-spec="address">
+       17 rue de l'espérance
+      </address>
+     </div>
+     <div data-number="133" data-spec="alinea">
+      08800 LES-HAUTES-RIVIERES
+     </div>
+     <div data-number="134" data-spec="alinea">
+      RHENACOAT
+     </div>
+     <div data-number="135" data-spec="alinea">
+      <address data-spec="address">
+       1 avenue François Sommer
+      </address>
+     </div>
+     <div data-number="136" data-spec="alinea">
+      ZI de Glaire
+     </div>
+     <div data-number="137" data-spec="alinea">
+      BP 30324
+     </div>
+     <div data-number="138" data-spec="alinea">
+      08202 SEDAN CEDEX
+     </div>
+     <div data-number="139" data-spec="alinea">
+      ROLLINGER
+     </div>
+     <div data-number="140" data-spec="alinea">
+      rue Matyrs de la Résistance
+     </div>
+     <div data-number="141" data-spec="alinea">
+      08160 NOUVION-SUR-MEUSE
+     </div>
+     <div data-number="142" data-spec="alinea">
+      SCHULMAN PLASTICS
+     </div>
+     <div data-number="143" data-spec="alinea">
+      rue Alex Schulman
+     </div>
+     <div data-number="144" data-spec="alinea">
+      08600 GIVET
+     </div>
+     <a data-page_index="6" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       7
+      </div>
+     </div>
+     <div data-number="145" data-spec="alinea">
+      SMA
+     </div>
+     <div data-number="146" data-spec="alinea">
+      Lieudit Phade
+     </div>
+     <div data-number="147" data-spec="alinea">
+      08800 MONTHERME
+     </div>
+     <div data-number="148" data-spec="alinea">
+      SMURFIT PAPIER RECYCLE FRANCE
+     </div>
+     <div data-number="149" data-spec="alinea">
+      Rue de la petite Prée
+     </div>
+     <div data-number="150" data-spec="alinea">
+      08300 SAULT-LES-RETHEL
+     </div>
+     <div data-number="151" data-spec="alinea">
+      SMURFIT SOCAR PACKAGING France, usines de l'Etoile et de Noiret
+     </div>
+     <div data-number="152" data-spec="alinea">
+      <address data-spec="address">
+       1 rue Hippolyte Noiret
+      </address>
+     </div>
+     <div data-number="153" data-spec="alinea">
+      08300 RETHEL
+     </div>
+     <div data-number="154" data-spec="alinea">
+      SOLLAC LORRAINE
+     </div>
+     <div data-number="155" data-spec="alinea">
+      rue de la demi-lune
+     </div>
+     <div data-number="156" data-spec="alinea">
+      08210 MOUZON
+     </div>
+     <div data-number="157" data-spec="alinea">
+      SOPAL
+     </div>
+     <div data-number="158" data-spec="alinea">
+      <address data-spec="address">
+       21
+      </address>
+      rue Luxembourg
+     </div>
+     <div data-number="159" data-spec="alinea">
+      08600 GIVET
+     </div>
+     <div data-number="160" data-spec="alinea">
+      SOROCHIMIE
+     </div>
+     <div data-number="161" data-spec="alinea">
+      route de Phillipeville
+     </div>
+     <div data-number="162" data-spec="alinea">
+      08600 GIVET
+     </div>
+     <div data-number="163" data-spec="alinea">
+      STEVENIN NOLLEVAUX, usine de Failloué
+     </div>
+     <div data-number="164" data-spec="alinea">
+      Rue de la Semoy
+     </div>
+     <div data-number="165" data-spec="alinea">
+      Zone A - BP 26
+     </div>
+     <div data-number="166" data-spec="alinea">
+      08800 LES-HAUTES-RIVIERES
+     </div>
+     <div data-number="167" data-spec="alinea">
+      STEVENIN NOLLEVAUX, usine de Landrichamps
+     </div>
+     <div data-number="168" data-spec="alinea">
+      BP 26
+     </div>
+     <div data-number="169" data-spec="alinea">
+      08800 LES-HAUTES-RIVIERES
+     </div>
+     <div data-number="170" data-spec="alinea">
+      TARKETT SAS
+     </div>
+     <div data-number="171" data-spec="alinea">
+      <address data-spec="address">
+       2 Avenue François Sommer
+      </address>
+     </div>
+     <div data-number="172" data-spec="alinea">
+      08203 SEDAN CEDEX
+     </div>
+     <div data-number="173" data-spec="alinea">
+      THOME GENOT
+     </div>
+     <div data-number="174" data-spec="alinea">
+      BP 17
+     </div>
+     <div data-number="175" data-spec="alinea">
+      08700 NOUZONVILLE
+     </div>
+     <div data-number="176" data-spec="alinea">
+      TREFIMETAUX – TMX-KME
+     </div>
+     <div data-number="177" data-spec="alinea">
+      Usine de Flohimont
+     </div>
+     <div data-number="178" data-spec="alinea">
+      08600 FROMELENNE
+     </div>
+     <div data-number="179" data-spec="alinea">
+      TSMD
+     </div>
+     <div data-number="180" data-spec="alinea">
+      ZI de Tournes
+     </div>
+     <div data-number="181" data-spec="alinea">
+      BP 1020
+     </div>
+     <div data-number="182" data-spec="alinea">
+      08090 TOURNES
+     </div>
+     <div data-number="183" data-spec="alinea">
+      TURQUAIS
+     </div>
+     <div data-number="184" data-spec="alinea">
+      08450 RAUCOURT
+     </div>
+     <div data-number="185" data-spec="alinea">
+      UNILIN
+     </div>
+     <div data-number="186" data-spec="alinea">
+      ZI
+     </div>
+     <div data-number="187" data-spec="alinea">
+      BP 18
+     </div>
+     <div data-number="188" data-spec="alinea">
+      08140 BAZEILLES
+     </div>
+     <div data-number="189" data-spec="alinea">
+      VIGNON
+     </div>
+     <div data-number="190" data-spec="alinea">
+      <address data-spec="address">
+       12 rue de fourneau
+      </address>
+     </div>
+     <div data-number="191" data-spec="alinea">
+      08450 HARAUCOURT
+     </div>
+     <a data-page_index="7" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       8
+      </div>
+     </div>
+     <div data-number="192" data-spec="alinea">
+      VISTEON
+     </div>
+     <div data-number="193" data-spec="alinea">
+      ZI de Montjoly
+     </div>
+     <div data-number="194" data-spec="alinea">
+      BP228
+     </div>
+     <div data-number="195" data-spec="alinea">
+      08102 CHARLEVILLE-MEZIERES
+     </div>
+    </section>
+    <section data-number="2" data-spec="section" data-title="ELIMINATEURS" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2 – ELIMINATEURS
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      ARCAVI
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <address data-spec="address">
+       15 rue Camille Didier
+      </address>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      BP 06
+     </div>
+     <div data-number="4" data-spec="alinea">
+      08000 CHARLEVILLE-MEZIERES
+     </div>
+     <div data-number="5" data-spec="alinea">
+      SITA DECTRA
+     </div>
+     <div data-number="6" data-spec="alinea">
+      ZI, chemin des Marais
+     </div>
+     <div data-number="7" data-spec="alinea">
+      51370 SAINT-BRICE-COURCELLES
+     </div>
+     <div data-number="8" data-spec="alinea">
+      TRANSIT ET FILTRES
+     </div>
+     <div data-number="9" data-spec="alinea">
+      ZI route de Rozoy
+     </div>
+     <div data-number="10" data-spec="alinea">
+      082090 LIART
+     </div>
+     <a data-page_index="8" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       9
+      </div>
+     </div>
+    </section>
+   </section>
+   <section data-number="2" data-spec="section" data-type="annexe">
+    <h2 data-level="0" data-spec="section_title">
+     ANNEXE 2 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-date="2005-12-20" data-spec="document_reference" data-type="arrete">
+      Arrêté du
+      <time data-spec="date" datetime="2005-12-20">
+       20 décembre 2005
+      </time>
+     </a>
+     relatif à la déclaration annuelle à l'administration, pris en application des
+     <a data-group_id="3" data-parent_reference="4" data-spec="section_reference" data-start_num="3" data-type="article">
+      articles 3
+     </a>
+     et
+     <a data-group_id="3" data-parent_reference="4" data-spec="section_reference" data-start_num="5" data-type="article">
+      5
+     </a>
+     du
+     <a data-date="2005-05-30" data-num="2005-635" data-spec="document_reference" data-tag_id="4" data-type="decret">
+      décret n° 2005-635 du
+      <time data-spec="date" datetime="2005-05-30">
+       30 mai 2005
+      </time>
+     </a>
+     relatif au contrôle des circuits de traitement des déchets
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Vus
+    </div>
+    <div data-number="3" data-spec="alinea">
+     La ministre de l'écologie et du développement durable,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Vu le
+     <a data-date="2002" data-num="2150" data-spec="document_reference" data-type="eu-regulation">
+      règlement n° 2150/2002
+     </a>
+     du Parlement européen et du Conseil du 25 novembre 2002 relatif aux statistiques sur les déchets ;
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Vu la
+     <a data-date="1975" data-num="442" data-spec="document_reference" data-type="eu-directive">
+      directive n° 75/442/CEE
+     </a>
+     du Conseil du 15 juillet 1975 modifiée relative aux déchets ;
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Vu la directive n° 91/689 du Conseil du 12 décembre 1991 relative aux déchets dangereux ;
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Vu les titres Ier et IV du livre V du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , notamment ses
+     <a data-group_id="4" data-spec="section_reference" data-start_num="L517-1" data-type="article">
+      articles L. 517-1
+     </a>
+     ,
+     <a data-group_id="4" data-spec="section_reference" data-start_num="L541-2" data-type="article">
+      L. 541-2
+     </a>
+     et
+     <a data-group_id="4" data-spec="section_reference" data-start_num="L541-7" data-type="article">
+      L. 541-7
+     </a>
+     ;
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Vu le
+     <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-type="decret">
+      décret n° 77-1133 du
+      <time data-spec="date" datetime="1977-09-21">
+       21 septembre 1977
+      </time>
+     </a>
+     modifié, pris pour l'application de la loi n° 76-663 du 19 juillet 1976 relative aux installations classées pour la protection de l'environnement ;
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Vu le
+     <a data-date="2005-05-30" data-num="2005-635" data-spec="document_reference" data-type="decret">
+      décret n° 2005-635 du
+      <time data-spec="date" datetime="2005-05-30">
+       30 mai 2005
+      </time>
+     </a>
+     relatif au contrôle des circuits de traitement des déchets ;
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Vu l'avis du Conseil supérieur des installations classées en date du 18 octobre 2005,
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Arrête :
+    </div>
+    <section data-number="1" data-spec="section" data-title="de l'arrêté du 20 décembre 2005" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 1er de l'arrêté du 20 décembre 2005
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les exploitants des installations classées soumises à autorisation produisant plus de 10 tonnes par an de déchets dangereux sont tenus d'effectuer chaque année une déclaration à l'administration selon le modèle figurant à l'
+      <a data-spec="section_reference" data-start_num="1" data-type="annexe">
+       annexe 1
+      </a>
+      (1).
+     </div>
+    </section>
+    <section data-number="2" data-spec="section" data-title="de l'arrêté du 20 décembre 2005" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 2 de l'arrêté du 20 décembre 2005
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les exploitants d'installations classées assurant le traitement des déchets dangereux sont tenus d'effectuer chaque année une déclaration à l'administration selon le modèle figurant à l'
+      <a data-spec="section_reference" data-start_num="2" data-type="annexe">
+       annexe 2
+      </a>
+      (1).
+     </div>
+    </section>
+    <section data-number="3" data-spec="section" data-title="de l'arrêté du 20 décembre 2005" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 3 de l'arrêté du 20 décembre 2005
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les exploitants d'installations classées de stockage, d'incinération, de compostage et de méthanisation de déchets non dangereux sont tenus d'effectuer chaque année une déclaration à l'administration selon le modèle figurant à l'
+      <a data-spec="section_reference" data-start_num="3" data-type="annexe">
+       annexe 3
+      </a>
+      (1).
+     </div>
+    </section>
+    <section data-number="4" data-spec="section" data-title="de l'arrêté du 20 décembre 2005" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 4 de l'arrêté du 20 décembre 2005
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les exploitants concernés effectuent cette déclaration avant le 1er avril de l'année en cours pour ce qui concerne les données de l'année précédente.
+     </div>
+     <a data-page_index="9" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       10
+      </div>
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Cette déclaration est réalisée par voie électronique par l'exploitant suivant un format fixé par le ministre chargé des installations classées. A la demande de l'exploitant et après accord de l'inspection des installations classées ou du contrôle général des armées pour les installations classées dont l'inspection relève du ministère de la défense, cette déclaration électronique est remplacée par une déclaration écrite adressée au préfet du département dans lequel est située l'installation.
+     </div>
+    </section>
+    <section data-number="5" data-spec="section" data-title="de l'arrêté du 20 décembre 2005" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 5 de l'arrêté du 20 décembre 2005
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le directeur de la prévention des pollutions et des risques est chargé de l'exécution du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      , qui sera publié au Journal officiel de la République française.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      (1) : Les annexes seront publiées au Bulletin officiel du ministère de l'écologie et du développement durable.
+     </div>
+    </section>
+   </section>
+  </footer>
+ </body>
+</html>

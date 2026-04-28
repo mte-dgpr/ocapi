@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="1995-10-09_arrêté préfectoral_AP de renouvellement - extension.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PREFECTURE
+DE LA
+DORDOGNE
+REPUBLIQUE FRANCAISE
+LIBERTE - ÉGALITÉ - FRATERNITÉ
+DIRECTION
+DU DÉVELOPPEMENT LOCAL
+ET DU CADRE DE VIE
+BUREAU DE L'URBANISME
+ET DE L'ENVIRONNEMENT
+RÉFÉRENCE À RAPPELER
+
+LE PRÉFET DE LA DORDOGNE
+Chevalier de la Légion d'Honneur
+    </div>
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <td>
+       N°
+      </td>
+      <td>
+       951591
+      </td>
+     </tr>
+     <tr>
+      <td>
+       DATE
+      </td>
+      <td>
+       09 OCT. 1995
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div data-spec="visa">
+    VU la loi n° 76-663 du 19 juillet 1976 modifiée relative aux installations classées pour la protection de l'environnement et le
+    <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-type="decret">
+     décret n° 77-1133 du
+     <time data-spec="date" datetime="1977-09-21">
+      21 septembre 1977
+     </time>
+    </a>
+    modifié pris pour son application;
+   </div>
+   <div data-spec="visa">
+    VU la loi n° 92-3 du 3 janvier 1992 sur l'eau et les décrets n° 93-742 et 743 du 29 mars 1993 pris pour son application;
+   </div>
+   <div data-spec="visa">
+    VU ensemble la loi n° 94-588 du 15 juillet 1994 modifiant le
+    <a data-spec="document_reference" data-title="Code minier" data-type="code">
+     Code Minier
+    </a>
+    , les décrets n° 80-330 et 80-331 du 7 mai 1980 relatifs à la police des mines et des carrières et portant Règlement Général des Industries Extractives;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1994-09-22" data-spec="document_reference" data-type="arrete">
+     Arrêté Ministériel du
+     <time data-spec="date" datetime="1994-09-22">
+      22 septembre 1994
+     </time>
+    </a>
+    relatif aux exploitations de carrière et aux installations de premier traitement des matériaux de carrières;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1973-06-12" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="1973-06-12">
+      12 juin 1973
+     </time>
+    </a>
+    autorisant la Société des Carrières de Thiviers, domiciliée à Thiviers à exploiter une carrière à ciel ouvert de roches d'origine métamorphique sur le territoire de la commune de Thiviers au lieu dit "Planeau - La Rigaudie";
+   </div>
+   <div data-spec="visa">
+    VU la demande présentée le 13 octobre 1994, complétée et enregistrée le 14 février 1995 par laquelle la Société des Carrières de Thiviers sollicite l'autorisation d'étendre l'exploitation d'une carrière à ciel ouvert de roches d'origine métamorphique, sur le territoire de la commune de Thiviers, lieu-dit "Planeau - La Rigaudie", et d'exploiter une installation de broyage-concassage;
+   </div>
+   <div data-spec="visa">
+    VU les plans et renseignements joints à la demande précitée, et notamment l'étude d'impact;
+   </div>
+   <div data-spec="visa">
+    VU les avis exprimés au cours de l'instruction réglementaire;
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     2
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU les observations formulées lors de l'enquête publique prescrite par
+    <a data-date="1995-03-21" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="1995-03-21">
+      21 mars 1995
+     </time>
+    </a>
+    et les conclusions motivées du Commissaire-Enquêteur;
+   </div>
+   <div data-spec="visa">
+    VU Vu l'avis émis par la Commission Départementale des Carrières lors de sa réunion du 5 octobre 1995;
+   </div>
+   <div data-spec="visa">
+    VU Vu l'avis du Directeur Régional de l'Industrie, de la Recherche et de l'Environnement d'Aquitaine;
+   </div>
+   <div data-spec="visa">
+    VU l'avis de l'inspecteur des installations classées en date du 22 août 1995;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR la proposition de monsieur le secrétaire général de la préfecture de la Dordogne;
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1er
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La Société des Carrières de Thiviers, domiciliée 24800 Thiviers, est autorisée à exploiter, aux conditions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , sur le territoire de la commune de Thiviers, au lieu-dit
+     <q>
+      Planeau - La Rigaudie
+     </q>
+     , une unité comportant les installations suivantes :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Désignation de l'installation
+       </th>
+       <th>
+        Capacité
+       </th>
+       <th>
+        N° rub.
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td>
+        station de broyage - concassage - criblage de minéraux
+       </td>
+       <td>
+        1050 kW
+       </td>
+       <td>
+        2515.1
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Atelier de réparation et d'entretien
+       </td>
+       <td>
+        600 m²
+       </td>
+       <td>
+        68.2
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Dépôt de liquides inflammables de 2ème catégorie
+       </td>
+       <td>
+        35 000 l
+       </td>
+       <td>
+        253.C
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'autorisation délivrée vaut pour une exploitation conforme aux documents et informations figurant dans la demande et dans l'étude d'impact, dans la mesure où ils ne sont pas contraires aux dispositions prescrites par
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Sans préjudice des autres législations et réglementations applicables, l'exploitant doit se conformer :
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - aux dispositions de l'
+       <a data-date="1994-09-22" data-spec="document_reference" data-type="arrete">
+        Arrêté du
+        <time data-spec="date" datetime="1994-09-22">
+         22 septembre 1994
+        </time>
+       </a>
+       relatif aux exploitations de carrières et aux installations de premier traitement des matériaux de carrières rappelées et complétées par les dispositions du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       ;
+      </li>
+      <li>
+       - aux dispositions du
+       <a data-spec="document_reference" data-title="Code minier" data-type="code">
+        Code Minier
+       </a>
+       et des textes pris pour son application relatives à la sécurité et à l'hygiène du personnel.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Tout projet de modification des installations, de leur mode d'utilisation ou de leur voisinage, de nature à entraîner un changement notable des éléments du dossier de demande d'autorisation, doit être porté, avant sa réalisation, à la connaissance du préfet avec tous les éléments d'appréciation.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     A la demande de l'inspecteur des installations classées, il pourra être procédé à des prélèvements d'échantillons, à des analyses et des mesures de débit sur les émissions, sur les retombées atmosphériques, sur les déchets et sur les rejets d'eaux usées ainsi qu'à des mesures acoustiques continues, périodiques ou occasionnelles. Les frais qui en résulteront seront à la charge de l'exploitant.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les installations doivent être conçues de manière à limiter les émissions de polluants dans l'environnement, notamment par la mise en œuvre de technologies propres, le développement de techniques de valorisation, la collecte sélective et le traitement des effluents et déchets en fonction de leurs caractéristiques, et la réduction des quantités rejetées.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     REJET DES EAUX
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les eaux pluviales, après passage dans un bassin de décantation, doivent respecter les prescriptions suivantes :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - le PH est compris entre 5,5 et 8,5
+      </li>
+      <li>
+       - la température est inférieure à 30°C
+      </li>
+      <li>
+       - les matières en suspension totales (MEST) ont une concentration inférieure à 30 mg/l (norme NFT 90 105)
+      </li>
+      <li>
+       - la demande chimique en oxygène sur effluent non décanté (D.C.O.) a une concentration inférieure à 125 mg/l (norme NFT 90 101)
+      </li>
+      <li>
+       - les hydrocarbures ont une concentration inférieure à 10 mg/l (norme NFT 90 114) avant rejet dans la Gane.
+      </li>
+     </ul>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      4
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'émissaire de rejet est équipé d'un canal de mesure du débit et d'un dispositif de prélèvement.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     L'inspecteur des installations classées peut demander que des mesures soient effectuées sur ce rejet par un laboratoire agréé, les frais entrainés étant à la charge de l'exploitant.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Les eaux de lavage des matériaux sont pompées dans la retenue existante à cet effet puis rejetées dans cette retenue après utilisation et passage dans les bacs de décantation successifs.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     PREVENTION DES POLLUTIONS
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5
+    </h2>
+    <section data-number="5.1" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      5.1.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant prend toutes les dispositions nécessaires dans la conduite de l'exploitation pour limiter les risques de pollution des eaux, de l'air ou des sols, ou de nuisance par le bruit et les vibrations et l'impact visuel.
+     </div>
+    </section>
+    <section data-number="5.2" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      5.2.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'ensemble du site et ses abords placés sous le contrôle de l'exploitant sont maintenus en bon état de propreté.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les voies de circulation internes et aires de stationnement des véhicules sont aménagées et entretenues.
+     </div>
+    </section>
+    <section data-number="5.3" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      5.3.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Toutes précautions doivent être prises pour éviter le déversement dans la fouille de matières fermentescibles dangereuses, d'hydrocarbures et de tout résidu susceptibles de polluer les eaux superficielles et souterraines.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Le ravitaillement et l'entretien des engins de chantier sont réalisés sur une aire étanche entourée par un caniveau et reliée à un point bas étanche permettant la récupération totale des eaux ou des liquides résiduels.
+     </div>
+    </section>
+    <section data-number="5.4" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      5.4.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Tout stockage de liquide susceptible de créer une pollution des eaux ou des sols est associé à une capacité de rétention dont le volume est au moins égal à la plus grande des deux valeurs suivantes :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - 100 % de la capacité du plus grand réservoir
+       </li>
+       <li>
+        - 50 % de la capacité des réservoirs associés
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="5.5" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      5.5.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant prend toutes dispositions utiles pour éviter l'émission et la propagation des poussières.
+     </div>
+    </section>
+    <section data-number="5.6" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      5.6.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le matériau traité doit être transporté dans un état compatible avec les conditions de circulation, l'exploitant doit prendre toutes dispositions pour maintenir les chaussées empruntées pour les besoins de son exploitation en parfait état de propreté.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       .../...
+      </div>
+     </div>
+     <a data-page_index="4" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       5
+      </div>
+     </div>
+     <div data-number="2" data-spec="alinea">
+      DECHETS
+     </div>
+    </section>
+   </section>
+   <section data-number="6" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Toutes dispositions sont prises pour limiter les quantités de déchets produits ; les déchets produits sur le site (pièces d'usure des engins et des installations...) doivent être stockés dans des conditions prévenant les risques de pollution (prévention des envols, des infiltrations dans le sol, des odeurs) ; les déchets banals (bois, papier, verre, plastique, caoutchouc, etc...) et non contaminés par des substances toxiques, peuvent être valorisés ou éliminés dans les mêmes conditions que les ordures ménagères ; les déchets industriels spéciaux (huiles) doivent être éliminés dans des installations autorisées à les recevoir.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les déchets produits par l'établissement doivent faire l'objet d'une comptabilité précise tenue en permanence à la disposition de l'inspecteur des installations classées. A cet effet, l'exploitant doit ouvrir un registre mentionnant pour chaque type de déchets :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - origine, composition, code nomenclature, quantité,
+      </li>
+      <li>
+       - nom de l'entreprise chargée de l'enlèvement, date de l'enlèvement,
+      </li>
+      <li>
+       - destination précise des déchets : lieu et mode d'élimination finale.
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les documents justificatifs de l'exécution de l'élimination des déchets doivent être annexés au registre prévu ci-dessus et conservés pendant 3 ans. Ils doivent être tenus à la disposition de l'inspecteur des installations classées.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     BRUIT
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 7
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitation est menée de manière à ne pas être à l'origine de bruits aériens ou de vibrations mécaniques susceptibles de compromettre la santé ou la sécurité du voisinage ou de constituer une gêne pour sa tranquillité.
+    </div>
+    <section data-number="7.1" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      7.1.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les niveaux limites de bruit à ne pas dépasser en limite de zone autorisée sont les suivants :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - période diurne (6h30 à 21h30 sauf dimanches et jours fériés) : 60 dB(A)
+       </li>
+       <li>
+        - période nocturne (21h30 à 6h30 ainsi que dimanches et jours fériés) : 47 dB(A)
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="7.2" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      7.2.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les véhicules de transport, les matériels de manutention et les engins de chantier utilisés à l'intérieur de la carrière doivent être conformes à la réglementation en vigueur.
+     </div>
+    </section>
+    <section data-number="7.3" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      7.3.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Un contrôle des niveaux sonores est effectué dès que les travaux de bardage sont terminés et ensuite à une périodicité fixée en accord avec l'inspection des installations classées.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       .../...
+      </div>
+     </div>
+     <a data-page_index="5" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       6
+      </div>
+     </div>
+    </section>
+    <section data-number="7.4" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      7.4.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      En dehors des tirs de mines, les prescriptions de la
+      <a data-date="1986-07-23" data-spec="document_reference" data-type="circulaire">
+       circulaire du
+       <time data-spec="date" datetime="1986-07-23">
+        23 juillet 1986
+       </time>
+      </a>
+      relative aux vibrations mécaniques émises dans l'environnement par les installations classées, ainsi que les règles techniques qui y sont annexées, lui sont applicables.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Toute intervention nécessitant la mise en œuvre de la méthode d'analyse fine de la réponse vibratoire, telle que définie dans la
+      <a data-date="1986-07-23" data-spec="document_reference" data-type="circulaire">
+       circulaire du
+       <time data-spec="date" datetime="1986-07-23">
+        23 juillet 1986
+       </time>
+      </a>
+      , ne doit être effectuée que par un organisme agréé.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      PREVENTION DES RISQUES
+     </div>
+    </section>
+   </section>
+   <section data-number="8" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 8
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Toutes dispositions doivent être prises pour éviter les risques d'incendie et d'explosion.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'établissement doit être pourvu des moyens d'intervention et de secours appropriés aux risques.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Ces moyens et les modes d'intervention doivent être déterminés en accord avec l'inspecteur des installations classées et des services départementaux d'incendie et de secours.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les équipements de sécurité et de contrôle et les moyens d'intervention et de secours doivent être maintenus en bon état de service et être vérifiés périodiquement.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Les résultats de ces contrôles doivent être consignés sur un registre.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Un règlement général de sécurité fixant le comportement à observer dans l'établissement et traitant en particulier des conditions de circulation à l'intérieur de l'établissement, des précautions à observer en ce qui concerne les feux nus, du port du matériel de protection individuelle et de la conduite à tenir en cas d'incendie ou d'accident doit être remis à tous les membres du personnel ainsi qu'aux personnes admises à travailler dans l'établissement.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Il doit être affiché ostensiblement à l'intérieur de l'établissement.
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Des consignes générales de sécurité visant à assurer la sécurité des personnes et la protection des installations, à prévenir les accidents et à en limiter les conséquences sont tenues à la disposition du personnel intéressé dans les locaux ou emplacements concernés.
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Elles doivent spécifier les principes généraux de sécurité à suivre concernant :
+    </div>
+    <div data-number="10" data-spec="alinea">
+     <ul>
+      <li>
+       - les modes opératoires d'exploitation,
+      </li>
+      <li>
+       - le matériel de protection collective ou individuelle et son utilisation,
+      </li>
+     </ul>
+    </div>
+    <div data-number="11" data-spec="alinea">
+     .../...
+    </div>
+    <a data-page_index="6" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      7
+     </div>
+    </div>
+    <div data-number="12" data-spec="alinea">
+     <ul>
+      <li>
+       - les mesures à prendre en cas d'accident ou d'incendie.
+      </li>
+     </ul>
+    </div>
+    <div data-number="13" data-spec="alinea">
+     Elles doivent énumérer les opérations ou manoeuvres qui ne peuvent être exécutées qu'avec une autorisation spéciale.
+    </div>
+    <div data-number="14" data-spec="alinea">
+     Le personnel appelé à intervenir doit être entraîné périodiquement au cours d'exercices organisés à la cadence d'une fois par trimestre au minimum, à la mise en œuvre des matériels d'incendie et de secours.
+    </div>
+    <div data-number="15" data-spec="alinea">
+     Les dates et les thèmes de ces exercices ainsi que les observations auxquelles ils peuvent avoir donné lieu doivent être consignés sur le registre prévu ci-dessus.
+    </div>
+    <section data-number="8.1" data-spec="section" data-title="Installations électriques :" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      8.1. Installations électriques :
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les installations électriques doivent être réalisées selon les règles de l'art. Elles doivent être entretenues en bon état. Elles doivent être périodiquement contrôlées (au moins une fois par an) par un technicien compétent. Les rapports de contrôle sont tenus à la disposition de l'inspecteur des installations classées.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les dispositions de l'
+      <a data-date="1980-03-31" data-spec="document_reference" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="1980-03-31">
+        31 mars 1980
+       </time>
+      </a>
+      (JO du 30 avril 1980) portant réglementation des installations électriques des établissements réglementés au titre de la législation des installations classées et susceptibles de présenter des risques d'explosion sont applicables aux installations dans lesquelles une atmosphère explosive est susceptible d'apparaître.
+     </div>
+    </section>
+    <section data-number="8.2" data-spec="section" data-title="Appareils à pression :" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      8.2. Appareils à pression :
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Tous les appareils à pression en service dans l'établissement doivent satisfaire aux prescriptions du
+      <a data-date="1926-04-02" data-spec="document_reference" data-type="decret">
+       décret du
+       <time data-spec="date" datetime="1926-04-02">
+        2 avril 1926
+       </time>
+      </a>
+      modifié sur les appareils à vapeur et du
+      <a data-date="1943-01-18" data-spec="document_reference" data-type="decret">
+       décret du
+       <time data-spec="date" datetime="1943-01-18">
+        18 janvier 1943
+       </time>
+      </a>
+      modifié sur les appareils à pression de gaz.
+     </div>
+    </section>
+    <section data-number="8.3" data-spec="section" data-title="Manipulation, transport de substances toxiques ou dangereuses :" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      8.3. Manipulation, transport de substances toxiques ou dangereuses :
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les produits toxiques ou dangereux utilisés, fabriqués, transportés et les risques correspondant doivent être précisément identifiés, leur manipulation réalisée par du personnel spécialement formé pour les opérations demandées.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Le dépotage, le chargement et le déchargement des produits doivent être réalisés sur des aires spécialement aménagées, implantées et équipées, au regard des risques susceptibles d'être encourus et à défendre.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      La circulation des produits dans l'usine tant lors de leur réception, de leur fabrication, que de leur expédition, doit se faire suivant des circuits et des conditions spécialement étudiés pour minimiser les risques et faciliter l'évacuation des produits et la mise en œuvre des secours.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       .../...
+      </div>
+     </div>
+     <a data-page_index="7" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       8
+      </div>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      L'exploitant doit s'assurer, pour l'expédition des produits :
+     </div>
+     <div data-number="5" data-spec="alinea">
+      <ul>
+       <li>
+        - de la compatibilité des produits avec l'état, les caractéristiques, l'équipement et la signalisation du véhicule,
+       </li>
+       <li>
+        - de l'information et de la qualification du chauffeur pour le transport des produits considérés,
+       </li>
+       <li>
+        - de l'équipement du véhicule pour les besoins d'intervention de première urgence,
+       </li>
+       <li>
+        - des bonnes conditions de stockage, d'emballage, d'arrimage et d'étiquetage des produits.
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="8.4" data-spec="section" data-title="Incidents et accidents :" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      8.4. Incidents et accidents :
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Tout incident ou accident ayant compromis la sécurité de l'établissement ou du voisinage ou la qualité des eaux doit être consigné sur le registre prévu ci-dessus.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      L'exploitant doit déclarer sans délai à l'inspection des installations classées les accidents ou incidents survenus du fait du fonctionnement des installations qui sont de nature à porter atteinte aux intérêts mentionnés à l'
+      <a data-spec="section_reference" data-start_num="1" data-type="article">
+       article 1er
+      </a>
+      de la loi du 19 juillet 1976.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Tous les ans l'exploitant doit adresser à l'inspecteur des installations classées un rapport reprenant et commentant, si nécessaire, les indications portées sur le registre spécial en application des conditions ci-dessus.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      DISPOSITIONS DIVERSES
+     </div>
+    </section>
+   </section>
+   <section data-number="9" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 9
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Toute modification des conditions d'exploitation de la carrière de nature à entraîner un changement notable des éléments du dossier de demande d'autorisation doit être portée, avant sa réalisation, à la connaissance du Préfet avec tous les éléments d'appréciation.
+    </div>
+   </section>
+   <section data-number="10" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 10
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     cessera de produire effet si l'exploitation n'est pas mise en service dans le délai de 3 ans ou si la carrière n'est pas exploitée durant deux années consécutives, sauf cas de force majeure.
+    </div>
+   </section>
+   <section data-number="11" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 11
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'inobservation des dispositions de l'
+     <a data-date="1994-09-22" data-spec="document_reference" data-type="arrete">
+      Arrêté Ministériel du
+      <time data-spec="date" datetime="1994-09-22">
+       22 septembre 1994
+      </time>
+     </a>
+     ou du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     est passible des sanctions administratives et pénales prévues par la loi du 19 juillet 1976 et le
+     <a data-date="1977-09-21" data-spec="document_reference" data-type="decret">
+      décret du
+      <time data-spec="date" datetime="1977-09-21">
+       21 septembre 1977
+      </time>
+     </a>
+     susvisés, sans préjudice des sanctions
+     <div data-spec="page_footer">
+      <div>
+       .../...
+      </div>
+     </div>
+     <a data-page_index="8" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       9
+      </div>
+     </div>
+     administratives et pénales prévues par la loi du 3 janvier 1992 sur l'eau et les
+     <a data-group_id="1" data-parent_reference="1" data-spec="section_reference" data-start_num="141" data-type="article">
+      articles 141
+     </a>
+     et
+     <a data-group_id="1" data-parent_reference="1" data-spec="section_reference" data-start_num="142" data-type="article">
+      142
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="1" data-title="Code minier" data-type="code">
+      Code Minier
+     </a>
+     (
+     <a data-group_id="2" data-spec="section_reference" data-start_num="28" data-type="article">
+      articles 28
+     </a>
+     ,
+     <a data-group_id="2" data-spec="section_reference" data-start_num="41" data-type="article">
+      41
+     </a>
+     et
+     <a data-group_id="2" data-spec="section_reference" data-start_num="42" data-type="article">
+      42
+     </a>
+     de la loi n° 94-588 du 15 juillet 1994 susvisée).
+    </div>
+   </section>
+   <section data-number="12" data-spec="section" data-title="délai et voie de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 12 : délai et voie de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     peut être déféré au Tribunal Administratif :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - par le demandeur ou l'exploitant dans le délai de 2 mois à dater de sa notification ;
+      </li>
+      <li>
+       - par les tiers dans le délai de 6 mois à dater de l'achèvement des formalités de publicité de la déclaration de début d'exploitation visée à l'
+       <a data-spec="section_reference" data-start_num="6" data-type="article">
+        article 6
+       </a>
+       ci-dessus.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="13" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 13
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     sera notifié à la Société des Carrières de Thiviers
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Il sera inséré au recueil des actes administratifs de la Préfecture de la Dordogne
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Une copie sera déposée à la Mairie de Thiviers et pourra y être consultée.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Un extrait de l'arrêté, énumérant notamment les prescriptions auxquelles l'installation est soumise sera affiché à la Mairie de Thiviers pendant une durée minimum d'un mois.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le même extrait sera affiché en permanence, de façon visible, sur le site de la carrière, par les soins du bénéficiaire de l'autorisation.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Ampliation de l'arrêté sera adressée à chaque conseil municipal ayant été consulté.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Un avis sera inséré, par les soins de la Préfecture et aux frais de l'exploitant dans deux journaux locaux ou régionaux diffusés dans tout le département.
+    </div>
+   </section>
+   <section data-number="14" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 14
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     M. le Secrétaire Général de la Préfecture de la Dordogne
+    </div>
+    <div data-number="2" data-spec="alinea">
+     M. le Sous-Préfet de Nontron
+    </div>
+    <div data-number="3" data-spec="alinea">
+     M. le Maire de la commune de Thiviers
+    </div>
+    <div data-number="4" data-spec="alinea">
+     M. le Directeur Régional de l'Industrie, de la Recherche et de l'Environnement Aquitaine
+    </div>
+    <div data-number="5" data-spec="alinea">
+     sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Fait à Périgueux, le 09 OCT. 1995
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Pour ampliation
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Pour le Préfet et par délégation,
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Le Directeur du Développement
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Local et du Cadre de Vie,
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Le préfet
+    </div>
+    <div data-number="12" data-spec="alinea">
+     Pour le Préfet
+    </div>
+    <div data-number="13" data-spec="alinea">
+     et par délégation,
+    </div>
+    <div data-number="14" data-spec="alinea">
+     le Secrétaire Général,
+    </div>
+    <div data-number="15" data-spec="alinea">
+     Signé : Olivier du CRAY
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Gabriel CAVALLA
+     </div>
+    </div>
+    <a data-page_index="9" data-spec="page_separator">
+    </a>
+    <div data-number="16" data-spec="alinea">
+     ^{}[]
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

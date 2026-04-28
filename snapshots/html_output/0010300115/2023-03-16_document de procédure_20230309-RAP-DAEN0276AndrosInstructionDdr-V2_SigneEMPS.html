@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2023-03-16_document de procédure_20230309-RAP-DAEN0276AndrosInstructionDdr-V2_SigneEMPS.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET DE LA DRÔME
+Liberté
+Égalité
+Fraternité
+
+Direction régionale de l'environnement, de l'aménagement et du logement
+Auvergne Rhône-Alpes
+Unité interdépartementale Drôme Ardèche
+    </div>
+   </div>
+   <div>
+    Rapport de l'inspecteur des installations classées
+   </div>
+   <div>
+    ANDROS – PORTES-LES-VALENCE
+   </div>
+   <div>
+    Réexamen IED et consommation d'eau potable
+   </div>
+   <div>
+    Rédacteur – Affaire Suivie par
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <td>
+       Elodie MOUROUX
+       <br/>
+       Valence le
+       <br/>
+       L'inspecteur de l'environnement
+      </td>
+      <td>
+       Signature numérique de Elodie MOUROUX
+       <br/>
+       elodie.mouroux
+       <br/>
+       Date : 2023.03.16
+       <br/>
+       10:19:55 +01'00'
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Subdivision 5 – Risques et agroalimentaire
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Tél. : 04 75 82 46 32
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Courriel : elodie.mouroux@developpement-durable.gouv.fr
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div>
+    Vérificateur / Approbateur
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <td>
+       Pauline SEGERAL
+       <br/>
+       Valence le
+       <br/>
+       L'adjointe à la cheffe de l'unité inter-départementale Drôme-Ardèche
+       <br/>
+       Pour le directeur
+      </td>
+      <td>
+       Signature numérique de Pauline SEGERAL
+       <br/>
+       pauline.segeral
+       <br/>
+       Date : 2023.03.16
+       <br/>
+       10:34:37 +01'00'
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Plateau de Lautagne – 3 avenue des Langories – 26000 VALENCE
+Tél. : 04 75 82 46 46 – ud-da.icpe.dreal-ara@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.developpement-durable.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     2/12
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     RÉFÉRENCE DU DOSSIER
+    </div>
+   </div>
+   <div>
+    Vos références
+   </div>
+   <div>
+    Dossier de réexamen IED du 04/12/2020
+   </div>
+   <div>
+    Courrier du 31/05/2022
+   </div>
+   <div>
+    Compléments du dossier du 01/07/2022
+   </div>
+   <div>
+    Nos références
+   </div>
+   <div>
+    20230309-RAP-DAEN0276
+   </div>
+   <div>
+    Adresse de l'établissement
+   </div>
+   <div>
+    ZI de la Motte
+   </div>
+   <div>
+    26800 Portes les Valence
+   </div>
+   <div>
+    Activité Principale
+   </div>
+   <div>
+    Fabrication de purée de fruits et conditionnement de jus de fruits
+   </div>
+   <div>
+    Code GUN
+   </div>
+   <div>
+    0010300115
+   </div>
+   <div>
+    Priorité
+   </div>
+   <div>
+    AE
+   </div>
+   <div>
+    Pièce jointe
+   </div>
+   <div>
+    Courriers de demande de compléments sur le dossier de demande de réexamen et sur la consommation d'eau potable
+   </div>
+   <div>
+    Transmission des documents
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="2,19,9" data-spec="segmentation:text_span" data-start="2,19,0">
+      — original
+     </arretify-segmentation>
+     <arretify-segmentation data-end="2,20,7" data-spec="segmentation:text_span" data-start="2,20,0">
+      — copies
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div>
+    DDPP 26 – préfecture de la Drôme
+   </div>
+   <div>
+    Inspecteur référent sub 5
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     3/12
+    </div>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="PRÉSENTATION" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     1 - PRÉSENTATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société ANDROS est autorisée par
+     <a data-date="2009-10-14" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2009-10-14">
+       14/10/2009
+      </time>
+      modifié
+     </a>
+     pour les rubriques suivantes :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Nature des activités
+       </th>
+       <th>
+        Volume des activités
+       </th>
+       <th>
+        Numéro de la rubrique
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Traitement et transformation de matières premières en vue de la fabrication de produits alimentaires uniquement de matières premières végétales, avec une capacité de production supérieure à 300 t de produits finis par jour
+       </td>
+       <td>
+        &gt; 300 t/jour
+       </td>
+       <td>
+        3642-2
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Préparation et conditionnement de jus de fruits et autres boissons
+       </td>
+       <td>
+        706 500 l/jour
+       </td>
+       <td>
+        2253.1
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Préparation ou conservation de produits d'origine végétale
+       </td>
+       <td>
+        900 t/jour
+       </td>
+       <td>
+        2220.2.a
+       </td>
+       <td>
+        E
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Entrepôts couverts
+       </td>
+       <td>
+        34 560 m³
+       </td>
+       <td>
+        1510.3
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Entrepôts frigorifiques
+       </td>
+       <td>
+        20 000 m³
+       </td>
+       <td>
+        1511.3
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Installation de combustion
+       </td>
+       <td>
+        17 MW
+       </td>
+       <td>
+        2910.A-2
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Installation de remplissage de gaz inflammables liquéfiés
+       </td>
+       <td>
+        /
+       </td>
+       <td>
+        1414.3
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Emploi dans des équipements clos en exploitation de gaz à effet de serre fluorés
+       </td>
+       <td>
+        1 316 kg
+       </td>
+       <td>
+        4802-2.a
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Ammoniac
+       </td>
+       <td>
+        900 kg
+       </td>
+       <td>
+        4735-1.b
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Atelier de charge d'accumulateurs
+       </td>
+       <td>
+        125 kW
+       </td>
+       <td>
+        2925
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Transformation de polymères, par des procédés exigeant des conditions particulières de température ou de pression
+       </td>
+       <td>
+        &lt; 10 t/jour
+       </td>
+       <td>
+        2661-1.c
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Liquides comburants catégorie 1, 2 ou 3
+       </td>
+       <td>
+        14 t
+       </td>
+       <td>
+        4441
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le site est classé comme suit pour la rubrique IED
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        N° de rubrique et régime
+       </th>
+       <th>
+        Intitulé de la rubrique
+       </th>
+       <th>
+        Volume d'activités
+       </th>
+       <th>
+        Commentaires
+       </th>
+      </tr>
+      <tr>
+       <td>
+        3642-2-a)
+        <br/>
+        A
+       </td>
+       <td>
+        Traitement et transformation, à l'exclusion du seul conditionnement, des matières premières ci-après, qu'elles aient été ou non préalablement transformées, en vue de la fabrication de produits alimentaires ou d'aliments pour animaux issus uniquement de matières premières végétales, avec une capacité de production supérieure à 300 tonnes de produits finis par jour
+       </td>
+       <td>
+        Capacité de production = 1 500 t/j
+       </td>
+       <td>
+        Le
+        <a data-date="2018-10-22" data-num="2018-900" data-spec="document_reference" data-type="decret">
+         décret n° 2018-900 du
+         <time data-spec="date" datetime="2018-10-22">
+          22/10/18
+         </time>
+        </a>
+        supprime la rubrique 2253. Elle est fusionnée avec la rubrique 2220/3642.
+        <br/>
+        Bénéfice de l'antériorité accordé
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-number="5" data-spec="alinea">
+     Par courrier du 01/12/2020, l'exploitant a transmis son dossier de réexamen IED pour le BREF FDM et son rapport de base.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Des compléments ont été sollicités par courrier du 01/03/2022 et lors de la visite d'inspection du 07/02/2022.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     L'exploitant a transmis des éléments complémentaires le 31/05/2022 et le 01/07/2022.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="ANALYSE DU DOSSIER DE RÉEXAMEN IED COMPLÉTÉ" data-type="unknown">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     3 – ANALYSE DU DOSSIER DE RÉEXAMEN IED COMPLÉTÉ
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'établissement est soumis aux dispositions de l'
+     <a data-date="2020-02-27" data-spec="document_reference" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="2020-02-27">
+       27/02/2020
+      </time>
+     </a>
+     relatif aux meilleures techniques disponibles (MTD) applicables à certaines installations classées du secteur de l'agroalimentaire relevant du régime de l'autorisation au titre des rubriques 3642 [...] selon les dispositions applicables aux installations autorisées avant le 5 décembre 2019. Les dispositions de l'annexe de cet arrêté sont applicables au 04/12/2023.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Contenu du rapport de réexamen
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le périmètre IED de l'installation concerne l'ensemble des installations présentes sur le site de PORTES-LES-VALENCE (production, stockages, installations de combustion, production de froid, station de pré-traitement des eaux, nettoyage en place).
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le BREF principal de la société ANDROS est le BREF FDM. Aucun BREF secondaire n'est applicable. Les BREF transverses relatifs aux installations sont le BREF ENE (énergie), ICS (refroidissement) et EFS (stockage).
+    </div>
+    <div data-number="5" data-spec="alinea">
+     L'exploitant émet un avis négatif sur la nécessité de revoir les conditions d'autorisation au regard des 3 situations listées au III de l'
+     <a data-spec="section_reference" data-start_num="R515-70" data-type="article">
+      article R. 515-70
+     </a>
+     (pollution, sécurité d'exploitation, respect d'une norme de qualité environnementale). L'inspection n'a pas de remarque sur cet avis.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Les rejets industriels sont pré-traités en interne puis envoyés vers la STEU de PORTES-LES-VALENCE. L'exploitant vérifie la concentration théorique applicable selon la disposition de l'
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="R515-65" data-type="article">
+      article R.515-65
+     </a>
+     -III du
+     <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     . La concentration théorique pour la DCO et pour le phosphore total est inférieure aux VLE prescrites par
+     <a data-date="2020-10-28" data-spec="document_reference" data-type="arrete">
+      arrêté complémentaire du
+      <time data-spec="date" datetime="2020-10-28">
+       28/10/2020
+      </time>
+     </a>
+     :
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <ul>
+      <li>
+       - DCO : La VLE de l'arrêté est de 2 000 mg/L ; la concentration théorique calculée pour 2019 est de 1 886 mg/L (le rendement de la STEU est de 94,7 %)
+      </li>
+      <li>
+       - Phosphore total : La VLE de l'arrêté est de 50 mg/L ; la concentration théorique calculée pour 2019 est de 4,5 mg/L (le rendement de la STEU est de 56 %)
+      </li>
+     </ul>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     En 2020, le rendement de la STEU en traitement du phosphore est de 52 % et de la DCO de 95,6 % (cf déclaration GEREP 2020).
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      4/12
+     </div>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-number="9" data-spec="alinea">
+     La concentration théorique peut donc être recalculée sur la base des données de 2020 :
+    </div>
+    <div data-number="10" data-spec="alinea">
+     DCO : 2 272 mg/L : on conserve la VLE de l'arrêté
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Phosphore : 4,16 mg/L : on doit baisser la VLE – Afin de prendre de la marge et en attribuant un rendement de la STEU de 50 %, la concentration théorique serait de 4 mg/L.
+    </div>
+    <div data-number="12" data-spec="alinea">
+     L'exploitant vérifie la conformité de ses rejets sur les 3 dernières années (2017 à 2019) aux VLE et concentrations théoriques applicables calculées en 2019 : les rejets respectent les paramètres MES, DCO, DBO5, azote global. Pour le phosphore total, il est conforme uniquement sur l'année 2019 avec une nette amélioration des rejets.
+    </div>
+    <div data-number="13" data-spec="alinea">
+     L'inspection propose de retenir une VLE de 4 mg/L pour le phosphore total et une autosurveillance journalière de ce paramètre.
+    </div>
+    <div data-number="14" data-spec="alinea">
+     Par courrier du 31/05/2022, l'exploitant indique ne pas avoir d'objection pour des VLE de 2000 mg/L en DCO et de 4 mg/L en phosphore.
+    </div>
+    <div data-number="15" data-spec="alinea">
+     Le dossier précise la liste des documents de référence sur les MTD et conclusions MTD applicables.
+    </div>
+    <div data-number="16" data-spec="alinea">
+     L'exploitant se positionne sur les MTD applicables du BREF FDM, EFS et ICS. Il précise les éléments mis en œuvre sur son site et ceux à mettre en œuvre afin d'être conforme d'ici le 04/12/2023 pour le BREF FDM.
+    </div>
+    <div data-number="17" data-spec="alinea">
+     Ci-après le plan d'actions identifié par l'exploitant pour le BREF FDM :
+    </div>
+    <div data-number="18" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        MTD
+       </th>
+       <th>
+        MTD
+       </th>
+       <th>
+        Domaine
+       </th>
+       <th>
+        Actions correctives
+       </th>
+      </tr>
+      <tr>
+       <td>
+        1
+       </td>
+       <td>
+        Système de management environnemental
+       </td>
+       <td>
+        Management
+       </td>
+       <td>
+        Mise en place d'un système de management de l'Environnement (SME)
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2
+       </td>
+       <td>
+        Inventaire des consommations et émissions
+       </td>
+       <td>
+        Management
+       </td>
+       <td>
+        Mise en place d'un système de management de l'Environnement (SME)
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4
+       </td>
+       <td>
+        Surveillance des émissions dans l'eau
+       </td>
+       <td>
+        Eau
+       </td>
+       <td>
+        Montrer que les fréquences de mesures hebdomadaires en Phosphore Total et Azote Global sont suffisantes en lieu et place de mesures Journalières (débit stable)
+        <br/>
+        ou
+        <br/>
+        Augmenter les fréquences de mesure
+        <br/>
+        Justifier l'absence de chlorures dans les rejets ou mettre en place les mesures
+       </td>
+      </tr>
+      <tr>
+       <td>
+        9
+       </td>
+       <td>
+        Eviter les émissions de substances appauvrissant la couche d'ozone et/ou à fort potentiel de réchauffement planétaire
+       </td>
+       <td>
+        Divers
+       </td>
+       <td>
+        Remplacer progressivement les fluides HFC à haut GWP
+       </td>
+      </tr>
+      <tr>
+       <td>
+        11
+       </td>
+       <td>
+        Prévention des émissions accidentelles dans l'eau
+       </td>
+       <td>
+        Eau
+       </td>
+       <td>
+        Justifier par une analyse de risque que le volume des bassins tampons est suffisant pour prévenir les émissions polluantes accidentelles
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="19" data-spec="alinea">
+     MTD 11.2 du BREF FDM - niveau indicatif de performance environnementale pour les effluents aqueux spécifiques = 0,08 à 0,2 m³/hl de nectar/jus
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      5/12
+     </div>
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+    <div data-number="20" data-spec="alinea">
+     Ratio Andros 2019 : 6,16 m³/t (comprenant jus et compotes)
+    </div>
+    <div data-number="21" data-spec="alinea">
+     Si on convertit en prenant l'approximation 1 t = 10 hl alors, la consommation spécifique du site ANDROS = 0,616 m³/hl, soit 3 fois plus que la valeur haute indicative de la MTD (qui n'est pas une NEA MTD). Lors de la visite du 07/02/2022, l'inspection a questionné l'exploitant sur ce sujet. Il n'a pas été en mesure de fournir des données chiffrées pour les jus de fruits uniquement (le niveau indicatif de performance environnementale pour les effluents aqueux spécifiques ne portant pas sur les compotes).
+    </div>
+    <div data-number="22" data-spec="alinea">
+     Par courrier du 31/05/2022, l'exploitant s'est finalement positionné sur le ratio de consommation d'eau pour les jus de fruits. Celui-ci est de 0,103 m³/hl. L'exploitant a donc bien mis en œuvre la MTD 11.2 du BREF FDM.
+    </div>
+    <div data-number="23" data-spec="alinea">
+     Dans son dossier initial, l'exploitant ne se positionne pas sur la MTD12 e) à i) du BREF FDM (traitement dénitrification et élimination du phosphore). Par courriel du 21/01/2022, l'exploitant précise :
+     <q>
+      Nos effluents sont déficitaires en azote et phosphore en sortie de notre usine. Nous rajoutons donc régulièrement de l'acide phosphorique et de l'urée dans nos effluents pour les besoins des bactéries aérobies. Par conséquent nous ne réalisons pas d'opération de dénitrification ni d'élimination du phosphore sur notre station de prétraitement.
+     </q>
+    </div>
+    <div data-number="24" data-spec="alinea">
+     Aucune demande de dérogation n'est formulée.
+    </div>
+    <div data-number="25" data-spec="alinea">
+     L'exploitant considère qu'une mise à jour de son arrêté préfectoral n'est pas nécessaire. L'inspection ne partage pas cet avis concernant a minima les VLE des rejets industriels pour la DCO et le phosphore total.
+    </div>
+    <div data-number="26" data-spec="alinea">
+     Étude de réduction des consommations d'eau de refroidissement et BREF ICS
+    </div>
+    <div data-number="27" data-spec="alinea">
+     Lors de la visite du 02/04/2020, l'inspection a constaté que la consommation d'eau de forage est très significative.
+    </div>
+    <div data-number="28" data-spec="alinea">
+     L'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="4.1.1" data-type="article">
+      article 4.1.1
+     </a>
+     de l'
+     <a data-date="2009-10-14" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2009-10-14">
+       14/10/2009
+      </time>
+     </a>
+     prévoyait la remise d'une étude technico-économique portant sur la consommation d'eau et les différentes solutions possibles visant à la réduire (notamment par la suppression des circuits ouverts de refroidissement) en 2010. Cette étude n'avait jamais été remise à l'inspection.
+    </div>
+    <div data-number="29" data-spec="alinea">
+     Par courriel du 08/01/2021, l'exploitant a transmis une étude technico-économique portant sur les consommations et réduction d'eau.
+    </div>
+    <div data-number="30" data-spec="alinea">
+     Pour rappel, les
+     <a data-group_id="1" data-parent_reference="3" data-spec="section_reference" data-start_num="4.1.1" data-type="article">
+      articles 4.1.1
+     </a>
+     et
+     <a data-group_id="1" data-parent_reference="3" data-spec="section_reference" data-start_num="4.1.2" data-type="article">
+      4.1.2
+     </a>
+     de l'
+     <a data-date="2009-10-14" data-spec="document_reference" data-tag_id="3" data-type="arrete">
+      arrêté d'autorisation du
+      <time data-spec="date" datetime="2009-10-14">
+       14/10/2009
+      </time>
+     </a>
+     prévoient :
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      6/12
+     </div>
+    </div>
+    <a data-page_index="6" data-spec="page_separator">
+    </a>
+    <div data-number="31" data-spec="alinea">
+     L'exploitant doit prendre toutes les dispositions nécessaires dans la conception et l'exploitation des installations pour limiter la consommation d'eau.
+    </div>
+    <div data-number="32" data-spec="alinea">
+     Le refroidissement en circuit ouvert est interdit, à l'exception du refroidissement des jus et compotes en sortie du pasteurisateur, considérant la nature de la ressource en eau utilisée, la proximité du point de prélèvement et du point de rejet et l'absence de pollution.
+    </div>
+    <div data-number="33" data-spec="alinea">
+     Les compresseurs frigorifiques existants, refroidis par eau pourront être utilisés tant qu'il n'y aura pas lieu de les remplacer.
+    </div>
+    <div data-number="34" data-spec="alinea">
+     Chaque mois, l'exploitant communique à l'inspecteur des installations classées, les consommations d'eau des forages et du réseau public pour le mois précédent.
+    </div>
+    <div data-number="35" data-spec="alinea">
+     Toute modification dans les conditions d'alimentation en eau de l'établissement devra être portée à la connaissance de l'inspection des installations classées, ainsi que les projets concernant la réduction des consommations d'eau pour les principales fabrications ou groupes de fabrication.
+    </div>
+    <section data-number="4.1.2" data-spec="section" data-title="Origine des approvisionnements en eau" data-type="article">
+     <h4 data-level="2" data-spec="section_title">
+      Article - 4.1.2 Origine des approvisionnements en eau
+     </h4>
+     <div data-number="1" data-spec="alinea">
+      Les prélèvements d'eau dans le milieu qui ne s'avèrent pas liés à la lutte contre un incendie ou aux exercices de secours, sont autorisées dans les quantités suivantes :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <table>
+       <tr>
+        <td rowspan="2">
+         Origine de la ressource
+        </td>
+        <td rowspan="2">
+         Prélèvement maximal annuel (m3)
+        </td>
+        <td>
+         Débit maximal (m3)
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Horaire
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Forage n° 1
+        </td>
+        <td rowspan="3">
+         1380000
+        </td>
+        <td>
+         160
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Forage n° 2
+        </td>
+        <td>
+         160
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Forage n° 3
+        </td>
+        <td>
+         200
+        </td>
+       </tr>
+       <tr>
+        <td>
+         Réseau public
+        </td>
+        <td>
+         16000
+        </td>
+        <td>
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Par
+      <a data-date="2022-05-09" data-spec="document_reference" data-type="arrete-prefectoral">
+       arrêté préfectoral du
+       <time data-spec="date" datetime="2022-05-09">
+        09/05/2022
+       </time>
+      </a>
+      , une baisse des consommations d'eau de forage de moins 300000m³ sur la base de la consommation actuelle de 900000m³ annuelle a été prescrite. L'objectif est à atteindre d'ici le 31/12/2025. A l'issue de cette échéance, une nouvelle étude technico-économique de réduction des consommations devra être faite pour le 31/01/2026.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Concernant le BREF ICS applicable aux systèmes de refroidissement, l'exploitant renvoie la vérification de la conformité à la MTD à une étude de réduction des consommations d'eau transmise le 07/01/2021. L'étude transmise ne conclut pas clairement sur l'application ou non des MTD. L'inspection relève que les pasteurisateurs Olympic, SAS10 et SAS 11 ne disposent pas de préchauffeurs (produit entrant/produit sortant). Cette MTD n'est donc pas appliquée et aucun plan d'actions n'est indiqué.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Par courrier du 01/07/2022, le positionnement et le plan d'actions quant aux réductions des consommations d'eau de forage face à chaque MTD applicable du BREF ICS ont été transmis.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       7/12
+      </div>
+     </div>
+     <a data-page_index="7" data-spec="page_separator">
+     </a>
+     <div data-number="6" data-spec="alinea">
+      Dans son plan d'actions du 01/07/2022, l'exploitant indique que la mise en place de préchauffeurs sur les pasteurisateurs Olympic, SAS10 et SAS 11 n'est pas envisageable (remplacement de tout ou d'une partie des équipements et impact de la qualité du produit). Il précise que la réduction de l'utilisation du refroidissement en boucle ouverte est mise en place sur GEA 2 et SAS 10 (baisse constatée de consommation à faire confirmer dans les prochains mois) et que des études sur la récupération de chaleur ainsi que sur la réutilisation de l'eau pour ces les équipements SAS 10, SAS 11 et Olympic sont prévues. A noter que ces 3 pasteurisateurs ont été mis en service avant 2000, soit avant la parution du BREF ICS en 2001.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Le dossier de réduction des consommations d'eau du 07/01/2021 indique que le compresseur
+      <q>
+       Atelier François 2 (ABC)
+      </q>
+      a été installé en 2017. La consommation d'eau de forage est de 7 046 m³ en 2018 et de 1 518 m³ en 2019. Malgré l'intégration d'un nouvel équipement, l'exploitant n'a pas eu recours à une autre technologie que le circuit ouvert.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      En 2019, un dry adiabatique a été installé en 2019 pour le refroidissement des groupes frigorifiques ammoniac, même remarque que précédemment.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Les deux pasteurisateurs GEA1 et GEA2 sont équipés de refroidissement en circuit ouvert. Le débit d'eau est constant, quel que soit le besoin en refroidissement. Notamment, le besoin en refroidissement pendant les phases de production est quasi nul. À noter que ces deux pasteurisateurs ont été respectivement mis en service en 2014 et 2020. Lors de l'inspection du 07/02/2022, l'exploitant a déclaré avoir mis en place l'action de réduction des consommations d'eau (vanne de régulation du débit en fonction du besoin en froid). Il n'a pas été en mesure de justifier de l'économie réalisée.
+     </div>
+     <div data-number="10" data-spec="alinea">
+      L'étude des refroidissements process indique des pistes d'amélioration pour la réduction des consommations d'eau de forage en circuit ouvert. Il y a des modifications mais aussi des opérations d'entretien courant (détartrage, remise en état d'équipement défectueux). Dans son courrier complémentaire du 01/07/2022, l'exploitant reprend à son compte certaines actions proposées par l'étude du 07/01/2021 afin de respecter le BREF ICS.
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Dans l'étude du 07/01/2021, les différentes technologies possibles permettant de remplacer le circuit ouvert sont envisagées. Une évaluation des coûts/avantages/inconvénients est faite. Une pondération est appliquée mettant en avant les critères
+      <q>
+       investissements
+      </q>
+      et
+      <q>
+       consommation énergétique
+      </q>
+      (niveau 4), la consommation d'eau et l'impact qualitatif sur la ressource en eau (température, effluents, produits de traitement) venant bien après (niveau 2). L'étude conclut au maintien du système de réfrigération en circuit ouvert actuel. L'inspection rappelle que la réfrigération en circuit ouvert est interdite depuis 1998 sauf exception (
+      <a data-parent_reference="4" data-spec="section_reference" data-start_num="14" data-type="article">
+       article 14
+      </a>
+      de l'
+      <a data-date="1998-02-02" data-spec="document_reference" data-tag_id="4" data-type="arrete">
+       arrêté du
+       <time data-spec="date" datetime="1998-02-02">
+        02/02/1998
+       </time>
+      </a>
+      ). Aussi, l'inspection ne partage pas les conclusions de cette étude.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       8/12
+      </div>
+     </div>
+     <a data-page_index="8" data-spec="page_separator">
+     </a>
+     <div data-number="12" data-spec="alinea">
+      Par courrier du 01/07/2022, l'exploitant a transmis une révision de la cotation des différentes technologies sur la partie environnementale. Les critères consommation énergétique, consommation d'eau et impact qualitatif sur la ressource en eau ont tous été cotés niveau 4. Le risque
+      <q>
+       légionelle
+      </q>
+      associé aux TAR a été coté niveau 0. La solution proposée est
+      <q>
+       Échangeur de récupération + boucle ouverte
+      </q>
+      (coût non évalué). L'exploitant ne s'engage pas formellement à mettre en place ce dispositif, notamment pour les pasteurisateurs SAS 10, 11 et Olympic. De plus, les notes attribuées à l'impact quantitatif sur la ressource en eau pour les deux technologies TAR sont très différentes de ce qui est indiqué au tableau 3.3 du BREF ICS, où la consommation d'eau serait divisée par environ 40.
+     </div>
+     <div data-number="13" data-spec="alinea">
+      Par ailleurs, le BREF ICS au chapitre 1.4.2 indique
+      <q>
+       Si, pour des raisons propres au procédé, un système refroidi par voie humide est nécessaire, les méthodes permettant de faire des économies d'eau devront être utilisées et, par exemple, un système à recirculation forcée (comme une tour de refroidissement par voie humide) sera préférable à un système à passage unique.
+      </q>
+      . La cotation à 0 pour les TAR exclut de fait la mise en place de TAR sur site alors que le BREF ICS prévoit que cette technique soit a minima considérée. Le coût d'implantation des TAR est évalué entre 300 000€ et 390 000€ avec une consommation d'énergie jugée faible et avec une boucle ouverte uniquement en période chaude, ce qui permettrait des économies d'eau substantielles.
+     </div>
+     <div data-number="14" data-spec="alinea">
+      Le BREF ICS au chapitre 4.2.1.2 indique
+      <q>
+       Dans une installation existante, l'optimisation de la réutilisation interne et externe et la réduction de la quantité et du niveau de chaleur à évacuer doivent également précéder toute modification apportée à la capacité potentielle du système de refroidissement utilisé. Il faut évaluer si l'on peut accroître l'efficacité d'un système de refroidissement existant en améliorant le fonctionnement du système ou en recourant à des mesures technologiques telles que le retrofit ou le changement technologique. En général, et pour des systèmes de refroidissement de grande taille, les améliorations sur le fonctionnement des systèmes sont plus efficaces en termes de coûts que l'utilisation de nouvelles technologies ou de technologies améliorées et peuvent donc être considérées comme une MTD.
+      </q>
+     </div>
+     <div data-number="15" data-spec="alinea">
+      Aussi, cela implique de faire de la récupération de chaleur au préalable du refroidissement pur.
+     </div>
+     <div data-number="16" data-spec="alinea">
+      Le chapitre 3.3.1.2.1 du BREF ICS précise :
+      <q>
+       Pour les systèmes à passage unique existants, l'utilisation de systèmes à circulation forcée (tours de refroidissement ouvertes par voie humide) est une option utilisée pour réduire les besoins en eau. Les tours équipées d'éliminateurs de gouttes sont une technique standard permettant de réduire davantage la perte en eau par évaporation. En général, la recirculation forcée signifie qu'il faut prendre des mesures pour protéger les surfaces des échangeurs de chaleur contre l'entartrage ou la corrosion. D'autre part, l'utilisation de la recirculation de l'eau de refroidissement signifie en même temps une réduction des émissions de chaleur dans les eaux de surface.
+      </q>
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       9/12
+      </div>
+     </div>
+     <a data-page_index="9" data-spec="page_separator">
+     </a>
+     <div data-number="17" data-spec="alinea">
+      Les deux autres pistes jugées pertinentes par l'étude sont la mise en place d'un aéroréfrigérant sec adiabatique + complément en eau de forage (600 000 €) ou aéroréfrigérant sec + complément en eau de forage (540 000 €). L'exploitant ne retient pas ces pistes.
+     </div>
+     <div data-number="18" data-spec="alinea">
+      Avis de l'inspection : l'exploitant exclut la mise en œuvre de MTD sur la récupération de chaleur et sur le refroidissement, citées dans le BREF ICS concernant les pasteurisateurs SAS 10, 11 et Olympic. Le dossier de réexamen ne considère donc pas les meilleures techniques disponibles issues du BREF ICS, BREF qui sera applicable au 04/12/2023, à l'instar du BREF FDM (à noter que le BREF principal rend les BREF secondaires applicables à la même date selon l'
+      <a data-parent_reference="5" data-spec="section_reference" data-start_num="R515-73" data-type="article">
+       article R.515-73
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="5" data-title="Code de l'environnement" data-type="code">
+       Code de l'environnement
+      </a>
+      ).
+     </div>
+     <div data-number="19" data-spec="alinea">
+      L'étude de réduction des consommations d'eau indique que la bâche alimentaire de stockage d'eau chaude à 80 °C n'est pas calorifugée (page 16). Ce point ne répond pas à la MTD 6 du BREF FDM. Par courrier du 01/07/2022, l'exploitant indique qu'un plan d'action sur l'optimisation de la production de vapeur comprenant le calorifugeage de la bâche alimentaire est en cours. L'exploitant a donc prévu de répondre à la MTD 6.
+     </div>
+     <div data-number="20" data-spec="alinea">
+      L'impact des forages actuels sur le rabattement de nappe est fait : pas d'impact au-delà de 100 m et cône de rabattement de 50 cm. L'impact thermique actuel des effluents non pollués dans le canal de Chaffit puis le Rhône est jugé négligeable (débit correspondant à 0,005 % du débit du Rhône). Aucun impact avéré sur la nappe et le milieu récepteur n'est relevé.
+     </div>
+     <div data-number="21" data-spec="alinea">
+      A noter que le SDAGE Rhône-Méditerranée indique que le cours d'eau Rhône n'est pas considéré en déséquilibre quantitatif.
+     </div>
+     <div data-number="22" data-spec="alinea">
+      Demande d'augmentation des consommations d'eau de ville
+     </div>
+     <div data-number="23" data-spec="alinea">
+      Lors de la visite du 02/04/2020, l'inspection a constaté que les consommations d'eau de ville ont dépassé la limite autorisée.
+     </div>
+     <div data-number="24" data-spec="alinea">
+      Par courrier du 24/06/2022, l'exploitant sollicite le relèvement de la quantité d'eau potable consommée, passant de 16 000 m³ autorisé à 70 000 m³, sans demande d'augmentation de capacité de production.
+     </div>
+     <div data-number="25" data-spec="alinea">
+      L'étude sur les consommations d'eau transmise le 07/01/2021 recense les origines, les usages et les consommations d'eau en 2019. Une actualisation des informations, suite à une erreur de comptage transmise le 24/06/2022, indique que 48 % des consommations d'eau de ville ne sont pas identifiées, soit 34 059 m³. Par courrier du 24/06/2022, l'exploitant transmet le détail de la répartition des consommations connues en AEP sur le site.
+     </div>
+     <div data-number="26" data-spec="alinea">
+      D'après les études transmises, 18 pistes d'amélioration ont été identifiées. Une économie de 8 % d'eau de ville (soit environ 5 000 m³) est possible.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       10/12
+      </div>
+     </div>
+     <a data-page_index="10" data-spec="page_separator">
+     </a>
+     <div data-number="27" data-spec="alinea">
+      Concernant la demande d'augmentation de consommation d'eau potable, l'exploitant indique dans son courrier du 08/01/2021 que :
+     </div>
+     <div data-number="28" data-spec="alinea">
+      <blockquote>
+       <p>
+        Nous constatons une augmentation d'environ 36 000 m³ d'eau de ville entre 2009 et 2019. L'augmentation s'intensifie à partir de 2015. A noter que les consommations d'eau de ville représentent environ 7 % de la consommation totale de l'usine. L'augmentation des consommations d'eau de ville, ainsi que de son indicateur, s'expliquent par :
+       </p>
+       <ul>
+        <li>
+         - L'augmentation de production générale du site
+        </li>
+        <li>
+         - Le développement des boissons type citronnades et thés glacés à partir de 2015, qui utilisent de l'eau de ville comme ingrédient dans la recette. Les productions de citronnades s'élèvent à 9000T par an
+        </li>
+        <li>
+         - La diversification des recettes produites par le site : 30 recettes en 2014 à plus de 60 en 2020. Dans le même temps, aucune ligne de production n'a été ajoutée. En conséquence, une augmentation des changements de recettes générant des nettoyages plus nombreux, et donc une hausse de la consommation en eau de ville ;
+        </li>
+        <li>
+         - Le remplacement de certains usages eau de forages par de l'eau de ville dans l'usine.
+        </li>
+       </ul>
+       <p>
+        Pour conclure, l'augmentation de nos consommations d'eau de ville ne relève donc pas de
+        <q>
+         dérivées
+        </q>
+        de consommations, mais s'expliquent bien en totalité par l'évolution des activités du site. Il faut rappeler que notre indicateur de consommations globales [y compris eaux de forage] par tonnage de produit fini a chuté de plus de 30 % en presque 10 ans.
+       </p>
+      </blockquote>
+     </div>
+     <div data-number="29" data-spec="alinea">
+      A noter qu'entre 2019 et 2021, la consommation annuelle d'AEP a continué d'augmenter passant de 63 406 m³ à 69 441 m³.
+     </div>
+     <div data-number="30" data-spec="alinea">
+      Malgré la demande d'éléments complémentaires sur la justification de l'augmentation des consommations d'eau par courrier du 25/03/2022 (chiffrage des nouveaux produits et nouveaux lavages induits par la multiplication des produits fabriqués), l'exploitant n'a pas fourni d'éléments justifiant la demande d'augmentation de consommation d'eau potable sans augmentation de capacité de production dans son courrier du 24/06/2022.
+     </div>
+     <div data-number="31" data-spec="alinea">
+      Par courrier du 24/06/2022, l'exploitant réalise une évaluation de la conformité par rapport au SDAGE et au SAGE conformément à l'
+      <a data-parent_reference="6" data-spec="section_reference" data-start_num="14" data-type="article">
+       article 14
+      </a>
+      de l'
+      <a data-date="1998-02-02" data-spec="document_reference" data-tag_id="6" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="1998-02-02">
+        02/02/1998
+       </time>
+      </a>
+      . Bien que biaisée sur la partie
+      <q>
+       Éviter – réduire – compenser
+      </q>
+      et
+      <q>
+       Inscire le principe de prévention dans la conception des projets et les outils de planification locale
+      </q>
+      , notamment vu les éléments ci-avant concernant la mise en service de certains équipements au mépris de l'évitement de la consommation d'eau, l'évaluation de la conformité par rapport au SDAGE et au SAGE est jugée recevable.
+     </div>
+     <div data-number="32" data-spec="alinea">
+      L'exploitant précise que le prélèvement d'eau potable est effectué au captage de Mauboule, situé dans les alluvions du Rhône. Il considère que l'impact est acceptable (1,5 % du volume maximal du captage de Mauboule, autorisé à prélever 13 000 m³/j).
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       11/12
+      </div>
+     </div>
+     <a data-page_index="11" data-spec="page_separator">
+     </a>
+     <div data-number="33" data-spec="alinea">
+      Avis de l'inspection :
+     </div>
+     <div data-number="34" data-spec="alinea">
+      Les éléments apportés pour la demande d'augmentation des consommations d'AEP sont insuffisants. À ce stade, seule une augmentation de 6500 m³/an est justifiée par la production de citronnades et thés glacés. Au vu de l'importance de la demande d'augmentation (54 000 m³/an, soit la consommation d'eau potable de 10 000 habitants), l'inspection propose de demander des éléments justifiant de l'augmentation de la consommation d'eau entre 2009 et 2022 sans augmentation de capacité de production. A noter que ces éléments ont déjà été demandés par courrier du 25/03/2022 et que les éléments apportés ne justifient pas de l'augmentation de consommation.
+     </div>
+     <section data-number="4" data-spec="section" data-title="PROPOSITION DE L'INSPECTION DES INSTALLATIONS CLASSÉES" data-type="unknown">
+      <h5 data-level="3" data-spec="section_title">
+       4 – PROPOSITION DE L'INSPECTION DES INSTALLATIONS CLASSÉES
+      </h5>
+      <div data-number="1" data-spec="alinea">
+       Réexamen IED
+      </div>
+      <div data-number="2" data-spec="alinea">
+       Le dossier de réexamen IED n'est pas jugé complet au sens de l'
+       <a data-parent_reference="7" data-spec="section_reference" data-start_num="R515-72" data-type="article">
+        article R.515-72
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="7" data-title="Code de l'environnement" data-type="code">
+        code de l'environnement
+       </a>
+       . Aussi, une demande de compléments a été adressée à l'exploitant. Une copie du courrier est joint en annexe du présent rapport.
+      </div>
+      <div data-number="3" data-spec="alinea">
+       Consommation d'eau potable
+      </div>
+      <div data-number="4" data-spec="alinea">
+       Les nouveaux éléments relatifs à la consommation d'eau potable répondent en partie aux compléments demandés. Aussi, une deuxième demande de compléments a été adressée à l'exploitant. Une copie du courrier est joint en annexe du présent rapport.
+      </div>
+      <div data-spec="page_footer">
+       <div>
+        12/12
+       </div>
+      </div>
+     </section>
+    </section>
+   </section>
+  </main>
+ </body>
+</html>

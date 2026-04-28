@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2020-11-03_ap prescriptions complémentaires_2020-11-03-APC-SAS DRIMM-Montech (CSR).pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DE TARN-ET-GARONNE
+Liberté
+Égalité
+Fraternité
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ PRÉFECTORAL COMPLÉMENTAIRE N° 82-2020-11-03-003 modifiant l'arrêté préfectoral n° 82-2017-12-06-004 du
+     <time data-spec="date" datetime="2017-12-06">
+      6 décembre 2017
+     </time>
+     autorisant la SAS DRIMM à exploiter une installation de traitement et de stockage de déchets ménagers et d'activité économique sur le territoire des communes de Montech et d'Escatalens
+    </h1>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Installations Classées pour la Protection de l'Environnement
+    </div>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet de Tarn-et-Garonne
+    </div>
+    <div>
+     Chevalier de l'ordre national du mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    VU les décrets n° 2018-458 du 6 juin 2018 et n° 202-828 du 30 juin 2020 modifiant la nomenclature des installations classées pour la protection de l'environnement (rubrique 2716),
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2018-06-06" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2018-06-06">
+      6 juin 2018
+     </time>
+    </a>
+    relatif aux prescriptions générales applicables aux installations de transit, regroupement, tri ou préparation en vue de la réutilisation de déchets relevant du régime de l'enregistrement au titre de la rubrique n° 2711 (déchets d'équipements électriques et électroniques), 2713 (métaux ou déchets de métaux non dangereux, alliage de métaux ou déchets d'alliage de métaux non dangereux), 2714 (déchets non dangereux de papiers, cartons, plastiques, caoutchouc, textiles, bois) ou 2716 (déchets non dangereux non inertes) de la nomenclature des installations classées pour la protection de l'environnement ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 82-2017-12-06-004 du
+     <time data-spec="date" datetime="2017-12-06">
+      6 décembre 2017
+     </time>
+    </a>
+    autorisant la SAS DRIMM à exploiter une installation de traitement et de stockage de déchets ménagers et d'activités économiques sur le territoire de la commune de Montech,
+   </div>
+   <div data-spec="visa">
+    VU la demande de mise à jour du tableau de classement, présenté par la SAS DRIMM le 19 septembre 2019, suite à la modification de la rubrique n° 2716 des installations classées,
+   </div>
+   <div data-spec="visa">
+    VU la demande de modification des conditions d'exploitation présentée le 26 juin 2020, complété le 23 septembre 2020 par la SAS DRIMM, pour l'ajout d'un module de finition de Combustible Solide de Récupération (CSR) sur le Centre de Tri Haute Performance (CTHP) des déchets d'activités économiques et des déchets d'éléments d'ameublement,
+   </div>
+   <div data-spec="visa">
+    VU le dossier technique annexé à la demande, notamment les plans du projet et la mise à jour de l'étude de dangers ;
+   </div>
+   <div data-spec="visa">
+    VU le courrier adressé le 29 septembre 2020 à l'exploitant pour lui permettre de formuler ses observations éventuelles sur le projet d'arrêté ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport du 2 octobre 2020 de l'inspection des installations classées ;
+   </div>
+   <div data-spec="motifs">
+    Considérant que le projet de modification ne constitue pas une modification substantielle de l'autorisation environnementale au sens de l'
+    <a data-spec="section_reference" data-start_num="R181-46" data-type="article">
+     article R. 181-46
+    </a>
+    .1 du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ,
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     1/6
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    Considérant que le CTHP dans son ensemble avait été présenté dans le dossier de demande d'autorisation déposé le 13 décembre 2016 et complété le 4 avril 2017 par la DRIMM ayant aboutit à l'autorisation (arrêté préfectoral du n° 82-2017-12-06-004 du 6 décembre 2017 susvisé),
+   </div>
+   <div data-spec="motifs">
+    Considérant que la nature et l'ampleur du projet de modification ne rendent pas nécessaires les consultations prévues par les
+    <a data-group_id="1" data-spec="section_reference" data-start_num="R181-18" data-type="article">
+     articles R. 181-18
+    </a>
+    et
+    <a data-end_num="R181-32" data-group_id="1" data-spec="section_reference" data-start_num="R181-22" data-type="article">
+     R. 181-22 à R. 181-32
+    </a>
+    du conseil départemental de l'environnement et des risques sanitaires et technologiques,
+   </div>
+   <div data-spec="motifs">
+    Considérant qu'il y a lieu d'actualiser le tableau de classement des installations classées et de fixer des prescriptions complémentaires,
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition du Secrétaire général de la Préfecture du département de Tarn-et-Garonne,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="IDENTIFICATION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1 – IDENTIFICATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La SAS DRIMM dont le siège social est situé au n° 3525, route de La Ville Dieu à Montech (82 700), qui est autorisée à exploiter sur le territoire des communes de Montech et d'Escatalens, à la même adresse, des installations de traitement et de stockage de déchets ménagers et d'activités économiques, est tenue de respecter, dans le cadre des modifications des installations portées à la connaissance de Monsieur le Préfet, les dispositions des articles suivants.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 –
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions de l'
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="1.2.1" data-tag_id="20" data-type="article">
+      article 1.2.1
+     </a>
+     de l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-tag_id="1" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="supprimées et remplacées" data-operand="21" data-operation_type="replace" data-references="20" data-spec="operation">
+      susvisé sont
+      <b>
+       supprimées et remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="21">
+      <tr>
+       <th>
+        N°
+       </th>
+       <th>
+        Intitulé
+       </th>
+       <th>
+        Nature des installations et volume d'activité
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td colspan="4">
+        Centre de tri des emballages issu de la collecte sélective des ménages et Déchets industriels banais
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2716-1
+       </td>
+       <td>
+        Installation de transit, regroupement, tri ou préparation en vue de réutilisation de déchets non dangereux non inertes à l'exclusion des installations visées aux rubriques 2710, 2711, 2712, 2713, 2714, 2715 et 2719. La volume susceptible d'être présent dans l'installation étant :
+        <br/>
+        1. Supérieur ou égal à 1 000 m³
+       </td>
+       <td>
+        50 000 t/an
+        <br/>
+        Aire de réception des déchets bruts en attente de tri
+        <br/>
+        Déchets d'activité économique → V = 3 000 m³
+        <br/>
+        Collecte sélective → V = 2 000 m³
+        <br/>
+        Aire de stockage des produits triés emballés en attente de départ
+        <br/>
+        Plastiques, papiers, cartons → V = 3 000 m³
+        <br/>
+        Bois, ferrailles, verre → V = 880 m³
+        <br/>
+        Aire de stockage des refus en attente de départ
+        <br/>
+        V = 112,5 m³
+       </td>
+       <td>
+        E
+       </td>
+      </tr>
+      <tr>
+       <td colspan="4">
+        Déchetterie
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2710-1-b
+       </td>
+       <td>
+        Installations de collecte de déchets apportés par le producteur initial de ces déchets :
+        <br/>
+        1. Collecte de déchets dangereux :
+        <br/>
+        La quantité de déchets susceptible d'être présente dans l'installation étant :
+        <br/>
+        b) Supérieur ou égale à 1 tonne et inférieure à 7 tonnes
+       </td>
+       <td>
+        Q = 6,9 t
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        2710-2-c
+       </th>
+       <th>
+        Installations de collecte de déchets apportés par le producteur initial de ces déchets :
+        <br/>
+        2. Collecte de déchets non dangereux :
+        <br/>
+        Le volume de déchets susceptibles d'être présent dans l'installation étant :
+        <br/>
+        c) Supérieur ou égal à 100 m³ et inférieur à 300 m³.
+       </th>
+       <th>
+        V = 290 m³
+       </th>
+       <th>
+        DC
+       </th>
+      </tr>
+      <tr>
+       <th colspan="4">
+        Evapoconcentration
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2921-a)
+       </td>
+       <td>
+        Refroidissement évaporation par dispersion d'eau dans un flux d'air généré par ventilation mécanique ou naturelle (installations de) :
+        <br/>
+        a) La puissance thermique évacuée maximale étant supérieure ou égale à 3 000 kW
+       </td>
+       <td>
+        La puissance thermique évacuée étant de 7 000 kW
+       </td>
+       <td>
+        E
+       </td>
+      </tr>
+      <tr>
+       <th colspan="4">
+        Centre de Tri Haute Performance des Déchets d'Activité Économique et des Déchets d'Éléments d'Ameublement
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2716-1
+       </td>
+       <td>
+        Installation de transit, regroupement, tri ou préparation en vue de réutilisation de déchets non dangereux non inertes à l'exclusion des installations visées aux rubriques 2710, 2711, 2712, 2713, 2714, 2715 et 2719.
+        <br/>
+        Le volume susceptible d'être présent dans l'installation étant :
+        <br/>
+        1. Supérieur ou égal à 1 000 m³
+       </td>
+       <td>
+        25 000 m³
+       </td>
+       <td>
+        E
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2791.1
+       </td>
+       <td>
+        Installation de traitement de déchets non dangereux à l'exclusion des installations visées aux rubriques 2720, 2760, 2771, 2780, 2781, 2782 et 2971.
+        <br/>
+        La quantité de déchets traités étant :
+        <br/>
+        1. Supérieure ou égale à 10 t/j
+       </td>
+       <td>
+        700 t/j
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        3532
+       </td>
+       <td>
+        Valorisation ou un mélange de valorisation et d'élimination, de déchets non dangereux non inertes avec une capacité supérieure à 75 tonnes par jour et entraînant une ou plusieurs des activités suivantes, à l'exclusion des activités relevant de la
+        <a data-date="1991" data-num="271" data-spec="document_reference" data-type="eu-directive">
+         directive 91/271/CEE
+        </a>
+        :
+        <br/>
+        • traitement biologique,
+        <br/>
+        • prétraitement des déchets destinés à l'incinération ou à la coîncinération,
+        <br/>
+        • traitement du laitier et des cendres,
+        <br/>
+        • traitement en broyeur de déchets métalliques, notamment déchets d'équipements électriques et électroniques et véhicules hors d'usage ainsi que leurs composants
+       </td>
+       <td>
+        700 t/j
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <th colspan="4">
+        Centre de stockage de déchets non dangereux
+       </th>
+      </tr>
+      <tr>
+       <td>
+        3540
+       </td>
+       <td>
+        Installation de stockage de déchets autre que celles mentionnées à la rubrique 2720 et 2760-3, recevant plus de 10 tonnes de déchets par jour ou d'une capacité totale supérieure à 25 000 tonnes
+       </td>
+       <td>
+        2 200 t/j maximum (base 300 000 t/an)
+        <br/>
+        Capacité totale &gt; 25 000 t/an
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2760-2
+       </td>
+       <td>
+        Installation de stockage de déchets autre que celles mentionnées à la rubrique 2720
+        <br/>
+        2. Installations de stockage de déchets non dangereux non inertes
+       </td>
+       <td>
+        300 000 t/an du 1/01/2017 au 31/12/2019
+        <br/>
+        290 000 t/an en 2020
+        <br/>
+        280 000 t/an en 2021
+        <br/>
+        270 000 t/an en 2022
+        <br/>
+        200 000 t/an à compter du 1/01/2023
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      4/6
+     </div>
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="2" data-tag_id="22" data-type="alinea">
+      deuxième paragraphe
+     </a>
+     de l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="67.1" data-tag_id="2" data-type="article">
+      article 67.1
+     </a>
+     des prescriptions particulières de l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-tag_id="3" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="supprimé et remplacé" data-operation_type="replace" data-references="22" data-spec="operation">
+      susvisé est
+      <b>
+       supprimé et remplacé
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <div data-error_codes="unbalanced_quote" data-spec="error">
+      Le centre de tri haute performance comporte :
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - un bâtiment de 4 000 m² comprenant :
+      </li>
+      <li>
+       - une zone de réception, déchargement, pré-tri et broyage d'environ 1 750 m²,
+      </li>
+      <li>
+       - une zone de séparation et tri automatisé des matières d'environ 1 000 m²,
+      </li>
+      <li>
+       - une zone de préparation de combustible solide de récupération (CSR) d'environ 1 000 m²,
+      </li>
+      <li>
+       - des locaux techniques pour environ 250 m²,
+      </li>
+      <li>
+       - des stockages extérieurs composées des zones suivantes pour le :
+      </li>
+      <li>
+       - stockage de bois en vrac (aire étanche d'environ 300 m²),
+      </li>
+      <li>
+       - chargement du CSR,
+      </li>
+      <li>
+       - chargement de bois,
+      </li>
+      <li>
+       - chargement des refus,
+      </li>
+      <li>
+       - les bennes de FMA (Fond Mouvant Alternatif) chargées (ou conteneurs adaptés) en CSR en attente de départ,
+      </li>
+      <li>
+       - stockage de la ferraille.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4 -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="67.3" data-tag_id="23" data-type="article">
+      article 67.3
+     </a>
+     des prescriptions particulières de l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-tag_id="4" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="supprimé et remplacé" data-operand="24" data-operation_type="replace" data-references="23" data-spec="operation">
+      susvisé est
+      <b>
+       supprimé et remplacé
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="24">
+      <p>
+       Seuls sont autorisés à être traités dans l'installation :
+      </p>
+      <ul>
+       <li>
+        - les Déchets d'Activités Économiques (DAE) en mélange ou triés à la source,
+       </li>
+       <li>
+        - les déchets provenant de la mise en place de la filière REP MEUBLES, gérée par l'éco-organisme Eco-Mobilier,
+       </li>
+       <li>
+        - les encombrants des déchetteries,
+       </li>
+       <li>
+        - les refus issus des installations de tri d'emballages ménagers recyclables et de DAE.
+       </li>
+      </ul>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5 -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le dernier paragraphe (
+     <a data-parent_reference="5" data-spec="section_reference" data-start_num="4" data-tag_id="25" data-type="alinea">
+      § 4
+     </a>
+     ) de l'
+     <a data-parent_reference="6" data-spec="section_reference" data-start_num="69" data-tag_id="5" data-type="article">
+      article 69
+     </a>
+     des prescriptions particulières de l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-tag_id="6" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="supprimé et remplacé" data-operand="26" data-operation_type="replace" data-references="25" data-spec="operation">
+      susvisé est
+      <b>
+       supprimé et remplacé
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="26">
+      <p>
+       Le local électrique, le local de charge des batteries sont protégés par des murs coupe-feu degré 2 heures et des portes coupe-feu degré 1 heure.
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 6 -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le
+     <a data-parent_reference="7" data-spec="section_reference" data-start_num="1" data-tag_id="27" data-type="alinea">
+      premier paragraphe
+     </a>
+     de l'
+     <a data-parent_reference="8" data-spec="section_reference" data-start_num="70" data-tag_id="7" data-type="article">
+      article 70
+     </a>
+     des prescriptions particulières de l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-tag_id="8" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     <span data-direction="rtl" data-keyword="supprimé" data-operation_type="delete" data-references="27" data-spec="operation">
+      susvisé est
+      <b>
+       supprimé
+      </b>
+     </span>
+     .
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 7 -
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions de l'
+     <a data-parent_reference="9" data-spec="section_reference" data-start_num="74" data-tag_id="28" data-type="article">
+      article 74
+     </a>
+     des prescriptions particulières de l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-tag_id="9" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="supprimées et remplacées" data-operand="29" data-operation_type="replace" data-references="28" data-spec="operation">
+      susvisé sont
+      <b>
+       supprimées et remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="29">
+      <p>
+       Avant expédition, les produits triés sont conditionnés :
+      </p>
+      <ul>
+       <li>
+        - en bennes ou conteneurs vrac pour les métaux ferreux, non-ferreux et plastiques denses,
+       </li>
+       <li>
+        - en compacteur ou conteneurs vrac pour les refus de tri destinés au centre de stockage, de déchets non dangereux,
+       </li>
+       <li>
+        - en compacteur ou conteneurs vrac pour les papiers et cartons,
+        <a data-page_index="4" data-spec="page_separator">
+        </a>
+       </li>
+       <li>
+        - en bennes pour le combustible solide de récupération (CSR),
+       </li>
+       <li>
+        - en bennes ou en vrac sur une aire étanche pour le bois.
+       </li>
+      </ul>
+      <p>
+       Le CSR est stocké dans des FMA ou des conteneurs adaptés puis est transféré vers les sites de valorisation externes
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 8 –
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le
+     <a data-parent_reference="10" data-spec="section_reference" data-start_num="3" data-tag_id="30" data-type="alinea">
+      troisième paragraphe
+     </a>
+     de l'
+     <a data-parent_reference="11" data-spec="section_reference" data-start_num="76" data-tag_id="10" data-type="article">
+      article 76
+     </a>
+     des prescriptions particulières de l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-tag_id="11" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="supprimée et remplacée" data-operand="31" data-operation_type="replace" data-references="30" data-spec="operation">
+      susvisé est
+      <b>
+       supprimée et remplacée
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="31">
+      <p>
+       L'entretien et la réparation des engins mobiles sont effectués sur une aire étanche
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 9 –
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <span data-direction="rtl" data-has_operand="true" data-keyword="ajoutés" data-operation_type="add" data-spec="operation">
+      Les moyens de lutte contre l'incendie ci-dessous sont
+      <b>
+       ajoutés
+      </b>
+      à l'
+     </span>
+     <a data-parent_reference="12" data-spec="section_reference" data-start_num="77.4" data-type="article">
+      article 77.4
+     </a>
+     des prescriptions particulières de l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-tag_id="12" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     susvisé :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote>
+      <p>
+       L'exploitant met en place les moyens de lutte supplémentaires suivants :
+      </p>
+      <ul>
+       <li>
+        - une installation d'extinction automatique à eau de type sprinklers sur la zone concernée par la mise en place du module de finition du CSR,
+       </li>
+       <li>
+        - une installation d'extinction automatique à eau de type sprinklers sur la zone de chargement de CSR,
+       </li>
+       <li>
+        - une installation de détection et d'extinction automatique spécifique à la défense incendie du granulateur,
+       </li>
+       <li>
+        - une installation d'extinction automatique à eau de type sprinklers pour la protection des deux cyclo-filtres.
+       </li>
+      </ul>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="10" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 10 –
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le
+     <a data-parent_reference="13" data-spec="section_reference" data-start_num="1" data-tag_id="32" data-type="alinea">
+      premier paragraphe
+     </a>
+     de l'
+     <a data-parent_reference="14" data-spec="section_reference" data-start_num="77.6" data-tag_id="13" data-type="article">
+      article 77.6
+     </a>
+     des prescriptions particulières de l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-tag_id="14" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="supprimée et remplacée" data-operand="33" data-operation_type="replace" data-references="32" data-spec="operation">
+      susvisé est
+      <b>
+       supprimée et remplacée
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="33">
+      <p>
+       Les stockages effectués :
+      </p>
+      <ul>
+       <li>
+        - à l'intérieur du bâtiment sont mis en place de manière à ce que toutes les voies et issues soient largement dégagées,
+       </li>
+       <li>
+        - à l'extérieur du bâtiment sont mis en place dans les zones définies à l'article n° 3 du
+        <a data-spec="document_reference" data-type="self">
+         présent arrêté
+        </a>
+        et ne doivent pas interférer avec les voies de circulation, notamment avec la circulation des services de secours
+       </li>
+      </ul>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="11" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 11 –
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le
+     <a data-parent_reference="15" data-spec="section_reference" data-start_num="1" data-tag_id="34" data-type="alinea">
+      premier paragraphe
+     </a>
+     de l'
+     <a data-parent_reference="16" data-spec="section_reference" data-start_num="78.4" data-tag_id="15" data-type="article">
+      article 78.4
+     </a>
+     des prescriptions particulières de l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-tag_id="16" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="supprimée et remplacée" data-operand="35" data-operation_type="replace" data-references="34" data-spec="operation">
+      susvisé est
+      <b>
+       supprimée et remplacée
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="35">
+      <p>
+       Les eaux de voiries sont collectées par les fossés et regards ceinturant le bâtiment et dirigées vers le bassin B7.
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="12" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 12 –
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La deuxième phrase de l'
+     <a data-parent_reference="17" data-spec="section_reference" data-start_num="78.7" data-tag_id="36" data-type="article">
+      article 78.7
+     </a>
+     des prescriptions particulières de l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-tag_id="17" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="supprimée et remplacée" data-operand="37" data-operation_type="replace" data-references="36" data-spec="operation">
+      susvisé est
+      <b>
+       supprimée et remplacée
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="37">
+      <p>
+       À cet effet, un bassin de collecte des eaux en cas d'incendie appelé RBI d'une capacité de 3 900 m³, est mis en place à proximité des bâtiments DAE.
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="13" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 13 –
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions de l'
+     <a data-parent_reference="18" data-spec="section_reference" data-start_num="79.1" data-tag_id="38" data-type="article">
+      article 79.1
+     </a>
+     des prescriptions particulières de l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-tag_id="18" data-type="arrete-prefectoral">
+      arrêté préfectoral d'autorisation n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="39" data-operation_type="replace" data-references="38" data-spec="operation">
+      susvisé sont
+      <b>
+       remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="39">
+      <p>
+       Le centre de tri haute performance comporte deux points de rejet correspondant à l'unité de dépoussiérage pour le rejet des effluents gazeux
+      </p>
+     </blockquote>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      5/6
+     </div>
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="14" data-spec="section" data-title="MESURES DE PUBLICITE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 14 - MESURES DE PUBLICITE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En vue de l'information des tiers un extrait de cet arrêté est affiché dans les mairies de Montech et d'Escatalens pendant une durée d'un mois ; procès-verbal de l'accomplissement de cette formalité est dressé par les soins du maire et transmis à la préfecture de Tarn-et-Garonne – Pôle d'Animation Interministérielle – Mission Environnement.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Cet arrêté est publié sur le site internet des services de l'État dans le département pendant une durée minimale de quatre mois.
+    </div>
+   </section>
+   <section data-number="15" data-spec="section" data-title="EXÉCUTION –" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 15. EXÉCUTION –
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le Secrétaire Général de la Préfecture de Tarn-et-Garonne, le Directeur Régional de l'Environnement, de l'Aménagement et du Logement (DREAL) chargé de l'Inspection des Installations Classées et les maires des communes de Montech et d'Escatalens sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont copie sera notifiée à l'exploitant.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     A Montauban, le 03 NOV. 2020
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le Préfet,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le préfet, et par délégation,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le secrétaire général,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Emmanuel MOULARD
+    </div>
+    <div data-number="7" data-spec="alinea">
+     DÉLAIS ET VOIES DE RECOURS
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="19" data-spec="section_reference" data-start_num="R181-50" data-type="article">
+      article R.181-50
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="19" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , la présente décision peut être déférée à la juridiction administrative compétente, le tribunal administratif de Toulouse (
+     <address data-spec="address">
+      68 rue Raymond IV
+     </address>
+     – 31000 Toulouse – Tél : 05.62.73.57.57), dans les délais ci-dessous :
+    </div>
+    <div data-number="9" data-spec="alinea">
+     <ul>
+      <li>
+       1° Par les pétitionnaires ou exploitants, dans un délai de deux mois à compter du jour où la décision leur a été notifiée ;
+      </li>
+      <li>
+       2° Par les tiers intéressés en raison des inconvénients ou des dangers pour les intérêts mentionnés à l'
+       <a data-spec="section_reference" data-start_num="L181-3" data-type="article">
+        article L.181-3
+       </a>
+       , dans un délai de quatre mois à compter de :
+      </li>
+      <li>
+       a) L'affichage en mairie dans les conditions prévues au 2° de l'
+       <a data-spec="section_reference" data-start_num="R181-44" data-type="article">
+        article R.181-44
+       </a>
+       ;
+      </li>
+      <li>
+       b) La publication de la décision sur le site internet de la préfecture prévue au 4° du même article.
+      </li>
+     </ul>
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Le délai court à compter de la dernière formalité accomplie. Si l'affichage constitue cette dernière formalité, le délai court à compter du premier jour d'affichage de la décision.
+    </div>
+    <div data-number="11" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     peut aussi faire l'objet d'un recours gracieux ou hiérarchique dans le délai de deux mois :
+    </div>
+    <div data-number="12" data-spec="alinea">
+     soit d'un recours gracieux auprès du préfet de Tarn-et-Garonne –
+     <address data-spec="address">
+      2 Allée de l'Empereur
+     </address>
+     , 82000 Montauban. Le recours doit être écrit et exposer les arguments et faits nouveaux. Une copie de la décision contestée doit être jointe à votre recours ;
+    </div>
+    <div data-number="13" data-spec="alinea">
+     soit d'un recours hiérarchique auprès du Ministre de l'Intérieur – Place Beauvau – 75008 Paris Cédex 08. Le recours doit être écrit et exposer les arguments et faits nouveaux. Une copie de la décision contestée doit être jointe à votre recours.
+    </div>
+    <div data-number="14" data-spec="alinea">
+     Ce recours administratif prolonge de deux mois les délais mentionnés aux 1° et 2°. Le tribunal administratif peut être saisi au moyen de l'application informatique Télérecours Citoyen accessible depuis le site www.telerecours.fr
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      6/6
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

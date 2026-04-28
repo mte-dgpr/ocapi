@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2005-05-23_arrêté de mise en demeure_régulariser la situation administrative de ses activités de stockage de substances à base d’acide arsénieux.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="entity">
+    <div>
+     DIRECTION DES ACTIONS INTERMINISTERIELLES
+    </div>
+    <div>
+     bureau de l'environnement et du développement durable Installations classées
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     N° 2005- MD-49-IC
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté préfectoral de mise en demeure concernant la Coopérative du Syndicat Général des Vignerons à EPERNAY
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     le préfet de la région Champagne-Ardenne
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     préfet du département de la Marne
+    </div>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     chevalier de la légion d'honneur
+    </div>
+   </div>
+   <div>
+    Vu :
+   </div>
+   <div data-spec="visa">
+    - le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l'environnement
+    </a>
+    , notamment ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L514-1" data-type="article">
+     articles L. 514-1
+    </a>
+    et
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L514-2" data-type="article">
+     L. 514-2
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    - le
+    <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-type="decret">
+     décret n° 77-1133 du
+     <time data-spec="date" datetime="1977-09-21">
+      21 septembre 1977
+     </time>
+    </a>
+    modifié, pris pour l'application de la loi n° 76-663 du 19 juillet 1976 dont les dispositions sont reprises dans le livre V titre Ier du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l'environnement
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    - la nomenclature des installations classées pour la protection de l'environnement,
+   </div>
+   <div data-spec="visa">
+    - l'
+    <a data-date="1995-04-20" data-num="95.A.28.IC" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 95.A.28.IC du
+     <time data-spec="date" datetime="1995-04-20">
+      20 avril 1995
+     </time>
+    </a>
+    autorisant la Coopérative du Syndicat Général des Vignerons, allée de Cumières, BP 51 – 51202 Epernay Cedex, a exploiter son établissement à la même adresse,
+   </div>
+   <div data-spec="visa">
+    - les propositions de la Direction Régionale de l'Industrie, de la Recherche et de l'Environnement Champagne-Ardenne, chargée de l'Inspection des Installations Classées en date du 10 mai 2005,
+   </div>
+   <div>
+    Considérant :
+   </div>
+   <div data-spec="motifs">
+    - que l'
+    <a data-spec="section_reference" data-start_num="L514-2" data-type="article">
+     article L. 514-2
+    </a>
+    stipule : "Lorsqu'une installation classée est exploitée sans avoir fait l'objet de la déclaration ou de l'autorisation requise par le présent titre, le préfet met l'exploitant en demeure de régulariser sa situation dans un délai déterminé en déposant, suivant le cas, une déclaration ou une demande d'autorisation,
+   </div>
+   <div data-spec="motifs">
+    - que la Coopérative du Syndicat Général des Vignerons à Epernay exploite un dépôt d'arsénite de soude de 7210 litres sans en avoir l'autorisation en référence de la rubrique 1150-3 (acide arsénieux et ses sels),
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition de Madame la directrice régionale de l'industrie, de la recherche et de l'environnement de Champagne Ardenne,
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrête
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1er
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La Coopérative du Syndicat Général des Vignerons, allées de Cumières à Epernay, est mise en demeure de régulariser la situation du dépôt d'arsénite de soude en déposant une demande d'autorisation dans un délai de six mois.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     A défaut de régulariser l'arsénite de soude doit être éliminé dans une installation autorisée.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Sanctions" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 - Sanctions
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Si l'exploitant ne défère pas à la mise en demeure de régulariser sa situation le préfet peut, en cas de nécessité, ordonner la fermeture ou la suppression de l'installation.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Droits des tiers" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 - Droits des tiers
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les droits des tiers sont et demeurent expressément réservés.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 - Recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     peut faire l'objet, dans un délai de deux mois à compter de sa notification, soit d'un recours hiérarchique auprès du ministre de l'écologie et du développement durable, direction de l'environnement industriel - bureau du contentieux -
+     <address data-spec="address">
+      20 avenue de Ségur
+     </address>
+     - 75302 - Paris 07 SP, soit d'un recours contentieux auprès du tribunal administratif de Châlons-en-Champagne -
+     <address data-spec="address">
+      25 rue du lycée
+     </address>
+     - 51036 Châlons en Champagne cedex. Un éventuel recours hiérarchique n'interrompt pas le délai de recours contentieux.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Ampliation" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 - Ampliation
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     sera notifié à la Coopérative du Syndicat Général des Vignerons, dont le siège social est sis allée de Cumières BP 51 Epernay (51202 cédex). Une ampliation de ce dernier sera déposée aux archives de la Mairie d'Epernay pour y être tenue à la disposition de toute personne intéressée. Un extrait en sera affiché à la porte de la Mairie pendant une durée minimum d'un mois. Procès-verbal de l'accomplissement de cette formalité sera adressé par le Maire à la Préfecture du département de la Marne – Bureau de l'Environnement.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     M. le secrétaire général de la préfecture de la Marne, Mme la directrice régionale de l'industrie, de la recherche et de l'environnement de Champagne-Ardenne et M. l'inspecteur des installations classées de la Marne, sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont copie sera adressée pour information à MM. le sous-préfet de l'arrondissement de Reims, le directeur départemental de l'agriculture et de la forêt, le directeur du service interministériel régional de défense et de la protection civile, le directeur départemental des services d'incendie et de secours, le directeur régional de l'environnement Mmes la directrice départementale de l'équipement, la directrice départementale des affaires sanitaires et sociales, la directrice de l'agence de l'eau Seine-Normandie ainsi qu'à M. le maire de la commune d'Epernay, qui en donnera communication à son conseil municipal.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Châlons-en-Champagne, le 23 mai 2005
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le préfet et par délégation,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le secrétaire général,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Signé : Raymond Le Deun
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Par ampliation,
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Pour le préfet et par délégation,
+    </div>
+    <div data-number="9" data-spec="alinea">
+     L'attaché principal, chef de bureau
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="10" data-spec="alinea">
+     Eric Dhellemme
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

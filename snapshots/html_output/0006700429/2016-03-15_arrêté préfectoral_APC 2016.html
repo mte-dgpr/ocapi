@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2016-03-15_arrêté préfectoral_APC 2016.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+
+RÉPUBLIQUE FRANÇAISE
+
+PREFET DU HAUT-RHIN
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFECTURE
+    </div>
+    <div>
+     Direction des Collectivités Locales et des Procédures Publiques
+    </div>
+    <div>
+     Bureau des Enquêtes Publiques et Installations Classées
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     n° 747
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté en partie occulté en application de l'article R512-39 du Code de l'Environnement ARRÊTÉ du
+     <time data-spec="date" datetime="2016-03-15">
+      15 mars 2016
+     </time>
+     portant prescriptions complémentaires à la Société DSM Nutritional Products France à VILLAGE-NEUF relatives à la création d'un local de déchargement de produits chimiques en référence au titre Ier du Livre V du Code de l'Environnement
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet du Haut-Rhin
+    </div>
+    <div>
+     Chevalier de la Légion d'Honneur
+    </div>
+    <div>
+     Commandeur de l'Ordre National du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l'Environnement
+    </a>
+    , livre V, titre 1er relatif aux Installations Classées pour la Protection de l'Environnement et notamment l'
+    <a data-spec="section_reference" data-start_num="R512-31" data-type="article">
+     article R512-31
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU la loi n° 2000-321 du 12 avril 2000, relative aux droits des citoyens dans leurs relations avec les administrations ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2000-05-10" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2000-05-10">
+      10 mai 2000
+     </time>
+     modifié
+    </a>
+    en dernier lieu le 5 octobre 2010 relatif à la prévention des accidents majeurs impliquant des substances ou préparations dangereuses présentes dans certaines catégories d'Installations Classées pour la Protection de l'Environnement, soumises à autorisation ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2005-09-29" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2005-09-29">
+      29 septembre 2005
+     </time>
+    </a>
+    relatif à l'évaluation et à la prise en compte de la probabilité d'occurrence, de la cinétique, de l'intensité des effets et de la gravité des conséquences des accidents potentiels dans les études de dangers des installations classées soumises à autorisation ;
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2005-09-29" data-spec="document_reference" data-type="circulaire">
+     circulaire du
+     <time data-spec="date" datetime="2005-09-29">
+      29 septembre 2005
+     </time>
+    </a>
+    relative aux critères d'appréciation de la démarche de maîtrise des risques d'accidents susceptibles de survenir dans les établissements dits « SEVESO » ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2013-07-01" data-num="2013-82-0011" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 2013-82-0011 du
+     <time data-spec="date" datetime="2013-07-01">
+      1er juillet 2013
+     </time>
+    </a>
+    (prescriptions complémentaires: codificatif des prescriptions d'exploiter) ;
+   </div>
+   <div data-spec="visa">
+    VU le complément à l'étude de dangers du site transmis le 22 décembre 2014 (rapport Apsys du 24 novembre 2014) décrivant le déchargement des fûts [partie occultée] à l'intérieur du bâtiment [partie occultée] ;
+   </div>
+   <div data-spec="visa">
+    VU les échanges entre DSM et la DREAL qui ont suivis la remise de ce complément, notamment le courrier de la DREAL du 15/04/2015 et le dossier remis par DSM le 03 juin 2015 ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     1/5
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    VU le rapport de l'Inspection des Installations Classées du 16 octobre 2015 ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis émis par le Conseil Départemental de l'Environnement, des Risques Sanitaires et Technologiques, lors de sa séance du 1er octobre 2015 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT que le déchargement à l'intérieur du bâtiment [partie occultée], permet de diminuer les distances des effets des phénomènes dangereux Pcond1a, Pcond2A a et Pcond2B sous réserve du respect des prescriptions formulées ci-après ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT qu'il est nécessaire d'assurer la mise en place et le suivi de la proposition de la nouvelle Mesure de Maîtrise de Risque (MMR) formulée par l'exploitant dans son complément à l'étude de dangers,
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     APRÈS communication du projet d'arrêté à l'exploitant,
+    </div>
+    <div>
+     Sur proposition de Monsieur le Secrétaire Général de la Préfecture du Haut-Rhin,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Définition" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1 – Définition
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société DSM Nutritional Products France, désignée
+     <q>
+      l'exploitant
+     </q>
+     dans
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     , dont le siège social est 1, boulevard d'Alsace - 68128 Village-Neuf, est tenue de respecter les prescriptions ci-dessous, qui s'appliquent à son site de Village Neuf situé à l'adresse du siège social.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Mesure de maîtrise des risques du bâtiment [partie occultée]" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 - Mesure de maîtrise des risques du bâtiment [partie occultée]
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le bâtiment [partie occultée] est destiné au déchargement et au stockage des fûts :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - [partie occultée]
+      </li>
+      <li>
+       - [partie occultée]
+      </li>
+      <li>
+       - [partie occultée]
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le déchargement de ces fûts ne peut être réalisé qu'à l'intérieur du bâtiment [partie occultée]. Ce bâtiment clos est équipé d'une extraction mécanique équipée d'un laveur et rejet en toiture.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Cette mesure est applicable à compter du 30 juin 2018.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Aménagement du bâtiment [partie occultée] - déchargement" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 - Aménagement du bâtiment [partie occultée] - déchargement
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le bâtiment [partie occultée] est implanté conformément au complément de l'étude de dangers du 03 juin 2015 et [partie occultée].
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le sol de l'aire de réception (zone où sont prélevés les palettes sur le camion) et de stockage (zone où sont stockés les fûts) est étanche et est prévu pour limiter la surface d'un épandage à l'aide de caniveaux à un maximum de 10 m².
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Une ventilation fonctionne en permanence et notamment lors des opérations de déchargement pour assurer le renouvellement de l'air dans le bâtiment. Le taux de renouvellement de l'air du local est de 2 fois par heure. Ce taux de renouvellement est compatible avec le risque de formation d'une atmosphère explosive suite au déversement accidentel [partie occultée].
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      2/5
+     </div>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     En cas de déversement accidentel, un système de lavage traite les gaz émis. L'air traité est canalisé et rejeté à l'extérieur à une hauteur de 9 m du sol. Le système de lavage est déclenché sur détection de gaz toxique.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le bâtiment est équipé de détecteurs de gaz toxique adaptés aux risques et en nombre suffisant afin de détecter tout déversement accidentel.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Les détecteurs sont contrôlés périodiquement et un test de fonctionnement de l'ensemble de chaîne instrumentée de sécurité a lieu une fois par an.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Le bon fonctionnement du système de lavage est contrôlé périodiquement. Un carnet d'entretien où sont consignées les opérations de contrôle et de maintenance est tenu à la disposition des Installations Classées.
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Le local de réception ne comprend aucune arrivée d'eau, exception faite pour le dispositif de lavage. Ce dernier est situé au-dessus d'une capacité de rétention spécifique, sans aucune communication possible avec le reste du local.
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Des produits absorbants sont disponibles en quantité suffisante dans le bâtiment.
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Les équipements électriques du bâtiment répondent aux normes ATEX.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Aménagement du bâtiment [partie occultée] - stockage" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4 - Aménagement du bâtiment [partie occultée] - stockage
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Description de l'installation
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le bâtiment [partie occultée] possède les caractéristiques suivantes:
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - Surface totale de 150 m²
+      </li>
+      <li>
+       - Hauteur de stockage : gerbage sur une seule hauteur;
+      </li>
+      <li>
+       - Le bâtiment [partie occultée] ne comporte pas de chaufferie.
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Nature des produits stockés dans le bâtiment [partie occultée]
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Ce magasin est uniquement réservé au stockage de matières premières dangereuses suivantes :
+    </div>
+    <div data-number="6" data-spec="alinea">
+     <ul>
+      <li>
+       - [partie occultée] : 20,8 m³
+      </li>
+      <li>
+       - [partie occultée] : 17,6 m³
+      </li>
+      <li>
+       - [partie occultée] : 12,8 m³
+      </li>
+     </ul>
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Les fûts, tonnelets, bidons, GRV contenant des substances ou préparations très toxiques doivent être stockés verticalement sur des palettes. Toute disposition doit être prise pour éviter la chute des récipients stockés à l'horizontale.
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Rétention et organisation des stockages
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Le sol des aires de stockage ou de manipulation de matières dangereuses ou susceptibles de créer une pollution de l'eau ou du sol doit être étanche, incombustible et équipée de façon à pouvoir recueillir les eaux de lavage et les matières répandues accidentellement. Pour les stockages de récipients de capacité unitaire inférieure ou égale à 250 litres, la capacité de rétention est au moins égale à 32 m³.
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Le stockage [partie occultée] est réalisé sur une rétention indépendante des stockages de [partie occultée]. Les zones de stockage sont protégées du risque de heurt par des chariots élévateurs.
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Comportement au feu
+    </div>
+    <div data-number="12" data-spec="alinea">
+     Le bâtiment [partie occultée] est construit en murs béton REI 2 heures. En particulier, le mur
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      3/5
+     </div>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-number="13" data-spec="alinea">
+     séparatif entre le bâtiment [partie occultée] est dépassant de 1 m en façade et toiture de sorte qu'un incendie ne puisse se propager de l'un à l'autre bâtiment.
+    </div>
+    <div data-number="14" data-spec="alinea">
+     Les portes du local de stockage donnant vers l'extérieur sont pare flamme de degré une heure.
+    </div>
+    <div data-number="15" data-spec="alinea">
+     En ce qui concerne la toiture, ses éléments de support sont réalisés en matériaux MO.
+    </div>
+    <div data-number="16" data-spec="alinea">
+     La toiture du bâtiment [partie occultée] comporte au moins sur 2 % de sa surface des éléments permettant, en cas d'incendie, l'évacuation des fumées (exutoires de fumée, déclenchés par une détection automatique incendie).
+    </div>
+    <div data-number="17" data-spec="alinea">
+     La commande d'ouverture manuelle des exutoires est au minimum installée en 2 points opposés de l'entrepôt de sorte que l'actionnement d'une commande empêche la manœuvre inverse par la ou les autres commandes. Ces commandes manuelles sont facilement accessibles depuis les issues du bâtiment.
+    </div>
+    <div data-number="18" data-spec="alinea">
+     La détection automatique d'incendie avec transmission de l'alarme au centrale technique et sécurité est obligatoire. Le type de détecteur est déterminé en fonction des produits stockés.
+    </div>
+    <div data-number="19" data-spec="alinea">
+     Le bâtiment est équipé d'un dispositif de détection fixe de gaz toxique avec transmission de l'alarme. Le type de détecteur est déterminé en fonction des produits stockés.
+    </div>
+    <div data-number="20" data-spec="alinea">
+     Moyens de lutte incendie
+    </div>
+    <div data-number="21" data-spec="alinea">
+     L'installation doit être dotée de moyens de secours contre l'incendie appropriés aux risques et conformes aux normes en vigueur, notamment :
+    </div>
+    <div data-number="22" data-spec="alinea">
+     <ul>
+      <li>
+       - d'extincteurs répartis à l'intérieur des locaux, sur les aires extérieures et les lieux présentant des risques spécifiques, à proximité des dégagements, bien visibles et facilement accessibles. Les agents d'extinction doivent être appropriés aux risques à combattre et compatibles avec les produits stockés et/ou avec les produits de décomposition thermique de ces produits stockés ; en particulier, l'utilisation d'eau comme agent d'extinction est proscrite ;
+      </li>
+      <li>
+       - d'une réserve de sable meuble et sec adaptés au risque, sans être inférieure à 100 litres et des pelles ;
+      </li>
+      <li>
+       - d'un moyen permettant d'alerter les services d'incendie et de secours ;
+      </li>
+      <li>
+       - de plans des locaux facilitant l'intervention des services d'incendie et de secours ;
+      </li>
+      <li>
+       - d'un neutralisant adapté au risque en cas d'épandage ;
+      </li>
+      <li>
+       - d'un système interne d'alerte d'incendie ;
+      </li>
+     </ul>
+    </div>
+    <div data-number="23" data-spec="alinea">
+     Toutes mesures sont prises pour recueillir l'ensemble des eaux et écoulements susceptibles d'être polluées lors d'un sinistre, y compris les eaux d'extinction d'un incendie et le refroidissement, afin que celles-ci soient récupérées ou traitées afin de prévenir toute pollution des sols, des égouts, des cours d'eau ou du milieu naturel.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Procédure de déchargement des fûts" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5 – Procédure de déchargement des fûts
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une procédure de déchargement des fûts est établie. Le déchargement n'est possible que si les conditions suivantes sont réunies :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - les portes du local sont fermées. Une fermeture automatisée est mise en place.
+      </li>
+      <li>
+       - la ventilation est en marche.
+      </li>
+     </ul>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      4/5
+     </div>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      5/5
+     </div>
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="Publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 6 – Publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En vue de l'information des tiers, les mesures de publicité prévues à l'
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="R512-39" data-type="article">
+      article R.512-39
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , sont mises en œuvre.
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="Frais" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 7 – Frais
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les frais inhérents à l'application des prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     seront à la charge de l'exploitant.
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-title="Sanctions" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 8 – Sanctions
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En cas de non-respect des prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , il pourra être fait application des dispositions du chapitre IV du titre Ier du livre V du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-title="Exécution" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 9 – Exécution
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Un avis faisant connaître qu'une copie de l'arrêté portant prescriptions complémentaires est déposée à la mairie de Village-Neuf et mise à la disposition de toute personne intéressée, sera inséré par les soins du Préfet et aux frais de l'exploitant dans deux journaux locaux.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     énumérant notamment les prescriptions auxquelles l'installation est soumise sera affiché à la mairie de Village-Neuf pendant une durée minimum d'un mois et affiché en permanence de façon visible dans l'installation par les soins de l'exploitant.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le Secrétaire Général de la Préfecture du Haut-Rhin, le Sous-Préfet de Mulhouse, le Maire de Village-Neuf et le Directeur Régional de l'Environnement, de l'Aménagement et du Logement chargé de l'inspection des Installations, sont chargés, chacun en ce qui le concerne, de veiller à l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie sera notifiée à la Société.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Fait à Colmar, le 15 mars 2016
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le Préfet,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Pour le Préfet et par délégation,
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Le Secrétaire Général
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Délais et voie de recours
+    </div>
+    <div data-number="9" data-spec="alinea">
+     (
+     <a data-spec="section_reference" data-start_num="R514-3-1" data-type="article">
+      article R. 514-3-1
+     </a>
+     du Titre 1er du Livre V du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      Code de l'Environnement
+     </a>
+     ).
+    </div>
+    <div data-number="10" data-spec="alinea">
+     La présente décision peut être déférée au Tribunal Administratif Strasbourg :
+    </div>
+    <div data-number="11" data-spec="alinea">
+     <ul>
+      <li>
+       - par les demandeurs ou exploitants, dans un délai de deux mois à compter de la date à laquelle la décision leur a été notifiée ;
+      </li>
+      <li>
+       - par les tiers, personnes physiques ou morales, les communes intéressées ou leurs groupements, en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts mentionnés aux
+       <a data-group_id="1" data-spec="section_reference" data-start_num="L211-1" data-type="article">
+        articles L.211-1
+       </a>
+       et
+       <a data-group_id="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+        L. 511-1
+       </a>
+       dans un délai d'un an à compter de la publication ou de l'affichage de ces décisions. Toutefois, si la mise en service de l'installation n'est pas intervenue six mois après la publication ou l'affichage de ces décisions, le délai de recours continue à courir jusqu'à l'expiration d'une période de six mois après cette mise en service.
+      </li>
+     </ul>
+    </div>
+    <div data-number="12" data-spec="alinea">
+     Signé
+    </div>
+    <div data-number="13" data-spec="alinea">
+     Christophe MARX
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

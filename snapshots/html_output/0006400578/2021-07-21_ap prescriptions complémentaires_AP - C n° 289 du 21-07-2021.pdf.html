@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2021-07-21_ap prescriptions complémentaires_AP - C n° 289 du 21-07-2021.pdf.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DES BOUCHES-
+DU-RHÔNE
+Liberté
+Égalité
+Fraternité
+Direction de la Citoyenneté,
+de la Légalité et de
+l'Environnement
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté n° 2021-189 PC portant prescriptions complémentaires relatives à la modification de l'autorisation environnementale dont bénéficie la société SUEZ RV MEDITERRANNE pour exploiter un écopôle sur la commune des PENNES MIRABEAU
+    </h1>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , notamment ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L181-14" data-type="article">
+     articles L.181-14
+    </a>
+    et
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L541-1" data-type="article">
+     L.541-1
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code des relations entre le public et l'administration" data-type="code">
+     code des relations entre le public et l'administration
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2018-06-06" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2018-06-06">
+      6 juin 2018
+     </time>
+    </a>
+    relatif aux prescriptions générales applicables aux installations de transit, regroupement, tri ou préparation en vue de la réutilisation de déchets relevant du régime de l'enregistrement au titre de la rubrique n° 2711 (déchets d'équipements électriques et électroniques), 2713 (métaux ou déchets de métaux non dangereux, alliage de métaux ou déchets d'alliage de métaux non dangereux), 2714 (déchets non dangereux de papiers, cartons, plastiques, caoutchouc, textiles, bois) ou 2716 (déchets non dangereux non inertes) de la nomenclature des installations classées pour la protection de l'environnement ;
+   </div>
+   <div data-spec="visa">
+    Vu le Schéma Regional d'Aménagement, de Développement Durable et d'Egalité des Territoires (SRADDET) de la région Provence-Alpes-Côte d'Azur approuvé par
+    <a data-date="2019-10-15" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2019-10-15">
+      15 octobre 2019
+     </time>
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu les arrêtés préfectoraux
+    <a data-date="2019-10-22" data-num="2017-67A" data-spec="document_reference" data-type="arrete-prefectoral">
+     n°2017-67A du
+     <time data-spec="date" datetime="2019-10-22">
+      22 octobre 2019
+     </time>
+    </a>
+    et
+    <a data-num="444-2013" data-spec="document_reference" data-type="arrete-prefectoral">
+     n°444-2013
+    </a>
+    A du 22 décembre 2014 portant autorisation d'exploiter un écopôle sur la commune des Pennes-Mirabeau ;
+   </div>
+   <div data-spec="visa">
+    Vu la demande du 29 juin 2021 de la société SUEZ RV MEDITERRANNEE en vue de modifier les conditions d'exploitation du centre de tri situé sur la commune des Pennes-Mirabeau ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport du 13 juillet 2021 de la direction régionale de l'environnement, de l'aménagement et du logement, chargée de l'inspection des installations classées ;
+   </div>
+   <div data-spec="visa">
+    Vu le projet d'arrêté porté à la connaissance du demandeur le 16 juillet 2021 ;
+   </div>
+   <div data-spec="visa">
+    Vu les observations du demandeur produites par courriel le 16 juillet 2021 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT l'interruption pour une période de 3 mois de la chaîne de tri du centre de tri de Portes les Valence ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT la nécessité de trouver des exutoires pour les 500 tonnes mensuelles de déchets issus de la collecte sélective des syndicats SYTRAD, SYPP et SICTOBA ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT l'insuffisance des capacités de tri des déchets ménagers issus de la collecte sélective autour du site indiqué par l'exploitant dans sa demande ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT l'autorisation du centre de tri SUEZ RV Méditerranée situé aux Pennes-Mirabeau de recevoir annuellement sur son centre de tri 94000 tonnes ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que comme indiqué par l'exploitant dans sa demande, les tonnages de déchets en provenance de la Drome ne sont pas de nature à faire dépasser cette autorisation annuelle, il n'y a pas d'impact complémentaire à prévoir vis-à-vis des impacts prévus dans le cadre du dossier ayant mené à l'autorisation préfectorale ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'outre l'acheminement par camion nécessaire, la démarche permettra la valorisation matière des déchets de la Drome issus de la collecte sélective en accord avec la hiérarchie des modes de traitement définie par le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT qu'il convient toutefois de prévoir des dispositions complémentaires portant notamment sur les conditions d'apports des déchets et le devenir des refus de tri ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que ces éléments sont nécessaires pour la protection des intérêts mentionnés à l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="L181-3" data-type="article">
+     article L.181-3
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ,
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les mesures imposées à l'exploitant sont de nature à prévenir les nuisances et les risques présentées par les installations ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Place Félix Baret - CS 80001 - 13282 Marseille Cedex 06 -
+Téléphone : 04.84.35.40.00
+www.bouches-du-rhone.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="motifs">
+    CONSIDÉRANT que la demande ainsi que les éléments rappelés ci-dessus ont pour objectif de répondre à un événement exceptionnel limité à une durée de 4 mois et pour une masse de déchets à trier maximale de 800 tonnes. Sur proposition de Madame la secrétaire générale de la préfecture des Bouches-du-Rhône,
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Nature des modifications" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1 – Nature des modifications
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Par dérogation à l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="1.6.3" data-type="article">
+      article 1.6.3
+     </a>
+     de l'
+     <a data-date="2014-12-12" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2014-12-12">
+       12 décembre 2014
+      </time>
+     </a>
+     , est autorisé à titre exceptionnel l'admission et le tri dans l'installation de tri des déchets ménagers des Pennes-Mirabeau, d'une masse maximale de 800 tonnes de déchets non dangereux issus de la collective sélective des 3 syndicats de la Drome (SYTRAD, SYPP, SICTOBA) habituellement traités sur le centre de tri de Portes les Valence.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Prescriptions particulières liées aux modifications" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 – Prescriptions particulières liées aux modifications
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant tient à jour un suivi comptable quotidien des déchets en provenance de la Drome.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Un bilan établi à l'issue de la période visée à l'
+     <a data-spec="section_reference" data-start_num="3" data-type="article">
+      article 3
+     </a>
+     fait apparaître les quantités reçues ainsi que les masses de matières valorisées et de refus issus des opérations de tri de ces déchets.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Ce bilan est adressé dans les 15 jours qui suivent la fin de cette opération dérogatoire.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les quantités maximales annuelles autorisées sur l'installation par les arrêtés préfectoraux susvisés sont inchangées.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Les conditions d'entreposage des déchets et matières valorisables sont conformes aux dispositions prévues par les arrêtés préfectoraux susvisés. L'entreposage sur site des refus de tri et des matières valorisables ne pourra cependant excéder 15 jours à l'issue de la période visée à l'
+     <a data-spec="section_reference" data-start_num="3" data-type="article">
+      article 3
+     </a>
+     .
+    </div>
+    <div data-number="6" data-spec="alinea">
+     La provenance des déchets correspond à la localisation de leur lieu de production initiale. Elle n'est pas modifiée par les étapes de regroupement, transit et tri. Les refus de tri sont donc considérés comme des déchets de la Drome et leur élimination devra être assurée dans des installations dûment autorisées.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Durée du présent arrêté" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 – Durée du présent arrêté
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En application de l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="L181-21" data-type="article">
+      article L. 181-21
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     et du fait des circonstances exceptionnelles ayant conduit aux modifications prévues à l'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="1" data-type="article">
+      article 1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="4" data-type="self">
+      présent arrêté
+     </a>
+     , l'autorisation de modification, ainsi que les prescriptions, prévues par
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     , sont accordées pour une durée limitée à 4 mois à compter de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 – Publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément aux dispositions de l'
+     <a data-parent_reference="5" data-spec="section_reference" data-start_num="R181-45" data-type="article">
+      article R.181-45
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="5" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , en vue de l'information des tiers,
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     est publié sur le site internet des services de l'État dans le département où il a été délivré pendant une durée minimale de quatre mois.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est notifié à la société SUEZ RV MEDITERRANNEE.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 – Délais et voies de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément aux
+     <a data-group_id="2" data-parent_reference="6" data-spec="section_reference" data-start_num="L181-17" data-type="article">
+      articles L.181-17
+     </a>
+     et
+     <a data-group_id="2" data-parent_reference="6" data-spec="section_reference" data-start_num="R181-50" data-type="article">
+      R.181-50
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="6" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     ,
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     est soumis à un contentieux de pleine juridiction. Il ne peut être déféré qu'au Tribunal Administratif de Marseille :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       1° Par les pétitionnaires ou exploitants, dans un délai de deux mois à compter du jour où le présent acte leur a été notifié.
+      </li>
+      <li>
+       2° Par les tiers, intéressés en raison des inconvénients ou des dangers pour les intérêts mentionnés à l'
+       <a data-parent_reference="7" data-spec="section_reference" data-start_num="L181-3" data-type="article">
+        article L.181-3
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="7" data-title="Code de l'environnement" data-type="code">
+        code de l'environnement
+       </a>
+       , dans un délai de quatre mois à compter de la publication de la décision sur le site internet des services de l'État dans le département où il a été délivré.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     peut également faire l'objet d'un recours gracieux ou hiérarchique dans le délai de deux mois, prolongeant de deux mois les délais mentionnés au 1° et 2°.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le tribunal administratif peut être saisi d'un recours déposé via l'application Télérecours citoyens accessible par le site internet www.telerecours.fr.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Place Félix Baret - CS 80001 – 13282 Marseille Cedex 06 -
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Téléphone : 04.84.35.40.00
+    </div>
+    <div data-number="7" data-spec="alinea">
+     www.bouches-du-rhone.gouv.fr
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="6" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - La secrétaire générale de la préfecture des Bouches-du-Rhône,
+      </li>
+      <li>
+       - Le maire des Pennes Mirabeau,
+      </li>
+      <li>
+       - La directrice régionale de l'environnement, de l'aménagement et du logement, sont chargés en chacun en ce qui le concerne de l'exécution du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+      </li>
+     </ul>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Marseille, le 21 JUIL. 2021
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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ooooASvO9Mh+yfEu5TG3e8mPcMu4V6JXA60TbfECylReZGTPA5yMfyrrwW8490xo7e5YJazMegQn9K8f8IyIvjG2kGUDysOev3W/xFesavII9FvpD0EL/ng15L4dJj8SWL4G55uQeg7V2Zar0qvp/mVE9qzRTQajnuYbaIyTypEg/idsCvI1IJcikaREUszqqjqScAVyOq+OLa1Jjs4/OkzgMxwDWDHbeJPE67pndbcnBEh2KPw7/lXVTwc5R55vlXmUo3Ou1LxdpmnghZDcOP4Yef16Vz158RJUJNrYAoO8jHn8ula2meCbG3RXvVFzMPX7q/QV0EVlb26lYbeOIHrsUAfjVXwlN2s5P7gdjlND8dpqeopaXNsLbzBhG3dW9K7TIrnNd8KW2sJG8eLa4iYFZUGDjPT+f410MaFI1XOcDqayxDpO0qSt5AySiiisCQooooAKKKKACiiigApKWigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiijIoAbzXA+N1e31/TLsHGAAD6bXB/ka77IriviIFTTreb5SyybcegIzn9P1rpwLtiI363/IqO5teJrny/C95JHtbdGFGT1BIGf1ry61caXqmk3ckgAZg7cZIAYjkdTxzxWxq3jKK78MR6bBGXcRRrI7dNw5wP++a5f8As/URb2E80bLDOCI/M7jd83HbrXtYHDSp03GppdvftYtRsejar4+ijfydLhM7ZwZGBx+A71kw6F4g8RTC5vn2IejSg9PZe36V1mh+FbDR41cIJrggEyOM4/3R2rf28YGPyry3iaVDShHXuyL2MLTPClhpzCRkNxN13yc/kK3NgAwBjjAHapKK451J1HeTuJsSjFLRWdhCUUtJ2osAtFFFMAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAopKWlcAzSZpO1Vru/tbKPzLidI09WNNJvSwalrIoyPWuWuvGunwNst0knYcD+BT/X9Kwrzx3qTb1htRBgYwRuOfxxXTSwdapsvvGotno24Vn6hq9jpse65uUQkHaueTXmUniPX76by47uUyE4VI/lJOPRatWPgTWdQVpr+7EDHPzODI35k8d+9dP8AZ6pq9eaj5dSlHzNLU/Hc0kjW9hCYQcgSSDLn6L0H41zOp6R4g1DSn1G8D+VGQdtwxDNkgAAH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"/>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Juliette TRIGNAT
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Place Félix Baret - CS 80001 - 13282 Marseille Cedex 06 -
+Téléphone : 04.84.35.40.00
+www.bouches-du-rhone.gouv.fr
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

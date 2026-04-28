@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2021-07-20_rapport_20210719-RAP-DAEN0500ModParcellesEpandagesAndrosPorteslesValence.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DE LA DRÔME
+Liberté
+Égalité
+Fraternité
+
+Direction régionale de l'environnement, de l'aménagement et
+du logement d'Auvergne Rhône-Alpes
+Unité interdépartementale Drôme Ardèche
+    </div>
+   </div>
+   <div>
+    Rapport de l'inspecteur des installations classées
+   </div>
+   <div>
+    Société ANDROS à Portes les Valence – augmentation de la superficie d'épandage
+   </div>
+   <div>
+    Rédacteur – Affaire Suivie par
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <td>
+       Elodie MOUROUX
+       <br/>
+       Valence le
+       <br/>
+       L'inspecteur de l'environnement
+      </td>
+      <td>
+       <img alt="Signature numérique de Elodie MOUROUX elodie.mouroux date : 2021.07.19 15:12:21 +02'00" src="https://i.imgur.com/placeholder.png"/>
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Tél. : 04 75 82 46 32
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Subdivision 5 – Risques et agroalimentaire
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Courriel : elodie.mouroux@developpement-durable.gouv.fr
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div>
+    Vérificateur/ Approbateur
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <td>
+       Gilles GEFFRAYE
+       <br/>
+       Valence le
+       <br/>
+       Le chef de l'unité
+       <br/>
+       inter-départementale Drôme-Ardèche
+       <br/>
+       Pour le directeur
+      </td>
+      <td>
+       <img alt="Signature numérique de Gilles GEFFRAYE gilles.geffraye date : 2021.07.20 17:38:36 +02'00" src="https://i.imgur.com/placeholder.png"/>
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Plateau de Lautagne – 3 avenue des Langories - 26000 VALENCE
+Tél. : 04 75 82 46 46 – ud-da.icpe.dreal-ara@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.developpement-durable.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="identification">
+    <div>
+     REFERENCE DU DOSSIER
+    </div>
+   </div>
+   <div>
+    Vos références
+   </div>
+   <div>
+    /
+   </div>
+   <div>
+    Nos références
+   </div>
+   <div>
+    20210719-RAP-DAEN0500
+   </div>
+   <div>
+    Adresse de l'établissement
+   </div>
+   <div>
+    ZI de la Motte 26800 Portes les Valence
+   </div>
+   <div>
+    Activité Principale
+   </div>
+   <div>
+    Fabrication de purée de fruits et conditionnement de jus de fruits
+   </div>
+   <div>
+    Code S3IC
+   </div>
+   <div>
+    103-115
+   </div>
+   <div>
+    Priorité
+   </div>
+   <div>
+    P2
+   </div>
+   <div>
+    Pièce jointe
+   </div>
+   <div>
+    Copie du courrier de demande de compléments
+   </div>
+   <div>
+    Transmission des documents
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="2,16,9" data-spec="segmentation:text_span" data-start="2,16,0">
+      - original
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div>
+    DDPP 26 – préfecture de la Drôme
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="2,18,7" data-spec="segmentation:text_span" data-start="2,18,0">
+      - copies
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div>
+    Inspecteur référent sub 5
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Plateau de Lautagne – 3 avenue des Langories - 26000 VALENCE
+Tél. : 04 75 82 46 46 – ud-da.icpe.dreal-ara@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.developpement-durable.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Plateau de Lautagne – 3 avenue des Langories - 26000 VALENCE
+Tél. : 04 75 82 46 46 – ud-da.icpe.dreal-ara@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.developpement-durable.gouv.fr
+3/4
+    </div>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Présentation de la société" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     1. Présentation de la société
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société ANDROS est spécialisée dans le conditionnement de jus de fruit frais, la fabrication de compote et de purée de fruit.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Installations classées et régime
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'arrêté préfectoral du 19/5/2009 modifié par l'
+     <a data-date="2016-08-18" data-num="2016235-0005" data-spec="document_reference" data-type="arrete">
+      arrêté n°2016235-0005 du
+      <time data-spec="date" datetime="2016-08-18">
+       18 août 2016
+      </time>
+     </a>
+     , par l'
+     <a data-date="2017-04-10" data-num="2017101-0004" data-spec="document_reference" data-type="arrete">
+      arrêté n° 2017101-0004 du
+      <time data-spec="date" datetime="2017-04-10">
+       10 avril 2017
+      </time>
+     </a>
+     et par l'
+     <a data-date="2018-06-19" data-num="2018171-0014" data-spec="document_reference" data-type="arrete">
+      arrêté n°2018171-0014 du
+      <time data-spec="date" datetime="2018-06-19">
+       19 juin 2018
+      </time>
+     </a>
+     autorise l'activité sous les rubriques suivantes :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Nature des activités
+       </th>
+       <th>
+        Volume des activités
+       </th>
+       <th>
+        Numéro de la rubrique
+       </th>
+       <th>
+        Régime
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Traitement et transformation de matières premières en vue de la fabrication de produits alimentaires uniquement de matières premières végétales, avec une capacité de production supérieure à 300 t de produits finis par jour
+       </td>
+       <td>
+        &gt; 300 t/jour
+       </td>
+       <td>
+        3642-2
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Préparation et conditionnement de jus de fruits et autres boissons
+       </td>
+       <td>
+        706 500 l/jour
+       </td>
+       <td>
+        2253.1
+       </td>
+       <td>
+        A
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Préparation ou conservation de produits d'origine végétale
+       </td>
+       <td>
+        900 t/jour
+       </td>
+       <td>
+        2220.2.a
+       </td>
+       <td>
+        E
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Entrepôts couverts
+       </td>
+       <td>
+        34 560 m³
+       </td>
+       <td>
+        1510.3
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Entrepôts frigorifiques
+       </td>
+       <td>
+        20 000 m³
+       </td>
+       <td>
+        1511.3
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Installation de combustion
+       </td>
+       <td>
+        17 MW
+       </td>
+       <td>
+        2910.A-2
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Installation de remplissage de gaz inflammables liquéfiés
+       </td>
+       <td>
+       </td>
+       <td>
+        1414.3
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Emploi dans des équipements clos en exploitation de gaz à effet de serre fluorés
+       </td>
+       <td>
+        1 316 kg
+       </td>
+       <td>
+        4802-2.a
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Ammoniac
+       </td>
+       <td>
+        900 kg
+       </td>
+       <td>
+        4735-1.b
+       </td>
+       <td>
+        DC
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Atelier de charge d'accumulateurs
+       </td>
+       <td>
+        125 kW
+       </td>
+       <td>
+        2925
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Transformation de polymères, par des procédés exigeant des conditions particulières de température ou de pression
+       </td>
+       <td>
+        &lt; 10 t/jour
+       </td>
+       <td>
+        2661-1.c
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Liquides comburants catégorie 1, 2 ou 3
+       </td>
+       <td>
+        14 t
+       </td>
+       <td>
+        4441
+       </td>
+       <td>
+        D
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Contexte" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2. Contexte
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant a transmis le 02/02/2021 une demande de modifications des parcelles à épandre afin d'augmenter la surface épandable (ajout de parcelles sur les communes de LIVRON et LA VOULTE-SUR-RHONE).
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Des compléments ont été sollicités par courrier le 25/05/2021.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Par courrier du 15/07/2021 et courriel du 19/07/2021, l'exploitant a transmis des compléments.
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      Plateau de Lautagne – 3 avenue des Langories - 26000 VALENCE
+Tél. : 04 75 82 46 46 – ud-da.icpe.dreal-ara@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.developpement-durable.gouv.fr
+4/4
+     </div>
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Analyse de la demande" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     3. Analyse de la demande
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Changement de zones d'épandage
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les éléments requis pour le plan d'épandage sont prévus par les dispositions de l'
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="38" data-type="article">
+      article 38
+     </a>
+     de l'
+     <a data-date="1998-02-02" data-spec="document_reference" data-tag_id="1" data-type="arrete">
+      arrêté du
+      <time data-spec="date" datetime="1998-02-02">
+       2 février 1998
+      </time>
+     </a>
+     .
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Dans son dossier de demande de modification des zones d'épandages du 02/02/2021, l'exploitant indique :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - les parcelles à rajouter ou à modifier avec leur référence cadastrale,
+      </li>
+      <li>
+       - un plan des parcelles avec les zones d'exclusions,
+      </li>
+      <li>
+       - la description des matières à épandre,
+      </li>
+      <li>
+       - les contraintes liées au milieu naturel ou aux activités humaines,
+      </li>
+      <li>
+       - la description des caractéristiques des sols et des cultures envisagées.
+      </li>
+     </ul>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Actuellement, la surface épandable autorisée est de 90,8 ha. Le périmètre d'épandage sollicité augmente de 8,76 ha la surface épandable pour atteindre une surface épandable totale de 99,5 ha.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Les nouvelles parcelles sont situées sur les communes de LIVRON-SUR-RHONE (îlots M58, M59, M60, M61, M62) et LA VOULTE-SUR-RHONE (îlot M63) à l'Est du Rhône (plaines alluvionnaires).
+    </div>
+    <div data-number="7" data-spec="alinea">
+     L'exploitant a complété son dossier en précisant :
+    </div>
+    <div data-number="8" data-spec="alinea">
+     <ul>
+      <li>
+       - que les parcelles M58/M59/M60 et M63 sont situées au sein d'un ensemble homogène. Des analyses avaient été transmises à l'occasion du précédent dossier sur la parcelle M56 située dans cette même zone.
+      </li>
+      <li>
+       - la justification des doses d'apport et des fréquences d'épandage sur une même parcelle ;
+      </li>
+      <li>
+       - la description des modalités techniques de réalisation de l'épandage ;
+      </li>
+      <li>
+       - la description des modalités de surveillance des opérations d'épandage et de contrôle de la qualité des effluents ou déchets épandus ;
+      </li>
+      <li>
+       - la localisation, le volume et les caractéristiques des ouvrages d'entreposage.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Propositions et conclusion" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     4. Propositions et conclusion
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Considérant que le dossier de modification des surfaces à épandre est jugé complet et répond aux dispositions de l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="38" data-type="article">
+      article 38
+     </a>
+     de l'
+     <a data-date="1998-02-02" data-spec="document_reference" data-tag_id="2" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="1998-02-02">
+       02/02/1998
+      </time>
+     </a>
+     ,
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'inspection propose à madame la préfète de consulter les conseils municipaux de LIVRON-SUR-RHONE et LA VOULTE-SUR-RHONE sur le projet d'
+     <a data-num="ci-joint" data-spec="document_reference" data-type="arrete">
+      arrêté ci-joint
+     </a>
+     modifiant les zones d'épandages de la société ANDROS.
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

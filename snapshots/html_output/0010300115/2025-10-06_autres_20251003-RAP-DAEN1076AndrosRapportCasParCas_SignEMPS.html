@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2025-10-06_autres_20251003-RAP-DAEN1076AndrosRapportCasParCas_SignEMPS.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFÈTE
+DE LA DRÔME
+Liberté
+Égalité
+Fraternité
+
+Direction régionale de l'environnement, de l'aménagement et du logement
+Auvergne Rhône-Alpes
+Unité interdépartementale Drôme-Ardèche
+    </div>
+   </div>
+   <div>
+    Rapport de l'inspecteur des installations classées
+   </div>
+   <div>
+    ANDROS à PORTES-LES-VALENCE - demande de cas par cas pour la régularisation de la consommation d'eau potable et la mise en conformité d'installations techniques du site
+   </div>
+   <div>
+    Rédacteur - Affaire Suivie par
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <td>
+       Elodie MOUROUX
+       <br/>
+       Valence le
+       <br/>
+       L'inspecteur de l'environnement
+      </td>
+      <td>
+       Signature
+       <br/>
+       numérique de
+       <br/>
+       Elodie MOUROUX
+       <br/>
+       elodie.mouroux
+       <br/>
+       Date : 2025.10.06
+       <br/>
+       11:22:32 +02'00'
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Tél. : 04 75 82 46 32
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Subdivision 5 – Risques et agroalimentaire
+      </td>
+     </tr>
+     <tr>
+      <td colspan="2">
+       Courriel : elodie.mouroux@developpement-durable.gouv.fr
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div>
+    Vérificateur / Approbateur
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <td>
+       Pauline SÉGERAL
+       <br/>
+       Valence le
+      </td>
+      <td>
+       Signature
+       <br/>
+       numérique de
+       <br/>
+       Pauline SEGERAL
+       <br/>
+       pauline.segeral
+       <br/>
+       Date : 2025.10.06
+       <br/>
+       14:07:17 +02'00'
+      </td>
+     </tr>
+     <tr>
+      <td>
+       L'adjointe à la cheffe de l'unité interdépartementale
+      </td>
+      <td>
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Plateau de Lautagne – 3 avenue des Langories - 26000 VALENCE
+Tél. : 04 75 82 46 46 – ud-da.icpe.dreal-ara@developpement-durable.gouv.fr
+www.auvergne-rhone-alpes.developpement-durable.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     2/7
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     RÉFÉRENCE DU DOSSIER
+    </div>
+   </div>
+   <div>
+    Vos références
+   </div>
+   <div>
+    Dossier transmis le 19/09/2025 complété le 03/10/2025
+   </div>
+   <div>
+    Nos références
+   </div>
+   <div>
+    20251003-RAP-DAEN1076
+   </div>
+   <div>
+    Adresse de l'établissement
+   </div>
+   <div>
+    ZI de la Motte 26800 Portes les Valence
+   </div>
+   <div>
+    Activité Principale
+   </div>
+   <div>
+    Fabrication de purée de fruits et conditionnement de jus de fruits
+   </div>
+   <div>
+    Code GUN
+   </div>
+   <div>
+    0010300115
+   </div>
+   <div>
+    Priorité
+   </div>
+   <div>
+    AE
+   </div>
+   <div>
+    Pièce jointe
+   </div>
+   <div>
+    Projet de décision cas par cas
+   </div>
+   <div>
+    Transmission des documents
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="2,16,9" data-spec="segmentation:text_span" data-start="2,16,0">
+      - original
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div>
+    DDPP 26 – préfecture de la Drôme
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="2,18,7" data-spec="segmentation:text_span" data-start="2,18,0">
+      - copies
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div>
+    Inspecteur référent sub 5
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     3/7
+    </div>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="PRÉSENTATION" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     1 – PRÉSENTATION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société ANDROS est autorisée par
+     <a data-date="2009-10-14" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2009-10-14">
+       14/10/2009
+      </time>
+      modifié
+     </a>
+     . L'établissement est actuellement classé comme suit :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        N° de rubrique et régime
+       </th>
+       <th>
+        Intitulé de la rubrique
+       </th>
+       <th>
+        Volume d'activités
+       </th>
+      </tr>
+      <tr>
+       <td>
+        3642-2-a) A
+       </td>
+       <td>
+        Traitement et transformation, à l'exclusion du seul conditionnement, des matières premières ci-après, qu'elles aient été ou non préalablement transformées, en vue de la fabrication de produits alimentaires ou d'aliments pour animaux issus Uniquement de matières premières végétales, avec une capacité de production supérieure à 300 tonnes de produits finis par jour
+       </td>
+       <td>
+        Capacité de production = 1 500 t/j
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1510-2 E
+       </td>
+       <td>
+        Entrepôts couverts (installations, pourvues d'une toiture, dédiées au stockage de matières ou produits combustibles en quantité supérieure à 500 tonnes), à l'exception des entrepôts utilisés pour le stockage de matières, produits ou substances classés, par ailleurs, dans une unique rubrique de la présente nomenclature, des bâtiments destinés exclusivement au remisage des véhicules à moteur et de leur remorque, des établissements recevant du public et des entrepôts exclusivement frigorifiques.
+       </td>
+       <td>
+        Volume = 272 620 m³
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2661-1-b E
+       </td>
+       <td>
+        Polymères (matières plastiques, caoutchoucs, élastomères, résines et adhésifs synthétiques) (transformation de)
+        <br/>
+        1. Par des procédés exigeant des conditions particulières de température ou de pression (extrusion, injection, moulage, segmentation à chaud, vulcanisation, etc.), la quantité de matière susceptible d'être traitée étant b) Supérieure ou égale à 10 t/j mais inférieure à 70 t/
+       </td>
+       <td>
+        Quantité de matière susceptible d'être traitée = 23 t/j
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2663-2-a) E
+       </td>
+       <td>
+        Pneumatiques et produits dont 50 % au moins de la masse totale unitaire est composée de polymères (matières plastiques, caoutchoucs, élastomères, résines et adhésifs synthétiques) (stockage de), à l'exception des installations classées au titre de la rubrique 1510. Dans les autres cas et pour les pneumatiques, le volume susceptible d'être stocké étant supérieur ou égal à 10 000 m³
+       </td>
+       <td>
+        Stockages extérieurs de combos plastiques
+        <br/>
+        Volume susceptible d'être stocké = 15 000 m³
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        N° de rubrique et régime
+       </th>
+       <th>
+        Intitulé de la rubrique
+       </th>
+       <th>
+        Volume d'activités
+       </th>
+      </tr>
+      <tr>
+       <td>
+        1185-2-a) DC
+       </td>
+       <td>
+        Gaz à effet de serre fluorés visés à l'
+        <a data-parent_reference="1" data-spec="section_reference" data-start_num="1" data-type="annexe">
+         annexe I
+        </a>
+        du
+        <a data-date="2014" data-num="517" data-spec="document_reference" data-tag_id="1" data-type="eu-regulation">
+         règlement (UE) n°517/2014
+        </a>
+        relatif aux gaz à effet de serre fluorés et abrogeant le
+        <a data-date="2006" data-num="842" data-spec="document_reference" data-type="eu-regulation">
+         règlement (CE) n° 842/2006
+        </a>
+        ou substances qui appauvrisent la couche d'ozone visées par le
+        <a data-date="2009" data-num="1005" data-spec="document_reference" data-type="eu-regulation">
+         règlement (CE) n° 1005/2009
+        </a>
+        . Emploi dans des équipements clos en exploitation. Équipements frigorifiques ou climatiques (y compris pompe à chaleur) de capacité unitaire supérieure à 2 kg, la quantité cumulée de fluide susceptible d'être présente dans l'installation étant supérieure ou égale à 300 kg
+       </td>
+       <td>
+        Quantité cumulée de fluide susceptible d'être présente = 1 489 kg
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1414-3 DC
+       </td>
+       <td>
+        Gaz inflammables liquéfiés (installations de remplissage ou de distribution de) Installations de remplissage de réservoirs alimentant des moteurs ou autres appareils d'utilisation comportant des organes de sécurité (jauges et soupapes)
+       </td>
+       <td>
+        Postes de chargements de chariot non ouvert au public
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1532-2-b) D
+       </td>
+       <td>
+        Bois ou matériaux combustibles analogues, y compris les produits finis conditionnés et les produits ou déchets répondant à la définition de la biomasse et mentionnés à la rubrique 2910-A, ne relevant pas de la rubrique 1531 (stockage de), à l'exception des établissements recevant du public : Autres installations que celles définies au 1, à l'exception des installations classées au titre de la rubrique 1510, le volume susceptible d'être stocké étant Supérieur à 1 000 m³ mais inférieur ou égal à 20 000 m³
+       </td>
+       <td>
+        Dépôts de palettes et pallox bois
+        <br/>
+        Volume susceptible d'être stocké = 4 130 m³
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2910-A-2 DC
+       </td>
+       <td>
+        Combustion à l'exclusion des activités visées par les rubriques 2770, 2771, 2971 ou 2931 et des installations classées au titre de la rubrique 3110 ou au titre d'autres rubriques de la nomenclature pour lesquelles la combustion participe à la fusion, la cuisson ou au traitement, en mélange avec les gaz de combustion, des matières entrantes
+        <br/>
+        A. Lorsque sont consommés exclusivement, seuls ou en mélange, du gaz naturel, des gaz de pétrole liquéfiés, du biométhane, du fioul domestique, du charbon, des fiouls lourds, de la biomasse telle que définie au a) ou au b) i) ou au b) iv) de la définition de la biomasse, des produits connexes de scierie et des chutes du travail mécanique de bois brut relevant du b) v) de la définition de la biomasse, de la biomasse issue de déchets au sens de l'
+        <a data-parent_reference="2" data-spec="section_reference" data-start_num="L541-4-3" data-type="article">
+         article L. 541-4-3
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+         code de l'environnement
+        </a>
+        , ou du biogaz provenant d'installations classées sous la rubrique 2781-1, si la puissance thermique nominale est supérieure ou égale à 1 MW, mais inférieure à 20 MW
+       </td>
+       <td>
+        1 chaudière de 17 MW + 1 chaudière de secours de 9 MW
+        <br/>
+        Puissance thermique nominale = 17 MW
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      4/7
+     </div>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        N° de rubrique et régime
+       </th>
+       <th>
+        Intitulé de la rubrique
+       </th>
+       <th>
+        Volume d'activités
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2925-1 D
+       </td>
+       <td>
+        Accumulateurs électriques (ateliers de charge d'):
+        <br/>
+        1. Lorsque la charge produit de l'hydrogène, la puissance maximale de courant continu utilisable pour cette opération étant supérieure à 50 kW
+       </td>
+       <td>
+        Puissance maximale de courant continu = 226 kW
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4441-2 D
+       </td>
+       <td>
+        Liquides comburants catégorie 1, 2 ou 3. La quantité totale susceptible d'être présente dans l'installation étant supérieure ou égale à 2 t mais inférieure à 50 t
+       </td>
+       <td>
+        Quantité totale susceptible d'être présente = 14 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4735-1-b DC
+       </td>
+       <td>
+        Ammoniac.
+        <br/>
+        La quantité susceptible d'être présente dans l'installation étant, pour les récipients de capacité unitaire supérieure à 50 kg, supérieure ou égale à 150 kg mais inférieure à 1,5 t
+       </td>
+       <td>
+        Quantité susceptible d'être présente = 740 kg
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4130-2-b) DC
+       </td>
+       <td>
+        Toxicité aiguë catégorie 3 pour les voies d'exposition par inhalation
+        <br/>
+        2. Substances et mélanges liquides.
+        <br/>
+        La quantité totale susceptible d'être présente dans l'installation étant supérieure ou égale à 1 t, mais inférieure à 10 t
+       </td>
+       <td>
+        Acide nitrique à 58 %
+        <br/>
+        Quantité totale susceptible d'être présente = 7 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2160 NC
+       </td>
+       <td>
+        Silos et installations de stockage, en vrac, de céréales, grains, produits alimentaires ou tout produit organique dégageant des poussières inflammables.
+       </td>
+       <td>
+        Silo de sucre
+        <br/>
+        Volume susceptible d'être stocké = 60 m³
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4718 NC
+       </td>
+       <td>
+        Gaz inflammables liquéfiés de catégorie 1 et 2 (y compris GPL) et gaz naturel
+       </td>
+       <td>
+        Cuve de propane = 5 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4734 NC
+       </td>
+       <td>
+        Produits pétroliers spécifiques et carburants de substitution :
+        <br/>
+        essences et naphtas ; kérosènes (carburants d'aviation compris) ; gazoles (gazole diesel, gazole de chauffage domestique et mélanges de gazoles compris) ; fioul lourd ; carburants de substitution pour véhicules, utilisés aux mêmes fins et aux mêmes usages et présentant des propriétés similaires en matière d'inflammabilité et de danger pour l'environnement.
+       </td>
+       <td>
+        Cuve de GNR = 5 m³
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Classement IOTA :
+    </div>
+    <section data-number="2.1.5.0" data-spec="section" data-type="unknown">
+     <h5 data-error_codes="non_contiguous_titles" data-level="3" data-spec="section_title">
+      2.1.5.0.
+     </h5>
+     <div data-number="1" data-spec="alinea">
+      <ul>
+       <li>
+        1° (D) – Rejet d'eaux pluviales dans les eaux douces superficielles ou sur le sol ou dans le sous-sol, la surface totale du projet, augmentée de la surface correspondant à la partie du bassin naturel dont les écoulements sont interceptés par le projet, étant supérieure à 1 ha mais inférieure à 20 ha : la surface imperméabilisée est de 67 000 m² et est rejetée dans le canal CNR dirigé vers le Rhône.
+       </li>
+      </ul>
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       5/7
+      </div>
+     </div>
+     <a data-page_index="5" data-spec="page_separator">
+     </a>
+    </section>
+    <section data-number="1.1.1.0" data-spec="section" data-title="(D) – Sondage, forage, y compris les essais de pompage, création de puits ou d'ouvrage souterrain, non destiné à un usage domestique, exécuté en vue de la recherche ou de la surveillance d'eaux souterraines ou en vue d'effectuer un prélèvement temporaire ou permanent dans les eaux souterraines, y compris dans les nappes d'accompagnement de cours d'eau : 3 forages" data-type="unknown">
+     <h5 data-error_codes="non_contiguous_titles" data-level="3" data-spec="section_title">
+      1.1.1.0. (D) – Sondage, forage, y compris les essais de pompage, création de puits ou d'ouvrage souterrain, non destiné à un usage domestique, exécuté en vue de la recherche ou de la surveillance d'eaux souterraines ou en vue d'effectuer un prélèvement temporaire ou permanent dans les eaux souterraines, y compris dans les nappes d'accompagnement de cours d'eau : 3 forages
+     </h5>
+    </section>
+    <section data-number="1.2.1.0" data-spec="section" data-title="2° (D) A l'exception des prélèvements faisant l'objet d'une convention avec l'attributaire du débit affecté prévu par l'article L. 214-9, prélèvements et installations et ouvrages permettant le prélèvement, y compris par dérivation, dans un cours d'eau, dans sa nappe d'accompagnement ou dans un plan d'eau ou canal alimenté par ce cours d'eau ou cette nappe :" data-type="unknown">
+     <h5 data-error_codes="non_contiguous_titles" data-level="3" data-spec="section_title">
+      1.2.1.0. 2° (D) A l'exception des prélèvements faisant l'objet d'une convention avec l'attributaire du débit affecté prévu par l'article L. 214-9, prélèvements et installations et ouvrages permettant le prélèvement, y compris par dérivation, dans un cours d'eau, dans sa nappe d'accompagnement ou dans un plan d'eau ou canal alimenté par ce cours d'eau ou cette nappe :
+     </h5>
+     <div data-number="1" data-spec="alinea">
+      <ul>
+       <li>
+        2° D'une capacité totale maximale comprise entre 400 et 1 000 m³/heure ou entre 2 et 5 % du débit du cours d'eau ou, à défaut, du débit global d'alimentation du canal ou du plan d'eau (D). – QMNA5 du Rhône, station hydrologique de Valence (Code V40010010) : 556 m³/s, soit 2001600 m³/h – Le débit de prélèvement maximal du site représente 0,03 % du débit du Rhône.
+       </li>
+      </ul>
+     </div>
+    </section>
+   </section>
+   <section data-number="2" data-spec="section" data-title="CONTEXTE" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2- CONTEXTE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Par courriel du 19/09/2025, la société ANDROS a déposé une demande de cas par cas, complétée le 03/10/2025.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="ANALYSE" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     3- ANALYSE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dans sa demande de cas par cas, le pétitionnaire indique les modifications de consommation d'eau et les potentielles incidences sur le milieu (nappe d'accompagnement du Rhône). Il expose également les modifications envisagées sur le site : arrêt du refroidissement en circuit ouvert en 2032, mise en service de 3 tours aéroréfrigérantes, changement du mode d'infiltration des eaux pluviales
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le formulaire CERFA déposé est complet et recevable.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le projet ne modifie pas à la hausse le classement du site vis-à-vis de la nomenclature des installations classées. Le projet modifie à la hausse uniquement la consommation d'eau potable du site. La baisse du niveau d'eau rejeté dans le ruisseau Chaffit a un impact évalué comme étant faible. En revanche, la consommation énergétique du site va être augmentée par l'utilisation d'autres technologies que le refroidissement en circuit ouvert. Un risque sanitaire lié à la présence de légionelles dans les tours aéroréfrigérantes est également prévu.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      6/7
+     </div>
+    </div>
+    <a data-page_index="6" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     Dans le cadre de l'auto-évaluation, le pétitionnaire indique que la demande d'autorisation devrait être dispensée d'évaluation environnementale et qu'une simple étude d'incidence devrait être menée.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="PROPOSITION DE L'INSPECTION DES INSTALLATIONS CLASSÉES" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     4- PROPOSITION DE L'INSPECTION DES INSTALLATIONS CLASSÉES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Au regard de l'examen qui précède, compte tenu des caractéristiques du projet présenté dans la demande, des enjeux environnementaux liés à sa localisation et de ses impacts potentiels, le projet ne justifie pas la réalisation d'une étude d'évaluation environnementale.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Ainsi, nous proposons à madame la préfète de la Drôme, la proposition de décision jointe à ce rapport.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      7/7
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

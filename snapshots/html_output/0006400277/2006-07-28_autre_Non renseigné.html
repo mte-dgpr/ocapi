@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2006-07-28_autre_Non renseigné.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Document non publiable sur Internet
+    </div>
+   </div>
+   <div>
+    Note interne de visite d'inspection
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <th>
+       PACA
+      </th>
+      <th>
+       GS: 06
+      </th>
+      <th>
+       Subdivision de : Nice 3
+      </th>
+      <th>
+       Date: 28 juillet 2006
+      </th>
+     </tr>
+     <tr>
+      <td>
+       Inspecteurs
+      </td>
+      <td colspan="3">
+       : Guillaume Bélot
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Exploitant
+      </td>
+      <td colspan="2">
+       :Sonitherm
+      </td>
+      <td>
+       Code GIDIC : 064.277
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Site inspecté
+      </td>
+      <td colspan="2">
+       : UIOM de Nice
+      </td>
+      <td>
+       A ou D : A
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Activité
+      </td>
+      <td colspan="2">
+       : Incinérateur de déchets ménagers et assimilés
+      </td>
+      <td>
+       Priorité : P1
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Objet de la visite
+      </td>
+      <td colspan="3">
+       : Inspection approfondie
+      </td>
+     </tr>
+     <tr>
+      <td colspan="4">
+       Présentation du site inspecté
+      </td>
+     </tr>
+     <tr>
+      <td colspan="4">
+       Description succincte des installations inspectées
+      </td>
+     </tr>
+     <tr>
+      <td colspan="4">
+       Usine d'incinération d'ordures ménagères de Nice: 3 fours de 12 t/h et 1 four de 18 t/h avec récupération d'énergie, d'une capacité maximale annuelle d'incinération de 345 000 tonnes de déchets ménagers et assimilés, 24 000 tonnes de boues de STEP urbaine sèches et 8 000 tonnes de DASRI.
+       <br/>
+       <br/>
+       Fonctionnement:
+       <br/>
+       - Traitement des fumées par procédé humide ;
+       <br/>
+       - Production de 135 t de vapeur surchauffée;
+       <br/>
+       - Unité de séchage de boues de step d'environ 100 t/jour;
+       <br/>
+       - Ligne de traitement (extinction) des mâchefers;
+       <br/>
+       - Chaufferie annexe assurant le secours de production pour les réseaux de chaleur; ces derniers, au nombre de 3, disposent d'une puissance de 95 MW et desservent 11 000 équivalents logements et les industriels au voisinage de l'UIOM
+       <br/>
+       - Production de 36 000 MWh électriques restitués au réseau et 110 000 MWh destinés à fournir la chaleur aux logements et établissements proches.
+       <br/>
+       <br/>
+       Etablissement certifié ISO 14001 et ISO 9001
+      </td>
+     </tr>
+     <tr>
+      <td colspan="4">
+       Contexte environnemental et socio-économique
+      </td>
+     </tr>
+     <tr>
+      <td colspan="4">
+       Située dans une zone d'activités industrielles et artisanales de Nice l'Ariane, les installations se situent en milieu urbain en contrebas de l'autoroute A8. Elle est entourée par une déchetterie au Nord, la plate-forme de matériaux de construction à l'Est, des petites entreprises et un supermarché au Sud. Des habitations et quelques jardins ouvriers se situent en flan de colline, la zone d'immeubles HLM de l'Ariane est très proche.
+       <br/>
+       <br/>
+       Cet établissement emploie 58 personnes environ.
+       <br/>
+       <br/>
+       Cet incinérateur a été mis en conformité avec l'arrêté du 20 septembre 2002 et est réglementé en conséquence par l'arrêté préfectoral du 23 décembre 2005.
+       <br/>
+       <br/>
+       Les appareils de mesure des polluants atmosphériques ont été étalonnés en référence à la norme NF EN 14181 (à suivre pour la variabilité du CO sur les analyseurs des lignes 1 et 2).
+       <br/>
+       <br/>
+       L'exploitant fera réaliser l'analyse des paramètres qui doivent être contrôlés semestriellement et fera faire des intercomparaisons sur les résultats de mesure de ses analyseurs début septembre 2006.
+       <br/>
+       <br/>
+       A noter des difficultés en début d'année pour le respect de la limite de pH des effluents aqueux et une difficulté saisonnière au respect de la limite de température de ces effluents. A suivre
+       <br/>
+       <br/>
+       A noter également que les relevés d'autosurveillance n'ont pas été transmis régulièrement (aucun relevé pour les effluents aqueux et des relevés irrégulièrement pour les rejets atmosphériques).
+       <br/>
+       <br/>
+       A noter également la fragilité de l'usine vis-à-vis de l'alimentation électrique, montrée à nouveau par l'incident du 17 juillet 2006
+      </td>
+     </tr>
+     <tr>
+      <td colspan="4">
+       Evolutions prévisibles (augmentation/réduction d'activité - investissements prévus/envisagés - augmentation/réduction des effectifs,...)
+      </td>
+     </tr>
+     <tr>
+      <td colspan="4">
+       Retubage de la chaudière annexe n°1 pour octobre/novembre 2006.
+       <br/>
+       Travaux de maintenance classique
+       <br/>
+       Amélioration de process, notamment par la récupération d'eaux en vue de diminuer les consommations.
+      </td>
+     </tr>
+    </table>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Document non publiable sur Internet
+    </div>
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <th>
+       Résultats de la visite d'inspection
+      </th>
+     </tr>
+     <tr>
+      <td>
+       <b>
+        Description sommaire du déroulement de la visite
+       </b>
+       (sujets évoqués - documents consultés - lieux visités - ...)
+      </td>
+     </tr>
+     <tr>
+      <td>
+       -
+       <b>
+        Sujets évoqués
+       </b>
+       <br/>
+       - la prévention de la pollution atmosphérique,
+       <br/>
+       - la protection des ressources en eaux et des milieux aquatiques;
+       <br/>
+       - l'autosurveillance
+      </td>
+     </tr>
+     <tr>
+      <td>
+       -
+       <b>
+        Documents consultés
+       </b>
+       <br/>
+       Plan des réseaux 132632 révision B du 1
+       <sup>
+        er
+       </sup>
+       février 2006
+       <br/>
+       Relevés d'autosurveillance des rejets atmosphériques de 2006
+       <br/>
+       Procédure "détection de radioactivité"
+       <br/>
+       Rapports d'analyses des boues de STEP HALIOTIS du 24 avril 2006
+       <br/>
+       Liste des produits chimiques présents dans l'installation
+       <br/>
+       Rapports APAVE d'étalonnage QAL 2 des équipements de mesure des rejets atmosphériques de novembre 2005 et janvier 2006
+       <br/>
+       Rapports APAVE de mesure des rejets atmosphériques et aqueux des 13 et 21 mars 2006
+      </td>
+     </tr>
+     <tr>
+      <td>
+       -
+       <b>
+        Lieux visités
+       </b>
+       <br/>
+       Incinérateur
+      </td>
+     </tr>
+     <tr>
+      <td>
+       -
+       <b>
+        Autres remarques
+       </b>
+       <br/>
+       Néant
+      </td>
+     </tr>
+     <tr>
+      <td>
+       <b>
+        Conclusions de l'Inspection
+       </b>
+       (appréciation - suites données administratives (DRIRE, PREFET) et pénales )
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     2/4
+    </div>
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Document non publiable sur Internet
+    </div>
+   </div>
+   <div>
+    Les rejets atmosphériques du site semblent corrects. La conformité des rejets aqueux est quant à elle à confirmer (aucune transmission de relevé d'autosurveillance, pas de mesure mensuelle par organisme agréé réalisée, soupçon de manque de fiabilité des mesures) =&amp;gt; à suivre avec attention. Ceci devra être confirmé par les résultats des analyses réalisées début septembre 2006. L'exploitant doit s'approprier l'arrêté préfectoral, qui lui impose plus de choses que son précédent arrêté.
+   </div>
+   <div>
+    19 écarts ont été relevés:
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="3,2,83" data-spec="segmentation:text_span" data-start="3,2,0">
+      - Absence d'analyse mensuelle des boues et lacunes dans les analyses trimestrielles,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,3,28" data-spec="segmentation:text_span" data-start="3,3,0">
+      - Pas de convention de rejet,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,4,55" data-spec="segmentation:text_span" data-start="3,4,0">
+      - Utilisation d'acide chlorhydrique non prévue par l'AP,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,5,79" data-spec="segmentation:text_span" data-start="3,5,0">
+      - Lacunes dans le dossier d'information du public et dans la liste de diffusion,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,6,45" data-spec="segmentation:text_span" data-start="3,6,0">
+      - absence de déclaration des périodes d'arrêt,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,7,33" data-spec="segmentation:text_span" data-start="3,7,0">
+      - lacunes dans la clôture du site,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,8,76" data-spec="segmentation:text_span" data-start="3,8,0">
+      - lacunes dans la transmission et le contenu des rapports d'autosurveillance,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,9,40" data-spec="segmentation:text_span" data-start="3,9,0">
+      - pas de mise à jour du plan des réseaux,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,10,68" data-spec="segmentation:text_span" data-start="3,10,0">
+      - tous les réseaux de collecte des effluents n'ont pas été contrôlés,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,11,78" data-spec="segmentation:text_span" data-start="3,11,0">
+      - pas de registre de maintenance des installations de traitement des effluents,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,12,117" data-spec="segmentation:text_span" data-start="3,12,0">
+      - pas de calcul de bilan massique permettant de garantir au point de rejet final les valeurs limites d'émission fixées
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,13,66" data-spec="segmentation:text_span" data-start="3,13,0">
+      - la valeur limite de température des effluents n'est pas respectée
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,14,113" data-spec="segmentation:text_span" data-start="3,14,0">
+      - les eaux pluviales de la cour mâchefers sont évacuées dans le réseau d'assainissement des effluents industriels,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,15,52" data-spec="segmentation:text_span" data-start="3,15,0">
+      - pas de programme de surveillance des rejets établi,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,16,73" data-spec="segmentation:text_span" data-start="3,16,0">
+      - 1 seule mesure des effluents aqueux par un organisme compétent réalisée,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,17,79" data-spec="segmentation:text_span" data-start="3,17,0">
+      - tous les effluents industriels ne transitent pas par un débourbeur/déshuileur,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,18,58" data-spec="segmentation:text_span" data-start="3,18,0">
+      - débit des gaz rejetés dépassant parfois le débit nominal,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,19,93" data-spec="segmentation:text_span" data-start="3,19,0">
+      - absence de rétention sous une partie des fûts d'huile situés à l'angle de la cour mâchefers,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,20,101" data-spec="segmentation:text_span" data-start="3,20,0">
+      - pas d'information de l'inspection des installations classées des dépassements de critères de rejets.
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div>
+    18 remarques ont été faites:
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="3,22,115" data-spec="segmentation:text_span" data-start="3,22,0">
+      - déclaration d'arrêt d'utilisation d'une cuve de fioul à réaliser auprès de Monsieur le Préfet des Alpes-Maritimes;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,23,117" data-spec="segmentation:text_span" data-start="3,23,0">
+      - justification de la procédure "détection de radioactivité" à réaliser en lien avec la circulaire du 10 juillet 2003,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,24,105" data-spec="segmentation:text_span" data-start="3,24,0">
+      - procédure définissant les dispositions à prendre en cas de découverte de déchets suspects à transmettre;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,25,92" data-spec="segmentation:text_span" data-start="3,25,0">
+      - résultats des contrôles qui seront réalisés en septembre 2006 à transmettre à l'inspection,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,26,105" data-spec="segmentation:text_span" data-start="3,26,0">
+      - transmettre les éléments justificatifs de la conformité des plate-formes de mesure à la norme NF X 44052
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,27,112" data-spec="segmentation:text_span" data-start="3,27,0">
+      - préciser si les eaux de lavage des conteneurs de DASRI peuvent être considérées comme désinfectées avant rejet,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,28,84" data-spec="segmentation:text_span" data-start="3,28,0">
+      - indiquer le débit maximal journalier des consommations en eau depuis le 28/12/2005,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,29,167" data-spec="segmentation:text_span" data-start="3,29,0">
+      - transmettre les éléments justificatifs de la présence d'un disconnecteur en amont du réseau des eaux sanitaires et incendie et en amont du réseau des eaux de process,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,30,204" data-spec="segmentation:text_span" data-start="3,30,0">
+      - vérifier que les collecteurs véhiculant des eaux usées polluées par des liquides inflammables ou susceptibles de l'être sont équipés d'une protection efficace contre le danger de propagation des flammes,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,31,90" data-spec="segmentation:text_span" data-start="3,31,0">
+      - confirmer le débit maximal journalier des rejets d'eau industrielle depuis le 28/12/2005,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,32,88" data-spec="segmentation:text_span" data-start="3,32,0">
+      - confirmer que les eaux pluviales passent bien par le débourbeur/déshuileur avant rejet,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,33,86" data-spec="segmentation:text_span" data-start="3,33,0">
+      - justifier que 240 m3 sont toujours disponibles pour les eaux d'extinction d'incendie,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,34,56" data-spec="segmentation:text_span" data-start="3,34,0">
+      - interpréter le résultat du suivi piézométrique réalisé,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,35,128" data-spec="segmentation:text_span" data-start="3,35,0">
+      - justifier que les analyses réalisées sur les effluents sont réalisées suivant les normes fixées par l'arrêté du 2 février 1998,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,36,128" data-spec="segmentation:text_span" data-start="3,36,0">
+      - transmettre la copie du rapport de l'hydrogéologue agréé sur les caractéristiques et les points d'implantation des piézomètres,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,37,227" data-spec="segmentation:text_span" data-start="3,37,0">
+      - l'étalonnage QAL 2 de l'analyseur multigaz des lignes 1 et 2 indique une variabilité du CO non conforme aux prescriptions de la norme NF EN 14181. Un étalonnage conforme à cette norme doit être réalisé au moins tous les 3 ans,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,38,84" data-spec="segmentation:text_span" data-start="3,38,0">
+      - transmettre les résultats du contrôle réalisé par l'APAVE sur les effluents aqueux,
+     </arretify-segmentation>
+     <arretify-segmentation data-end="3,39,67" data-spec="segmentation:text_span" data-start="3,39,0">
+      - indiquer la hauteur des niveaux hydrauliques dans les piézomètres.
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div>
+    Personnes rencontrées [noms, fonctions,...]
+   </div>
+   <div>
+    M. David LUKACIE - Directeur adjoint - responsable d'exploitation
+   </div>
+   <div>
+    M. Pascal ROUMEGUERE - Directeur d'usine
+   </div>
+   <div>
+    M. Nicolas CERDAN - Responsable QSE
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <th colspan="2">
+       Suivi des écarts des précédentes visites d'inspection
+      </th>
+     </tr>
+     <tr>
+      <th>
+       N° fiche
+      </th>
+      <th>
+       Commentaires (soldée? - évolution ?)
+      </th>
+     </tr>
+     <tr>
+      <td>
+       1
+      </td>
+      <td>
+       RAS - réponse jugée satisfaisante par l'inspection le 14/11/2005
+      </td>
+     </tr>
+     <tr>
+      <td>
+       2
+      </td>
+      <td>
+       Une nouvelle fiche-écart a été émise. Les contrôles réalisés sur les boues ne sont pas systématiques ni complets
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     3/4
+    </div>
+   </div>
+   <a data-page_index="3" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Document non publiable sur Internet
+    </div>
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <th>
+       3
+      </th>
+      <th>
+       Soldée
+      </th>
+     </tr>
+     <tr>
+      <td>
+       4
+      </td>
+      <td>
+       RAS - réponse jugée satisfaisante par l'inspection le 14/11/2005
+      </td>
+     </tr>
+     <tr>
+      <td>
+       5
+      </td>
+      <td>
+      </td>
+     </tr>
+     <tr>
+      <td>
+       6
+      </td>
+      <td>
+       La convention n'est toujours pas signée
+      </td>
+     </tr>
+     <tr>
+      <td>
+       7
+      </td>
+      <td>
+       RAS - réponse jugée satisfaisante par l'inspection le 14/11/2005
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     4/4
+    </div>
+   </div>
+  </header>
+  <main data-spec="main">
+  </main>
+ </body>
+</html>

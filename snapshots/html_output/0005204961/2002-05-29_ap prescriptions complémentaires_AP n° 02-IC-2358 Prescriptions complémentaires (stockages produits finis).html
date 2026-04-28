@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2002-05-29_ap prescriptions complémentaires_AP n° 02-IC-2358 Prescriptions complémentaires (stockages produits finis).pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFECTURE DES PYRÉNÉES-ATLANTIQUES
+    </div>
+    <div>
+     DIRECTION DES COLLECTIVITÉS LOCALES ET DE L'ENVIRONNEMENT
+    </div>
+    <div>
+     BUREAU DE L'ENVIRONNEMENT ET DES AFFAIRES CULTURELLES
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     RÉF. D.C.L.E. 3
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Affaire suivie par : Marilys VAN DAELE Tél. 05.59.98.25.42 MVD/BM
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ N° 02/IC/238 FIXANT DES PRÉSCRIPTIONS COMPLÉMENTAIRES À LA SOCIÉTÉ ATOFINA À MOURENX LE SECRÉTAIRE GÉNÉRAL CHARGE DE L'ADMINISTRATION DU DÉPARTEMENT DES PYRÉNÉES-ATLANTIQUES
+    </h1>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-date="1950-06-24" data-num="50-722" data-spec="document_reference" data-type="decret">
+     décret n° 50-722 du
+     <time data-spec="date" datetime="1950-06-24">
+      24 juin 1950
+     </time>
+    </a>
+    complété et modifié par les décrets n° 56-559 du 7 juin 1956 et n° 60-1323 du 12 décembre 1960, relatifs à la délégation des pouvoirs propres aux Préfets, Sous-Préfets et Secrétaires Généraux ;
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , notamment son livre V,
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-date="1977-09-21" data-num="77-1133" data-spec="document_reference" data-type="decret">
+     décret n° 77-1133 du
+     <time data-spec="date" datetime="1977-09-21">
+      21 septembre 1977
+     </time>
+    </a>
+    modifié,
+   </div>
+   <div data-spec="visa">
+    VU la demande présentée par la société ATOFINA le 27 juillet 2001 relative à la modification du stockage de produits finis conditionnés situé sur son site de MOURENX, plate-forme SOBEGI ;
+   </div>
+   <div data-spec="visa">
+    VU les arrêtés préfectoraux n°76/EC/325 – 90/IC/124 – 96/IC/04 et notamment l'
+    <a data-date="1998-04-30" data-num="98/IC/105" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 98/IC/105 du
+     <time data-spec="date" datetime="1998-04-30">
+      30 avril 1998
+     </time>
+    </a>
+    autorisant la société ATOFINA à exploiter des unités de fabrication de composés chimiques dans son usine de Mourenx ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l'Inspection des Installations Classées du 15 mars 2002
+   </div>
+   <div data-spec="visa">
+    VU l'avis favorable du Conseil Départemental d'Hygiène du 18 avril 2002.
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que les modifications apportées par le projet n'engendrent pas d'impacts ni de risques supplémentaires vis-à-vis de la situation existante ;
+   </div>
+   <div>
+    .../...
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Toute correspondance doit être adressée sous forme impersonnelle à Monsieur le Préfet des Pyrénées-Atlantiques
+2, RUE MARÉCHAL JOFFRE 64021 PAU CEDEX. TÉL. 0 821 80 30 64 - TÉLÉCOPIE 05 59 98 24 99
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     - 2 -
+    </div>
+   </div>
+   <div data-spec="motifs">
+    CONSIDERANT qu'il est nécessaire d'établir des prescriptions complémentaires prenant en compte ces modifications de stockage ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR la proposition de M. le Secrétaire Général de la Préfecture des Pyrénées-Atlantiques,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1er :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La Société ATOFINA MOURENX, dont le siège social est 4-8 cours Michelet - La Défense 10 - 92800 PUTEAUX, est autorisée à modifier le stockage de ses produits finis conditionnés dans son établissement, situé sur la plate-forme SOBEGI, à Mourenx, dans le respect des dispositions décrites en
+     <a data-parent_reference="1" data-spec="section_reference" data-type="annexe">
+      annexe
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="1" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La quantité de substance classable sous la rubrique 1172.2 du tableau de classement de l'
+     <a data-parent_reference="2" data-spec="section_reference" data-start_num="1" data-type="annexe">
+      annexe 1
+     </a>
+     de l'
+     <a data-num="98/IC/105" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+      arrêté préfectoral n°98/IC/105
+     </a>
+     du 30/4/98 passe de 470 tonnes à 499 tonnes.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les installations sont disposées, aménagées et exploitées conformément aux plans et données techniques contenus dans le dossier de demande du 27 juillet 2001, dans la mesure où ils ne sont pas contraires aux dispositions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     et à d'autres réglementations en vigueur.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Toute modification apportée par le demandeur à l'installation, à son mode d'utilisation ou à son voisinage, et de nature à entraîner un changement notable des éléments du dossier de demande, doit être portée avant sa réalisation à la connaissance du préfet avec tous les éléments d'appréciation.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les prescriptions du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     s'appliquent également aux autres installations ou équipements exploités dans l'établissement, qui mentionnés ou non à la nomenclature sont de nature par leur proximité ou leur connexité avec une installation classée soumise à autorisation à modifier les dangers ou les inconvénients de cette installation.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="6" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La présente décision peut être déférée au Tribunal Administratif. Le délai de recours est de deux mois pour le demandeur ou l'exploitant, de 4 ans pour les tiers. Ce délai commence à courir du jour où la présente décision a été notifiée.
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 7 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les conditions fixées ci-dessus ne peuvent en aucun cas, ni à aucune époque, faire obstacle à l'application des dispositions législatives et réglementaires relatives à l'hygiène et à la sécurité des travailleurs, ni être opposées aux mesures qui pourraient être régulièrement ordonnées dans ce but.
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 8 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     doit être conservé et présenté par l'exploitant à toute réquisition.
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-title="Prescriptions complémentaires" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 9 : Prescriptions complémentaires
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Des arrêtés complémentaires pourront être pris sur proposition de l'inspection des installations classées et après avis du conseil départemental d'hygiène. Ils pourront fixer toutes les prescriptions additionnelles que la protection des intérêts mentionnés à l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+      article L 511-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+      Code de l'Environnement
+     </a>
+     rendra nécessaires.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les conditions fixées ci-dessus ne peuvent en aucun cas, ni à aucune époque, faire obstacle à l'application des dispositions législatives et réglementaires relatives à l'hygiène et à la sécurité des travailleurs, ni être opposées aux mesures qui pourraient être régulièrement ordonnées dans ce but.
+    </div>
+   </section>
+   <section data-number="10" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 10 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La présente autorisation est délivrée au seul titre de la loi sur les installations classées. Elle ne dispense pas le bénéficiaire de satisfaire, le cas échéant, aux prescriptions de la réglementation en vigueur en matière de voirie, de permis de construire, etc...
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les droits des tiers sont et demeurent expressément réservés.
+    </div>
+   </section>
+   <section data-number="11" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 11 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sera déposée à la mairie et pourra y être consultée par les personnes intéressées.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , énumérant les prescriptions auxquelles l'installation est soumise et faisant connaître qu'une copie dudit arrêté est déposée à la mairie où elle peut être consultée, sera affiché à la mairie pendant une durée minimum d'un mois ; procès-verbal de l'accomplissement de cette formalité sera dressé par les soins du maire de MOURENX
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      .../...
+     </div>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      - 4 -
+     </div>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le même extrait sera affiché en permanence de façon visible dans l'installation par les soins du bénéficiaire de l'autorisation.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     En outre, un avis sera publié par les soins du Préfet et aux frais de l'exploitant, dans deux journaux diffusés dans tout le département.
+    </div>
+   </section>
+   <section data-number="12" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 12 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le Secrétaire Général de la Préfecture,
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le Maire de Mourenx,
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le Directeur Régional de l'Industrie, de la Recherche et de l'Environnement, à Bordeaux,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     L’Inspecteur des Installations Classées pour la Protection de l’Environnement,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une ampliation sera adressée à
+    </div>
+    <div data-number="6" data-spec="alinea">
+     M. le directeur de la société ATOFINA
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Fait à Pau, le 29 MAI 2002
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Le Secrétaire Général chargé
+    </div>
+    <div data-number="9" data-spec="alinea">
+     de l’Administration du département
+    </div>
+    <div data-number="10" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Alain ZABULON
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+   </section>
+  </main>
+  <footer data-spec="appendix">
+   <section data-number="1" data-spec="section" data-type="annexe">
+    <h2 data-level="0" data-spec="section_title">
+     ANNEXE 1
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     ATOFINA
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Usine de MOURENX
+    </div>
+    <div data-number="3" data-spec="alinea">
+     PRESCRIPTIONS COMPLEMENTAIRES APPLICABLES A la modification du stockage de produits finis conditionnés
+    </div>
+    <div data-number="4" data-spec="alinea">
+     ANNEXEES A L'ARRETE PREFECTORAL
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <ul>
+      <li>
+       N° 02/11/20238  DU 29 MAI 2002
+      </li>
+     </ul>
+    </div>
+    <section data-number="1" data-spec="section" data-title="DESCRIPTION DE LA MODIFICATION" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      ARTICLE 1 - DESCRIPTION DE LA MODIFICATION
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      ATOFINA met en place un nouveau magasin pour les produits finis conditionnés de son établissement de MOURENX. Ce bâtiment de stockage complète le magasin existant. Il est situé à 80 mètres de ce dernier.
+     </div>
+    </section>
+    <section data-number="1.1" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.1 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Ce nouveau magasin abrite les produits suivants :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - 300 tonnes en fûts d'ATG/AMP
+       </li>
+       <li>
+        - 100 tonnes en fûts d'AMSA
+       </li>
+       <li>
+        - 329 tonnes en fûts d'AMS
+       </li>
+       <li>
+        - 300 tonnes en fûts d'esters d'acide thioglycolique
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Ces tonnages de produits étaient auparavant stockés dans le magasin existant. 29 tonnes d'AMS (fûts) ont été ajoutés.
+     </div>
+    </section>
+    <section data-number="1.2" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1.2 -
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Une zone abritée accolée au nouveau magasin permet de stocker par ailleurs des fûts vides neufs, des petits produits auxiliaires en fûts.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Les produits auxiliaires stockés sont :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - 800 litres d'acétone
+        <a data-page_index="5" data-spec="page_separator">
+        </a>
+       </li>
+       <li>
+        - 2000 litres de chloroforme
+       </li>
+       <li>
+        - 4000 litres d'émulseur
+       </li>
+       <li>
+        - 2000 litres de mono éthylène glycol
+       </li>
+       <li>
+        - 2000 litres d'acide sulfurique
+       </li>
+       <li>
+        - 4 big bags de charbon actif
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="2" data-spec="section" data-title="PREVENTION DES RISQUES" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      ARTICLE 2 - PREVENTION DES RISQUES
+     </h3>
+    </section>
+    <section data-number="2.1" data-spec="section" data-title="Emplacement" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.1 - Emplacement
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les différentes catégories de produits énumérées ci-dessus sont stockées sur une rétention de volume adaptée.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Des isoconteneurs (vides mais encore souillés de produits chimiques) sont stockés sur une zone non couverte mais spécifique.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Les produits auxiliaires sont stockés dans des cellules indépendantes.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les produits classés nocifs et toxiques sont stockés dans des récipients hermétiquement fermés.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Les produits classés dangereux pour l'environnement sont installés sur un emplacement dédié avec rétention spécifique.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Les produits classés corrosifs sont stockés dans des récipients fermés et appropriés à résister à l'attaque acide de leur matériau.
+     </div>
+    </section>
+    <section data-number="2.2" data-spec="section" data-title="Etiquetage et inventaire" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.2 - Etiquetage et inventaire
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les produits finis et les produits auxiliaires stockés à l'extérieur du magasin sont repérés et clairement identifiés. Un étiquetage conformément aux normes en vigueur signale les dangers de ces produits.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Un inventaire des produits finis stockés dans les magasins mentionnant leur emplacement, leur nature, leur quantité et le type de conditionnement doit être tenu à la disposition de l'Inspection des Installations Classées et des Services d'incendie et de Secours.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Cette liste fait l'objet d'une mise à jour régulière.
+     </div>
+     <a data-page_index="6" data-spec="page_separator">
+     </a>
+    </section>
+    <section data-number="2.3" data-spec="section" data-title="Moyens d'intervention" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.3 - Moyens d'intervention
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Protection
+      <q>
+       incendie
+      </q>
+      :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Une lance à mousse accompagnée d'un fût d'émulseur est prévue à l'intérieur du magasin
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Protection du personnel
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Un ensemble de douche et lave-œil est installé dans le magasin.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      A proximité des stocks de produits, des appareils respiratoires sont mis à la disposition du personnel.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Les intervenants qui manipulent les produits corrosifs sont équipés de vêtements de protection anti-acide.
+     </div>
+    </section>
+    <section data-number="2.4" data-spec="section" data-title="Bassin de confinement" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.4 - Bassin de confinement
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      En cas de déversement accidentel, de fuites ou d'égouttures, les produits sont récupérés dans leur rétention respective.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      En cas de déversement accidentel plus important (lors du transport ou en cas de sinistre), les effluents rejoignent le bassin de collecte des eaux accidentellement polluées de la plate-forme SOBEGI.
+     </div>
+     <a data-page_index="7" data-spec="page_separator">
+     </a>
+     <div data-number="3" data-spec="alinea">
+      ^{}[]
+     </div>
+    </section>
+   </section>
+  </footer>
+ </body>
+</html>

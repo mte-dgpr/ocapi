@@ -1,0 +1,2583 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2009-11-20_arrêté préfectoral_APCRSDE.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PREFECTURE DE TARN-ET-GARONNE
+    </div>
+    <div>
+     DIRECTION DES POLITIQUES DE L'ÉTAT ET DE L'UNION EUROPÉENNE
+    </div>
+    <div>
+     BUREAU DE L'ENVIRONNEMENT A.P. n° 2009-1723
+    </div>
+    <div>
+     INSTALLATIONS CLASSÉES POUR LA PROTECTION DE L'ENVIRONNEMENT SOCIETE LAITIÈRE DE MONTAUBAN ZI Albasud 25 impasse de Maastricht 82000 MONTAUBAN
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE PREFECTORAL COMPLÉMENTAIRE Prescrivant la surveillance initiale (2ème phase) des rejets de substances dangereuses dans le milieu aquatique
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     La Préfète de Tarn-et-Garonne,
+    </div>
+    <div>
+     Chevalier de la légion d'honneur,
+    </div>
+    <div>
+     Officier de l'ordre national du mérite,
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu la directive 2008/105/EC du 24 décembre 2008 établissant des normes de qualité environnementale dans le domaine de l'eau ;
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2006" data-num="11" data-spec="document_reference" data-type="eu-directive">
+     directive 2006/11/CE
+    </a>
+    concernant la pollution causée par certaines substances dangereuses déversées dans le milieu aquatique de la Communauté ;
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2000" data-num="60" data-spec="document_reference" data-type="eu-directive">
+     directive 2000/60/CE
+    </a>
+    du 23 octobre 2000 établissant un cadre pour une politique communautaire dans le domaine de l'eau (DCE) ;
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    et notamment son titre 1er des parties réglementaires et législatives du Livre V ;
+   </div>
+   <div data-spec="visa">
+    VU la nomenclature des installations classées codifiée à l'
+    <a data-parent_reference="1" data-spec="section_reference" data-type="annexe">
+     annexe
+    </a>
+    de l'
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="R511-9" data-tag_id="1" data-type="article">
+     article R511-9
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU les
+    <a data-end_num="R211-11-3" data-spec="section_reference" data-start_num="R211-11-1" data-type="article">
+     articles R211-11-1 à R211-11-3
+    </a>
+    du titre 1 du livre II du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    relatifs au programme national d'action contre la pollution des milieux aquatiques par certaines substances dangereuses ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1998-02-02" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="1998-02-02">
+      2 février 1998
+     </time>
+     modifié
+    </a>
+    relatif aux prélèvements et à la consommation d'eau ainsi qu'aux émissions de toute nature des installations classées pour la protection de l'environnement soumises à autorisation ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2005-04-20" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2005-04-20">
+      20 avril 2005
+     </time>
+     modifié
+    </a>
+    pris en application du
+    <a data-date="2005-04-20" data-spec="document_reference" data-type="decret">
+     décret du
+     <time data-spec="date" datetime="2005-04-20">
+      20 avril 2005
+     </time>
+    </a>
+    relatif au programme national d'action contre la pollution des milieux aquatiques par certaines substances dangereuses ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2005-06-30" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2005-06-30">
+      30 juin 2005
+     </time>
+     modifié
+    </a>
+    relatif au programme national d'action contre la pollution des milieux aquatiques par certaines substances dangereuses ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     2, Boulevard Midi-Pyrénées - BP 779 - 82013 MONTAUBAN CEDEX
+Tél. 05 63 22 82 00 - Fax 05 63 93 33 79 - Mél : courrier@tarn-et-garonne.pref.gouv.fr
+http://www.tarn-et-garonne.pref.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2008-01-31" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2008-01-31">
+      31 janvier 2008
+     </time>
+    </a>
+    relatif à la déclaration annuelle des émissions polluantes et des déchets ;
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2002-02-04" data-spec="document_reference" data-type="circulaire">
+     circulaire DPPR/DE du
+     <time data-spec="date" datetime="2002-02-04">
+      4 février 2002
+     </time>
+    </a>
+    qui organise une action nationale de recherche et de réduction des rejets de substances dangereuses dans l'eau par les installations classées ;
+   </div>
+   <div data-spec="visa">
+    VU la circulaire DCE 2005/12 du 28 juillet 2005 relative à la définition du « bon état » ;
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+     circulaire DE/DPPR du
+     <time data-spec="date" datetime="2007-05-07">
+      7 mai 2007
+     </time>
+    </a>
+    définissant les « normes de qualité environnementale provisoires (NQEp) » et les objectifs nationaux de réduction des émissions de certaines substances ;
+   </div>
+   <div data-spec="visa">
+    VU la
+    <a data-date="2009-01-05" data-spec="document_reference" data-type="circulaire">
+     circulaire du
+     <time data-spec="date" datetime="2009-01-05">
+      5 janvier 2009
+     </time>
+    </a>
+    relative à la mise en œuvre de la deuxième phase de l'action nationale de recherche et de réduction des substances dangereuses pour le milieu aquatique présentes dans les rejets des installations classées pour la protection de l'environnement ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport d'étude de l'INERIS N°DRC-07-82615-13836C du 15/01/08 faisant état de la synthèse des mesures de substances dangereuses dans l'eau réalisées dans certains secteurs industriels ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2007-08-27" data-num="2007-1541" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 2007-1541 du
+     <time data-spec="date" datetime="2007-08-27">
+      27 août 2007
+     </time>
+    </a>
+    portant délégation de signature à madame Alice COSTE, secrétaire général de la préfecture de Tarn-et-Garonne ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="1996-04-02" data-num="96.0344" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral N° 96.0344 du
+     <time data-spec="date" datetime="1996-04-02">
+      2 avril 1996
+     </time>
+    </a>
+    compléter par les arrêtés préfectoraux
+    <a data-date="2004-08-03" data-spec="document_reference" data-type="arrete-prefectoral">
+     du
+     <time data-spec="date" datetime="2004-08-03">
+      3 août 2004
+     </time>
+    </a>
+    et
+    <a data-date="2006-12-14" data-spec="document_reference" data-type="arrete-prefectoral">
+     du
+     <time data-spec="date" datetime="2006-12-14">
+      14 décembre 2006
+     </time>
+    </a>
+    ou autre acte administratif antérieur autorisant la SOCIETE LAITIERE DE MONTAUBAN à exercer ses activités relevant de la nomenclature des installations classées à ZI Est des Parages, rue des frères Montgolfier sur le territoire de la commune de Montauban ;
+   </div>
+   <div data-spec="visa">
+    VU le courrier de l'inspection en date du 16 juillet 2009 proposant à l'industriel un projet d'arrêté préfectoral ;
+   </div>
+   <div data-spec="visa">
+    VU le courrier de l'industriel du 6 août 2009 en réponse ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l'inspection des installations classées en date du 8 septembre 2009 ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis du CODERST du 01/10/2009 ;
+   </div>
+   <div data-spec="motifs">
+    Considérant l'information faite à l'exploitant du projet d'arrêté préfectoral par envoi du 29 octobre 2009, en application de l'
+    <a data-parent_reference="3" data-spec="section_reference" data-start_num="R512-26" data-type="article">
+     article R 512-26
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    Considérant l'absence de réponse de l'exploitant au projet d'arrêté préfectoral ;
+   </div>
+   <div data-spec="motifs">
+    Considérant l'objectif de respect des normes de qualité environnementale dans le milieu en 2015 fixé par la
+    <a data-date="2000" data-num="60" data-spec="document_reference" data-type="eu-directive">
+     directive 2000/60/CE
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    Considérant les objectifs de réduction et de suppression de certaines substances dangereuses fixées dans la
+    <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+     circulaire DE/DPPR du
+     <time data-spec="date" datetime="2007-05-07">
+      7 mai 2007
+     </time>
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    Considérant la nécessité d'évaluer qualitativement et quantitativement par une surveillance périodique les rejets de substances dangereuses dans l'eau issus du fonctionnement de l'établissement au titre des installations classées pour la protection de l'environnement afin de proposer le cas échéant des mesures de réduction ou de suppression adaptées ;
+   </div>
+   <div data-spec="motifs">
+    Considérant les effets toxiques, persistants et bioaccumulables des substances dangereuses visées par
+    <a data-spec="document_reference" data-type="self">
+     le présent arrêté
+    </a>
+    sur le milieu aquatique ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition du Secrétaire Général de la Préfecture,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Objet" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1 : Objet
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La SOCIETE LAITIERE DE MONTAUBAN dont le siège social est situé ZI d'Albasud 25, impasse de Maastricht – 82000 MONTAUBAN doit respecter, pour ses installations situées ZI Est des Parages, rue des frères Montgolfier – 82000 MONTAUBAN, les modalités du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     préfectoral complémentaire qui vise à fixer les modalités de surveillance provisoire des rejets de substances dangereuses dans l'eau afin d'améliorer la connaissance qualitative et quantitative des rejets de ces substances.
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-number="2" data-spec="alinea">
+     Les prescriptions techniques annexées à l'
+     <a data-date="1996-04-02" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="1996-04-02">
+       2 avril 1996
+      </time>
+     </a>
+     complétées par les arrêtés préfectoraux
+     <a data-date="2004-08-03" data-spec="document_reference" data-type="arrete-prefectoral">
+      du
+      <time data-spec="date" datetime="2004-08-03">
+       3 août 2004
+      </time>
+     </a>
+     et
+     <a data-date="2006-12-14" data-spec="document_reference" data-tag_id="19" data-type="arrete-prefectoral">
+      du
+      <time data-spec="date" datetime="2006-12-14">
+       14 décembre 2006
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="complétées" data-operation_type="add" data-references="19" data-spec="operation">
+      susvisés sont
+      <b>
+       complétées
+      </b>
+      par celles du
+     </span>
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Prescriptions techniques applicables aux opérations de prélèvements et d'analyses" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 : Prescriptions techniques applicables aux opérations de prélèvements et d'analyses
+    </h2>
+    <section data-number="2.1" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.1
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les prélèvements et analyses réalisés en application du
+      <a data-spec="document_reference" data-type="self">
+       présent arrêté
+      </a>
+      doivent respecter les dispositions de l'
+      <a data-parent_reference="4" data-spec="section_reference" data-start_num="3" data-type="annexe">
+       annexe 3
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="4" data-type="self">
+       présent arrêté
+      </a>
+      préfectoral complémentaire.
+     </div>
+    </section>
+    <section data-number="2.2" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.2
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Pour l'analyse des substances, l'exploitant doit faire appel à un laboratoire d'analyse accrédité selon la norme NF EN ISO/CEI 17025 pour la matrice
+      <q>
+       Eaux Résiduaires
+      </q>
+      , pour chaque substance à analyser.
+     </div>
+    </section>
+    <section data-number="2.3" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2.3
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant doit être en possession de l'ensemble des pièces suivantes fournies par le laboratoire qu'il aura choisi, avant le début des opérations de prélèvement et de mesures afin de s'assurer que ce prestataire remplit bien les dispositions de l'
+      <a data-parent_reference="5" data-spec="section_reference" data-start_num="3" data-type="annexe">
+       annexe 3
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="5" data-type="self">
+       présent arrêté
+      </a>
+      préfectoral complémentaire :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      1. Justificatifs d'accréditations sur les opérations de prélèvements (si disponible) et d'analyse de substances dans la matrice
+      <q>
+       eaux résiduaires
+      </q>
+      comprenant à minima :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      a. Numéro d'accréditation
+     </div>
+     <div data-number="4" data-spec="alinea">
+      b. Extrait de l'annexe technique sur les substances concernées
+     </div>
+    </section>
+    <section data-number="2" data-spec="section" data-title="Liste de références en matière d'opérations de prélèvements de substances dangereuses dans les rejets industriels" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      2. Liste de références en matière d'opérations de prélèvements de substances dangereuses dans les rejets industriels
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      3.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Tableau des performances et d'assurance qualité précisant les limites de quantification pour l'analyse des substances qui doivent être inférieures ou égales à celles de l'
+      <a data-parent_reference="6" data-spec="section_reference" data-start_num="3" data-type="annexe">
+       annexe 3
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="6" data-type="self">
+       présent arrêté
+      </a>
+      préfectoral complémentaire. (
+      <a data-parent_reference="7" data-spec="section_reference" data-start_num="5.2" data-type="annexe">
+       annexe 5.2
+      </a>
+      de la
+      <a data-date="2009-01-05" data-spec="document_reference" data-tag_id="7" data-type="circulaire">
+       circulaire du
+       <time data-spec="date" datetime="2009-01-05">
+        5 janvier 2009
+       </time>
+      </a>
+      )
+     </div>
+     <div data-number="3" data-spec="alinea">
+      4. Attestation du prestataire s'engageant à respecter les prescriptions figurant à l'
+      <a data-parent_reference="8" data-spec="section_reference" data-start_num="3" data-type="annexe">
+       annexe 3
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="8" data-type="self">
+       présent arrêté
+      </a>
+      préfectoral complémentaire.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les modèles des documents mentionnés au point 3 et 4 précédents sont repris en
+      <a data-parent_reference="9" data-spec="section_reference" data-start_num="1" data-type="annexe">
+       annexe 1
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="9" data-type="self">
+       présent arrêté
+      </a>
+      .
+     </div>
+    </section>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Mise en œuvre de la surveillance initiale" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 : Mise en œuvre de la surveillance initiale
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant met en œuvre sous 3 mois à compter de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , le programme de surveillance au point de rejet à la sortie de la station de traitement dans les conditions suivantes :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - chaque substance visée dans le tableau ci-dessous devra être mesurée 1 fois par mois pendant 6 mois ;
+      </li>
+      <li>
+       - durée de chaque prélèvement : 24 heures représentatives du fonctionnement moyen de l'installation.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les substances à analyser dans la surveillance initiale sont indiquées dans le tableau ci-dessous. Ces analyses doivent respecter les limites de quantification figurant en
+     <a data-parent_reference="10" data-spec="section_reference" data-start_num="3" data-type="annexe">
+      annexe 3
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="10" data-type="self">
+      présent arrêté
+     </a>
+     (
+     <a data-parent_reference="11" data-spec="section_reference" data-start_num="5.2" data-type="annexe">
+      annexe 5.2
+     </a>
+     de la
+     <a data-date="2009-01-05" data-spec="document_reference" data-tag_id="11" data-type="circulaire">
+      circulaire du
+      <time data-spec="date" datetime="2009-01-05">
+       5 janvier 2009
+      </time>
+     </a>
+     )
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-number="4" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        substances
+       </th>
+       <th>
+        Limite de Quantification (μg/L)
+        <br/>
+        à atteindre par substance par les
+        <br/>
+        laboratoires
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Chloroforme
+       </td>
+       <td>
+        1
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Cuivre et ses composés
+       </td>
+       <td>
+        5
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Nickel et ses composés
+       </td>
+       <td>
+        10
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Zinc et ses composés
+       </td>
+       <td>
+        10
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Rapport de synthèse de la surveillance initiale" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 : Rapport de synthèse de la surveillance initiale
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant doit fournir dans un délai maximal de 12 mois à compter de la notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     préfectoral un rapport de synthèse de la surveillance initiale comprenant :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - un tableau récapitulatif des mesures sous une forme synthétique. Ce tableau comprend, pour chaque substance, sa concentration et son flux, pour chacune des mesures réalisées. Le tableau comprend également les concentrations minimale, maximale et moyenne mesurées sur les six échantillons, ainsi que les flux minimal, maximal et moyen calculés à partir des six mesures et les limites de quantification pour chaque mesure;
+      </li>
+      <li>
+       - l'ensemble des rapports d'analyses réalisées en application du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       ;
+      </li>
+      <li>
+       - des commentaires et explications sur les résultats obtenus et leurs éventuelles variations, en évaluant les origines possibles des substances rejetées, notamment au regard des activités industrielles exercées et des produits utilisés;
+      </li>
+      <li>
+       - des propositions dûment argumentées, le cas échéant, si l'exploitant souhaite demander l'abandon de la surveillance pour certaines substances. L'exploitant pourra notamment demander la suppression de la surveillance des substances présentes dans le rejet des eaux industrielles qui répondront à au moins l'une des trois conditions suivantes (la troisième condition n'étant remplie que si les deux critères 3.1 et 3.2 qui la composent sont tous les deux respectés) :
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     1. Il est clairement établi que ce sont les eaux amont qui sont responsables de la présence de la substance dans les rejets de l'établissement ;
+    </div>
+    <div data-number="4" data-spec="alinea">
+     2. Toutes les concentrations mesurées pour la substance sont strictement inférieures à la limite de quantification LQ définie pour cette substance à l'
+     <a data-spec="section_reference" data-start_num="5.2" data-type="annexe">
+      annexe 5.2
+     </a>
+     du document figurant en
+     <a data-parent_reference="12" data-spec="section_reference" data-start_num="3" data-type="annexe">
+      annexe 3
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="12" data-type="self">
+      présent arrêté
+     </a>
+     préfectoral complémentaire;
+    </div>
+    <div data-number="5" data-spec="alinea">
+     3. 3.1 Toutes les concentrations mesurées pour la substance sont inférieures à 10°NQE (norme de qualité environnementale ou, en l'attente de leur adoption en droit français, 10°NQEp, norme de qualité environnementale provisoire fixée dans la
+     <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+      circulaire DE/DPPR du
+      <time data-spec="date" datetime="2007-05-07">
+       7 mai 2007
+      </time>
+     </a>
+     ) ;
+    </div>
+    <div data-number="6" data-spec="alinea">
+     ET 3.2 Tous les flux journaliers calculés pour la substance sont inférieurs à 10% du flux journalier théorique admissible par le milieu récepteur (le flux journalier admissible étant calculé à partir du produit du débit mensuel d'étiage de fréquence quinquennale sèche QMNA5 et de la NQE ou NQEp conformément aux explications de l'alinéa précédent).
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <ul>
+      <li>
+       - des propositions dûment argumentées, le cas échéant, si l'exploitant souhaite adopter un rythme de mesures autre que trimestriel pour la poursuite de la surveillance ;
+      </li>
+      <li>
+       - le cas échéant, les résultats de mesures de qualité des eaux d'alimentation en précisant leur origine (superficielle, souterraine ou adduction d'eau potable).
+      </li>
+     </ul>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Remontée d'informations sur l'état d'avancement de la surveillance des rejets - Déclaration des données relatives à la surveillance des rejets aqueux" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 : Remontée d'informations sur l'état d'avancement de la surveillance des rejets - Déclaration des données relatives à la surveillance des rejets aqueux
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les résultats des mesures du mois N réalisées en application de l'
+     <a data-parent_reference="13" data-spec="section_reference" data-start_num="3" data-type="article">
+      article 3
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="13" data-type="self">
+      présent arrêté
+     </a>
+     sont saisis sur le site de télédéclaration du ministère chargé de l'environnement prévu à cet effet et sont transmis mensuellement à l'inspection des installations classées par voie électronique avant la fin du mois N+1.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Dans l'attente de la possibilité d'utilisation généralisée à l'échelle nationale de l'outil de télédéclaration du ministère ou si l'exploitant n'utilise pas la transmission électronique via le site de télédéclaration mentionné à l'alinéa précédent, il est tenu de transmettre mensuellement par écrit avant la fin du mois N+1 à l'inspection des installations classées un rapport de synthèse relatif aux résultats des mesures et analyses du mois N imposées à l'
+     <a data-spec="section_reference" data-start_num="3" data-type="article">
+      article 3
+     </a>
+     ainsi que les éléments relatifs au contexte de la mesure analytique des substances figurant en
+     <a data-parent_reference="14" data-spec="section_reference" data-start_num="2" data-type="annexe">
+      annexe 2
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="14" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="Sanctions" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6 : Sanctions
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les infractions ou l'inobservation des conditions légales fixées par
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     entraîneront l'application des sanctions pénales et administratives prévues par le titre 1er du livre V du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      Code de l'Environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="Publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 7 : Publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="15" data-spec="section_reference" data-start_num="R512-39" data-type="article">
+      article R 512-39
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="15" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     relatif aux installations classées pour la protection de l'environnement, en vue de l'information des tiers, :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - une copie de l'arrêté sera déposée à la mairie de Montauban pour y être consultée par tout intéressé ;
+      </li>
+      <li>
+       - un extrait de cet arrêté sera affiché à la mairie de Montauban par les soins du maire ainsi que dans l'installation par les soins de l'exploitant ;
+      </li>
+      <li>
+       - Un avis sera inséré, par les soins du préfet et aux frais de l'exploitant, dans deux journaux locaux diffusés dans tout le département.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 8 : Délais et voies de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La présente décision ne peut être déférée qu'au tribunal administratif. Le délai commence à courir du jour où la présente décision a été notifiée.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Toute personne intéressée peut également saisir directement le tribunal administratif dans un délai de quatre ans à compter de la publication de l'acte ou le cas échéant dans les deux ans qui suivent la mise en service de l'installation.
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-title="Exécution" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 9 : Exécution
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le secrétaire général de la préfecture de Tarn-et-Garonne, la députée-maire de Montauban, le directeur régional de l'environnement, de l'aménagement et du logement, sont chargés chacun en ce qui le concerne de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie sera adressée à la SOCIETE LAITIERE DE MONTAUBAN.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Montauban, le 20 NOV. 2009
+    </div>
+    <div data-number="3" data-spec="alinea">
+     La préfète,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le Préfet
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le Secrétaire Général,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Alice COSTE
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+   </section>
+  </main>
+  <footer data-spec="appendix">
+   <section data-number="1" data-spec="section" data-title="Tableau des performances et assurance qualité et attestation d u prestataire à renseigner par le laboratoire et à restituer à l'exploitant" data-type="annexe">
+    <h2 data-level="0" data-spec="section_title">
+     ANNEXE 1 - Tableau des performances et assurance qualité et attestation d u prestataire à renseigner par le laboratoire et à restituer à l'exploitant
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     (Documents disponibles à l'
+     <a data-parent_reference="16" data-spec="section_reference" data-start_num="5.5" data-type="annexe">
+      annexe 5.5
+     </a>
+     de la
+     <a data-date="2009-01-05" data-spec="document_reference" data-tag_id="16" data-type="circulaire">
+      circulaire du
+      <time data-spec="date" datetime="2009-01-05">
+       5 janvier 2009
+      </time>
+     </a>
+     et téléchargeables sur le site http://rsde.ineris.fr/)
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Famille
+       </th>
+       <th>
+        Substances
+       </th>
+       <th>
+        Code SANDRE
+       </th>
+       <th>
+        Substance Accréditée
+        <sup>
+         1
+        </sup>
+        oui / non sur matrice eaux résiduaires
+       </th>
+       <th>
+        LQ en μg/l (obtenue sur une matrice eau résiduaire)
+       </th>
+      </tr>
+      <tr>
+       <td>
+        <em>
+         Alkylphénols
+        </em>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        <em>
+         Autres
+        </em>
+       </td>
+       <td>
+        Acide chloroacétique
+       </td>
+       <td>
+        1465
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="3">
+        <em>
+         COHV
+        </em>
+       </td>
+       <td>
+        Chloroforme
+       </td>
+       <td>
+        1135
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Trichloroéthylène
+       </td>
+       <td>
+        1286
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Tétrachlorure de carbone
+       </td>
+       <td>
+        1276
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="2">
+        <em>
+         HAP
+        </em>
+       </td>
+       <td>
+        Fluoranthène
+       </td>
+       <td>
+        1191
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Naphtalène
+       </td>
+       <td>
+        1517
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="7">
+        <em>
+         Métaux
+        </em>
+       </td>
+       <td>
+        Phosphor
+       </td>
+       <td>
+        1381
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Ploomb et ses composés
+       </td>
+       <td>
+        1382
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Tétrachlorure de carbone
+       </td>
+       <td>
+        1383
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Nickel et ses composés
+       </td>
+       <td>
+        1386
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Zinc et ses composés
+       </td>
+       <td>
+        1383
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Cuivre et ses composés
+       </td>
+       <td>
+        1392
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Chrome et ses composés
+       </td>
+       <td>
+        1389
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td rowspan="3">
+        <em>
+         Organoétains
+        </em>
+       </td>
+       <td>
+        Dibutyléthanol
+       </td>
+       <td>
+        1771
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Dibutylétan cation
+       </td>
+       <td>
+        1771
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Monobutylétan cation
+       </td>
+       <td>
+        2542
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+     </table>
+     <br/>
+     1: Une absence d'accréditation pourra être acceptée pour certaines substances (substances très rarement accréditées par les laboratoires voire jamais). Il s'agit des substances : « Chloroalcanes C10-C13, diphénylétherbromés, alkylphénols et hexachloropentadiene».
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Substances Dangereuses Prioritaires issues de l'
+     <a data-spec="section_reference" data-start_num="10" data-type="annexe">
+      annexe X
+     </a>
+     de la DCE (tableau A de la
+     <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+      circulaire du
+      <time data-spec="date" datetime="2007-05-07">
+       07/05/07
+      </time>
+     </a>
+     ) et de la directive fille de la DCE adoptée le 20 octobre 2008 (anthracène et endosulfan)
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Substances Prioritaires issues de l'
+     <a data-spec="section_reference" data-start_num="10" data-type="annexe">
+      annexe X
+     </a>
+     de la DCE (tableau A de la
+     <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+      circulaire du
+      <time data-spec="date" datetime="2007-05-07">
+       07/05/07
+      </time>
+     </a>
+     )
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Autres substances pertinentes issues de la liste I de la
+     <a data-date="2006" data-num="11" data-spec="document_reference" data-type="eu-directive">
+      directive 2006/11/CE
+     </a>
+     (anciennement
+     <a data-date="1976" data-num="464" data-spec="document_reference" data-type="eu-directive">
+      Directive 76/464/CEE
+     </a>
+     ) et ne figurant pas à l'
+     <a data-spec="section_reference" data-start_num="10" data-type="annexe">
+      annexe X
+     </a>
+     de la DCE (tableau B de la
+     <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+      circulaire du
+      <time data-spec="date" datetime="2007-05-07">
+       07/05/07
+      </time>
+     </a>
+     )
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Autres substances pertinentes issues de la liste II de la
+     <a data-date="2006" data-num="11" data-spec="document_reference" data-type="eu-directive">
+      directive 2006/11/CE
+     </a>
+     (anciennement
+     <a data-date="1976" data-num="464" data-spec="document_reference" data-type="eu-directive">
+      Directive 76/464/CEE
+     </a>
+     ) et autres substances, non SDP ni SP (tableaux D et E de la
+     <a data-date="2007-05-07" data-spec="document_reference" data-type="circulaire">
+      circulaire du
+      <time data-spec="date" datetime="2007-05-07">
+       07/05/07
+      </time>
+     </a>
+     )
+    </div>
+    <a data-page_index="6" data-spec="page_separator">
+    </a>
+    <div data-number="7" data-spec="alinea">
+     ATTESTATION DU PRESTATAIRE
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Je soussigné(e)
+    </div>
+    <div data-number="9" data-spec="alinea">
+     (Nom, qualité) ...
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Coordonnées de l'entreprise : ...
+    </div>
+    <div data-number="11" data-spec="alinea">
+     (Nom, forme juridique, capital social, RCS, siège social et adresse si différente du siège)
+    </div>
+    <div data-number="12" data-spec="alinea">
+     <ul>
+      <li>
+       - reconnais avoir reçu et avoir pris connaissance des prescriptions techniques applicables aux opérations de prélèvements et d'analyses pour la mise en œuvre de la deuxième phase de l'action nationale de recherche et de réduction des rejets de substances dangereuses pour le milieu aquatique et des documents auxquels il fait référence.
+      </li>
+      <li>
+       - m'engage à restituer les résultats dans un délai de XXX mois après réalisation de chaque prélèvement¹
+      </li>
+      <li>
+       - reconnais les accepter et les appliquer sans réserve.
+      </li>
+     </ul>
+    </div>
+    <div data-number="13" data-spec="alinea">
+     A :
+    </div>
+    <div data-number="14" data-spec="alinea">
+     Le :
+    </div>
+    <div data-number="15" data-spec="alinea">
+     Pour le soumissionnaire*, nom et prénom de la personne habilitée à signer le marché :
+    </div>
+    <div data-number="16" data-spec="alinea">
+     Signature :
+    </div>
+    <div data-number="17" data-spec="alinea">
+     Cachet de la société :
+    </div>
+    <div data-number="18" data-spec="alinea">
+     Signature et qualité du signataire (qui doit être habilité à engager sa société) précédée de la mention
+     <q>
+      Bon pour acceptation
+     </q>
+    </div>
+    <div data-number="19" data-spec="alinea">
+     ¹ L'attention est attirée sur l'intérêt de disposer des résultats d'analyses de la première mesure avant d'engager la suivante afin d'évaluer l'adéquation du plan de prélèvement, en particulier lors des premières mesures.
+    </div>
+    <a data-page_index="7" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Éléments relatifs au contexte de la mesure analytique des substances" data-type="annexe">
+    <h2 data-level="0" data-spec="section_title">
+     ANNEXE 2 - Éléments relatifs au contexte de la mesure analytique des substances
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     (Document disponible à l'
+     <a data-parent_reference="17" data-spec="section_reference" data-start_num="5.4" data-type="annexe">
+      annexe 5.4
+     </a>
+     de la
+     <a data-date="2009-01-05" data-spec="document_reference" data-tag_id="17" data-type="circulaire">
+      circulaire du
+      <time data-spec="date" datetime="2009-01-05">
+       5 janvier 2009
+      </time>
+     </a>
+     et téléchargeable sur le site http://rsde.ineris.fr/)
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Conditions de prélèvement et d'analyses
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Identification
+        <br/>
+        d'échantillon
+       </th>
+       <th>
+        Identification de
+        <br/>
+        l'organisme de
+        <br/>
+        prélèvement
+       </th>
+       <th>
+        Prélèvement de
+        <br/>
+        prélèvement
+       </th>
+       <th>
+        Type de
+        <br/>
+        prélèvement
+       </th>
+       <th>
+        Date de prélèvement
+        <br/>
+        d'échantillon
+       </th>
+       <th>
+        Nombre de
+        <br/>
+        prélèvements pour
+        <br/>
+        d'échantillon
+       </th>
+       <th>
+        Période de
+        <br/>
+        prélèvement
+       </th>
+       <th>
+        Date du synthèse de
+        <br/>
+        prélèvement
+       </th>
+       <th>
+        Mano du synthèse de
+        <br/>
+        prélèvement
+       </th>
+       <th>
+        Mano
+        <br/>
+        d'obsosphère
+       </th>
+       <th>
+        Identification
+        <br/>
+        du laboratoire
+        <br/>
+        principal
+        <br/>
+        d'analyse
+       </th>
+       <th>
+        Date de prise en
+        <br/>
+        charge de
+        <br/>
+        d'échantillon par
+        <br/>
+        le laboratoire
+        <br/>
+        principal
+       </th>
+       <th>
+        Prélèvement de
+        <br/>
+        synthèse de
+        <br/>
+        prélèvement
+       </th>
+      </tr>
+      <tr>
+       <td>
+        zone libre de
+        <br/>
+        texte
+       </td>
+       <td>
+        ocde sandre du
+        <br/>
+        prestataire de
+        <br/>
+        prélèvement, code
+        <br/>
+        ingrôment
+       </td>
+       <td>
+        champ toute
+        <br/>
+        destiné à
+        <br/>
+        recorder la
+        <br/>
+        référence à la
+        <br/>
+        même de
+        <br/>
+        prélèvement
+       </td>
+       <td>
+        date
+        <br/>
+        démoliante
+        <br/>
+        (exempt au
+        <br/>
+        débit,
+        <br/>
+        programmateur
+        <br/>
+        ou temps,
+        <br/>
+        privatisé)
+       </td>
+       <td>
+        date d'envoi
+        <br/>
+        du
+        <br/>
+        préférent
+       </td>
+       <td>
+        mettre acier
+       </td>
+       <td>
+        date d'envoi
+        <br/>
+        du
+        <br/>
+        préférent
+       </td>
+       <td>
+        durée en nombre
+        <br/>
+        d'heures
+       </td>
+       <td>
+        tout / non
+       </td>
+       <td>
+        tout / non
+       </td>
+       <td>
+        code SANDRE
+        <br/>
+        de
+        <br/>
+        l'intervenant
+        <br/>
+        principal
+       </td>
+       <td>
+        date d'envoi
+        <br/>
+        du
+        <br/>
+        préférent
+       </td>
+       <td>
+        mettre délimité
+        <br/>
+        du file significatif
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Résultats d'analyses
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Code SANDRE
+        <br/>
+        (une évaluation
+        <br/>
+        de la mise en
+        <br/>
+        santé du
+        <br/>
+        prestataire)
+       </th>
+       <th>
+        Lésite ou
+        <br/>
+        démoliante
+        <br/>
+        (exempt au
+        <br/>
+        débit,
+        <br/>
+        programmateur)
+       </th>
+       <th>
+        Résultat total
+        <br/>
+        de l'analyse
+       </th>
+       <th>
+        Date d'envoi
+        <br/>
+        du
+       </th>
+       <th>
+        Tout,
+        <br/>
+        non,
+        <br/>
+        préférent
+       </th>
+       <th>
+        Mettre en service
+        <br/>
+        le
+        <br/>
+        préférent
+       </th>
+       <th>
+        Mettre en
+        <br/>
+        service
+        <br/>
+        le
+        <br/>
+        préférent
+       </th>
+       <th>
+        Mettre en
+        <br/>
+        service
+        <br/>
+        le
+        <br/>
+        préférent
+       </th>
+       <th>
+        Prélèvement
+        <br/>
+        de
+        <br/>
+        prélèvement
+       </th>
+       <th>
+        Prélèvement
+        <br/>
+        de
+        <br/>
+        prélèvement
+       </th>
+       <th>
+        Prélèvement
+        <br/>
+        de
+        <br/>
+        prélèvement
+       </th>
+       <th>
+        Prélèvement
+        <br/>
+        de
+        <br/>
+        prélèvement
+       </th>
+       <th>
+        Prélèvement
+        <br/>
+        de
+        <br/>
+        prélèvement
+       </th>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+        C14
+       </td>
+       <td>
+       </td>
+       <td>
+        1409
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+        C15
+       </td>
+       <td>
+       </td>
+       <td>
+        151
+       </td>
+       <td>
+        31
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+        C16
+       </td>
+       <td>
+       </td>
+       <td>
+        151
+       </td>
+       <td>
+        31
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+        substance
+       </td>
+       <td>
+       </td>
+       <td>
+        1009
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+        1
+       </td>
+       <td>
+        151
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+        substance
+       </td>
+       <td>
+       </td>
+       <td>
+        1009
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+        21
+       </td>
+       <td>
+        151
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+        substance
+       </td>
+       <td>
+        1 bout
+       </td>
+       <td>
+        21
+       </td>
+       <td>
+        31
+       </td>
+       <td>
+        À renseigner
+        <br/>
+        uniquement sur la
+        <br/>
+        ligne substance total
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+        151
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+        substance
+       </td>
+       <td>
+        en
+       </td>
+       <td>
+        1009
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+        21
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+        substance
+       </td>
+       <td>
+        en
+       </td>
+       <td>
+        1009
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+        21
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="8" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Prescriptions techniques applicables aux opérations de prélèvements et d'analyses" data-type="annexe">
+    <h2 data-level="0" data-spec="section_title">
+     ANNEXE 3 - Prescriptions techniques applicables aux opérations de prélèvements et d'analyses
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     (
+     <a data-parent_reference="18" data-spec="section_reference" data-start_num="5" data-type="annexe">
+      annexe 5
+     </a>
+     de la
+     <a data-date="2009-01-05" data-spec="document_reference" data-tag_id="18" data-type="circulaire">
+      circulaire du
+      <time data-spec="date" datetime="2009-01-05">
+       5 janvier 2009
+      </time>
+     </a>
+     )
+    </div>
+    <a data-page_index="9" data-spec="page_separator">
+    </a>
+    <div data-number="2" data-spec="alinea">
+     ^{}[]
+    </div>
+    <a data-page_index="10" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Prescriptions techniques applicables aux opérations de prélèvements et d'analyses" data-type="annexe">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     Annexe 5: Prescriptions techniques applicables aux opérations de prélèvements et d'analyses
+    </h2>
+    <section data-number="1" data-spec="section" data-title="INTRODUCTION" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      1 INTRODUCTION
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Cette annexe a pour but de préciser les prescriptions techniques qui doivent être respectées pour la réalisation des opérations de prélèvements et d'analyses de substances dangereuses dans l'eau.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Ce document doit être communiqué à l'exploitant comme cahier des charges à remplir par le laboratoire qu'il choisira. Ce document permet également à l'inspection de vérifier à réception du rapport de synthèse de mesures les bonnes conditions de réalisation de celles-ci.
+     </div>
+    </section>
+    <section data-number="2" data-spec="section" data-title="PRESCRIPTIONS GENERALES" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      2 PRESCRIPTIONS GENERALES
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Dans l'attente d'une prise en compte plus complète de la mesure des substances dangereuses dans les eaux résiduaires par l'
+      <a data-date="2006-11-29" data-spec="document_reference" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="2006-11-29">
+        29 novembre 2006
+       </time>
+      </a>
+      portant modalités d'agrément des laboratoires effectuant des analyses dans le domaine de l'eau et des milieux aquatiques au titre du
+      <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      , le laboratoire d'analyse choisit de vous impréviser remplir les deux conditions suivantes :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - Être accrédité selon la norme NF EN ISO/CEI 17025 pour la matrice « Eaux Résiduaires », pour chaque substance à analyser. Afin de justifier de cette accréditation, le laboratoire devra fournir à l'exploitant l'ensemble des documents listés à l'
+        <a data-spec="section_reference" data-start_num="5.5" data-type="annexe">
+         annexe 5.5
+        </a>
+        avant le début des opérations de prélèvement et de mesures afin de justifier qu'il remplit bien les dispositions de la présente annexe. Les documents de l'
+        <a data-spec="section_reference" data-start_num="5.5" data-type="annexe">
+         annexe 5.5
+        </a>
+        sont téléchargeables sur le site http://rsde.ineris.fr.
+       </li>
+       <li>
+        - Respecter les limites de quantification listées à l'
+        <a data-spec="section_reference" data-start_num="5.2" data-type="annexe">
+         annexe 5.2
+        </a>
+        pour chacune des substances.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Le prestataire ou l'exploitant pourra faire appel à de la sous-traitance ou réaliser lui-même les opérations de prélèvements. Dans tous les cas il devra veiller au respect des prescriptions relatives aux opérations de prélèvements telles que décrites ci-après, en concertation étroite avec le laboratoire réalisant les analyses.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      La sous-traitance analytique est autorisée. Toutefois, en cas de sous-traitance, le laboratoire désigné pour ces analyses devra respecter les mêmes critères de compétences que le prestataire c'est à dire remplir les deux conditions visées au
+      <a data-spec="section_reference" data-start_num="2" data-type="unknown">
+       paragraphe 2
+      </a>
+      ci-dessus.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Le prestataire restera, en tout état de cause, le seul responsable de l'exécution des prestations et s'engagera à faire respecter par ses sous-traitants toutes les obligations de l'annexe technique.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Lorsque les opérations de prélèvement sont diligentées par le prestataire d'analyse, il est seul responsable de la bonne exécution de l'ensemble de la chaîne.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Lorsque les opérations de prélèvements sont réalisées par l'exploitant lui-même ou son soustraitant, l'exploitant est le seul responsable de l'exécution des prestations de prélèvements et de ce fait, responsable solidaire de la qualité des résultats d'analyse.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Le respect du présent cahier des charges et des exigences demandées pourront être contrôlés par un organisme mandaté par les services de l'État.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      L'ensemble des données brutes devra être conservé par le laboratoire pendant au moins 3 ans.
+     </div>
+    </section>
+    <section data-number="3" data-spec="section" data-title="OPERATIONS DE PRELEVEMENT" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3 OPERATIONS DE PRELEVEMENT
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les opérations de prélèvement et d'échantillonnage devront s'appuyer sur les normes ou les guides en vigueur, ce qui implique à ce jour le respect de :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - la norme NF EN ISO 5667-3 "Qualité de l'eau - Echantillonnage - Partie 3 : Lignes directrices pour la conservation et la manipulation des échantillons d'eau"
+       </li>
+       <li>
+        - le guide FD T 90-523-2 « Qualité de l'Eau - Guide de prélèvement pour le suivi de qualité des eaux dans l'environnement - Prélèvement d'eau résiduaire »
+       </li>
+      </ul>
+     </div>
+     <a data-page_index="11" data-spec="page_separator">
+     </a>
+     <div data-number="3" data-spec="alinea">
+      Les points essentiels de ces référentiels techniques sont détaillés ci-après en ce qui concerne les conditions générales de prélèvement, la mesure de débit en continu, le prélèvement continu sur 24 heures à température contrôlée, l'échantillonnage et la réalisation de blancs de prélèvements.
+     </div>
+    </section>
+    <section data-number="3.1" data-spec="section" data-title="Opérateurs du prélèvement" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.1 Opérateurs du prélèvement
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les opérations de prélèvement peuvent être réalisées sur le site par :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - le prestataire d'analyse ;
+       </li>
+       <li>
+        - le sous-traitant sélectionné par le prestataire d'analyse ;
+       </li>
+       <li>
+        - l'exploitant lui-même ou son sous-traitant
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Dans le cas où c'est l'exploitant ou son sous-traitant qui réalise le prélèvement, il est impératif qu'il dispose de procédures démontrant la fiabilité et la reproductibilité de ses pratiques de prélèvement et de mesure de débit. Ces procédures doivent intégrer les points détaillés aux
+      <a data-end_num="3.6" data-spec="section_reference" data-start_num="3.2" data-type="unknown">
+       paragraphes 3.2 à 3.6
+      </a>
+      ci-après et démontrer que la traçabilité de ces opérations est assurée.
+     </div>
+    </section>
+    <section data-number="3.2" data-spec="section" data-title="Conditions générales du prélèvement" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.2 Conditions générales du prélèvement
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      <ul>
+       <li>
+        - Le volume prélevé devra être représentatif des flux de l'établissement et conforme avec les quantités nécessaires pour réaliser les analyses sous accréditation.
+       </li>
+       <li>
+        - En cas d'intervention de l'exploitant ou d'un sous-traitant pour le prélèvement, le nombre, le volume unitaire, le flaconnage, la préservation éventuelle et l'identification des échantillons seront obligatoirement définis par le prestataire d'analyse et communiqués au préleveur. Le laboratoire d'analyse fournira les flaconnages (prévoir des flacons supplémentaires pour les blancs du système de prélèvement).
+       </li>
+       <li>
+        - Les échantillons seront répartis dans les différents flacons fournis par le laboratoire selon les prescriptions des méthodes officielles en vigueur, spécifiques aux substances à analyser et/ou à la norme NF EN ISO 5667-3 (1). Les échantillons acheminés au laboratoire dans un flaconnage d'une autre provenance devront être refusés par le laboratoire.
+       </li>
+       <li>
+        - Le prélèvement doit être adressé afin d'être réceptionné par le laboratoire d'analyse au plus tard 24 heures après la fin du prélèvement, sous peine de refus par le laboratoire.
+       </li>
+      </ul>
+     </div>
+     <div data-number="2" data-spec="alinea">
+      (1) La norme NF EN ISO 5667-3 est un Guide de Bonne Pratique. Quand des différences existent entre la norme NF EN ISO 5667-3 et la norme analytique spécifique à la substance, c'est toujours les prescriptions de la norme analytique qui prévalent.
+     </div>
+    </section>
+    <section data-number="3.3" data-spec="section" data-title="Mesure de débit en continu" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.3 Mesure de débit en continu
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      <ul>
+       <li>
+        - La mesure de débit s'effectuera en continu sur une période horaire de 24 heures, suivant les normes en vigueur figurant dans le FDT-90-523-2 et les prescriptions techniques des constructeurs des systèmes de mesure.
+       </li>
+       <li>
+        - Afin de s'assurer de la qualité de fonctionnement de ces systèmes de mesure, des contrôles métrologiques périodiques devront être effectués par des organismes accrédités, se traduisant par :
+       </li>
+       <li>
+        - Pour les systèmes en écoulement à surface libre :
+       </li>
+       <li>
+        - un contrôle de la conformité de l'organe de mesure (seuil, canal jaugeur, venturi, déversoir,...) vis-à-vis des prescriptions normatives et des constructeurs,
+       </li>
+       <li>
+        - un contrôle de fonctionnement du débitmètre en place par une mesure comparative réalisée à l'aide d'un autre débitmètre.
+       </li>
+       <li>
+        - Pour les systèmes en écoulement en charge :
+       </li>
+       <li>
+        - un contrôle de la conformité de l'installation vis-à-vis des prescriptions normatives et des constructeurs,
+       </li>
+       <li>
+        - un contrôle de fonctionnement du débitmètre par mesure comparative exercée sur site (autre débitmètre, jaugeage,...) ou par une vérification effectuée sur un banc de mesure au sein d'un laboratoire accrédité.
+       </li>
+       <li>
+        - Le contrôle métrologique aura lieu avant le démarrage de la première campagne de mesures, ou à l'occasion de la première mesure, avant d'être renouvelé à un rythme annuel.
+       </li>
+      </ul>
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       http://www.ineris.fr/aida/?q=consult_doc/version_imprimable/2.250.190.28.8.6994/true · 14/09/2009
+      </div>
+     </div>
+     <a data-page_index="12" data-spec="page_separator">
+     </a>
+    </section>
+    <section data-number="3.4" data-spec="section" data-title="Prélevement continu sur 24 heures à température contrôlée" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.4 Prélevement continu sur 24 heures à température contrôlée
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Ce type de prélèvement nécessite du matériel spécifique permettant de constituer un échantillon pondéré en fonction du débit.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - Les matériels permettant la réalisation d'un prélèvement automatisé en fonction du débit ou du volume écoulé, sont :
+       </li>
+       <li>
+        - Soit des échantillonneurs monofiacons fixes ou portatifs, constituant un seul échantillon moyen sur toute la période considérée.
+       </li>
+       <li>
+        - Soit des échantillonneurs multifiacons fixes ou portatifs, constituant plusieurs échantillons (en général 4, 6, 12 ou 24) pendant la période considérée. Si ce type d'échantillonneurs est mis en œuvre, les échantillons devront être homogénéisés pour constituer l'échantillon moyen avant transfert dans les flacons destinés à l'analyse.
+       </li>
+       <li>
+        - Les échantillonneurs utilisés devront réfrigérer les échantillons pendant toute la période considérée.
+       </li>
+       <li>
+        - Dans le cas où il s'avérerait impossible d'effectuer un prélèvement proportionnel au débit de l'effluent, le prélèveur pratiquera un prélèvement asservi au temps, ou des prélèvements ponctuels si la nature des rejets le justifie (par exemple rejets homogènes en batches). Dans ce cas, le débit et son évolution seront estimés par le prélèveur en fonction des renseignements collectés sur place (compteurs d'eau, bilan hydrique, etc).
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Le prélèveur devra lors de la restitution préciser la méthodologie de prélèvement mise en œuvre.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      <ul>
+       <li>
+        - Un contrôle métrologique de l'appareil de prélèvement doit être réalisé périodiquement sur les points suivants (recommandations du guide FD T 90-523-2) :
+       </li>
+       <li>
+        - Justesse et répétabilité du volume prélevé (volume minimal : 50 ml, écart toléré entre volume théorique et réel 5%)
+       </li>
+       <li>
+        - Vitesse de circulation de l'effluent dans les tuyaux supérieurs ou égaux à 0,5 m/s
+       </li>
+       <li>
+        - Un contrôle des matériaux et des organes de l'échantillonneur seront à réaliser (voir blanc de système de prélèvement)
+       </li>
+       <li>
+        - Le positionnement de la prise d'effluent devra respecter les points suivants :
+       </li>
+       <li>
+        - Dans une zone turbulente ;
+       </li>
+       <li>
+        - À mi-hauteur de la colonne d'eau ;
+       </li>
+       <li>
+        - À une distance suffisante des parois pour éviter une contamination des échantillons par les dépôts ou les biofilms qui s'y développent.
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="3.5" data-spec="section" data-title="Echantillon" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.5 Echantillon
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      <ul>
+       <li>
+        - La représentativité de l'échantillon est difficile à obtenir dans le cas du fractionnement de certaines eaux résiduaires en raison de leur forte hétérogénéité, de leur forte teneur en MES ou en matières flottantes. Un système d'homogénéisation pourra être utilisé dans ces cas. Il ne devra pas modifier l'échantillon.
+       </li>
+       <li>
+        - Le conditionnement des échantillons devra être réalisé dans des contenants conformes aux méthodes officielles en vigueur, spécifiques aux substances à analyser et/ou à la norme NF EN ISO 5667-31.
+       </li>
+       <li>
+        - Le transport des échantillons vers le laboratoire devra être effectué dans une enceinte maintenue à une température égale à 5°C ± 3°C, et être accompli dans les 24 heures qui suivent la fin du prélèvement, afin de garantir l'intégrité des échantillons.
+       </li>
+       <li>
+        - La température de l'enceinte ou des échantillons sera contrôlée à l'arrivée au laboratoire et indiquée dans le rapportage relatif aux analyses.
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="3.6" data-spec="section" data-title="Blancs de prélèvement" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      3.6 Blancs de prélèvement
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Blanc du système de prélèvement :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Le blanc de système de prélèvement est destiné à vérifier l'absence de contamination liée aux matériaux (flacons, tuyaux) utilisés ou de contamination croisée entre prélèvements successifs. Il appartient au prélèveur de mettre en œuvre les dispositions permettant de démontrer l'absence de contamination. La transmission des résultats vaut
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       http://www.ineris.fr/aida/?q=consult_doc/version_imprimable/22501902886994/tme 14/09/2009
+      </div>
+     </div>
+     <a data-page_index="13" data-spec="page_separator">
+     </a>
+     <div data-number="3" data-spec="alinea">
+      validation et l'exploitant sera donc réputé émetteur de toutes les substances retrouvées dans son rejet, aux teneurs correspondantes. Il lui appartiendra donc de contrôler cette absence de contamination avant transmission des résultats.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      <ul>
+       <li>
+        - Si un blanc du système de prélèvement est réalisé, il est recommandé de suivre les prescriptions suivantes :
+       </li>
+       <li>
+        - il devra être fait obligatoirement sur une durée de 3 heures minimum. Il pourra être réalisé en laboratoire en faisant circuler de l'eau exempte de micropolluants dans le système de prélèvement.
+       </li>
+       <li>
+        - Les critères d'acceptation et de prise en compte du blanc seront les suivants :
+       </li>
+       <li>
+        - si valeur du blanc &amp;lt; LQ : ne pas soustraire les résultats du blanc du système de prélèvement des résultats de l'effluent
+       </li>
+       <li>
+        - si valeur du blanc &amp;gt; LQ et inférieure à l'incertitude de mesure attachée au résultat : ne pas soustraire les résultats du blanc du système de prélèvement des résultats de l'effluent
+       </li>
+       <li>
+        - si valeur du blanc &amp;gt; l'incertitude de mesure attachée au résultat : la présence d'une contamination est avérée, le laboratoire devra refaire le prélèvement et l'analyse du rejet considéré.
+       </li>
+      </ul>
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Blanc d'atmosphère
+     </div>
+     <div data-number="6" data-spec="alinea">
+      <ul>
+       <li>
+        - La réalisation d'un blanc d'atmosphère permet au laboratoire d'analyse de s'assurer de la fiabilité des résultats obtenus concernant les composés volatils ou susceptibles d'être dispersés dans l'air et pourra fournir des données explicatives à l'exploitant.
+       </li>
+       <li>
+        - Le blanc d'atmosphère peut être réalisé à la demande de l'exploitant en cas de suspicion de présence de substances volatiles (BTEX, COV, Chlorobenzène, mercure...) sur le site de prélèvement.
+       </li>
+       <li>
+        - S'il est réalisé, il doit l'être obligatoirement et systématiquement :
+       </li>
+       <li>
+        - le jour du prélèvement des effluents aqueux,
+       </li>
+       <li>
+        - sur une durée de 24 heures ou en tout état de cause, sur une durée de prélèvement du blanc d'atmosphère identique à la durée du prélèvement de l'effluent aqueux. La méthodologie retenue est de laisser un flacon d'eau exempte de COV et de métaux exposé à l'air ambiant à l'endroit où est réalisé le prélèvement 24h asservi au débit,
+       </li>
+       <li>
+        - Les valeurs du blanc d'atmosphère seront mentionnées dans le rapport d'analyse et en aucun cas soustraites des autres.
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="4" data-spec="section" data-title="ANALYSES" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4 ANALYSES
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      <ul>
+       <li>
+        - Toutes les procédures analytiques doivent être démarrées si possible dans les 24h et en tout état de cause 48 heures au plus tard après la fin du prélèvement.
+       </li>
+       <li>
+        - Toutes les analyses doivent rendre compte de la totalité de l'échantillon (effluent brut, MES comprises) en respectant les dispositions relatives au traitement des MES reprises ci-dessous, hormis pour les diphényléthers polybromés.
+       </li>
+       <li>
+        - Dans le cas des métaux, l'analyse demandée est une détermination de la concentration en métal total contenu dans l'effluent (aucune filtration), obtenue après digestion de l'échantillon selon les normes en vigueur :
+       </li>
+       <li>
+        - Norme ISO 15587-1 "Qualité de l'eau Digestion pour la détermination de certains éléments dans l'eau Partie 1 : digestion à l'eau régale" ou
+       </li>
+       <li>
+        - Norme ISO 15587-2 "Qualité de l'eau Digestion pour la détermination de certains éléments dans l'eau Partie 2 : digestion à l'acide nitrique".
+       </li>
+      </ul>
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Pour le mercure, l'étape de digestion complète sans filtration préalable est décrite dans les normes analytiques spécifiques à cet élément.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - Dans le cas des alkylphénols, il est demandé de rechercher simultanément les nonylphénols, les octylphénols ainsi que les deux premiers homologues d'éthoxylates(2) de nonylphénols (NP10E et NP20E) et les deux premiers homologues d'éthoxylates2 d'octylphénols (OP10E et OP20E). La recherche des éthoxylates peut être effectuée sans surcoût conjointement à celle des nonylphénols et des octylphénols par l'utilisation du projet de norme ISO/DIS 18857-2(3).
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      (2) Les éthoxylates de nonylphénols et d'octylphénols constituent à terme une source indirecte de nonylphénols et d'octylphénols dans l'environnement.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      (3) ISO/DIS 18857-2 : Qualité de l'eau - Dosage d'alkylphénols sélectionnés- Partie 2 : Détermination des alkylphénols, d'éthoxylates d'alkylphénol et bisphénol A - Méthode pour échantillons non filtrés en utilisant l'extraction sur phase solide et chromatographie en phase gazeuse avec détection par spectrométrie de masse après dérivatisation. Disponible auprès de l'AFNOR, commission T 91M et qui sera publiée prioritairement en début 2009.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       http://www.ineris.fr/aida/?q=consult_doc/version_imprimable/2.250.190.28.8.6994/true 14/09/2009
+      </div>
+     </div>
+     <a data-page_index="14" data-spec="page_separator">
+     </a>
+     <div data-number="6" data-spec="alinea">
+      (1) NF T 90-101 : Qualité de l'eau : Détermination de la demande chimique en oxygène (DCO)
+     </div>
+     <div data-number="7" data-spec="alinea">
+      (5) NF EN 872 : Qualité de l'eau : Dosage des matières en suspension Méthode par filtration sur filtre en fibres de verre
+     </div>
+     <div data-number="8" data-spec="alinea">
+      (6) NF EN 1484 - Analyse des eaux : Lignes directrices pour le dosage du Carbone Organique Total et du Carbone Organique Dissous
+     </div>
+     <div data-number="9" data-spec="alinea">
+      (7) NF T 90-105-2 : Qualité de l'eau : Dosage des matières en suspension Méthode par centrifugation
+     </div>
+     <div data-number="10" data-spec="alinea">
+      <ul>
+       <li>
+        - Certains paramètres de suivi habituel de l'établissement, à savoir la DCO (Demande Chimique en Oxygène) ou COT (Carbone Organique Total) en fonction de l'arrêté préfectoral en vigueur, et les MES (Matières en Suspension) seront analysés systématiquement dans chaque effluent selon les normes en vigueur (cf. notes 4, 5, 6 et 7) afin de vérifier la représentativité de l'activité de l'établissement le jour de la mesure.
+       </li>
+       <li>
+        - Les performances analytiques à atteindre pour les eaux résiduaires sont indiquées en
+        <a data-spec="section_reference" data-start_num="5.2" data-type="annexe">
+         ANNEXE 5.2.
+        </a>
+        Elles sont issues de l'exploitation des limites de quantification transmises par les prestataires d'analyses dans le cadre de l'action RSDE depuis 2005.
+       </li>
+      </ul>
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Prise en compte des MES
+     </div>
+     <div data-number="12" data-spec="alinea">
+      <ul>
+       <li>
+        - Le laboratoire doit préciser et décrire de façon détaillée les méthodes mises en œuvre en cas de concentration en MES &amp;gt; 50 mg/L.
+       </li>
+       <li>
+        - Pour les paramètres visés à l'
+        <a data-spec="section_reference" data-start_num="5.1" data-type="annexe">
+         annexe 5.1
+        </a>
+        (à l'exception de la DCO, du COT et des MES), il est demandé:
+       </li>
+       <li>
+        - Si 50 &amp;lt; MES &amp;lt; 250 mg/l : réaliser 3 extractions liquide/liquide successives au minimum sur l'échantillon brut sans séparation.
+       </li>
+       <li>
+        - Si MES &amp;gt; 250 mg/l : analyser séparément la phase aqueuse et la phase particulaire après filtration ou centrifugation de l'échantillon brut, sauf pour les composés volatils pour lesquels le traitement de l'échantillon brut par filtration est à proscrire. Les composés volatils concernés sont :
+       </li>
+      </ul>
+     </div>
+     <div data-number="13" data-spec="alinea">
+      3,4 dichloroaniline, Epichlorhydine, Tributylphosphate, Acide chloroacétique, Benzène, Ethylbenzène, Isopropylbenzène, Toluène, Xylènes (Somme o,m,p), 1,2,3 trichlorobenzène, 1,2,4 trichlorobenzène, 1,3,5 trichlorobenzène, Chlorobenzène, 1,2dichlorobenzène, 1,3 dichlorobenzène, 1,4 dichlorobenzène, 1 chloro 3 nitrobenzène, 1 chloro 4 nitrobenzène, 2 chlorotoluène, 3 chlorotoluène, 4chlorotoluène, Nitrobenzène, 2 nitrotoluène, 1,2 dichloroéthane, Chlorure de méthylène, Chloroforme, Tétrachlorure de carbone, chloroprène, 3 chloropropène, 1,1dichloroéthane, 1,1 dichloroéthylène, 1,2 dichloroéthylène, hexachloroéthane, 1,1,2,2 tétrachloroéthane, Tétrachloroéthylène, 1,1,1 trichloroéthane, 1,1,2 trichloroéthane, Trichloroéthylène, Chlorure de vinyle, 2 chloroaniline, 3 chloroaniline, 4 chloroaniline et 4 chloro 2 nitroaniline.
+     </div>
+     <div data-number="14" data-spec="alinea">
+      <ul>
+       <li>
+        - La restitution pour chaque effluent chargé (MES &amp;gt; 250 mg/l) sera la suivante pour l'ensemble des substances de l'
+        <a data-spec="section_reference" data-start_num="5.1" data-type="annexe">
+         ANNEXE 5.1
+        </a>
+        : valeur en Cg/l obtenue dans la phase aqueuse, valeur en Cg/kg obtenue dans la phase particulaire et valeur totale calculée en Cg/l.
+       </li>
+      </ul>
+     </div>
+     <div data-number="15" data-spec="alinea">
+      L'analyse des diphényléthers polybromés (PBDE) n'est pas demandée dans l'eau, et sera à réaliser selon la norme ISO 22032 uniquement sur les MES dès que leur concentration est &amp;gt; 50 mg/l. La quantité de MES à prélever pour l'analyse devra permettre d'atteindre une LQ équivalente dans l'eau de 0,05 Vg/l pour chaque BDE.
+     </div>
+    </section>
+    <section data-number="5" data-spec="section" data-title="TRANSMISSION DES RÉSULTATS" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      5 TRANSMISSION DES RÉSULTATS
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'application informatique GIDAF (Gestion Informatisée des Données d'autosurveillance fréquente) permettra à terme la saisie directe des informations demandées par l'
+      <a data-spec="section_reference" data-start_num="5.3" data-type="annexe">
+       annexe 5.3
+      </a>
+      et leur télétransmission à l'inspection et à l'INERIS, chargé du suivi de la qualité des prestations des laboratoires et du traitement des données issues de cette seconde campagne d'analyse des substances dangereuses. L'extension nationale de cette application informatique actuellement testée par certaines DRIRE est prévue pour le courant de l'année 2009.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Dans l'attente de l'utilisation généralisée de cet outil, c'est par le biais du site http://rsde.ineris.fr que l'
+      <a data-spec="section_reference" data-start_num="5.4" data-type="annexe">
+       annexe 5.4
+      </a>
+      (qui reprend les éléments demandés dans l'
+      <a data-spec="section_reference" data-start_num="5.3" data-type="annexe">
+       annexe 5.3
+      </a>
+      )
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       http://www.ineris.fr/aida/?q=consult_doc/version_imprimable/2.250.190.28.8.6994/tme_14/09/2009
+      </div>
+     </div>
+     <a data-page_index="15" data-spec="page_separator">
+     </a>
+     <div data-number="3" data-spec="alinea">
+      doit être transmise à l'INERIS par l'exploitant.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les résultats d'analyses ainsi que les éléments relatifs au contexte de la mesure analytique des substances décrit à l'
+      <a data-spec="section_reference" data-start_num="5.4" data-type="annexe">
+       annexe 5.4
+      </a>
+      devront être adressés mensuellement par l'exploitant à l'inspection par courrier.
+     </div>
+     <div data-spec="page_footer">
+      <div>
+       http://www.ineris.fr/aida/?q=consult_doc/version_imprimable/2.250.190.28.8.6994/true 14/09/2009
+      </div>
+     </div>
+    </section>
+   </section>
+  </footer>
+ </body>
+</html>

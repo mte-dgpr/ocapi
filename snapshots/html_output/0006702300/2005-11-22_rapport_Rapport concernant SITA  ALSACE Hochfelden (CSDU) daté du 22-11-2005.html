@@ -1,0 +1,2096 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2005-11-22_rapport_Rapport concernant SITA  ALSACE Hochfelden (CSDU) daté du 22-11-2005.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Strasbourg, le 22 novembre 2005
+    </div>
+   </div>
+   <div>
+    RAPPORT DE L'INSPECTION DES INSTALLATIONS CLASSEES POUR LA PROTECTION DE L'ENVIRONNEMENT
+   </div>
+   <div>
+    Objet : Installations classées pour la protection de l'environnement
+   </div>
+   <div>
+    Société SITA ALSACE à HOCHFELDEN
+   </div>
+   <div>
+    Demande d'autorisation d'exploiter (extension) le Centre de stockage de déchets ultimes (CSDU) de HOCHFELDEN, dit du Rohrbach
+   </div>
+   <div>
+    P.J. :
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="projet de prescriptions relatif à l'extension du site" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     1 projet de prescriptions relatif à l'extension du site
+    </h2>
+   </section>
+   <section data-number="1" data-spec="section" data-title="projet d'arrêté instituant des servitudes d'utilité publique" data-type="unknown">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     1 projet d'arrêté instituant des servitudes d'utilité publique
+    </h2>
+   </section>
+   <section data-number="1" data-spec="section" data-title="plan de situation" data-type="unknown">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     1 plan de situation
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     I. PRESENTATION DE LA DEMANDE D'AUTORISATION ET SON CONTEXTE
+    </div>
+    <div data-number="2" data-spec="alinea">
+     II. ENQUETE PUBLIQUE
+    </div>
+    <div data-number="3" data-spec="alinea">
+     III. CONSULTATIONS ADMINISTRATIVES
+    </div>
+    <div data-number="4" data-spec="alinea">
+     IV. AVIS DE LA COMMISSION LOCALE D'INFORMATION ET DE SURVEILLANCE (C.L.I.S.)
+    </div>
+    <div data-number="5" data-spec="alinea">
+     V. EXAMEN TECHNIQUE ET REGLEMENTAIRE DES ELEMENTS DE LA DEMANDE
+    </div>
+    <div data-number="6" data-spec="alinea">
+     VI. EXAMEN DES AVIS EXPRIMES
+    </div>
+    <div data-number="7" data-spec="alinea">
+     VII. CONCLUSIONS ET PROPOSITIONS
+    </div>
+    <a data-page_index="1" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      2
+     </div>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     I. PRESENTATION DE LA DEMANDE D'AUTORISATION ET SON CONTEXTE :
+    </div>
+    <section data-number="I.1" data-spec="section" data-title="Présentation du projet" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      I.1. Présentation du projet
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La société SITA Alsace est l'une des filiales régionales du Groupe SITA, pôle propreté du Groupe SUEZ ENVIRONNEMENT. La société SITA Alsace couvre tous les métiers de la gestion des déchets et de la valorisation, notamment le tri, le compostage, le recyclage de vieux papiers et de pneus.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Elle a été autorisée, le 4 décembre 2000, à poursuivre pour une durée de cinq ans l'exploitation du Centre de Stockage de Déchets Ultimes (CSDU) du Rohrbach, à HOCHFELDEN. Cette autorisation arrivant à son terme en décembre 2005, une demande d'autorisation d'exploiter de nouvelles parcelles, en extension du site existant, a été déposée.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      La demande concerne 8,42 ha pour l'enfouissement des déchets et 0.4 ha pour les aménagements connexes. Des aménagements et équipements existants (bassins d'eaux de ruissellement, torchère, citernes de stockage...), localisés dans la partie exploitée jusqu'en décembre 2005 seront conservés. Les casiers de cette dernière partie seront définitivement recouverts et entreront dans la période de suivi trentenaire prévue par la réglementation.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      La quantité annuelle de déchets enfouie sur le centre de stockage ne variera pas : elle sera toujours de 80 000 t/an. La nature des déchets restera la même, essentiellement des déchets ménagers et assimilés dont des déchets industriels banals (DIB) et des refus de tri.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Seuls les déchets en provenance du département du Bas-Rhin seront acceptés sur le centre de stockage. Les déchets des zones limitrophes particulières seront éventuellement acceptés selon les conditions du Plan départemental d'élimination des déchets ménagers et assimilés (PDEDMA).
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Sur la base du phasage des apports de déchets de 80 000 t/an, la durée de vie prévisionnelle de la nouvelle zone de stockage est de 9 ans.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      L'
+      <a data-parent_reference="1" data-spec="section_reference" data-start_num="9" data-type="article">
+       article 9
+      </a>
+      de l'
+      <a data-date="1997-09-09" data-spec="document_reference" data-tag_id="1" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="1997-09-09">
+        9 septembre 1997
+       </time>
+      </a>
+      impose
+      <q>
+       la zone à exploiter
+      </q>
+      doit être à plus de 200 m de la limite de propriété du site, sauf si l'exploitant apporte des garanties équivalentes en terme d'isolement par rapport aux tiers, sous forme de contrats, de conventions ou servitudes couvrant la totalité de la durée d'exploitation et de la période de suivi du site".
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Pour le respect de l'
+      <a data-parent_reference="2" data-spec="section_reference" data-start_num="9" data-type="article">
+       article 9
+      </a>
+      de l'
+      <a data-date="1997-09-09" data-spec="document_reference" data-tag_id="2" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="1997-09-09">
+        9 septembre 1997
+       </time>
+      </a>
+      , une demande d'institution de servitudes au titre de l'
+      <a data-parent_reference="3" data-spec="section_reference" data-start_num="L515-12" data-type="article">
+       article L515-12
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      a également été déposée. Elle concerne les parcelles situées dans le rayon de 200 m autour de la zone à exploiter pour lesquelles l'exploitant n'a pu établir de convention avec les propriétaires ni entrer en voie d'acquisition.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      L'
+      <a data-parent_reference="4" data-spec="section_reference" data-start_num="L515-12" data-type="article">
+       article L515-12
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      dispose (extrait) : "afin de protéger les intérêts mentionnés à l'
+      <a data-spec="section_reference" data-start_num="L511-1" data-type="article">
+       article L511-1
+      </a>
+      , les servitudes prévues aux
+      <a data-end_num="L515-11" data-spec="section_reference" data-start_num="L515-8" data-type="article">
+       articles L515-8 à L515-11
+      </a>
+      peuvent être instituées (...) sur l'emprise des sites de stockage de déchets ou dans une bande de deux cents mètres autour de la zone d'exploitation (...).
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Dans le cas des installations de stockage de déchets, ces servitudes peuvent être instituées à tout moment (...) Ces servitudes sont indemnisées dans les conditions prévues à l'
+      <a data-spec="section_reference" data-start_num="L511-11" data-type="article">
+       article L511-11
+      </a>
+      ".
+     </div>
+     <a data-page_index="2" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       3
+      </div>
+     </div>
+    </section>
+    <section data-number="I.2" data-spec="section" data-title="Description des modalités d'exploitation" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      I.2. Description des modalités d'exploitation
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La zone de stockage sera constituée de 3 casiers de forme rectangulaire, eux-mêmes séparés en alvéoles d'une superficie ne dépassant pas 3 500 m². Il y aura d'abord une excavation du terrain naturel sur une profondeur variant de 5 à 15 m en moyenne. Les matériaux excavés non utilisés pour l'aménagement seront évacués sur l'ancienne carrière de MUTZENHOUSE. Ceux-ci représentent un volume d'environ 375 000 m³.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Ceinturant cette excavation, une à deux digues de 5 m de hauteur permettront de réaliser le remblai de déchets au-dessus du terrain naturel, ainsi qu'une couverture finale posée sur ce remblai.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Étanchéité du stockage :
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Le confinement du massif de déchets s'effectuera, comme le prévoit la réglementation, par deux barrières de sécurité disposées sur le fond et/ou sur les flancs pour éviter toute infiltration d'eau dans le sous-sol et par une couverture étanche :
+     </div>
+     <div data-number="5" data-spec="alinea">
+      <ul>
+       <li>
+        - la première barrière, concernant le fond, dite "de sécurité passive", sera constituée par les terrains naturels en place qui sont suffisamment imperméables pour répondre aux exigences réglementaires, surmontés d'un mètre d'argile compactée.
+       </li>
+       <li>
+        - la seconde barrière, concernant le fond et les flancs, dite "de sécurité active", sera constituée par un dispositif comprenant notamment une membrane synthétique étanche.
+       </li>
+       <li>
+        - la couverture finale sera constituée d'une couche de matériaux étanche et de couches complémentaires permettant notamment une bonne reprise de la végétation pour l'intégration paysagère.
+       </li>
+      </ul>
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Prévention des impacts :
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Les gaz de décomposition et les lixiviats seront collectés par l'intermédiaire d'un réseau de puits. Les gaz seront incinérés dans la torchère maintenue à son emplacement sur l'ancien site.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Les lixiviats seront traités dans une station d'épuration collective. L'exploitant se réserve la possibilité, à l'issue d'études restant encore à réaliser et après les procédures administratives nécessaires, de mettre en œuvre une station in situ de traitement des lixiviats.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Les eaux de ruissellement rejoindront le complexe de bassins mis en œuvre pour l'ancien site (et qui sera par ailleurs toujours sollicité pour le suivi trentenaire de celui-ci).
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Suivi post-exploitation :
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Un suivi trentenaire sera réalisé à l'issue de l'exploitation de l'extension (un tel suivi sera engagé sur les parties exploitées depuis 1969 dès la mise en service de l'extension). Ce suivi concernera :
+     </div>
+     <div data-number="12" data-spec="alinea">
+      <ul>
+       <li>
+        - le contrôle régulier de la qualité des eaux souterraines,
+       </li>
+       <li>
+        - le contrôle régulier de la qualité des rejets et un suivi quantitatif,
+       </li>
+       <li>
+        - l'entretien du site (fossé, couverture, clôture, piézomètres...),
+       </li>
+       <li>
+        - les observations géotechniques du site (surveillance des tassements de déchets, contrôle des repères topographiques).
+        <a data-page_index="3" data-spec="page_separator">
+        </a>
+        <div data-spec="page_header">
+         <div>
+          4
+         </div>
+        </div>
+       </li>
+       <li>
+        - Garanties financières :
+       </li>
+      </ul>
+     </div>
+     <div data-number="13" data-spec="alinea">
+      La réglementation impose la constitution de garanties financières sous forme d'une caution donnée par un établissement bancaire. Ces garanties financières couvrent les travaux de remise en état du site suite à un accident, ainsi que le suivi à long terme. Elles s'éleveront dans le cas du projet du Rohrbach à environ 2,5 millions d'euros.
+     </div>
+     <div data-number="14" data-spec="alinea">
+      Le Préfet peut faire débloquer le montant de ces garanties financières en cas de défaillance de l'exploitant.
+     </div>
+    </section>
+    <section data-number="I.3" data-spec="section" data-title="Maîtrise foncière des terrains" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      I.3. Maîtrise foncière des terrains
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les nouvelles parcelles sollicitées pour la poursuite de l'activité se situent sur la commune de HOCHFELDEN. Elles se déclinent en différents usages :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - les parcelles dédiées à l'extension de la zone de stockage qui se situent au lieu-dit "Schaffhausener Reben",
+       </li>
+       <li>
+        - la parcelle réservée pour un éventuel traitement in-situ des effluents, parcelle située au lieu-dit "Kehle"
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Ces parcelles sont toutes propriété de la société SITA Alsace.
+     </div>
+    </section>
+    <section data-number="I.4" data-spec="section" data-title="Urbanisme" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      I.4. Urbanisme
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le Plan d'Occupation des Sols (P.O.S.) actuellement applicable (lors du dépôt de la demande d'autorisation) sur la commune d'HOCHFELDEN et le projet de révision générale du POS en cours (P.O.S. transformé en Plan Local d'Urbanisme, P.L.U.) n'étaient alors pas compatibles avec le projet d'extension du CSDU.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      L'inscription de ce projet dans le document d'urbanisme opposable est le préalable indispensable à la réalisation du projet d'extension et à l'autorisation de poursuite de l'activité du CSDU.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Or, la commune de HOCHFELDEN a refusé de prendre en compte ce projet d'extension.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Depuis les lois de décentralisation, le Projet d'Intérêt Général (P.I.G) est un des outils dont dispose l'État pour garantir la réalisation de projets présentant un caractère d'utilité publique et relevant d'intérêts dépassant le cadre communal et intercommunal.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Le projet a été qualifié
+      <q>
+       Projet d'Intérêt Général
+      </q>
+      par
+      <a data-date="2005-03-17" data-spec="document_reference" data-type="arrete-prefectoral">
+       arrêté préfectoral du
+       <time data-spec="date" datetime="2005-03-17">
+        17 mars 2005
+       </time>
+      </a>
+      .
+     </div>
+     <div data-number="6" data-spec="alinea">
+      La qualification d'un projet en P.I.G. a permis d'engager une révision simplifiée du P.O.S. afin d'intégrer ce projet dans le document d'urbanisme (soit à l'initiative de la commune, soit à l'initiative de l'État qui se substitue à la commune si cette dernière n'entend pas opérer cette révision).
+     </div>
+    </section>
+    <section data-number="I.5" data-spec="section" data-title="Raisons du choix du site" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      I.5. Raisons du choix du site
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les raisons du choix d'étendre le centre de stockage du Rohrbach se résument suivant trois axes :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Bénéficier des installations d'un site déjà existant
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Le centre de stockage du Rohrbach est exploité depuis 1969. Le choix de ce site, actuellement en exploitation, pour l'implantation d'une nouvelle capacité de stockage permet de bénéficier des infrastructures existantes. De plus, le contexte est actuellement bien connu, ce qui permet de mieux apprécier les impacts.
+     </div>
+     <a data-page_index="4" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       5
+      </div>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Garantir la préservation de l'environnement
+     </div>
+     <div data-number="5" data-spec="alinea">
+      La géologie du site est favorable à l'exploitation d'un centre de stockage à HOCHFELDEN. Une couche d'argiles imperméables protège l'aquifère sous-jacent. Des matériaux argileux pour l'aménagement du CSDU seront disponibles en grande quantité.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Le caractère vallonné du secteur permettra en outre une bonne intégration paysagère des dômes résiduels.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Répondre à un besoin départemental
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Le Plan Départemental pour l'Elimination des Déchets Ménagers et Assimilés (PDEDMA) du Bas-Rhin révisé le 13 septembre 2002 estime à 197 000 t la production des déchets destinés à l'enfouissement en 2005. A l'horizon 2010, un tonnage résiduel de 171 000 t est estimé.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      A ce jour, la capacité totale autorisée pour l'enfouissement est de 205 000 t/an dans le département du Bas-Rhin. Elle se répartit sur les cinq centres existants de Wintzenbach-Schaffhouse près Seltz (35 000 t/an), Weitbruch (35 000 t/an), HOCHFELDEN (80 000 t/an), Eschwiller (40 000 t/an) et Châtenois (15 000 t/an). Aucun nouveau site d'exploitation, en dehors de ces cinq centres, n'est aujourd'hui pressenti.
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Le centre de stockage de HOCHFELDEN représente une capacité de 80 000 t/an de déchets. Si ce centre devait fermer en 2005, la capacité totale autorisée au niveau du département serait de 115 000 t, chiffre très insuffisant au regard de la production de déchets estimée par le plan pour les six ans à venir. Le PDEDMA indique d'ailleurs clairement que pour anticiper la saturation du site en 2005 (et de celui de Wintzenbach-Schaffhouse près Seltz en 2006) des
+      <q>
+       démarches d'extension ou de création d'un ou deux nouveaux CSDU
+      </q>
+      doivent être engagées au plus tôt.
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Le CSDU du Rohrbach, avec sa capacité de stockage, apparaît ainsi comme étant une installation indispensable à l'équilibre départemental entre les besoins d'élimination et la production de déchets.
+     </div>
+     <div data-number="12" data-spec="alinea">
+      II. ENQUETE PUBLIQUE
+     </div>
+    </section>
+    <section data-number="II.1" data-spec="section" data-title="Déroulement de l'enquête et observations recueillies" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      II.1. Déroulement de l'enquête et observations recueillies
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Une commission d'enquête a été nommée par le tribunal administratif.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      L'enquête publique relative à la demande présentée par la société SITA ALSACE en vue d'obtenir, d'une part, l'autorisation d'étendre l'exploitation du CSDU d'Hochfelden et d'autre part, l'institution de servitudes d'utilité publique autour de la zone d'exploitation sur les communes de SCHAFFHOUSE SUR ZORN, MUTZENHOUSE et HOCHFELDEN, s'est déroulée du 15 juin au 15 juillet 2005.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Une réunion d'information et d'échange avec le public a été organisée sous la présidence du président de la commission d'enquête le 24 juin 2005 à HOCHFELDEN.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Le public s'est largement exprimé lors de l'enquête publique.
+     </div>
+     <a data-page_index="5" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       6
+      </div>
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Il est à noter que dans un tract distribué aux habitants des communes avoisinantes l'Association de Sauvegarde Alsace Déchets du Rohrbach (ASADR) a alerté les populations environnantes sur :
+     </div>
+     <div data-number="6" data-spec="alinea">
+      <ul>
+       <li>
+        - le doublement du volume de biogaz,
+       </li>
+       <li>
+        - le risque aggravé de pollution de la nappe phréatique,
+       </li>
+       <li>
+        - la dégradation de l'environnement,
+       </li>
+       <li>
+        - la dévalorisation du patrimoine.
+       </li>
+      </ul>
+     </div>
+     <div data-number="7" data-spec="alinea">
+      La pétition a recueilli 843 signatures de personnes individuelles.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Monsieur le Maire de SCHAFFHOUSE-SUR-ZORN a apporté 111 courriers défavorables au projet.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Au total, ce sont 954 signatures qui ont été collectées contre l'extension du CSDU.
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Toutes les observations orales ont été consignées dans le registre d'enquête, soit 94 interventions au total, dont 51 documents annexés avec 9 favorables.
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Les remarques sont très hétérogènes et il apparaît, quelquefois, que les interrogations trouvent leur réponse dans le dossier soumis à enquête publique.
+     </div>
+     <div data-number="12" data-spec="alinea">
+      Après analyse des interventions, la Commission d'enquête a classé les multiples observations en 25 thèmes :
+     </div>
+     <div data-number="13" data-spec="alinea">
+      1. adéquation du projet avec les orientations du plan départemental d'élimination des déchets 67,
+     </div>
+     <div data-number="14" data-spec="alinea">
+      2. les solutions alternatives,
+     </div>
+     <div data-number="15" data-spec="alinea">
+      3. les atouts du projet,
+     </div>
+     <div data-number="16" data-spec="alinea">
+      4. les contrôles d'acceptation des déchets,
+     </div>
+     <div data-number="17" data-spec="alinea">
+      5. l'origine et la nature des déchets traités sur le site,
+     </div>
+     <div data-number="18" data-spec="alinea">
+      6. le complexe d'étanchéité du site,
+     </div>
+     <div data-number="19" data-spec="alinea">
+      7. la protection renforcée des nappes,
+     </div>
+     <div data-number="20" data-spec="alinea">
+      8. la stabilité sismique du site,
+     </div>
+     <div data-number="21" data-spec="alinea">
+      9. les conditions d'exploitation du site,
+     </div>
+     <div data-number="22" data-spec="alinea">
+      10. la gestion des eaux superficielles,
+     </div>
+     <div data-number="23" data-spec="alinea">
+      11. la production, la collecte et le traitement du biogaz,
+     </div>
+     <div data-number="24" data-spec="alinea">
+      12. la production, la collecte et le traitement des lixiviats,
+     </div>
+     <div data-number="25" data-spec="alinea">
+      13. l'étude d'impact,
+     </div>
+     <div data-number="26" data-spec="alinea">
+      14. la protection de la flore et de la faune,
+     </div>
+     <div data-number="27" data-spec="alinea">
+      15. les objectifs de réduction des nuisances,
+     </div>
+     <div data-number="28" data-spec="alinea">
+      16. l'étude sanitaire du projet,
+     </div>
+     <div data-number="29" data-spec="alinea">
+      17. l'intégration paysagère et le réaménagement du site,
+     </div>
+     <div data-number="30" data-spec="alinea">
+      18. l'impact socio-économique du site sur son environnement,
+     </div>
+     <div data-number="31" data-spec="alinea">
+      19. la surveillance de l'ancienne zone (capsule de lindane, ESR),
+     </div>
+     <div data-number="32" data-spec="alinea">
+      20. la remise en état du site après exploitation et son suivi trentenaire,
+     </div>
+     <div data-number="33" data-spec="alinea">
+      21. les servitudes dans la bande des 200 m,
+     </div>
+     <div data-number="34" data-spec="alinea">
+      22. la qualité, les références et le professionnalisme des prestataires de service,
+     </div>
+     <div data-number="35" data-spec="alinea">
+      23. la prévention relative à l'hygiène et à la sécurité,
+     </div>
+     <div data-number="36" data-spec="alinea">
+      24. la concertation pour une meilleure collaboration,
+     </div>
+     <div data-number="37" data-spec="alinea">
+      25. divers, autres thèmes abordés lors de l'enquête publique.
+     </div>
+     <div data-number="38" data-spec="alinea">
+      La commission d'enquête précise que la société SITA a répondu à l'ensemble des observations du public dans son mémoire en réponse et analyse les différents thèmes soulevés ci dessus.
+     </div>
+     <a data-page_index="6" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       7
+      </div>
+     </div>
+     <div data-number="39" data-spec="alinea">
+      Elle tient à émettre en évidence certaines observations sur le déroulement de l'enquête publique, à savoir :
+     </div>
+     <div data-number="40" data-spec="alinea">
+      <blockquote>
+       <p>
+        La commission d'enquête ne peut que prendre acte -pour les déplorer- des correspondances adressées par un représentant de l'association ASADR 67 aux autorités, correspondances qui peuvent s'analyser comme de véritables lettres de dénonciation, comportant des critiques infondées néanmoins distillées urbi et orbi.
+       </p>
+       <p>
+        La commission relève que l'intéressé considère que la qualité de Mosellan de son Président l'empêcherait de diriger une enquête publique relative à un projet situé en Alsace ⇒ cela est révélateur de l'ouverture d'esprit de cet interlocuteur.
+       </p>
+       <p>
+        La commission rappelle que la désignation des commissaires enquêteurs relève de l'appréciation exclusive du Président du tribunal administratif de Strasbourg auquel, peut-être, l'interlocuteur en question veut se substituer et à qui il veut probablement apprendre son métier.
+       </p>
+       <p>
+        La commission déplore, par ailleurs, l'attitude et le comportement de cette même personne, de nature à nuire gravement à la sérénité de l'enquête, comportement qui a amené le Président de la commission d'enquête à rappeler fermement les règles fondamentales d'une enquête publique, dont il convient de rappeler qu'elle est l'émanation d'une loi de 1983 relative
+        <q>
+         à la démocratisation des enquêtes publiques
+        </q>
+        .
+       </p>
+       <p>
+        La commission considère que le fait, pour un interlocuteur, quel qu'il soit, d'être ostensiblement présent lorsque des personnes souhaitent s'entretenir avec les commissaires enquêteurs, de vouloir lui-même accueillir le public, de s'emporter lorsqu'un visiteur ne se montre pas suffisamment critique par rapport au projet est contradictoire avec la lettre et l'esprit de la loi et est de nature à empêcher la libre expression du public.
+       </p>
+      </blockquote>
+     </div>
+    </section>
+    <section data-number="II.2" data-spec="section" data-title="Mémoire en réponse de la société SITA" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      II.2. Mémoire en réponse de la société SITA
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Dans son mémoire en réponse, la Société SITA a répondu à l'ensemble des thèmes abordés lors de l'enquête publique. Au vu du volume du mémoire en réponse (80 pages), seuls les principaux éléments ont été repris ci-dessous.
+     </div>
+    </section>
+   </section>
+   <section data-number="1" data-spec="section" data-title="Adéquation du projet avec les orientations du plan départemental d'élimination des déchets du Bas-Rhin" data-type="unknown">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     1. Adéquation du projet avec les orientations du plan départemental d'élimination des déchets du Bas-Rhin
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société SITA rappelle les objectifs du plan, les conditions de recours à l'enfouissement ou à l'incinération et la cohérence géographique des installations de traitement.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Les solutions alternatives à l'enfouissement des déchets" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2. Les solutions alternatives à l'enfouissement des déchets
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société SITA indique qu'il existe de nouvelles technologies telles que la méthanisation qui ne s'applique qu'à la fraction fermentescible des déchets organiques ou l'incinération qui pose le problème de traitement des fumées et sous-produits.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     SITA indique que la société a procédé à la recherche d'autres sites en Alsace mais qu'à ce jour aucun site alternatif ne présentait de meilleures réponses à des critères que le site du Rohrbach, dont le contexte hydrogéologique et géologique est connu.
+    </div>
+    <a data-page_index="7" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      8
+     </div>
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Les atouts du projet" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     3. Les atouts du projet
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les critères de choix du projet se résument en 3 axes :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - répondre à un besoin départemental,
+      </li>
+      <li>
+       - bénéficier des installations d’un site déjà existant,
+      </li>
+      <li>
+       - garantir la préservation de l’environnement.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le site du Rohrbach offre toutes les garanties techniques réglementaires.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Les contrôles d’acceptation des déchets" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     4. Les contrôles d’acceptation des déchets
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La procédure d’acceptation comprend plusieurs niveaux de contrôle :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - la caractérisation de base correspondant à la procédure d’information et/ou certificat d’acceptation préalable, carte d’identité du déchet,
+      </li>
+      <li>
+       - à l’arrivée sur le site, le déchet est contrôlé avant déchargement (non-radioactivité, contrôle des documents administratifs, pesée,...) et lors du déchargement.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     En cas de non-conformité, le déchet est soit rechargé dans le véhicule pour retour au producteur, soit isolé dans un conteneur spécial pour être éliminé vers une filière appropriée.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Origine et nature des déchets traités sur le site" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     5. Origine et nature des déchets traités sur le site
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L’exploitant rappelle la définition de déchet ultime.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     La société indique que l’apport d’ordures ménagères sur site ne sera plus admis sur le CSDU.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Tous les déchets qui arrivent sur le Rohrbach proviennent du Bas-Rhin.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le flux principal de déchets est celui des refus de tri. Actuellement SITA n’a pas demandé d’autorisation pour le stockage d’amiante.
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="Le complexe d’étanchéité du site (barrière passive et active)" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     6. Le complexe d’étanchéité du site (barrière passive et active)
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société SITA rappelle que des sondages ont été réalisés afin de caractériser les sols et rappelle la composition du complexe d’étanchéité présentée dans le dossier de demande d’autorisation.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     La sécurité active est assurée notamment par une géomembrane PEHD et la sécurité passive par l’argile en place qui sera remaniée.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     SITA rappelle que les géomembranes sont recommandées pour une utilisation en CSDU et qu’aucun problème n’a été signalé après 30 ans d’utilisation.
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="La protection des nappes" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     7. La protection des nappes
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L’exploitant indique qu’un réseau de piézomètres permet de contrôler l’absence d’impact du site sur la nappe en amont et en aval. Il sera maintenu lors de l’extension du site.
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-title="Stabilité sismique du site" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     8. Stabilité sismique du site
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une étude a été jointe au dossier et conclut que dans un contexte de sismicité locale très faible et où l’absence de failles géologiques est avérée au droit du site, les risques de destabilisation du massif de déchets en cas d’événement sismique peuvent être considérés comme négligeables.
+    </div>
+    <a data-page_index="8" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      9
+     </div>
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-title="Les conditions d'exploitation du site" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     9. Les conditions d'exploitation du site
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les futurs casiers en exploitation seront réduits à 3500 m² pour limiter les nuisances.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les déchets sont recouverts en fin de semaine pour éviter les envols. L'objectif n'étant pas de cacher les déchets.
+    </div>
+   </section>
+   <section data-number="10" data-spec="section" data-title="La gestion des eaux superficielles (eaux pluviales)" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     10. La gestion des eaux superficielles (eaux pluviales)
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le contrôle des bassins des eaux de ruissellement est effectué mensuellement et trimestriellement. L'eau du Rohrbach est contrôlée semestriellement en amont et aval des points de rejet des eaux de ruissellement.
+    </div>
+   </section>
+   <section data-number="11" data-spec="section" data-title="Production, collecte et traitement du biogaz" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     11. Production, collecte et traitement du biogaz
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La production de biogaz présentera un pic un an après le moment où la quantité de déchets enfouie est la plus importante, soit dans 10 ans. Le volume produit sera alors de 280 Nm³/h à 50 % de méthane. La production actuelle du site étant d'environ 600 Nm³/h à environ 25 % de méthane. Le biogaz sera collecté par un réseau de dégazage et brûlé vers une torchère qui assure une température supérieure à 900°C pendant 0,3 seconde conformément aux prescriptions de l'
+     <a data-date="1997-09-09" data-spec="document_reference" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="1997-09-09">
+       9 septembre 1997
+      </time>
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="12" data-spec="section" data-title="Les lixiviats" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     12. Les lixiviats
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les lixiviats sont collectés par des pompes installées dans des puits verticaux placés à la base du massif de déchets. Les lixiviats sont traités en station d'épuration à MULHOUSE.
+    </div>
+   </section>
+   <section data-number="13" data-spec="section" data-title="L'étude d'impact" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     13. L'étude d'impact
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant a rappelé le contenu de l'étude d'impact et indique que les éléments de cette étude détaillée permettent de justifier la poursuite d'exploitation du site.
+    </div>
+   </section>
+   <section data-number="14" data-spec="section" data-title="Protection de la faune et de la flore" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     14. Protection de la faune et de la flore
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une étude faune flore a été réalisée sur le site. Cette étude a permis de définir un milieu naturel très commun ne présentant pas d'intérêt écologique moyen.
+    </div>
+   </section>
+   <section data-number="15" data-spec="section" data-title="Les objectifs de réduction des nuisances" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     15. Les objectifs de réduction des nuisances
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       a) Les odeurs
+      </li>
+     </ul>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     La production de biogaz peut générer des nuisances olfactives dues à la présence de composés dont les seuils de détection olfactifs sont très bas : il s'agit le plus souvent de l'hydrogène sulfuré.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les dispositifs de collecte et de destruction du biogaz sont destinés à détruire les molécules odorantes.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Dans le cadre de la poursuite d'activité, le site n'acceptera aucune ordure ménagère, ni aucun déchet putrescible de supermarché.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <ul>
+      <li>
+       b) Le bruit
+      </li>
+     </ul>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     SITA s'engage à limiter les horaires d'ouverture en journée.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Une étude bruit a été réalisée et permet de confirmer le respect des seuils en limite de propriété.
+    </div>
+    <a data-page_index="9" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      10
+     </div>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     <ul>
+      <li>
+       c) Les envols
+      </li>
+     </ul>
+    </div>
+    <div data-number="9" data-spec="alinea">
+     La société SITA implante des filets afin de limiter les envols de déchets autour de la zone de stockage.
+    </div>
+    <div data-number="10" data-spec="alinea">
+     <ul>
+      <li>
+       d) La circulation routière
+      </li>
+     </ul>
+    </div>
+    <div data-number="11" data-spec="alinea">
+     L'activité actuelle sur le site est de
+     <address data-spec="address">
+      70
+     </address>
+     passages (aller et retour) de camions par jour et 20 véhicules légers.
+    </div>
+    <div data-number="12" data-spec="alinea">
+     La quantité de déchets apportés sur le site ne sera pas modifiée (80 000 t/an). La poursuite d'activité n'a pas d'effet supplémentaire par rapport à la situation actuelle.
+    </div>
+    <div data-number="13" data-spec="alinea">
+     <ul>
+      <li>
+       e) Les animaux (insectes, rongeurs, oiseaux)
+      </li>
+     </ul>
+    </div>
+    <div data-number="14" data-spec="alinea">
+     Une dératisation du site est réalisée régulièrement à titre préventif.
+    </div>
+    <div data-number="15" data-spec="alinea">
+     SITA s'engage à confier une étude de la Ligue de Protection des Oiseaux dans le but d'envisager des mesures de réduction de ces populations.
+    </div>
+   </section>
+   <section data-number="16" data-spec="section" data-title="Etude sanitaire" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     16. Etude sanitaire
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'étude sanitaire jointe au dossier conclut que la nature des déchets traités actuellement ne présente pas de risques pour la population riveraine en terme d'exposition à des substances gazeuses.
+    </div>
+   </section>
+   <section data-number="17" data-spec="section" data-title="Intégration paysagère" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     17. Intégration paysagère
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le réaménagement global aura la forme d'un dôme avec une côte maximale de 207 m NGF. Une esquisse paysagère et des photomontages ont été présentés dans le dossier.
+    </div>
+   </section>
+   <section data-number="18" data-spec="section" data-title="L'impact socio-économique du site sur son environnement" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     18. L'impact socio-économique du site sur son environnement
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant aborde dans cette partie les problèmes liés aux terrains et biens immobiliers, aux activités agricoles et économiques.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Les premières habitations se situent à 250 mètres du site, l'
+     <a data-parent_reference="5" data-spec="section_reference" data-start_num="9" data-type="article">
+      article 9
+     </a>
+     de l'
+     <a data-date="1997-09-09" data-spec="document_reference" data-tag_id="5" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="1997-09-09">
+       9 septembre 1997
+      </time>
+     </a>
+     impose une distance d'isolement de 200 mètres.
+    </div>
+   </section>
+   <section data-number="19" data-spec="section" data-title="La surveillance de l'ancienne zone (dont capsule de lindane, EST)" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     19. La surveillance de l'ancienne zone (dont capsule de lindane, EST)
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant indique que sortir du site le lindane aujourd'hui créerait plus de risques que de le laisser en place et de continuer la surveillance.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Un réseau de piézomètres permet de suivre l'impact sur les nappes d'eaux souterraines.
+    </div>
+   </section>
+   <section data-number="20" data-spec="section" data-title="Remise en état du site après exploitation" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     20. Remise en état du site après exploitation
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant rappelle qu'après la fin de l'exploitation commerciale, le CSDU fait l'objet d'un suivi trentenaire.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     De plus, des garanties financières sont mises en place pour palier à une éventuelle défaillance de l'exploitant, telle une disparition juridique ou une insolvabilité de celui-ci.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     La période trentenaire est déclarée achevée lorsque le site ne présente plus de risque d'émissions de polluants.
+    </div>
+    <a data-page_index="10" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      11
+     </div>
+    </div>
+   </section>
+   <section data-number="21" data-spec="section" data-title="Les servitudes dans la bande des 200 mètres" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     21. Les servitudes dans la bande des 200 mètres
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les servitudes autour des zones de stockage n'ont pour but que d'interdire, à l'intérieur du rayon de 200 mètres, les constructions d'habitations occupées par des tiers, ou d'établissement recevant du public. Elles n'interdisent pas l'utilisation pour un usage de culture, d'élevages,...
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Dans son mémoire en réponse, l'exploitant aborde également les points suivants :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - la qualité, les références et le professionnalisme des prestataires de services,
+      </li>
+      <li>
+       - la prévention relative à l'hygiène et à la sécurité,
+      </li>
+      <li>
+       - la concertation pour une meilleure collaboration par l'intermédiaire du rapport annuel, de la CLIS, d'un numéro vert et du dialogue.
+      </li>
+     </ul>
+    </div>
+    <section data-number="II.3" data-spec="section" data-title="Avis de la Commission d'enquête" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      II.3. Avis de la Commission d'enquête
+     </h3>
+    </section>
+   </section>
+   <section data-number="1" data-spec="section" data-title="Sur la demande d'autorisation d'exploiter et d'étendre le CSDU" data-type="unknown">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     1. Sur la demande d'autorisation d'exploiter et d'étendre le CSDU
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La commission a réalisé une synthèse de tous les éléments pris en compte. Quelques points essentiels sont repris ci-dessous (vu la taille du document, il est impossible de tous les citer ici) :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Considérant
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - le dossier de demande d'autorisation et notamment l'étude d'impact,
+      </li>
+      <li>
+       - toutes les interventions du public,
+      </li>
+      <li>
+       - les réponses de SITA aux thèmes relevés dans les observations du public et aux questions de la commission d'enquête,
+      </li>
+      <li>
+       - le plan départemental d'élimination des déchets,
+      </li>
+      <li>
+       - que la procédure d'acceptation des déchets comprend plusieurs niveaux de contrôle,
+      </li>
+      <li>
+       - que SITA a pris des engagements pour interdire les déchets putrescibles issus des supermarchés et les ordures ménagères brutes sur le site du Rohrbach,
+      </li>
+      <li>
+       - que toutes les étapes de la mise en place du complexe d'étanchéité font l'objet d'un plan d'assurance qualité qui regroupe l'ensemble des mesures et contrôles réalisés pendant les chantiers,
+      </li>
+      <li>
+       - que le site du Rohrbach n'est pas compris dans le périmètre de protection des captages d'eaux potables de Mommenheim,
+      </li>
+      <li>
+       - que le réseau de contrôles des eaux souterraines est double : amont et aval de la nappe superficielle et de la nappe du Rhétien,
+      </li>
+      <li>
+       - que les lixiviats sont traités en station d'épuration collective,
+      </li>
+      <li>
+       - que le site peut avoir un impact paysager limité dans le temps et que le réaménagement final aura la forme d'un dôme avec une cote maximale de 207 m NGF,
+      </li>
+      <li>
+       - que l'habitation la plus proche se situe à 250 m du site actuel et à 300 m de la limite d'extension,
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     La commission a émis à l'unanimité un AVIS FAVORABLE à la demande présentée par la société SITA, avec les RECOMMANDATIONS suivantes :
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <blockquote>
+      <p>
+       Concernant la carrière de Mutzenhouse :
+      </p>
+      <p>
+       SITA doit s'engager à ne passer que sur le chemin prévu dans le dossier d'autorisation pour amener les matériaux et déblais excédentaires vers la carrière de Mutzenhouse.
+      </p>
+      <a data-page_index="11" data-spec="page_separator">
+      </a>
+      <div data-spec="page_header">
+       <div>
+        12
+       </div>
+      </div>
+      <p>
+       Concernant le filtrage des indésirables :
+      </p>
+      <p>
+       Accentuation du suivi de la nature des déchets acceptés dans le cadre du filtrage des déchets à leur arrivée sur le site.
+      </p>
+      <p>
+       Meilleure vigilance dans la rédaction des conventions et des contrats proposés aux fournisseurs et aux transporteurs qui alimentent le site du Rohrbach.
+      </p>
+      <p>
+       La commission d'enquête préconise la mise en place d'une plate-forme de pré déversement qui facilitera le filtrage des indésirables, les déchets conformes étant ensuite poussés dans la fouille.
+      </p>
+      <p>
+       Concernant les déchets putrescibles et les ordures ménagères :
+      </p>
+      <p>
+       SITA doit s'engager dans le cadre de la poursuite d'activité, à refuser les déchets putrescibles des supermarchés et les ordures ménagères.
+      </p>
+      <p>
+       Concernant les piézomètres
+      </p>
+      <p>
+       Les piézomètres détruits ou rebouchés doivent être remplacés par un nouveau réseau de piézomètres tenant compte des futures zones en exploitation.
+      </p>
+      <p>
+       Concernant les conditions d'exploitation du site
+      </p>
+      <p>
+       Les casiers en exploitation ne devront jamais dépasser 3 500 m² afin de limiter tous types de nuisances. L'utilisation de filets peut être généralisée.
+      </p>
+      <p>
+       Le site de l'ancienne décharge non équipé de géomembrane, ne doit pas être recouvert par des apports de nouveaux déchets qu'ils soient.
+      </p>
+      <p>
+       Concernant la qualité des eaux de surface :
+      </p>
+      <p>
+       Des analyses de qualité des eaux en amont et en aval du centre de stockage, avec une fréquence semestrielle, devront être réalisées et présentées dans le rapport annuel d'activité.
+      </p>
+      <p>
+       Concernant l'insertion paysagère :
+      </p>
+      <p>
+       La réalisation d'une digue paysagère le long de la RD 670 (route d'accès au site du Rohrbach), afin de masquer la zone de stockage depuis la route, pendant la phase de travaux et d'exploitation.
+      </p>
+      <p>
+       Cette digue serait constituée d'un merlon de terre aménagé au droit des parcelles d'extension, et son sommet serait planté d'espèces arbustives locales. La terre nécessaire à cet aménagement pourrait provenir des déblais excédentaires prévus d'être acheminés vers la carrière de Mutzenhouse. Cet aménagement devrait permettre de répondre aux attentes de la population en termes d'intégration paysagère.
+      </p>
+      <p>
+       Concernant la population aviaire :
+      </p>
+      <p>
+       SITA doit s'engager à réaliser une étude de la population aviaire présente sur le site, par l'intermédiaire d'un organisme indépendant, la LPO par exemple.
+      </p>
+      <p>
+       Cette étude aura pour objectif de mieux connaître ces populations afin de gérer celles-ci
+      </p>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Sur la demande d'institution de servitudes d'utilité publique" data-type="unknown">
+    <h2 data-level="0" data-spec="section_title">
+     2. Sur la demande d'institution de servitudes d'utilité publique
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La commission d'enquête a émis, à l'unanimité, un AVIS FAVORABLE.
+    </div>
+    <a data-page_index="12" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      13
+     </div>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     III. CONSULTATIONS ADMINISTRATIVES ET AVIS DES COMMUNES
+    </div>
+    <div data-number="3" data-spec="alinea">
+     La Direction départementale du travail, de l'emploi et de la formation professionnelle (DDTEFP) et la Direction départementale de l'agriculture et de la forêt (DDAF) n'ont aucune observation particulière à formuler.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     La Direction régionale de l'environnement (DIREN) se range à l'avis du service instructeur du dossier.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     La Direction départementale de l'équipement (DDE) rappelle que le projet est situé dans la commune de HOCHFELDEN qui possède un POS approuvé le 21 février 1985, dont le règlement ne permet pas ce type d'installation et d'utilisation du sol sur les terrains concernés.
+    </div>
+    <div data-number="6" data-spec="alinea">
+     La commune, qui a manifesté son opposition au projet, refuse de changer les dispositions de son document d'urbanisme.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Une procédure de Projet d'Intérêt Général a été enclenchée pour permettre à l'État de procéder à la révision du POS après mise en demeure.
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Dans son avis du 15 juillet 2005, la Direction départementale des affaires sanitaires et sociales (DDASS) a émis quelques réserves sur le volet sanitaire de l'étude d'impact et a sollicité des compléments et une mise à jour de l'étude sanitaire.
+    </div>
+    <div data-number="9" data-spec="alinea">
+     Dans son avis du 19 octobre 2005, faisant suite aux compléments de l'étude sanitaire transmise par l'exploitant le 20 septembre 2005, la Direction départementale des affaires sanitaires et sociales conclut ainsi : "Le volet sanitaire présenté par la CSDU du Rohrbach présente encore quelques lacunes. Toutefois, mes services émettent un avis favorable sur ce dossier dans la mesure où ces lacunes n'influent pas sur les conclusions de l'étude concernant les risques sanitaires chroniques générés par le site, qui restent, selon les données fournies, inférieurs aux limites d'acceptabilité sanitaires.
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Il conviendra de garder en mémoire lors de l'instruction des prochains dossiers d'étude d'impact sur ce secteur, les données fournies par l'étude sur le bruit de fond en matière de pollution atmosphérique, ainsi que la mise en évidence d'une qualité de l'air dégradée sur cette zone, pour le paramètre benzène, dont l'une des principales sources serait selon les conclusions de l'étude le trafic automobile."
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Le SIRACEDPC indique que le dossier n'appelle pas d'observations de la part de la protection civile sous réserve des remarques éventuelles du Service départemental d'Incendie et de Secours.
+    </div>
+    <div data-number="12" data-spec="alinea">
+     L'Agence de l'Eau n'émet pas d'observations sur le projet.
+    </div>
+    <div data-number="13" data-spec="alinea">
+     Avis des communes concernées par le rayon d'affichage
+    </div>
+    <div data-number="14" data-spec="alinea">
+     Considérant que les entreprises installées dans la zone d'activité intercommunale du canal risquent de subir de graves préjudices sanitaires et économiques, les communes de HOHFRANKENHEIM, MELSHEIM, WALTENHEIM-SUR-ZORN et WINGERSHEIM émettent un avis défavorable à l'extension et à la poursuite de l'exploitation du CSDU exploité par la société SITA Alsace à HOCHFELDEN.
+    </div>
+    <div data-number="15" data-spec="alinea">
+     La commune de GOUGENHEIM s'oppose, par 4 voix contre et 6 abstentions, à l'extension et à la poursuite de l'exploitation du CSDU.
+    </div>
+    <div data-number="16" data-spec="alinea">
+     La commune de SCHWINDRATZHEIM émet un avis défavorable au projet.
+    </div>
+    <a data-page_index="13" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      14
+     </div>
+    </div>
+    <div data-number="17" data-spec="alinea">
+     La commune d'INGENHEIM :
+    </div>
+    <div data-number="18" data-spec="alinea">
+     <ul>
+      <li>
+       - s'oppose à toute extension du CSDU du Rohrbach,
+      </li>
+      <li>
+       - exige l'application de l'
+       <a data-date="2000-12-04" data-spec="document_reference" data-type="arrete-prefectoral">
+        arrêté préfectoral du
+        <time data-spec="date" datetime="2000-12-04">
+         4 décembre 2000
+        </time>
+       </a>
+       mettant un terme à l'exploitation du site le 31 décembre 2005,
+      </li>
+      <li>
+       - demande que le Préfet ordonne la recherche immédiate d'autres sites pour une répartition plus équilibrée des centres d'enfouissement technique à l'échelle du Département.
+      </li>
+     </ul>
+    </div>
+    <div data-number="19" data-spec="alinea">
+     Les communes de BOSSENDORF, ETTENDORF, GEISWILLER, GRASSENDORF, HOHATZENHEIM, LIXHAUSEN, MITTELHAUSEN, SCHAFFHOUSE/ZORN et ZOEBERSDORF :
+    </div>
+    <div data-number="20" data-spec="alinea">
+     <ul>
+      <li>
+       - estiment que l'exploitation du CSDU du Rohrbach comporte de graves nuisances et risques pour les riverains,
+      </li>
+      <li>
+       - déplorent qu'aucune solution alternative n'ait été recherchée de manière sérieuse et efficace par les autorités compétentes et l'entreprise,
+      </li>
+      <li>
+       - demandent expressément la fermeture du CSDU du Rohrbach au 31 décembre 2005 conformément aux dispositions de l'
+       <a data-date="2000-12-04" data-spec="document_reference" data-type="arrete-prefectoral">
+        arrêté préfectoral du
+        <time data-spec="date" datetime="2000-12-04">
+         4 décembre 2000
+        </time>
+       </a>
+       ,
+      </li>
+      <li>
+       - s'opposent à l'application de l'
+       <a data-parent_reference="6" data-spec="section_reference" data-start_num="L123-14" data-type="article">
+        article L123-14
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="6" data-title="Code de l'urbanisme" data-type="code">
+        Code de l'urbanisme
+       </a>
+       pour la mise en conformité du POS de HOCHFELDEN et à la procédure de PIG mise en œuvre par le Préfet,
+      </li>
+      <li>
+       - s'opposent à toute extension du CSDU du Rohrbach,
+      </li>
+      <li>
+       - demandent que le Préfet recherche d'autres sites.
+      </li>
+     </ul>
+    </div>
+    <div data-number="21" data-spec="alinea">
+     Les communes de ALTECKENDORF et WILWISHEIM :
+    </div>
+    <div data-number="22" data-spec="alinea">
+     <ul>
+      <li>
+       - soutiennent les démarches entreprises pour faire respecter les engagements pris pour mettre un terme à l'exploitation du site au 31 décembre 2005,
+      </li>
+      <li>
+       - demandent que les mesures soient prises impérativement pour limiter les déchets par leur recyclage.
+      </li>
+     </ul>
+    </div>
+    <div data-number="23" data-spec="alinea">
+     Le conseil municipal de la commune de HOCHFELDEN, par délibération du 9 juin 2005, décide :
+    </div>
+    <div data-number="24" data-spec="alinea">
+     <blockquote>
+      <p>
+       Vu l'avis de la commission élargie en date du 15 janvier 2004,
+      </p>
+      <p>
+       considérant :
+      </p>
+      <ul>
+       <li>
+        - depuis de nombreuses années les plaintes répétées des riverains pour nuisances olfactives,
+       </li>
+       <li>
+        - la proximité des premières habitations de la commune de SCHAFFHOUSE/ZORN par rapport au site,
+       </li>
+       <li>
+        - l'impact visuel négatif sur l'environnement paysager induit par les opérations de remblais et de stockage des déblais,
+       </li>
+       <li>
+        - le trafic intense de camions transportant des déchets à travers le centre ville de HOCHFELDEN, générateur de bruits et de nuisances olfactives par moment intolérables,
+       </li>
+       <li>
+        - les nombreuses demandes de fermetures du CSDU formulées depuis 1975 et les décisions des conseils municipaux successifs s'opposant aux diverses extensions,
+        <a data-page_index="14" data-spec="page_separator">
+        </a>
+        <div data-spec="page_header">
+         <div>
+          15
+         </div>
+        </div>
+       </li>
+       <li>
+        - le souci de ne pas être "complice" de la dégradation de l'environnement de notre centre ville, de ses alentours et des paysages agricoles,
+       </li>
+       <li>
+        - avoir apporté depuis 40 ans une grande contribution à l'élimination des déchets du département,
+       </li>
+       <li>
+        - que le plan départemental d'élimination des ordures ménagères et assimilés a été rédigé et approuvé sans concertation ni consultation aucune de la ville de HOCHFELDEN,
+       </li>
+       <li>
+        - le gel de la constructibilité des terrains de la zone d'activité du canal, alors que la ville de HOCHFELDEN a aménagé cette zone à partir de 1992, compte tenu que la fermeture définitive du site était prévue en 2000,
+       </li>
+       <li>
+        - les délibérations des 10 juin 2004, 13 janvier et 14 avril 2005 par lesquelles le conseil municipal maintient en zone agricole les terrains concernés par le projet d'extension du CSDU et s'oppose à l'extension et à la poursuite de son exploitation, par 19 voix pour 1 abstention émet un avis défavorable à la demande présentée par la société SITA en vue d'obtenir, d'une part l'autorisation d'étendre et de poursuivre l'exploitation du CSDU du Rohrbach et d'autre part, l'institution de servitudes d'utilité publique autour de la zone d'exploitation sur les communes de SCHAFFHOUSE/ZORN, MUTZENHOUSE et HOCHFELDEN
+       </li>
+      </ul>
+     </blockquote>
+    </div>
+    <div data-number="25" data-spec="alinea">
+     IV. AVIS DE LA COMMISSION LOCALE D'INFORMATION ET DE SURVEILLANCE (C.L.I.S.)
+    </div>
+    <div data-number="26" data-spec="alinea">
+     La réunion de la CLIS se tiendra le 30 novembre 2005.
+    </div>
+    <div data-number="27" data-spec="alinea">
+     L'avis de la CLIS sera présenté en séance lors de la présentation du dossier à la Commission départementale compétente en matière d'environnement, de risques sanitaires et technologiques.
+    </div>
+    <div data-number="28" data-spec="alinea">
+     V. EXAMEN TECHNIQUE ET REGLEMENTAIRE DES ELEMENTS DE LA DEMANDE
+    </div>
+    <div data-number="29" data-spec="alinea">
+     Sur le plan technique, il convient d'examiner successivement les effets du projet sur les eaux, sur l'air, sur le trafic local, ainsi que du point de vue des risques industriels.
+    </div>
+    <section data-number="V.1" data-spec="section" data-title="Les eaux" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      V.1. Les eaux
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'impact sur les eaux superficielles et souterraines est fonction du traitement des eaux de ruissellement et des lixiviats, ainsi que de l'imperméabilité du site.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Imperméabilité du site :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Les formations ayant fait l'objet des différentes reconnaissances depuis 1979 pour les extensions successives sont les suivantes :
+     </div>
+     <div data-number="4" data-spec="alinea">
+      <ul>
+       <li>
+        - 0,2 à 1 m de terre végétale
+       </li>
+       <li>
+        - 1 à 12,8 m d'alternances marno-calcaires de l'Hettangien-Sinemurien
+       </li>
+       <li>
+        - 5 à 10 m d'argiles de Levallois du Rhétien, séparés des marno-calcaires par une argile marneuse gris-noir de l'Hettangien Sinemurien
+        <a data-page_index="15" data-spec="page_separator">
+        </a>
+        <div data-spec="page_header">
+         <div>
+          16
+         </div>
+        </div>
+       </li>
+       <li>
+        - 3 à 6 m de grès du Rhétien
+       </li>
+       <li>
+        - au maximum 22,75 m de marnes irisées du Keuper.
+       </li>
+      </ul>
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Le fond de fouille du CSDU actuel et de la future extension repose sur la formation des argiles de Levallois.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      La perméabilité des argiles de Levallois varie entre 7,2 x10-9 et 1,1 x10-8 m/s sur une dizaine de mètres d'épaisseur (d'après l'étude Arcadis-Gester 2004).
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Les caractéristiques de ces argiles permettent de répondre aux exigences réglementaires actuelles concernant la couche inférieure de la barrière passive, soit 5m d'épaisseur avec une perméabilité inférieure à 1.10-6m/s.
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Néanmoins, la perméabilité moyenne de ces argiles étant de 2,2 x10-8 m/s, la couche supérieure de la barrière passive est reconstituée en remaniant et compactant ces argiles sur le premier mètre, de façon à obtenir une perméabilité inférieure à 1 x10-9 m/s.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Des essais de perméabilité, après compactage des argiles seront réalisés afin de vérifier ces dispositions.
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Traitement des lixiviats :
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Les lixiviats sont régulièrement pompés et contrôlés et sont acheminés pour traitement vers une station d'épuration collective, dont l'exploitant a établi une convention.
+     </div>
+     <div data-number="12" data-spec="alinea">
+      Le volume des lixiviats qui sera traité sera de l'ordre de 2 500 m³/an la première année d'exploitation puis un pic de production d'environ 9 500 m³/an sera observé en année 5 avant de se stabiliser à environ 5 000 m³/an pour le suivi post-exploitation.
+     </div>
+     <div data-number="13" data-spec="alinea">
+      Eaux souterraines :
+     </div>
+     <div data-number="14" data-spec="alinea">
+      La surveillance de la qualité des eaux souterraines susceptibles d'être polluées par l'installation, est assurée trimestriellement par des piézomètres de contrôle.
+     </div>
+     <div data-number="15" data-spec="alinea">
+      Deux nappes sont à considérer :
+     </div>
+     <div data-number="16" data-spec="alinea">
+      <ul>
+       <li>
+        - la nappe marno-calcaire,
+       </li>
+       <li>
+        - la nappe des grès du Rhétien.
+       </li>
+      </ul>
+     </div>
+     <div data-number="17" data-spec="alinea">
+      Les résultats d'analyses 2004 sont comparables à ceux des années précédentes.
+     </div>
+     <div data-number="18" data-spec="alinea">
+      En août 2005, un pic en teneur de lindane dans les piézomètres P2 (1,7 μg/l) et P4 (0,09 μg/l) a été constaté.
+     </div>
+     <div data-number="19" data-spec="alinea">
+      A noter, toutefois, une augmentation de la teneur en AOX, aussi bien en amont qu'en aval dans la nappe des marno-calcaire.
+     </div>
+     <div data-number="20" data-spec="alinea">
+      Les eaux de ruissellement n'ayant pas été en contact avec les déchets sont collectées grâce à un système de fossés périphériques. Avant rejet, elles transitent par des bassins de décantation.
+     </div>
+     <div data-number="21" data-spec="alinea">
+      Les eaux du Rohrbach sont analysées en amont et en aval du CSDU ; aucun impact sur la qualité de l'eau de ce ruisseau n'a été constaté.
+     </div>
+     <a data-page_index="16" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       17
+      </div>
+     </div>
+     <div data-number="22" data-spec="alinea">
+      Tous ces contrôles seront effectués et poursuivis dans le cadre de l'extension du site, ainsi que lors du suivi post-exploitation (soit 30 ans après la fin de l'exploitation).
+     </div>
+     <div data-number="23" data-spec="alinea">
+      Impact sur les eaux souterraines :
+     </div>
+     <div data-number="24" data-spec="alinea">
+      Un diagnostic du dispositif de contrôle de la qualité des eaux souterraines a été réalisé par le Bureau d'étude FAIRTEC en mai 2005.
+     </div>
+     <div data-number="25" data-spec="alinea">
+      Cette étude a été réalisée pour répondre à la demande de l'
+      <a data-date="2005-01-05" data-spec="document_reference" data-type="arrete-prefectoral">
+       arrêté préfectoral du
+       <time data-spec="date" datetime="2005-01-05">
+        5 janvier 2005
+       </time>
+      </a>
+      relative à la réalisation d'une expertise des conditions actuelles de suivi de la qualité des eaux souterraines du CSDU de HOCHFELDEN. Ce diagnostic a porté sur la pertinence de l'implantation, du nombre et de la profondeur des piézomètres du site et du suivi analytique de la qualité des eaux souterraines.
+     </div>
+     <div data-number="26" data-spec="alinea">
+      La société SITA ALSACE souhaite réduire le nombre de piézomètres à 5 (au lieu de 7). Les conclusions de ce diagnostic sont les suivantes :
+     </div>
+     <div data-number="27" data-spec="alinea">
+      <blockquote>
+       <p>
+        Le site de HOCHFELDEN est doté d'un réseau piézométrique conforme à son arrêté préfectoral et adapté aux conditions hydrogéologiques de la zone d'étude (profondeur et nappe surveillée).
+       </p>
+       <p>
+        Les analyses effectuées sur les différents piézomètres permettent un bon suivi de la qualité des eaux souterraines présentes au droit du site.
+       </p>
+       <p>
+        Au vu des résultats des analyses pour la nappe des marno-calcaires et de son sens d'écoulement établi avec les relevés piézométriques effectués lors de cette étude, la demande de la société SITA ALSACE de réduire le nombre de piézomètres du réseau de contrôle à 5 se justifie. En effet, les piézomètres choisis (SC1, SD1 bis, SD2, SD7 et P4) permettent de disposer d'un piézomètre amont pour chaque nappe (SC1 pour les grès rhétiens et SD7 pour les marno-calcaires) et d'au moins un piézomètre aval pour chaque nappe (SD1 bis pour les grès rhétiens et SD2 aval zone extension et P4 aval site entier pour les marno-calcaires). En outre, en cas de détection d'une éventuelle pollution des eaux souterraines, le programme de surveillance renforcée pourrait s'appuyer sur l'ensemble des piézomètres du site
+       </p>
+      </blockquote>
+     </div>
+     <div data-number="28" data-spec="alinea">
+      Toutefois, compte tenu du pic de la teneur en lindane dans le piézomètre P2 en août 2005, il est proposé de maintenir ce piézomètre dans le programme de suivi du CSDU.
+     </div>
+     <div data-number="29" data-spec="alinea">
+      De plus, les conclusions de l'Évaluation Simplifiée des Risques (ESR) relatives aux anciennes parties non munies de géomembranes, réalisée en septembre 2005 par le Bureau d'étude FAIRTEC sont les suivantes :
+     </div>
+     <div data-number="30" data-spec="alinea">
+      Cette évaluation aboutit au classement du site du Rohrbach en classe 2 : site à surveiller.
+     </div>
+     <div data-number="31" data-spec="alinea">
+      Pour les milieux concernés, eau souterraine non AEP et eau superficielle non AEP, les notes obtenues sont de classe 2.
+     </div>
+     <div data-number="32" data-spec="alinea">
+      Cette classification est due à l'existence d'une source pour laquelle aucun impact n'est constaté pour les milieux en contact avec l'homme (possibilité de transfert et de cible), le Rohrbach pour la pêche de loisir et la nappe des grès rhétiens pour l'usage industriel.
+     </div>
+     <div data-number="33" data-spec="alinea">
+      Dans un tel cas, la mise en place d'un dispositif de surveillance des eaux et éventuellement des dispositions de maîtrise d'urbanisme est préconisée.
+     </div>
+     <div data-number="34" data-spec="alinea">
+      Pour le centre de stockage du Rohrbach, l'ensemble de ces préconisations existe déjà sur le site en liaison avec le suivi exigé par la réglementation concernant les centres de stockage de déchets ménagers et assimilés (réseau de piézomètres de contrôle, analyses des eaux souterraines, superficielles, des lixiviats, ...).
+     </div>
+     <a data-page_index="17" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       18
+      </div>
+     </div>
+     <div data-number="35" data-spec="alinea">
+      Ainsi, ce site conservera un suivi pendant sa phase d'exploitation et pendant au moins 30 ans après la cessation d'activité.
+     </div>
+     <div data-number="36" data-spec="alinea">
+      Cas particulier du stockage de lindane :
+     </div>
+     <div data-number="37" data-spec="alinea">
+      L'usine UGINE-KUHMANN à HUNINGUE fabriquait un insecticide au lindane et ce sont des déchets issus de cette fabrication qui ont été déposés sans autorisation en 1967 dans les anciennes carrières de HOCHFELDEN.
+     </div>
+     <div data-number="38" data-spec="alinea">
+      Il s'agit des isomères de l'hexachlorocyclohexane, dont l'isomère gamma correspondant au lindane.
+     </div>
+     <div data-number="39" data-spec="alinea">
+      En 1983, des travaux de confinement du lindane ont été réalisés. Ces travaux de confinement, ayant fait l'objet d'un suivi important, ont permis de décaper les terrains jusqu'au constat d'absence de HCH et de déplacer ces terres polluées dans une zone de confinement.
+     </div>
+     <div data-number="40" data-spec="alinea">
+      Le volume de résidus d'HCH et de terres polluées confinées au sein du
+      <q>
+       tombeau
+      </q>
+      est de 3 500 m³ pour une superficie de 1 600 m², le
+      <q>
+       tombeau
+      </q>
+      représentant une superficie de 2 500 m².
+     </div>
+     <div data-number="41" data-spec="alinea">
+      Ce confinement a fait l'objet d'un suivi régulier depuis 1984.
+     </div>
+     <div data-number="42" data-spec="alinea">
+      En juillet 2004, une ESR spécifique à cette capsule de lindane a été réalisée par le Bureau d'étude FAIRTEC. Cette étude conclut ainsi :
+     </div>
+     <div data-number="43" data-spec="alinea">
+      <blockquote>
+       <p>
+        Cette évaluation aboutit au classement du site du Rohrbach en classe 3 : site banalisable. Pour les milieux concernés, eau souterraine non AEP et eau superficielle non AEP, les notes obtenues sont de classe 3.
+       </p>
+       <p>
+        Les résultats sont liés au fait que le problème initial du risque de pollution a été traité et a fait l'objet d'un suivi depuis.
+       </p>
+       <p>
+        En outre, la surveillance effectuée sur le site depuis les travaux de confinement a servi à vérifier l'absence de constat d'impact de ce confinement, par l'absence de dépassement des valeurs de constat d'impact (VCI) selon l'usage des milieux concernés
+       </p>
+      </blockquote>
+     </div>
+    </section>
+    <section data-number="V.2" data-spec="section" data-title="L'air" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      V.2. L'air
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La société SITA ALSACE a mis en place une torchère centralisée afin d'incinérer le gaz résultant de la décomposition anaérobie des déchets.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Ce système permet de traiter le biogaz produit. Il a fait ses preuves sur de nombreux CSDU exploités en France.
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Le suivi analytique des rejets ne montre pas d'anomalies.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Pour ce qui est des odeurs, la réduction de la surface exposée à l'air permet de limiter les émissions olfactives provenant des ordures fraîches.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      L'exploitant a transmis en octobre 2005 une étude réalisée par le Bureau d'étude FAIRTEC visant à effectuer une cartographie des émanations gazeuses sur le site.
+     </div>
+     <a data-page_index="18" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       19
+      </div>
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Les émanations constatées sont de plusieurs types :
+     </div>
+     <div data-number="7" data-spec="alinea">
+      <ul>
+       <li>
+        - les talus internes, montés à l'avancement de l'exploitation et par nature relativement peu étanches aux migrations gazeuses,
+       </li>
+       <li>
+        - les défauts d'étanchéité autour des puits, favorisant les émanations ponctuelles de biogaz,
+       </li>
+       <li>
+        - les défauts de captage liés aux points bas sur le collecteur principal D et au défaut d'écoulement de la purge du puits M14.
+       </li>
+      </ul>
+     </div>
+     <div data-number="8" data-spec="alinea">
+      En conséquence, il est proposé de prescrire à l'exploitant la réalisation sous 3 mois d'un contrôle de son réseau de captage par une société spécialisée.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Ce contrôle devra porter sur le caractère adapté et suffisant du système de captage et de brûlage du biogaz en se basant sur des mesures d'émanations gazeuses effectuées sur l'ensemble du site. Une cartographie précise sera établie et les améliorations éventuelles devront être proposées au regard de l'utilisation par l'exploitant des meilleures technologies et meilleures pratiques actuellement disponibles en vue de réduire les émanations gazeuses.
+     </div>
+    </section>
+    <section data-number="V.3" data-spec="section" data-title="Le trafic routier" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      V.3. Le trafic routier
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le trafic prévisionnel lié à la poursuite d'activité se définit comme suit :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - apport de déchets :
+        <address data-spec="address">
+         70
+        </address>
+        passages de poids lourds par jour,
+       </li>
+       <li>
+        - circulation du personnel :
+        <address data-spec="address">
+         20
+        </address>
+        passages de véhicules légers par jour,
+       </li>
+       <li>
+        - excavation de matériaux :
+        <address data-spec="address">
+         20
+        </address>
+        passages de poids lourds par jour,
+       </li>
+       <li>
+        - élimination des lixiviats :
+        <address data-spec="address">
+         4
+        </address>
+        passages camions-citernes par jour, soit un total maximum de
+        <address data-spec="address">
+         114
+        </address>
+        passages par jour.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      L'effet sur le trafic se fera surtout sentir pour l'apport de déchets et l'élimination des lixiviats qui emprunteront de grands axes routiers. Pour l'élimination des matériaux excavés, les camions emprunteront des routes secondaires sur 2,5 km pour aller à la carrière de MUTZENHOUSE. Ces camions ne passeront pas devant les habitations.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Les horaires d'ouverture du site sont de 7 h à 17 h, du lundi au vendredi.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Une aire de stationnement est aménagée à l'intérieur du site pour éviter la présence de poids lourds en attente sur la voie publique.
+     </div>
+    </section>
+    <section data-number="V.4" data-spec="section" data-title="Les risques industriels – institution de servitudes d'utilité publique" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      V.4. Les risques industriels – institution de servitudes d'utilité publique
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les principaux risques industriels résultant de l'exploitation d'un CSDU sont :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      <ul>
+       <li>
+        - l'explosion de biogaz et la migration de celui-ci dans le sous-sol,
+       </li>
+       <li>
+        - la rupture des digues extérieures,
+       </li>
+       <li>
+        - la pollution accidentelle.
+       </li>
+      </ul>
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Les prescriptions de l'
+      <a data-date="1997-09-09" data-spec="document_reference" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="1997-09-09">
+        9 septembre 1997
+       </time>
+      </a>
+      permettent de prévenir ces risques : drainage et incinération des gaz, pompages des lixiviats, dispositifs d'étanchéité.
+     </div>
+     <div data-number="4" data-spec="alinea">
+      L'
+      <a data-parent_reference="7" data-spec="section_reference" data-start_num="9" data-type="article">
+       article 9
+      </a>
+      de l'
+      <a data-date="1997-09-09" data-spec="document_reference" data-tag_id="7" data-type="arrete-ministeriel">
+       arrêté ministériel du
+       <time data-spec="date" datetime="1997-09-09">
+        9 septembre 1997
+       </time>
+      </a>
+      impose également l'éloignement des tiers par le biais de la maîtrise foncière dans un rayon de 200 m ou par l'institution de conventions ou servitudes permettant de limiter l'usage des terrains dans ce rayon.
+     </div>
+     <a data-page_index="19" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       20
+      </div>
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Pour atteindre cet objectif, les démarches de l'exploitant auprès de l'ensemble des propriétaires concernés n'ayant pas abouti, une demande d'institution de servitudes par le Préfet a été déposée parallèlement à la demande d'autorisation d'exploiter.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Cette demande de servitudes prévoit, après consultation de la DDE et du Service interministériel régional des affaires civiles et économiques de défense et de la protection civile (SIRACEDPC), que soient interdits :
+     </div>
+     <div data-number="7" data-spec="alinea">
+      <ul>
+       <li>
+        - l'implantation de constructions ou d'ouvrages incompatibles avec une activité de stockage de déchets,
+       </li>
+       <li>
+        - l'aménagement de terrains de loisirs, de camping ou de stationnement de caravanes, ainsi que les modifications de l'état du sous-sol.
+       </li>
+      </ul>
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Seront aussi interdits dans le secteur considéré (liste non exhaustive) : les locaux destinés à être habités ou occupés par des tiers, les constructions comportant un sous-sol, les puits destinés à l'alimentation en eau, et les excavations susceptibles de nuire à la stabilité du centre de stockage des déchets.
+     </div>
+     <div data-number="9" data-spec="alinea">
+      VI. EXAMEN DES AVIS EXPRIMES
+     </div>
+    </section>
+    <section data-number="VI.1" data-spec="section" data-title="Les services administratifs" data-type="unknown">
+     <h3 data-error_codes="non_contiguous_titles" data-level="1" data-spec="section_title">
+      VI.1. Les services administratifs
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les services administratifs ont émis peu d'observations, hormis la Direction départementale des affaires sanitaires et sociales (DDASS) qui a souhaité obtenir des compléments sur le volet sanitaire.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      L'exploitant a répondu aux exigences de la Direction départementale des affaires sanitaires et sociales qui a émis un avis favorable au projet.
+     </div>
+    </section>
+    <section data-number="VI.2" data-spec="section" data-title="Commune d'HOCHFELDEN et communes concernées par le rayon d'affichage" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      VI.2 Commune d'HOCHFELDEN et communes concernées par le rayon d'affichage
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Toutes les communes (13 au total) ont émis un avis défavorable au projet et souhaitent qu'un autre site soit trouvé.
+     </div>
+    </section>
+    <section data-number="VI.3" data-spec="section" data-title="Avis du public" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      VI.3 Avis du public
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le public s'est largement exprimé lors de l'enquête publique.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      La commission d'enquête a émis un avis favorable sur le projet d'extension du site, assorti de recommandations. Les éléments en réponse sont repris ci-dessous :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      Concernant la carrière de Mutzenhouse :
+     </div>
+     <div data-number="4" data-spec="alinea">
+      Cette carrière n'a pas fait l'objet d'une cessation d'activité. La société SITA déposera un dossier qui précisera les conditions de remblaiement et de remise en état de la carrière. Ce dossier fera l'objet d'un arrêté préfectoral complémentaire après avis de la Commission départementale des carrières.
+     </div>
+     <div data-number="5" data-spec="alinea">
+      Concernant le filtrage des indésirables :
+     </div>
+     <div data-number="6" data-spec="alinea">
+      La commission recommande la réalisation d'une plate forme de pré-déversement. Actuellement les déchets sont contrôlés lors du déchargement des véhicules, au niveau du quai de vidange.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      En cas de déchets indésirables (pneus, palettes, cartons vrac), la société SITA les récupère (en partie) et les recharge dans les camions. Il n'est donc pas nécessaire de réaliser une plate forme de pré-déversement.
+     </div>
+     <a data-page_index="20" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       21
+      </div>
+     </div>
+     <div data-number="8" data-spec="alinea">
+      Concernant les déchets putrescibles et ordures ménagères :
+     </div>
+     <div data-number="9" data-spec="alinea">
+      Le projet d'arrêté préfectoral interdit l'apport de ce type de déchets sauf dérogation exceptionnelle et transitoire du Préfet.
+     </div>
+     <div data-number="10" data-spec="alinea">
+      Concernant les piézomètres :
+     </div>
+     <div data-number="11" data-spec="alinea">
+      Dans le cadre de l'expertise de l'implantation des piézomètres, la société SITA a proposé l'implantation de piézomètres prenant en compte l'extension du site. Le projet d'arrêté précise les piézomètres à suivre et rappelle que celui qui sera supprimé devra être remplacé.
+     </div>
+     <div data-number="12" data-spec="alinea">
+      Concernant les conditions d'exploitation du site :
+     </div>
+     <div data-number="13" data-spec="alinea">
+      Le site de l'ancienne décharge qui ne comprend pas de géomembrane ne sera pas recouvert de déchets. Le projet d'arrêté interdit tout apport de déchets sur ces zones et sur les parties actuellement autorisées à compter du 31 décembre 2005.
+     </div>
+     <div data-number="14" data-spec="alinea">
+      Concernant les nuisances olfactives :
+     </div>
+     <div data-number="15" data-spec="alinea">
+      La commission préconise l'utilisation de produits masquants. Ces dispositions sont reprises dans le projet d'arrêté. Le projet d'arrêté prescrit également un contrôle du réseau de captage du biogaz et l'établissement d'une carte d'émanation de gaz sur l'ensemble du site.
+     </div>
+     <div data-number="16" data-spec="alinea">
+      Concernant la qualité des eaux de surface
+     </div>
+     <div data-number="17" data-spec="alinea">
+      Les analyses des eaux du Rohrbach sont prescrites en amont et en aval du rejet. Les résultats sont transmis dans le rapport annuel, comme cela a déjà été fait jusqu'à présent.
+     </div>
+     <div data-number="18" data-spec="alinea">
+      Concernant l'insertion paysagère
+     </div>
+     <div data-number="19" data-spec="alinea">
+      La société SITA s'engage à mettre en place une digue paysagère le long de la RD 670. Le projet d'arrêté prescrit la réalisation de cette digue.
+     </div>
+     <div data-number="20" data-spec="alinea">
+      Concernant la population aviaire :
+     </div>
+     <div data-number="21" data-spec="alinea">
+      La commission souhaite qu'une étude soit réalisée en collaboration avec la LPO. La société SITA s'est engagée dans son mémoire en réponse à effectuer cette étude.
+     </div>
+     <div data-number="22" data-spec="alinea">
+      Sur le dossier de servitudes, la Commission a émis un avis favorable.
+     </div>
+     <div data-number="23" data-spec="alinea">
+      V. CONCLUSIONS
+     </div>
+     <div data-number="24" data-spec="alinea">
+      Considérant que les caractéristiques géologiques du sous-sol sont favorables à l'implantation d'un centre de stockage concernant la couche inférieure de la barrière passive, soit 5 m d'épaisseur avec une perméabilité à 1.10⁻⁶ m/s,
+     </div>
+     <div data-number="25" data-spec="alinea">
+      Considérant que le fond de forme du CSDU actuel et de la future extension repose sur la formation des argiles de Levallois dont la perméabilité varie entre 7,2·10⁻⁹ et 1,1·10⁻⁸ m/s sur une dizaine de mètres d'épaisseur et que les caractéristiques de ces argiles permettent de répondre aux exigences réglementaires actuelles,
+     </div>
+     <div data-number="26" data-spec="alinea">
+      Considérant que le remaniement et le compactage des argiles Levallois permettra d'obtenir une perméabilité inférieure à 1.10⁻⁹ m/s sur le premier mètre,
+     </div>
+     <a data-page_index="21" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       22
+      </div>
+     </div>
+     <div data-number="27" data-spec="alinea">
+      Considérant que le diagnostic du dispositif de contrôle de la qualité des eaux souterraines conclut que :
+     </div>
+     <div data-number="28" data-spec="alinea">
+      <ul>
+       <li>
+        - 6 piézomètres suffisent à contrôler l'impact sur les eaux souterraines,
+       </li>
+       <li>
+        - les paramètres analysés sont représentatifs de l'activité d'un centre de stockage de déchets et sont même adaptés à la particularité du site due au confinement du dépôt de lindane,
+       </li>
+      </ul>
+     </div>
+     <div data-number="29" data-spec="alinea">
+      Considérant que l'ESR spécifique au dépôt de lindane classe le site en classe 3 de type
+      <q>
+       banalisable
+      </q>
+      ,
+     </div>
+     <div data-number="30" data-spec="alinea">
+      Considérant que l'ESR réalisée sur les parties non étanchées du site classe le site en classe 2
+      <q>
+       à surveiller
+      </q>
+      et que des piézomètres de contrôle sont en place,
+     </div>
+     <div data-number="31" data-spec="alinea">
+      Considérant que des émanations gazeuses ont été constatées au niveau des puits de captage et de certains talus lors de la cartographie des émanations gazeuses effectuée sur une partie du site et qu'il convient d'y remédier après contrôle du système de captage et de brûlage des gaz,
+     </div>
+     <div data-number="32" data-spec="alinea">
+      Considérant que pour limiter les émanations d'odeurs sur le site, l'apport de déchets putrescibles des supermarchés est interdit et que l'apport d'ordures ménagères brut n'est autorisé que sur dérogation exceptionnelle du préfet et de manière transitoire,
+     </div>
+     <div data-number="33" data-spec="alinea">
+      Considérant que l'exploitant a mis en place les dispositifs permettant le contrôle des déchets, la collecte et le traitement des effluents aussi bien liquides que gazeux, l'étanchéité du casier créé et sa protection contre les arrivées d'eaux souterraines, le suivi des effluents ainsi que des eaux superficielles et souterraines, l'interdiction de l'accès,
+     </div>
+     <div data-number="34" data-spec="alinea">
+      Considérant que les aménagements et conditions d'exploitation telles qu'elles sont définies par
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      garantissent la protection des intérêts mentionnés à l'
+      <a data-parent_reference="8" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+       article L 511-1
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="8" data-title="Code de l'environnement" data-type="code">
+       code de l'environnement
+      </a>
+      , notamment la commodité du voisinage, la santé, la sécurité, la salubrité publiques et la protection de la nature et de l'environnement,
+     </div>
+     <div data-number="35" data-spec="alinea">
+      Considérant qu'une quantité de déchets admise de 80 000 t/an est compatible avec les recommandations du plan départemental pour l'élimination des déchets ménagers et assimilés, que, de plus, ce plan a mis en avant le caractère indispensable de la capacité offerte par le CSDU de HOCHFELDEN pour l'équilibre entre les quantités produites et les capacités d'enfouissement du département du Bas-Rhin,
+     </div>
+     <div data-number="36" data-spec="alinea">
+      Considérant qu'une digue paysagère sera réalisée le long de la RD 670,
+     </div>
+     <div data-number="37" data-spec="alinea">
+      Considérant que la DDASS a émis un avis favorable sur l'évaluation du risque sanitaire,
+     </div>
+     <div data-number="38" data-spec="alinea">
+      Considérant que les déchets sont contrôlés lors du déchargement au niveau du quai de vidange de la zone de stockage,
+     </div>
+     <div data-number="39" data-spec="alinea">
+      Considérant que le CSDU n'est pas compris dans le périmètre de protection des captages de Mommenheim et que le premier captage est situé à 4,5 km ;
+     </div>
+     <div data-number="40" data-spec="alinea">
+      Considérant qu'aucune faille géologique n'est présente sur le site,
+     </div>
+     <div data-number="41" data-spec="alinea">
+      Considérant que les habitations les plus proches se situent à 250 m et que l'
+      <a data-spec="section_reference" data-start_num="9" data-type="article">
+       article 9
+      </a>
+      de l'arrêté ministériel impose une distance d'isolement de 200 m par rapport à la zone de stockage,
+     </div>
+     <a data-page_index="22" data-spec="page_separator">
+     </a>
+     <div data-spec="page_header">
+      <div>
+       23
+      </div>
+     </div>
+     <div data-number="42" data-spec="alinea">
+      Considérant ce qui précède, j'ai l'honneur de vous proposer de donner une suite favorable aux demandes exprimées par la Société SITA :
+     </div>
+     <div data-number="43" data-spec="alinea">
+      <ul>
+       <li>
+        - le projet d'arrêté préfectoral d'autorisation, ci-joint, reprend notamment les préconisations des experts et bureaux d'études qui sont intervenues sur le site, pour l'élaboration du dossier de demande d'autorisation, la réalisation des ESR, du diagnostic des piézomètres, du volet sanitaire, ...
+       </li>
+       <li>
+        - le projet d'arrêté instituant les servitudes est celui présenté à l'enquête publique. Les mairies des communes concernées doivent être invitées à la réunion de la Commission départementale compétente en matière d'environnement, de risques sanitaires et technologiques où ce projet sera présenté.
+       </li>
+      </ul>
+     </div>
+    </section>
+   </section>
+  </main>
+ </body>
+</html>

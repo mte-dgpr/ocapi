@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2023-10-06_ap mise en demeure_APMD_sas drimm_06 10 2023.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DE TARN-ET-GARONNE
+Liberté
+Égalité
+Fraternité
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Direction de la coordination interministérielle et de l'appui territorial
+    </div>
+    <div>
+     Mission des politiques environnementales AP n° 82-2023-10- 06-00003
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTÉ PRÉFECTORAL DE MISE EN DEMEURE Société DRIMM 3525 route de La Ville Dieu BP 19 82700 MONTECH exploitante d'une installation de stockage de déchets non dangereux
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="L" data-spec="section" data-title="171-8 du code de l'environnement" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     article L. 171-8 du code de l'environnement
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     installation classée pour la protection de l'environnement
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le Préfet de Tarn-et-Garonne,
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Chevalier de l'Ordre National du Mérite,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     VU le
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      Code de l'Environnement
+     </a>
+     ;
+    </div>
+    <div data-number="5" data-spec="alinea">
+     VU la nomenclature des installations classées pour la protection de l'environnement (ICPE) ;
+    </div>
+    <div data-number="6" data-spec="alinea">
+     VU l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+      modifié
+     </a>
+     autorisant l'exploitation d'une installation de traitement et de stockage de déchets ménagers délivrée à la société SAS DRIMM à Montech, et en particulier ses
+     <a data-group_id="1" data-spec="section_reference" data-start_num="3.2" data-type="article">
+      articles 3.2
+     </a>
+     ,
+     <a data-group_id="1" data-spec="section_reference" data-start_num="3.8" data-type="article">
+      3.8
+     </a>
+     ,
+     <a data-group_id="1" data-spec="section_reference" data-start_num="4.1.1" data-type="article">
+      4.1.1
+     </a>
+     et
+     <a data-group_id="1" data-spec="section_reference" data-start_num="67.1" data-type="article">
+      67.1
+     </a>
+     ;
+    </div>
+    <div data-number="7" data-spec="alinea">
+     VU le dossier de porter à connaissance de juin 2020 complété en septembre 2020 concernant l'ajout du module de finition de combustible solide de récupération, notamment les pages 66 à 69 ;
+    </div>
+    <div data-number="8" data-spec="alinea">
+     VU le rapport de l'inspection des installations classées de la visite du 9 août 2022 ;
+    </div>
+    <div data-number="9" data-spec="alinea">
+     VU l'accident du 4 septembre 2023, notifié à l'inspection des installations classées par l'exploitant à 17H34 ;
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      1/4
+     </div>
+    </div>
+    <a data-page_index="1" data-spec="page_separator">
+    </a>
+    <div data-number="10" data-spec="alinea">
+     VU le rapport de l'inspection des installations classées du 11 septembre 2023, transmis à l'exploitant le 21 septembre 2023 par lettre recommandée avec accusé de réception conformément aux
+     <a data-group_id="2" data-parent_reference="1" data-spec="section_reference" data-start_num="L171-6" data-type="article">
+      articles L.171-6
+     </a>
+     et
+     <a data-group_id="2" data-parent_reference="1" data-spec="section_reference" data-start_num="L514-5" data-type="article">
+      L.514-5
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     , afin qu'il puisse faire part de ses observations dans un délai de quinze jours ;
+    </div>
+    <div data-number="11" data-spec="alinea">
+     VU le courrier de l'exploitant en date du 26 septembre 2023 ;
+    </div>
+    <div data-number="12" data-spec="alinea">
+     VU le procès-verbal de constat de réparation de la clôture établi par Catherine Lacombe, huissier de justice en date du 23 septembre 2023 ;
+    </div>
+    <div data-number="13" data-spec="alinea">
+     CONSIDÉRANT que lors de sa visite du 9 août 2022, l'inspection des installations classées avait constaté que la société SAS DRIMM entreposait un stockage de balles de déchets issus de la collecte sélective au droit de la zone dédiée aux déchets métalliques, et à proximité de la clôture et de la zone boisée ;
+    </div>
+    <div data-number="14" data-spec="alinea">
+     CONSIDÉRANT qu'il a été constaté lors de la visite du 5 septembre 2023, réalisée par l'inspection des installations classées, notamment :
+    </div>
+    <div data-number="15" data-spec="alinea">
+     <ul>
+      <li>
+       - qu'une semi-remorque FMA présentant un point chaud a été entreposé dans une zone non prévue à cet effet et à proximité de la clôture et de la zone boisée ;
+      </li>
+      <li>
+       - l'absence de procédure en cas d'incident sur un chargement d'une semi-remorque FMA ;
+      </li>
+      <li>
+       - que l'incident sur la semi-remorque survenu le 4 septembre 2023 vers 9h30 n'a pas été déclaré dans les meilleurs délais auprès de l'inspection des installations classées ;
+      </li>
+      <li>
+       - la clôture de l'installation a été ouverte par l'exploitant dans le cadre de la gestion de l'incendie.
+      </li>
+     </ul>
+    </div>
+    <div data-number="16" data-spec="alinea">
+     CONSIDÉRANT que ces constats constituent un manquement aux
+     <a data-group_id="3" data-parent_reference="2" data-spec="section_reference" data-start_num="3.2" data-type="article">
+      articles 3.2
+     </a>
+     ,
+     <a data-group_id="3" data-parent_reference="2" data-spec="section_reference" data-start_num="3.8" data-type="article">
+      3.8
+     </a>
+     ,
+     <a data-group_id="3" data-parent_reference="2" data-spec="section_reference" data-start_num="4.1.1" data-type="article">
+      4.1.1
+     </a>
+     et
+     <a data-group_id="3" data-parent_reference="2" data-spec="section_reference" data-start_num="67.1" data-type="article">
+      67.1
+     </a>
+     de l'
+     <a data-date="2017-12-06" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+     </a>
+     susvisé et au dossier de porter à connaissance du module CSR (page 66 à 69) ;
+    </div>
+    <div data-number="17" data-spec="alinea">
+     CONSIDÉRANT que ces manquements sont susceptibles d'augmenter la probabilité de survenue d'un incendie et d'aggraver ses conséquences ;
+    </div>
+    <div data-number="18" data-spec="alinea">
+     CONSIDÉRANT que le feu de la semi-remorque s'est propagé dans la forêt adjaçante et détruisant plus de 100 ha ;
+    </div>
+    <div data-number="19" data-spec="alinea">
+     CONSIDÉRANT que le non-respect de certaines dispositions réglementaires résultant des modalités d'exploitation des installations porte atteinte aux intérêts mentionnés à l'
+     <a data-parent_reference="3" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+      article L.511-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     ;
+    </div>
+    <div data-number="20" data-spec="alinea">
+     CONSIDÉRANT que face à ces manquements, il convient de faire application des dispositions de l'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+      article L.171-8
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     en mettant en demeure l'exploitant de respecter les dispositions réglementaires susvisées ;
+    </div>
+    <div data-number="21" data-spec="alinea">
+     SUR proposition de la secrétaire générale de la préfecture de Tarn-et-Garonne :
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      3/4
+     </div>
+    </div>
+    <div data-number="22" data-spec="alinea">
+     ARRÊTE
+    </div>
+   </section>
+   <section data-number="1" data-spec="section" data-title="Mise en demeure" data-type="article">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     ARTICLE 1er : Mise en demeure
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant est mis en demeure de respecter l'
+     <a data-parent_reference="5" data-spec="section_reference" data-start_num="3.2" data-type="article">
+      article 3.2
+     </a>
+     de l'
+     <a data-date="2017-12-06" data-spec="document_reference" data-tag_id="5" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+      modifié
+     </a>
+     , dès notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , en disposant d'une organisation garantissant de déclarer dans les meilleurs délais, à l'inspection des installations classées les accidents ou incidents survenus du fait du fonctionnement de l'installation qui sont de nature à porter atteinte aux intérêts mentionnés à l'
+     <a data-spec="section_reference" data-start_num="L511-1" data-type="article">
+      article L. 511-1
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Mise en demeure" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 : Mise en demeure
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant est mis en demeure de respecter l'
+     <a data-parent_reference="6" data-spec="section_reference" data-start_num="3.8" data-type="article">
+      article 3.8
+     </a>
+     de l'
+     <a data-date="2017-12-06" data-spec="document_reference" data-tag_id="6" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+      modifié
+     </a>
+     , sous trois mois, en :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - rédigeant une consigne d'exploitation en cas de détection d'un point chaud sur une semi-remorque FMA ;
+      </li>
+      <li>
+       - réalisant un bilan de l'ensemble des procédures existantes par rapport à l'exploitation des différentes installations et en procédant à leur mise à jour en cas de besoin et en formalisant l'ensemble des procédures manquantes.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Mise en demeure" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 : Mise en demeure
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant est mis en demeure de respecter l'
+     <a data-parent_reference="7" data-spec="section_reference" data-start_num="67.1" data-type="article">
+      article 67.1
+     </a>
+     de l'
+     <a data-date="2017-12-06" data-spec="document_reference" data-tag_id="7" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+      modifié
+     </a>
+     , dès notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , en respectant scupuleusement les zones de stockage prévues dans les dossiers déposés et par l'
+     <a data-date="2017-12-06" data-num="82-2017-12-06-004" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral n° 82-2017-12-06-004 du
+      <time data-spec="date" datetime="2017-12-06">
+       6 décembre 2017
+      </time>
+      modifié
+     </a>
+     susvisé.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Délais" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4 : Délais
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les délais courent à compter de la date de notification du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Sanctions" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5 : Sanctions
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dans le cas où l'une des obligations prévues aux
+     <a data-end_num="3" data-spec="section_reference" data-start_num="1" data-type="article">
+      articles 1 à 3
+     </a>
+     ne seraient pas satisfaites dans le délai prévu par ces mêmes articles, et indépendamment des poursuites pénales qui pourraient être engagées, il pourra être pris à l'encontre de l'exploitant les sanctions prévues à l'
+     <a data-parent_reference="8" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+      article L.171-8
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="8" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="Information des tiers" data-type="article">
+    <h2 data-error_codes="non_contiguous_titles" data-level="0" data-spec="section_title">
+     ARTICLE 7 : Information des tiers
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="9" data-spec="section_reference" data-start_num="R171-1" data-type="article">
+      article R.171-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="9" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     , en vue de l'information des tiers,
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     sera publié sur le site internet des services de l'État dans le département pendant une durée minimale de deux mois.
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="8" data-spec="section" data-title="Exécution" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 8 : Exécution
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La secrétaire générale de la préfecture de Tarn-et-Garonne, le directeur régional de l'environnement, de l'aménagement et du logement (DREAL) chargé de l'inspection des installations classées, sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     qui sera publié au recueil des actes administratifs de la préfecture et dont une copie sera transmise au chef de l'unité interdépartementale de la DREAL Occitanie ainsi qu'au maire de Montech et sera notifié au directeur de la SAS DRIMM.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Montauban, le 06 OCT. 2023
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le préfet,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Délais et voies de recours
+    </div>
+    <div data-number="6" data-spec="alinea">
+     En application des dispositions inscrites au
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     et notamment son
+     <a data-spec="section_reference" data-start_num="L171-11" data-type="article">
+      article L.171-11
+     </a>
+     ,
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     est soumis à un contentieux de pleine juridiction.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Conformément au
+     <a data-spec="document_reference" data-title="Code de justice administrative" data-type="code">
+      code de justice administrative
+     </a>
+     , il peut être déféré au tribunal administratif de Toulouse (
+     <address data-spec="address">
+      68 rue Raymond IV
+     </address>
+     – 31000 TOULOUSE – Tél : 05.62.73.57.57), par la personne qui en fait l'objet, par voie de recours formée contre une décision, dans les deux mois à partir de la notification ou de la publication de la décision attaquée.
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Le tribunal administratif peut également être saisi par l'application informatique
+     <q>
+      Télérecours citoyens
+     </q>
+     accessible par le site internet
+     <q>
+      www.telerecours.fr
+     </q>
+     .
+    </div>
+    <div data-number="9" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     peut aussi faire l'objet d'un recours gracieux ou hiérarchique dans le délai de deux mois :
+    </div>
+    <div data-number="10" data-spec="alinea">
+     <ul>
+      <li>
+       - soit d'un recours gracieux auprès de Monsieur le Préfet de Tarn-et-Garonne –
+       <address data-spec="address">
+        2 Allée de l'Empereur
+       </address>
+       – 82000 Montauban. Le recours doit être écrit et exposer les arguments et faits nouveaux. Une copie de la décision contestée doit être jointe à votre recours ;
+      </li>
+      <li>
+       - soit d'un recours hiérarchique auprès du Ministre de la Transition écologique et de la Cohésion des Territoires – Grande Arche de la Défense – Paroi sud / Tour Séquoia – 92055 La Défense. Le recours doit être écrit et exposer les arguments et faits nouveaux. Une copie de la décision contestée doit être jointe à votre recours.
+      </li>
+     </ul>
+    </div>
+    <div data-number="11" data-spec="alinea">
+     Ce recours administratif prolonge de deux mois le délai sus-mentionné.
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

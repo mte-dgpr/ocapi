@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2014-09-01_ap prescriptions complémentaires_20140901_SONITHERM_APC_GF_ARIANEO_14705.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Liberté • Égalité • Fraternité
+RÉPUBLIQUE FRANÇAISE
+APCom 01/9/2014
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     PRÉFET DES ALPES-MARITIMES
+    </div>
+    <div>
+     DIRECTION DEPARTEMENTALE DE LA PROTECTION DES POPULATIONS DES ALPES-MARITIMES
+    </div>
+    <div>
+     service environnement
+    </div>
+    <div>
+     INSTALLATIONS CLASSEES POUR LA PROTECTION DE L'ENVIRONNEMENT Société Niçoise de Réalisations Thermiques (SONITHERM) Usine d'incinération de déchets ménagers et autres déchets 33, boulevard de l'Ariane - Nice
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté préfectoral complémentaire portant sur la mise en œuvre des garanties financières pour la mise en sécurité des installations
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet des Alpes-Maritimes
+    </div>
+    <div>
+     Officier de la Légion d'honneur
+    </div>
+    <div>
+     Officier de l'Ordre national du Mérite
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     N° 14705
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , livre V, titre I – chapitre VI « Dispositions financières », notamment ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L516-1" data-type="article">
+     articles L. 516-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+     R.516-1
+    </a>
+    et
+    <a data-group_id="1" data-spec="section_reference" data-start_num="R516-2" data-type="article">
+     R.516-2
+    </a>
+    relatifs à la constitution des garanties financières ;
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    livre V, titre I – chapitre II, en particulier son
+    <a data-spec="section_reference" data-start_num="R512-33" data-type="article">
+     article R.512-33
+    </a>
+    relatif au transfert ou modification d'installations ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2012-05-31" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2012-05-31">
+      31 mai 2012
+     </time>
+    </a>
+    fixant la liste des installations classées soumises à l'obligation de constitution des garanties financière en application du 5° de l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+     article R.516-1
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , en particulier son
+    <a data-spec="section_reference" data-start_num="3" data-type="article">
+     article 3
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2012-05-03" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2012-05-03">
+      3 mai 2012
+     </time>
+    </a>
+    relatif aux modalités de détermination et d'actualisation du montant des garanties financières pour la mise en sécurité des installations classées et des garanties additionnelles en cas de mise en œuvre de mesures de gestion de la pollution des sols et des eaux souterraines ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2012-07-31" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2012-07-31">
+      31 juillet 2012
+     </time>
+    </a>
+    relatif aux modalités de constitution de garanties financières prévues aux
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+     articles R. 516-1
+    </a>
+    et suivants du
+    <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU les arrêtés préfectoraux qui réglementent l'exploitation par la société SONITHERM, d'une usine d'incinération de déchets ménagers et assimilés située 33, boulevard de l'Ariane à Nice, notamment l'
+    <a data-date="2011-07-04" data-num="13804" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire n° 13804 du
+     <time data-spec="date" datetime="2011-07-04">
+      4 juillet 2011
+     </time>
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU les propositions de calcul du montant des garanties financières produites par la société SONITHERM par courrier du 13 décembre 2013, complétées par courriers électroniques du 29 avril 2014 et du 18 juin 2014 ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l'inspecteur de l'environnement du 24 Juin 2014 ;
+   </div>
+   <div data-spec="visa">
+    VU l'avis émis par le conseil départemental de l'environnement et des risques sanitaires et technologiques en sa séance du 11 juillet 2014 ;
+   </div>
+   <div data-spec="visa">
+    VU la consultation en date du 18 juillet 2014 du Directeur de la société SONITHERM dans le cadre des dispositions de l'
+    <a data-parent_reference="3" data-spec="section_reference" data-start_num="R512-26" data-type="article">
+     article R.512-26
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que la société SONITHERM exploite des installations soumises à autorisation au titre des rubriques n° 2718 et n° 2771 de la nomenclature des installations classées listées par l'
+    <a data-date="2012-05-31" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2012-05-31">
+      31 mai 2012
+     </time>
+    </a>
+    susvisé, et existantes à la date du 1er juillet 2012 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que ces installations, compte tenu des seuils ou des rubriques concernées, sont soumises à l'obligation de garanties financières depuis le 1er juillet 2012, la constitution de 20 % du montant devant être réalisée au 1er juillet 2014 conformément à l'
+    <a data-date="2012-05-31" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2012-05-31">
+      31 mai 2012
+     </time>
+    </a>
+    susvisé ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que la proposition de calcul de garanties financières transmise par l'exploitant est conforme aux dispositions de l'
+    <a data-date="2012-05-31" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2012-05-31">
+      31 mai 2012
+     </time>
+    </a>
+    susvisé ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT que l'exploitant doit en conséquence constituer des garanties financières en vue d'assurer la mise en sécurité des installations concernées en cas de cessation d'activité, conformément aux dispositions des articles susvisés du
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition du secrétaire général de la préfecture des Alpes-Maritimes,
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     2
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRETE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 1 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société niçoise de réalisations thermiques (SONITHERM), dont le siège social se trouve
+     <address data-spec="address">
+      33 boulevard de l'Ariane
+     </address>
+     à Nice (06300), ci-après dénommée l'exploitant, est tenue de se conformer aux prescriptions complémentaires du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     pour l'exploitation de son usine d'incinération de déchets ménagers et autres déchets située à la même adresse que son siège social.
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Objet des garanties financières" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 : Objet des garanties financières
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les garanties financières définies dans
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     s'appliquent pour les activités suivantes :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Rubrique ICPE
+       </th>
+       <th>
+        Libellé
+       </th>
+       <th>
+        Date de constitution de la garantie financière
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2718
+       </td>
+       <td>
+        Installation de transit, regroupement ou tri de déchets dangereux ou de déchets contenant les substances ou préparations dangereuses mentionnées à l'
+        <a data-parent_reference="4" data-spec="section_reference" data-start_num="R511-10" data-type="article">
+         article R. 511-10
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+         code de l'environnement
+        </a>
+        , à l'exclusion des installations visées aux rubriques 1313, 2710, 2711, 2712, 2717 et 2719.
+       </td>
+       <td>
+        01/07/2014
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2771
+       </td>
+       <td>
+        Installation de traitement thermique de déchets non dangereux
+       </td>
+       <td>
+        01/07/2014
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2770
+       </td>
+       <td>
+        Installation de traitement thermique de déchets dangereux ou de déchets contenant des substances dangereuses ou préparations dangereuses mentionnées à l'
+        <a data-parent_reference="5" data-spec="section_reference" data-start_num="R511-10" data-type="article">
+         article R.511-10
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="5" data-title="Code de l'environnement" data-type="code">
+         code de l'environnement
+        </a>
+        à l'exclusion des installations visées à la rubrique 2793
+        <br/>
+        2. Les déchets destinés à être traités ne contenant pas les substances dangereuses ou préparations dangereuses mentionnées à l'
+        <a data-parent_reference="6" data-spec="section_reference" data-start_num="R511-10" data-type="article">
+         article R.511-10
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="6" data-title="Code de l'environnement" data-type="code">
+         code de l'environnement
+        </a>
+       </td>
+       <td>
+        01/07/2014
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Ces garanties financières s'appliquent pour les activités relevant des rubriques précitées de manière à permettre, en cas de défaillance de l'exploitant, la prise en charge des frais occasionnés par les travaux de surveillance et de mise en sécurité du site de l'installation conformément à l'
+     <a data-parent_reference="7" data-spec="section_reference" data-start_num="R512-39-1" data-type="article">
+      article R.512-39-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="7" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Montant des garanties financières" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 : Montant des garanties financières
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le montant total des garanties financières à constituer s'élève à 1 535 183 euros TTC (un million cinq cents trente cinq mille cent quatre-vingt trois euros).
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Ce montant est calculé selon la méthode forfaitaire définie dans l'
+     <a data-date="2012-05-31" data-spec="document_reference" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="2012-05-31">
+       31/05/2012
+      </time>
+     </a>
+     susvisé, en prenant en compte l'indice TP01 de référence de février 2014 (700,3) et un taux de TVA de 20 %.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Une synthèse du calcul figure en
+     <a data-parent_reference="8" data-spec="section_reference" data-start_num="1" data-type="annexe">
+      annexe 1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="8" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Délai de constitution des garanties financières" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4 : Délai de constitution des garanties financières
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant doit constituer 20 % du montant initial des garanties financières à la date du 1er juillet 2014, soit : 307 036 euros. Les délais de constitution sont précisés dans le tableau ci-dessous, en fonction du type de garant :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+       </th>
+       <th colspan="2">
+        Taux de constitution du montant des garanties financières fixé à l'
+        <a data-parent_reference="9" data-spec="section_reference" data-start_num="3" data-type="article">
+         article 3
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="9" data-type="self">
+         présent arrêté
+        </a>
+       </th>
+      </tr>
+      <tr>
+       <th>
+        Échéance de remise de l'attestation correspondante
+       </th>
+       <th>
+        Garants classiques
+       </th>
+       <th>
+        Consignation à la Caisse des Dépôts et Consignations
+       </th>
+      </tr>
+      <tr>
+       <td>
+        1er juillet 2014
+       </td>
+       <td>
+        20 %
+       </td>
+       <td>
+        20 %
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1er juillet 2015
+       </td>
+       <td>
+        40 %
+       </td>
+       <td>
+        30 %
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1er juillet 2016
+       </td>
+       <td>
+        60 %
+       </td>
+       <td>
+        40 %
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1er juillet 2017
+       </td>
+       <td>
+        80 %
+       </td>
+       <td>
+        50 %
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1er juillet 2018
+       </td>
+       <td>
+        100 %
+       </td>
+       <td>
+        60 %
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1er juillet 2019
+       </td>
+       <td>
+       </td>
+       <td>
+        70 %
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1er juillet 2020
+       </td>
+       <td>
+       </td>
+       <td>
+        80 %
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1er juillet 2021
+       </td>
+       <td>
+       </td>
+       <td>
+        90 %
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1er juillet 2022
+       </td>
+       <td>
+       </td>
+       <td>
+        100 %
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      3
+     </div>
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Etablissement des garanties financières" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5 : Etablissement des garanties financières
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant communique au Préfet, dans les délais fixés à l'
+     <a data-parent_reference="10" data-spec="section_reference" data-start_num="4" data-type="article">
+      article 4
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="10" data-type="self">
+      présent arrêté
+     </a>
+     , le document attestant la constitution des garanties financières, établi dans les formes prévues par l'
+     <a data-date="2012-07-31" data-spec="document_reference" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="2012-07-31">
+       31/07/2012
+      </time>
+     </a>
+     susvisé relatif aux modalités de constitution de garanties financières prévues aux
+     <a data-parent_reference="11" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+      articles R.516-1
+     </a>
+     et suivants du
+     <a data-spec="document_reference" data-tag_id="11" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     . Un spécimen du document attestant la constitution des garanties financières figure en
+     <a data-parent_reference="12" data-spec="section_reference" data-start_num="2" data-type="annexe">
+      annexe 2
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="12" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <section data-number="4.1" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.1.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le document attestant la constitution des garanties financières attendu avant le 1er juillet 2014 a une durée de validité de cinq ans minimum soit au moins jusqu'au 30 juin 2019.
+     </div>
+    </section>
+    <section data-number="4.2" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.2.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Les documents suivants (à remettre plus tard que le 1er juillet 2014) avec périodicité annuelle sont rédigés avec un terme de validité jusqu'au moins le 30 juin 2019.
+     </div>
+    </section>
+    <section data-number="4.3" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.3.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Pour l'option
+      <q>
+       consignation à la Caisse des Dépôts et Consignations
+      </q>
+      , les trois derniers justificatifs de constitution supplémentaire de 10 % chacun du montant initial sont tous produits avec un terme de validité jusqu'au moins le 30 juin 2024.
+     </div>
+    </section>
+    <section data-number="4.4" data-spec="section" data-type="unknown">
+     <h3 data-level="1" data-spec="section_title">
+      4.4.
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      La durée de validité des justificatifs ultérieurs court au moins jusqu'au 30 juin 2024 (+N fois cinq ans).
+     </div>
+    </section>
+   </section>
+   <section data-number="6" data-spec="section" data-title="Renouvellement des garanties financières" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 6 : Renouvellement des garanties financières
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le renouvellement des garanties financières intervient au moins trois mois avant la date d'échéance du document prévu à l'
+     <a data-parent_reference="13" data-spec="section_reference" data-start_num="R516-2" data-type="article">
+      article R.516-2
+     </a>
+     III du
+     <a data-spec="document_reference" data-tag_id="13" data-title="Code de l'environnement" data-type="code">
+      Code de l'environnement
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Pour attester du renouvellement des garanties financières, l'exploitant adresse au Préfet, au moins trois mois avant la date d'échéance, un nouveau document dans les formes prévues par l'
+     <a data-date="2012-07-31" data-spec="document_reference" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="2012-07-31">
+       31/07/2012
+      </time>
+     </a>
+     susvisé relatif aux modalités de constitution de garanties financières prévues aux
+     <a data-parent_reference="14" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+      articles R.516-1
+     </a>
+     et suivants du
+     <a data-spec="document_reference" data-tag_id="14" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="7" data-spec="section" data-title="Actualisation des garanties financières" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 7 : Actualisation des garanties financières
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant est tenu d'actualiser le montant des garanties financières et en atteste auprès du Préfet dans les cas suivants :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - a minima tous les cinq ans par application de la méthode d'actualisation précisée à l'
+       <a data-parent_reference="15" data-spec="section_reference" data-start_num="2" data-type="annexe">
+        annexe II
+       </a>
+       de l'
+       <a data-date="2012-05-31" data-spec="document_reference" data-tag_id="15" data-type="arrete-ministeriel">
+        arrêté ministériel du
+        <time data-spec="date" datetime="2012-05-31">
+         31/05/2012
+        </time>
+       </a>
+       susvisé relatif aux modalités de détermination et d'actualisation du montant des garanties financières pour la mise en sécurité des installations classées, et en fonction de :
+      </li>
+      <li>
+       - la valeur de l'indice publié TP01 (l'indice TP01 servant de référence pour l'actualisation est l'indice publié au Bulletin officiel de la concurrence, de la consommation et de la répression des fraudes) ;
+      </li>
+      <li>
+       - et de la valeur du taux de TVA en vigueur ; le taux de la TVA à prendre en compte lors de l'actualisation, noté TVAR, conformément à l'
+       <a data-parent_reference="16" data-spec="section_reference" data-start_num="2" data-type="annexe">
+        annexe II
+       </a>
+       de l'
+       <a data-date="2012-05-31" data-spec="document_reference" data-tag_id="16" data-type="arrete-ministeriel">
+        arrêté ministériel du
+        <time data-spec="date" datetime="2012-05-31">
+         31/05/2012
+        </time>
+       </a>
+       précité est celui applicable à l'établissement du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       préfectoral fixant le montant de référence des garanties financières, soit 20 %.
+      </li>
+      <li>
+       - lorsqu'il y a une augmentation supérieure à 15 % de l'indice TP01, et ce dans les six mois qui suivent ces variations, à l'intérieur de chacune des périodes quinquennales.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L'exploitant transmet avec sa proposition :
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - la valeur datée du dernier indice public TP01 ;
+      </li>
+      <li>
+       - la valeur du taux de TVA en vigueur à la date de transmission.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="8" data-spec="section" data-title="Révision du montant des garanties financières" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 8 : Révision du montant des garanties financières
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le montant des garanties financières peut être révisé lors de toute modification des conditions d'exploitation telle que définies à l'
+     <a data-parent_reference="17" data-spec="section_reference" data-start_num="11" data-type="article">
+      article 11
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="17" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="9" data-spec="section" data-title="Absence de garanties financières" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 9 : Absence de garanties financières
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'absence de garanties financières, soit par défaut de constitution du montant initial, soit par défaut de constitution d'un montant intermédiaire, soit par péremption, soit par non renouvellement, peut entraîner la suspension du fonctionnement des installations classées visées au
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , après mise en demeure.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="18" data-spec="section_reference" data-start_num="L171-9" data-type="article">
+      article L.171-9
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="18" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , pendant la durée de la suspension, l'exploitant est tenu d'assurer à son personnel le paiement des salaires, indemnités et rémunérations de toute nature auxquels il avait droit jusqu'alors.
+    </div>
+   </section>
+   <section data-number="10" data-spec="section" data-title="Appel des garanties financières" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 10 : Appel des garanties financières
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En cas de défaillance de l'exploitant, le Préfet peut faire appel aux garanties financières quand une des obligations de mise en sécurité ou de surveillance telles que prévues à l'
+     <a data-parent_reference="19" data-spec="section_reference" data-start_num="R512-39-1" data-type="article">
+      article R.512-39-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="19" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     ou dans l'arrêté d'autorisation n'est pas réalisée, et après intervention des mesures prévues à l'
+     <a data-parent_reference="20" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+      article L.171-8
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="20" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="11" data-spec="section" data-title="Levée de l'obligation de garanties financières" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 11 : Levée de l'obligation de garanties financières
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'obligation de garanties financières est levée, en tout ou partie, à la cessation d'exploitation, totale ou partielle, des installations nécessitant la mise en place des garanties financières, et après que les travaux couverts par les garanties financières ont été normalement réalisés, constatés et validés par l'inspection des installations classées.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     En application de l'
+     <a data-parent_reference="21" data-spec="section_reference" data-start_num="R516-5" data-type="article">
+      article R.516-5
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="21" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , le préfet peut demander la réalisation, aux frais de l'exploitant, d'une évaluation critique par un tiers expert des éléments techniques justifiant la demande de levée de l'obligation de garanties financières.
+    </div>
+   </section>
+   <section data-number="12" data-spec="section" data-title="Obligations d'information" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 12 : Obligations d'information
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'exploitant doit informer le préfet de :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - tout changement de garant
+      </li>
+      <li>
+       - tout changement de forme de garanties financières
+      </li>
+      <li>
+       - toute modification des modalités de constitution des garanties financières telles que définies à l'
+       <a data-parent_reference="22" data-spec="section_reference" data-start_num="R516-1" data-type="article">
+        article R.516-1
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="22" data-title="Code de l'environnement" data-type="code">
+        Code de l'environnement
+       </a>
+      </li>
+      <li>
+       - tout changement des conditions d'exploitation conduisant à une modification du montant des garanties financières
+      </li>
+      <li>
+       - toute modification apportée aux installations, à leur mode d'utilisation ou à leur voisinage, et de nature à entraîner un changement notable des éléments du dossier de demande d'autorisation.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="13" data-spec="section" data-title="Quantités maximales de déchets pouvant être entreposées sur le site" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 13 : Quantités maximales de déchets pouvant être entreposées sur le site
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     A tout moment, les quantités de déchets pouvant être entreposées sur le site ne doivent pas dépasser, pour les déchets suivants, les valeurs maximales définies dans le tableau ci-dessous, sur la base desquelles le montant des garanties financières fixé à l'
+     <a data-parent_reference="23" data-spec="section_reference" data-start_num="3" data-type="article">
+      article 3
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="23" data-type="self">
+      présent arrêté
+     </a>
+     a été calculé.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table>
+      <tr>
+       <td>
+        REFIOU : 400 m3
+       </td>
+       <td>
+        Mâchefers : 2000 m3
+       </td>
+      </tr>
+      <tr>
+       <td>
+        DASRI : 80 tonnes
+       </td>
+       <td>
+        Déchets ménagers et autres déchets en fosse de réception : 4260 tonnes
+       </td>
+      </tr>
+     </table>
+    </div>
+   </section>
+   <section data-number="14" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 14 : Délais et voies de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est soumis à un contentieux de pleine juridiction.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Il peut être déféré à la juridiction administrative compétente :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - par le demandeur ou exploitant, dans un délai de deux mois qui commence à courir du jour où lesdits actes leur ont été notifiés ;
+      </li>
+      <li>
+       - par les tiers, personnes physiques ou morales, les communes intéressées ou leurs groupements, en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts visés à l'
+       <a data-spec="section_reference" data-start_num="L511-1" data-type="article">
+        article L.511-1
+       </a>
+       , dans un délai de un an à compter de la publication ou de l'affichage desdits actes, ce délai étant, le cas échéant, prolongé jusqu'à la fin d'une période de deux années suivant la mise en activité de l'installation.
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les tiers qui n'ont acquis ou pris à bail des immeubles ou n'ont élevé des constructions dans le voisinage d'une installation classée que postérieurement à l'affichage ou à la publication de l'arrêté autorisant l'ouverture de cette installation ou atténuant les prescriptions primitives ne sont pas recevables à déférer ledit arrêté à la juridiction administrative.
+    </div>
+   </section>
+   <section data-number="15" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 15 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <ul>
+      <li>
+       - Une copie du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       est déposée à la mairie de Nice où il pourra être consulté ;
+      </li>
+      <li>
+       - un extrait de cet arrêté est affiché à la mairie de Nice pendant une durée minimum d'un mois, procès-verbal de l'accomplissement de cette formalité étant dressé par les soins du maire ;
+      </li>
+      <li>
+       - le même extrait sera en outre, affiché par le pétitionnaire dans son établissement ;
+      </li>
+      <li>
+       - un avis est inséré par les soins du préfet des Alpes-Maritimes et aux frais de l'exploitant, dans deux journaux locaux ou régionaux diffusés dans le département.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="16" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 16 :
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le Secrétaire Général de la Préfecture des Alpes-Maritimes est chargé de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont copie est adressée :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - à la société SONITHERM,
+      </li>
+      <li>
+       - au député maire de Nice,
+      </li>
+      <li>
+       - au délégué territorial des Alpes-Maritimes de l'Agence régionale de santé (ARS),
+      </li>
+      <li>
+       - au chef de l'Unité Territoriale des Alpes-Maritimes de la DREAL PACA.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Fait à Nice, le 01 SEP. 2014
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Pour le Préfet,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Le Secrétaire Général
+    </div>
+    <div data-number="6" data-spec="alinea">
+     D TION-G 3393
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Gérard CAYORY
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+   </section>
+  </main>
+  <footer data-spec="appendix">
+   <section data-number="1" data-spec="section" data-type="annexe">
+    <h2 data-level="0" data-spec="section_title">
+     Annexe 1
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Synthèse du calcul du montant des garanties financières
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L'exploitant retient en particulier les hypothèses suivantes :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Identification de l'élément
+       </th>
+       <th>
+        Libellé de l'élément
+       </th>
+       <th>
+        Commentaires
+       </th>
+       <th>
+        Valeur (€)
+       </th>
+      </tr>
+      <tr>
+       <td>
+        Sc
+       </td>
+       <td>
+        coefficient pondérateur de prise en compte des coûts liés à la gestion du chantier.
+       </td>
+       <td>
+        Ce coefficient est fixé à 1,10 par l'arrêté ministerial du 31/05/2012
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Me
+       </td>
+       <td>
+        Mesures de gestion des produits dangereux et des déchets présents sur l'installation
+       </td>
+       <td>
+        Quantités maximales de déchets présents définies à l'
+        <a data-parent_reference="24" data-spec="section_reference" data-start_num="12" data-type="article">
+         article 12
+        </a>
+        du
+        <a data-spec="document_reference" data-tag_id="24" data-type="self">
+         présent arrêté
+        </a>
+       </td>
+       <td>
+        1.071.301
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Mi
+       </td>
+       <td>
+        Neutralisation des cuves enterrées présentant un risque d'explosion ou d'incendie après vidange
+       </td>
+       <td>
+        2 cuves
+       </td>
+       <td>
+        14.500
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Mc
+       </td>
+       <td>
+        Limitation des accès au site
+       </td>
+       <td>
+        Clôturage et panneautage
+       </td>
+       <td>
+        137
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Ms
+       </td>
+       <td>
+        Contrôle des effets de l'installation sur l'environnement
+       </td>
+       <td>
+        Site de 1 ha et réseau de piézomètres existant
+       </td>
+       <td>
+        21.666
+       </td>
+      </tr>
+      <tr>
+       <td>
+        Mg
+       </td>
+       <td>
+        Gardiennage
+       </td>
+       <td>
+        Surveillance permanente pendant 6 mois
+       </td>
+       <td>
+        144.000
+       </td>
+      </tr>
+      <tr>
+       <td>
+        α
+       </td>
+       <td>
+        indice d'actualisation des coûts
+       </td>
+       <td>
+        1,05
+        <br/>
+        [TP01 = 705,6 et TVA = 20 %]
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        M
+       </td>
+       <td>
+       </td>
+       <td>
+        TOTAL en euro (€) TTC
+       </td>
+       <td>
+        1.535.183 €
+       </td>
+      </tr>
+     </table>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le montant global M de la garantie est égal à : M = Sc * [ Me + \alpha (Mi + Mc + Ms + Mg)]
+    </div>
+    <a data-page_index="5" data-spec="page_separator">
+    </a>
+    <div data-number="5" data-spec="alinea">
+     ^{}[]
+    </div>
+   </section>
+  </footer>
+ </body>
+</html>

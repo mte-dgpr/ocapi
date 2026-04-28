@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2023-03-23_ap mise en demeure_2023_03_23_apmd.pdf.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DES ARDENNES
+Liberté
+Égalité
+Fraternité
+
+Direction régionale de l'aménagement
+de l'environnement et du logement Grand Est
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     INSTALLATIONS CLASSÉES POUR LA PROTECTION DE L'ENVIRONNEMENT
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté préfectoral n°2023-A32 portant mise en demeure faite à la société UNILIN de respecter les prescriptions applicables aux installations classées pour la protection de l'environnement exploitées sur le territoire de la commune de Bazeilles (08140)
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le Préfet des Ardennes
+    </div>
+    <div>
+     Chevalier de la Légion d'honneur
+    </div>
+    <div>
+     Chevalier de l'Ordre national du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     Code de l'environnement
+    </a>
+    , et notamment ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-6" data-type="article">
+     articles L. 171-6
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+     L. 171-8
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L172-1" data-type="article">
+     L. 172-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     L. 511-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L514-5" data-type="article">
+     L. 514-5
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="2021-11-03" data-spec="document_reference" data-type="decret">
+     décret du
+     <time data-spec="date" datetime="2021-11-03">
+      3 novembre 2021
+     </time>
+    </a>
+    nommant de M. Alain BUCQUET en qualité de préfet des Ardennes ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-num="4540" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral d'autorisation n°4540
+    </a>
+    délivré le 26 juillet 2002 à la société UNILIN pour l'exploitation d'une unité de fabrication de panneaux de bois sur le territoire de la commune de Bazeilles ;
+   </div>
+   <div data-spec="visa">
+    Vu les arrêtés préfectoraux de prescriptions complémentaires, et notamment celui du 28 février 2020 ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2022-07-07" data-num="2022-359" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n°2022-359 du
+     <time data-spec="date" datetime="2022-07-07">
+      7 juillet 2022
+     </time>
+    </a>
+    portant délégation de signature à M. Christian VEDELAGO, secrétaire général de la préfecture des Ardennes ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="1998-02-02" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="1998-02-02">
+      2 février 1998
+     </time>
+    </a>
+    relatif aux prélèvements et à la consommation d'eau ainsi qu'aux émissions de toute nature des installations classées pour la protection de l'environnement soumises à autorisation ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-parent_reference="1" data-spec="section_reference" data-start_num="5.2" data-type="article">
+     article 5.2
+    </a>
+    de l'
+    <a data-date="2002-07-26" data-spec="document_reference" data-tag_id="1" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2002-07-26">
+      26 juillet 2002
+     </time>
+    </a>
+    susvisé qui dispose : « Le réseau de collecte des eaux pluviales susceptibles d'être polluées ainsi que l'ensemble des eaux susceptibles d'être polluées lors d'un accident ou d'un incendie, y compris celles utilisées pour l'extinction, doivent être recueillies dans un bassin de confinement. [...] » ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-parent_reference="2" data-spec="section_reference" data-start_num="26.1" data-type="article">
+     article 26.1
+    </a>
+    de l'
+    <a data-date="2002-07-26" data-spec="document_reference" data-tag_id="2" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2002-07-26">
+      26 juillet 2002
+     </time>
+    </a>
+    susvisé qui dispose : « Toute modification apportée au mode d'exploitation, à l'implantation du site ou d'une manière plus générale à l'organisation doit être portée à la connaissance du Préfet [...] » ;
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Arrêté préfectoral de mise en demeure – Société UNILIN
+page 2/6
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-parent_reference="3" data-spec="section_reference" data-start_num="2.9" data-type="article">
+     article 2.9
+    </a>
+    de l'
+    <a data-date="2020-02-28" data-spec="document_reference" data-tag_id="3" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2020-02-28">
+      28 février 2020
+     </time>
+    </a>
+    susvisé qui dispose : « [...] Les gaz issus de l'aspiration de chacune des 2 presses de fabrication des panneaux MDF qui ont un débit unitaire de 75 000 Nm³/h doivent respecter les valeurs suivantes :
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <th colspan="2">
+       Concentration moyenne journalière en mg/Nm³
+      </th>
+      <th colspan="2">
+       Flux par filtre
+      </th>
+      <th colspan="3">
+       Flux total
+      </th>
+     </tr>
+     <tr>
+      <th>
+      </th>
+      <th>
+       Sortie filtre
+      </th>
+      <th>
+       kg/h
+      </th>
+      <th>
+       kg/j
+      </th>
+      <th>
+       kg/h
+      </th>
+      <th>
+       kg/j
+      </th>
+      <th>
+       t/an
+      </th>
+     </tr>
+     <tr>
+      <td>
+       Poussières
+      </td>
+      <td>
+       20
+      </td>
+      <td>
+       1,5
+      </td>
+      <td>
+       36
+      </td>
+      <td>
+       3
+      </td>
+      <td>
+       72
+      </td>
+      <td>
+       18
+      </td>
+     </tr>
+     <tr>
+      <td>
+       COVT
+      </td>
+      <td>
+       110
+      </td>
+      <td>
+       8,25
+      </td>
+      <td>
+       198
+      </td>
+      <td>
+       18,5
+      </td>
+      <td>
+       396
+      </td>
+      <td>
+       100
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Dont formaldéhyde
+      </td>
+      <td>
+       15
+      </td>
+      <td>
+       1,5
+      </td>
+      <td>
+       36
+      </td>
+      <td>
+       3
+      </td>
+      <td>
+       72
+      </td>
+      <td>
+       18
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div>
+    [...] »;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-parent_reference="4" data-spec="section_reference" data-start_num="2.9" data-type="article">
+     article 2.9
+    </a>
+    de l'
+    <a data-date="2020-02-28" data-spec="document_reference" data-tag_id="4" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2020-02-28">
+      28 février 2020
+     </time>
+    </a>
+    susvisé qui dispose : « [...] Les gaz issus des séchoirs respectent les conditions suivantes :
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <th>
+      </th>
+      <th>
+       Concentration
+      </th>
+      <th colspan="2">
+       Flux séchoir 1
+      </th>
+      <th colspan="2">
+       Flux séchoir 2
+      </th>
+      <th colspan="3">
+       Total des 2 séchoirs
+      </th>
+     </tr>
+     <tr>
+      <th>
+       Flux
+      </th>
+      <th>
+       En mg/Nm³
+      </th>
+      <th>
+       En kg/h
+      </th>
+      <th>
+       En kg/j
+      </th>
+      <th>
+       En kg/h
+      </th>
+      <th>
+       En kg/j
+      </th>
+      <th>
+       En kg/h
+      </th>
+      <th>
+       En kg/j
+      </th>
+      <th>
+       En t/an
+      </th>
+     </tr>
+     <tr>
+      <td>
+       Poussières
+      </td>
+      <td>
+       40
+      </td>
+      <td>
+       16
+      </td>
+      <td>
+       384
+      </td>
+      <td>
+       20
+      </td>
+      <td>
+       480
+      </td>
+      <td>
+       36
+      </td>
+      <td>
+       864
+      </td>
+      <td>
+       216
+      </td>
+     </tr>
+     <tr>
+      <td>
+       COVT
+      </td>
+      <td>
+       100
+      </td>
+      <td>
+       44
+      </td>
+      <td>
+       1 056
+      </td>
+      <td>
+       55
+      </td>
+      <td>
+       1 320
+      </td>
+      <td>
+       99
+      </td>
+      <td>
+       2 376
+      </td>
+      <td>
+       400
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Dont formaldéhyde
+      </td>
+      <td>
+       15
+      </td>
+      <td>
+       8
+      </td>
+      <td>
+       192
+      </td>
+      <td>
+       10
+      </td>
+      <td>
+       240
+      </td>
+      <td>
+       18
+      </td>
+      <td>
+       432
+      </td>
+      <td>
+       108
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div>
+    [...] »;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-parent_reference="5" data-spec="section_reference" data-start_num="2.9" data-type="article">
+     article 2.9
+    </a>
+    de l'
+    <a data-date="2020-02-28" data-spec="document_reference" data-tag_id="5" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2020-02-28">
+      28 février 2020
+     </time>
+    </a>
+    susvisé qui dispose : « [...] Ces données correspondent au maximum des flux cumulés des installations autorisées :
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <th>
+       Paramètres
+      </th>
+      <th>
+       kg/h
+      </th>
+      <th>
+       kg/j
+      </th>
+      <th>
+       t/an
+      </th>
+     </tr>
+     <tr>
+      <td>
+       Poussières
+      </td>
+      <td>
+       48
+      </td>
+      <td>
+       1 160
+      </td>
+      <td>
+       290
+      </td>
+     </tr>
+     <tr>
+      <td>
+       SO₂
+      </td>
+      <td>
+       18
+      </td>
+      <td>
+       442
+      </td>
+      <td>
+       110
+      </td>
+     </tr>
+     <tr>
+      <td>
+       NOx en équivalent NO₂
+      </td>
+      <td>
+       220
+      </td>
+      <td>
+       5 270
+      </td>
+      <td>
+       1 310
+      </td>
+     </tr>
+     <tr>
+      <td>
+       CO
+      </td>
+      <td>
+       46
+      </td>
+      <td>
+       1 115
+      </td>
+      <td>
+       278
+      </td>
+     </tr>
+     <tr>
+      <td>
+       COVT
+      </td>
+      <td>
+       116
+      </td>
+      <td>
+       2 770
+      </td>
+      <td>
+       500
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Dont formaldéhyde
+      </td>
+      <td>
+       16
+      </td>
+      <td>
+       380
+      </td>
+      <td>
+       70
+      </td>
+     </tr>
+     <tr>
+      <td>
+       HAP
+      </td>
+      <td>
+       0,038
+      </td>
+      <td>
+       0,912
+      </td>
+      <td>
+       0,230
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Cd ou Hg ou Tl
+      </td>
+      <td>
+       0,004
+      </td>
+      <td>
+       0,089
+      </td>
+      <td>
+       0,022
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Cd + Hg + Tl
+      </td>
+      <td>
+       0,007
+      </td>
+      <td>
+       0,190
+      </td>
+      <td>
+       0,045
+      </td>
+     </tr>
+     <tr>
+      <td>
+       As + Se + Te
+      </td>
+      <td>
+       0,007
+      </td>
+      <td>
+       0,190
+      </td>
+      <td>
+       0,045
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Pb
+      </td>
+      <td>
+       0,037
+      </td>
+      <td>
+       0,890
+      </td>
+      <td>
+       0,230
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Sb + Cr + Co + Cu + Sn + Mn + Ni + V + Zn
+      </td>
+      <td>
+       0,37
+      </td>
+      <td>
+       8,9
+      </td>
+      <td>
+       2,2
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div>
+    [...] »;
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Arrêté préfectoral de mise en demeure – Société UNILIN
+page 3/6
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-parent_reference="6" data-spec="section_reference" data-start_num="2.10" data-type="article">
+     article 2.10
+    </a>
+    de l'
+    <a data-date="2020-02-28" data-spec="document_reference" data-tag_id="6" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2020-02-28">
+      28 février 2020
+     </time>
+    </a>
+    susvisé qui dispose : « La surveillance en permanence du formaldéhyde est remplacée par une corrélation d'un ou plusieurs paramètres représentatifs permettant d'effectuer un bilan matière journalier en fonction des essences traitées. Cette corrélation sera vérifiée par les mesures réalisées. [...]
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <table>
+     <tr>
+      <th>
+       Fréquences
+      </th>
+      <th>
+       Autosurveillance générateurs
+      </th>
+      <th>
+       Autosurveillance séchoirs
+      </th>
+      <th>
+       Autosurveillance électrofiltre humide
+      </th>
+      <th>
+       Filtres à manches
+      </th>
+     </tr>
+     <tr>
+      <td>
+       En continu avec enregistrement
+      </td>
+      <td>
+       Débit O₂ CO NOx
+      </td>
+      <td>
+       Estimations calculées à partir des taux d'émissions évalués par essence d'arbres :
+       <br/>
+       - poussières
+       <br/>
+       - COVT
+      </td>
+      <td>
+       -
+      </td>
+      <td>
+       -
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Trimestrielle
+      </td>
+      <td>
+       Métaux lourds
+      </td>
+      <td>
+       Poussières Humidité
+      </td>
+      <td>
+       -
+      </td>
+      <td>
+       -
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Semestrielle
+      </td>
+      <td>
+       HAP CO NOx
+      </td>
+      <td>
+       NOx COV totaux Formaldéhyde
+      </td>
+      <td>
+       Poussières COV totaux Formaldéhyde
+      </td>
+      <td>
+       -
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Annuelle
+      </td>
+      <td>
+       NOx PCDD/F SO₂
+      </td>
+      <td>
+       Hcl HF Dioxines/furannes
+      </td>
+      <td>
+       -
+      </td>
+      <td>
+       -
+      </td>
+     </tr>
+     <tr>
+      <td>
+       Tous les 3 ans
+      </td>
+      <td>
+       -
+      </td>
+      <td>
+       -
+      </td>
+      <td>
+       -
+      </td>
+      <td>
+       Poussières
+      </td>
+     </tr>
+    </table>
+   </div>
+   <div>
+    [...] » ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-parent_reference="7" data-spec="section_reference" data-start_num="50" data-type="article">
+     article 50
+    </a>
+    de l'
+    <a data-date="1998-02-02" data-spec="document_reference" data-tag_id="7" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="1998-02-02">
+      2 février 1998
+     </time>
+    </a>
+    susvisé qui dispose : « Sur chaque canalisation de rejet d'effluents sont prévus un point de prélèvement d'échantillons et des points de mesure (débit, température, concentration en polluant,...). Ces points sont implantés dans une section dont les caractéristiques (rectitude de la conduite à l'amont, qualité des parois, régime d'écoulement, etc.) permettent de réaliser des mesures représentatives de manière que la vitesse n'y soit pas sensiblement ralentie par des seuils ou obstacles situés à l'aval et que l'effluent soit suffisamment homogène. » ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport de l'inspection de l'environnement référencé NiL/DeF – n° 23/039 du 24 janvier 2023 établi à l'issue de la visite d'inspection du 30 novembre 2022 ;
+   </div>
+   <div data-spec="visa">
+    Vu la copie du rapport de l'inspection de l'environnement portée le 26 janvier 2023 à la connaissance de l'exploitant ;
+   </div>
+   <div data-spec="visa">
+    Vu le projet d'arrêté porté le 26 janvier 2023 à la connaissance de l'exploitant et lui laissant un délai de 15 jours pour faire part de ses observations ;
+   </div>
+   <div data-spec="visa">
+    Vu les observations de l'exploitant formulées par courriel du 9 février 2023 ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport de l'inspection de l'environnement référencé NiL – n° 23/134 ;
+   </div>
+   <a data-page_index="3" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Arrêté préfectoral de mise en demeure – Société UNILIN
+page 4/6
+    </div>
+   </div>
+   <div data-spec="motifs">
+    Considérant ce qui suit :
+   </div>
+   <div>
+    1. lors de la visite du 30 novembre 2022, l'inspecteur de l'environnement (spécialité installations classées) a constaté les faits suivants :
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="4,2,168" data-spec="segmentation:text_span" data-start="4,2,0">
+      - l'exploitant entrepose un volume important de grumes sur des surfaces non étanches, empêchant de fait la collecte d'éventuelles eaux d'extinction et leur confinement ;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="4,3,210" data-spec="segmentation:text_span" data-start="4,3,0">
+      - l'exploitant a procédé à des modifications sur ses installations sans en avoir informé le Préfet des Ardennes (zone de stockage de grumes supplémentaires, suppression du point de rejet du broyeur ZENO, etc.) ;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="4,4,113" data-spec="segmentation:text_span" data-start="4,4,0">
+      - les valeurs limites de rejet à l'atmosphère en formaldéhyde sont dépassées au niveau de l'électrofiltre humide ;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="4,5,117" data-spec="segmentation:text_span" data-start="4,5,0">
+      - les valeurs limites de rejet à l'atmosphère en formaldéhyde et en poussières sont dépassées au niveau des séchoirs ;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="4,6,176" data-spec="segmentation:text_span" data-start="4,6,0">
+      - les flux annuels de poussières, composés organiques volatils totaux (COVT), formaldéhyde et plomb rejetés à l'atmosphère en 2021 dépassent les valeurs limites de flux annuel ;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="4,7,94" data-spec="segmentation:text_span" data-start="4,7,0">
+      - l'exploitant ne réalise pas d'estimations de ses émissions en poussières et en formaldéhyde ;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="4,8,165" data-spec="segmentation:text_span" data-start="4,8,0">
+      - les points de prélèvement installés sur les points de rejets atmosphériques équipés de filtres à manches ne permettent pas de réaliser des mesures représentatives ;
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div>
+    2. par courriel du 9 février 2023, l'exploitant justifie du retour à la conformité des rejets annuels en poussières (130,4 t émises en 2022) et en COVT (175,4 t émises en 2022) ;
+   </div>
+   <div>
+    3. ces constats constituent un manquement aux dispositions des articles 5.2 et 26.1 de l'arrêté préfectoral du 26 juillet 2002 susvisé, des articles 2.9 et 2.10 de l'arrêté préfectoral du 28 février 2020 susvisé et de l'article 50 de l'arrêté ministériel du 2 février 1988 susvisé ;
+   </div>
+   <div>
+    4. ces manquements constituent une atteinte aux intérêts protégés dans la mesure où :
+   </div>
+   <div data-error_codes="unknown_content" data-spec="error">
+    <arretify-segmentation data-spec="segmentation:list">
+     <arretify-segmentation data-end="4,12,162" data-spec="segmentation:text_span" data-start="4,12,0">
+      - l'absence de dispositif de confinement peut occasionner en cas d'incendie une infiltration dans les sols, dans la nappe phréatique et occasionner une pollution ;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="4,13,191" data-spec="segmentation:text_span" data-start="4,13,0">
+      - le fait d'exploiter illégalement certaines installations ou stockages limite les contraintes réglementaires effectivement mises en œuvre, et augmente le risque d'impact sur l'environnement ;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="4,14,167" data-spec="segmentation:text_span" data-start="4,14,0">
+      - le dépassement des valeurs limites de rejet en poussières, COVT, formaldéhyde et plomb est susceptible d'engendrer des risques non acceptables pour la santé humaine ;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="4,15,148" data-spec="segmentation:text_span" data-start="4,15,0">
+      - l'absence de suivi en continu des rejets à l'atmosphère en poussières et en formaldéhyde limite la fiabilité des flux déterminés par l'exploitant ;
+     </arretify-segmentation>
+     <arretify-segmentation data-end="4,16,206" data-spec="segmentation:text_span" data-start="4,16,0">
+      - l'impossibilité de réaliser des mesures représentatives sur les rejets équipés de filtres à manches empêche la réalisation de mesures de flux, ce qui amène à sous-estimer les rejets en poussières du site ;
+     </arretify-segmentation>
+    </arretify-segmentation>
+   </div>
+   <div>
+    5. face à ces manquements, il convient de faire application des dispositions de l'article L. 171-8 du Code de l'environnement en mettant en demeure la société UNILIN de respecter les prescriptions et dispositions des articles 5.2 et 26.1 de l'arrêté préfectoral du 26 juillet 2002 susvisé, des articles 2.9 et 2.10 de l'arrêté préfectoral du 28 février 2020 susvisé et de l'article 50 de l'arrêté ministériel du 2 février 1988 susvisé, afin d'assurer la protection des intérêts visés à l'article L. 511-1 du Code de l'environnement ;
+   </div>
+   <div>
+    6. l'aire de stockage de bois non imperméabilisée représente une surface très importante, nécessitant un délai de mise en conformité conséquent ;
+   </div>
+   <a data-page_index="4" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     Arrêté préfectoral de mise en demeure – Société UNILIN
+page 5/6
+    </div>
+   </div>
+   <div>
+    7. la mise en conformité des rejets de formaldéhyde nécessitera la réalisation d’études préalables ;
+   </div>
+   <div>
+    8. le délai de mise en conformité des rejets atmosphériques annuels ne peut être inférieur à celui relatif au respect des valeurs limites de rejet ;
+   </div>
+   <div>
+    9. les éléments transmis par l’exploitant ne permettent pas justifier d’un retour à la conformité concernant les dépassements des valeurs limites de rejet atmosphérique en poussières sur le séchoir n°1 et en formaldéhyde sur les deux séchoirs ;
+   </div>
+   <div>
+    10. l’exploitant n’a apporté aucun élément justifiant d’un retour à la conformité concernant le suivi en continu des rejets en poussières ou formaldéhyde ou la mise en place dune corrélation en substitution de cette surveillance ;
+   </div>
+   <div>
+    11. les écarts constatés avec les normes en vigueur lors des mesures sur les rejets atmosphériques des filtres à manches rendent impossibles la détermination des flux horaires. Elles ne peuvent donc pas être considérées comme mineures et doivent donc faire l’objet d’une mise en conformité ;
+   </div>
+   <div>
+    12. les éléments transmis par l’exploitant ne permettent pas d’écarter le risque de pollution des eaux d’extinction en cas d’incendie des grumes. Ces dernières sont notamment susceptibles de contenir des HAP, des PCB, des dioxines et furannes susceptibles de polluer les sols et les eaux souterraines et superficielles ;
+   </div>
+   <div>
+    13. les éléments transmis par l’exploitant ne permettent pas de justifier que les modifications constatées le jour de la visite avaient été portées à la connaissance du Préfet ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition du directeur régional de l’environnement, de l’aménagement et du logement Grand Est,
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1 –
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société UNILIN, dont le siège social est situé à Bazeilles, CS 40913, 08200 Sedan, immatriculée au registre du commerce et des sociétés de Sedan sous le numéro SIREN 420 482 119, est mise en demeure de respecter, pour l’installation de fabrication de panneaux de bois qu’elle exploite zone industrielle de Bazeilles, les dispositions des
+     <a data-group_id="2" data-parent_reference="8" data-spec="section_reference" data-start_num="5.2" data-type="article">
+      articles 5.2
+     </a>
+     et
+     <a data-group_id="2" data-parent_reference="8" data-spec="section_reference" data-start_num="26.1" data-type="article">
+      26.1
+     </a>
+     de l’
+     <a data-date="2002-07-26" data-spec="document_reference" data-tag_id="8" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2002-07-26">
+       26 juillet 2002
+      </time>
+     </a>
+     susvisé, des
+     <a data-group_id="3" data-parent_reference="9" data-spec="section_reference" data-start_num="2.9" data-type="article">
+      articles 2.9
+     </a>
+     et
+     <a data-group_id="3" data-parent_reference="9" data-spec="section_reference" data-start_num="2.10" data-type="article">
+      2.10
+     </a>
+     de l’
+     <a data-date="2020-02-28" data-spec="document_reference" data-tag_id="9" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2020-02-28">
+       28 février 2020
+      </time>
+     </a>
+     susvisé et de l’
+     <a data-parent_reference="10" data-spec="section_reference" data-start_num="50" data-type="article">
+      article 50
+     </a>
+     de l’
+     <a data-date="1988-02-02" data-spec="document_reference" data-tag_id="10" data-type="arrete-ministeriel">
+      arrêté ministériel du
+      <time data-spec="date" datetime="1988-02-02">
+       2 février 1988
+      </time>
+     </a>
+     susvisé en :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       - supprimant tous les stockages de grumes et bois non réalisés sur des surfaces étanches permettant le confinement des eaux d’extinction en cas d’incendie ou en étanchéifiant ces zones de manière à confiner ces eaux d’extinction, dans un délai de 12 mois à compter de la notification du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       ;
+      </li>
+      <li>
+       - portant à la connaissance du Préfet les modifications apportées à ses installations, avec tous les éléments d’appréciation quant à son caractère substantiel au regard de l’
+       <a data-parent_reference="11" data-spec="section_reference" data-start_num="R181-46" data-type="article">
+        article R. 181-46
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="11" data-title="Code de l'environnement" data-type="code">
+        Code de l’environnement
+       </a>
+       , dans un délai de 3 mois à compter de la notification du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       ;
+      </li>
+      <li>
+       - respectant les valeurs limites de rejet atmosphérique en formaldéhyde en sortie de l’électrofiltre humide, dans un délai de 18 mois à compter de notification du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       ;
+      </li>
+      <li>
+       - respectant les valeurs limites de rejet atmosphérique en poussières sur le séchoir n°1 et en formaldéhyde sur les deux séchoirs, dans un délai de 18 mois à compter de la notification du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       ;
+       <a data-page_index="5" data-spec="page_separator">
+       </a>
+       <div data-spec="page_header">
+        <div>
+         Arrêté préfectoral de mise en demeure – Société UNILIN
+page 6/6
+        </div>
+       </div>
+      </li>
+      <li>
+       - respectant les valeurs limites de flux annuel de ses rejets atmosphériques en formaldéhyde, dans un délai de 24 mois à compter de la notification du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       ;
+      </li>
+      <li>
+       - mettant en place une corrélation permettant d’estimer les rejets atmosphériques en poussières en sortie de séchoir et en formaldéhyde sur l’ensemble de ses installations, dans un délai de 3 mois à compter de la notification du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       ;
+      </li>
+      <li>
+       - aménageant des points de prélèvement permettant de réaliser des mesures représentatives sur les installations équipées de filtres à manches, dans un délai de 12 mois à compter de la notification du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       .
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 –
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dans le cas où l’une des obligations prévues à l’
+     <a data-spec="section_reference" data-start_num="1" data-type="article">
+      article 1
+     </a>
+     ne serait pas satisfaite dans le délai prévu par ce même article, et indépendamment des poursuites pénales qui pourraient être engagées, il pourra être pris à l’encontre de l’exploitant les sanctions prévues à l’
+     <a data-parent_reference="12" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+      article L. 171-8
+     </a>
+     -II du
+     <a data-spec="document_reference" data-tag_id="12" data-title="Code de l'environnement" data-type="code">
+      Code de l’environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 –
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En application de l’
+     <a data-parent_reference="13" data-spec="section_reference" data-start_num="L171-11" data-type="article">
+      article L.171-11
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="13" data-title="Code de l'environnement" data-type="code">
+      code de l’environnement
+     </a>
+     , cet arrêté est soumis à un contentieux de pleine juridiction.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     En application de l’
+     <a data-parent_reference="14" data-spec="section_reference" data-start_num="R421-1" data-type="article">
+      article R.421-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="14" data-title="Code de justice administrative" data-type="code">
+      code de justice administrative
+     </a>
+     , cet arrêté peut faire l’objet d’un recours contentieux devant le tribunal administratif de Châlons-en-Champagne, 25, rue du Lycée – 51036 Châlons-en-Champagne cedex, ou via l’application de télérecours citoyens à l’adresse https://www.telerecours.fr/ dans un délai de deux mois à compter de sa notification ou de sa publication.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     peut faire l’objet d’un recours gracieux (adressé à M. le préfet des Ardennes –
+     <address data-spec="address">
+      1 place de la Préfecture
+     </address>
+     – BP 60002 – 08055 Charleville-Mézières Cedex) ou hiérarchique (adressé à M. le ministre de la transition écologique et de la cohésion des territoires – Hôtel de Roquelaure –
+     <address data-spec="address">
+      246 boulevard Saint-Germain
+     </address>
+     – 75007 Paris) dans le délai de deux mois. Ce recours administratif prolonge de deux mois le délai mentionné ci-dessus.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 –
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     En application de l’
+     <a data-parent_reference="15" data-spec="section_reference" data-start_num="R171-1" data-type="article">
+      article R.171-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="15" data-title="Code de l'environnement" data-type="code">
+      code de l’environnement
+     </a>
+     , une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sera publiée, pendant une durée minimale de deux mois, sur le site internet des services de l’État dans les Ardennes.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 –
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le secrétaire général de la préfecture des Ardennes et le directeur régional de l’environnement, de l’aménagement et du logement Grand Est sont chargés, chacun en ce qui le concerne, de l’exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     , qui sera notifié au directeur de la société UNILIN et dont une copie sera transmise pour information au maire de Bazeilles.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Charleville-Mézières, le 23 MARS 2023
+    </div>
+    <div data-number="3" data-spec="alinea">
+     le préfet,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     pour le préfet et par délégation,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     le secrétaire général,
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Christian VEDELAGO
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

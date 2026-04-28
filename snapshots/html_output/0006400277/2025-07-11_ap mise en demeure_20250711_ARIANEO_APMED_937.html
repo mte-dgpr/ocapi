@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2025-07-11_ap mise en demeure_20250711_ARIANEO_APMED_937.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET DES ALPES-MARITIMES
+Liberté Égalité Fraternité
+Direction Départementale de la Protection des Populations
+Environnement
+    </div>
+   </div>
+   <div>
+    Nice, le 11 JUIL. 2025
+   </div>
+   <div data-spec="entity">
+    <div>
+     INSTALLATIONS CLASSÉES POUR LA PROTECTION DE L'ENVIRONNEMENT Société ARIANEO 33 boulevard de l'Ariane 06300 NICE
+    </div>
+   </div>
+   <div data-spec="identification">
+    <div>
+     n° 937
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté préfectoral de mise en demeure
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le préfet des Alpes-Maritimes
+    </div>
+    <div>
+     Chevalier de la Légion d'Honneur
+    </div>
+    <div>
+     Officier de l'Ordre National du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    VU le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    , notamment les
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-6" data-type="article">
+     articles L. 171-6
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+     L. 171-8
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L172-1" data-type="article">
+     L. 172-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     L. 511-1
+    </a>
+    et
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L514-5" data-type="article">
+     L. 514-5
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2010-10-04" data-spec="document_reference" data-type="arrete-ministeriel">
+     arrêté ministériel du
+     <time data-spec="date" datetime="2010-10-04">
+      4 octobre 2010
+     </time>
+    </a>
+    relatif à la prévention des risques accidentels au sein des installations classées pour la protection de l'environnement soumises à autorisation ;
+   </div>
+   <div data-spec="visa">
+    VU le dossier de demande d'autorisation déposé le 8 février 2022 et ses compléments déposés les 19 mai et 20 juin 2022 ;
+   </div>
+   <div data-spec="visa">
+    VU l'
+    <a data-date="2023-05-11" data-num="17193" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 17193 du
+     <time data-spec="date" datetime="2023-05-11">
+      11 mai 2023
+     </time>
+    </a>
+    autorisant la société ARIANEO à exploiter ses installations situées 33 boulevard de l'Ariane à Nice ;
+   </div>
+   <div data-spec="visa">
+    VU le rapport de l'inspection des installations classées référencé 2025_202 du 5 mai 2025 consécutif à un contrôle effectué le 20 mars 2025, ce rapport ayant été transmis à l'exploitant conformément aux
+    <a data-group_id="2" data-parent_reference="1" data-spec="section_reference" data-start_num="L171-6" data-type="article">
+     articles L. 171-6
+    </a>
+    et
+    <a data-group_id="2" data-parent_reference="1" data-spec="section_reference" data-start_num="L514-5" data-type="article">
+     L. 514-5
+    </a>
+    du
+    <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    ;
+   </div>
+   <div data-spec="visa">
+    VU la réponse formulée par l'exploitant par courriel du 27 mai 2025 et les éléments complémentaires apportés par courriel du 5 juin 2025 ;
+   </div>
+   <div>
+    CONSIDÉRANT
+   </div>
+   <div data-spec="motifs">
+    que lors de la visite d'inspection du 20 mars 2025, l'exploitant a indiqué qu'en cas de perte de l'alimentation électrique, il est nécessaire d'arrêter en sécurité les fours, à savoir assurer le fonctionnement des ventilateurs de tirage, des pompes d'alimentation et divers systèmes auxiliaires comme les turbines qui présentent un risque de casse en cas d'arrêt brutal de l'alimentation ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    que dans le cas où la coupure interviendrait pendant l'incinération de déchets, il existe un risque de remontée de feu en provenance de la trémie si celle-ci n'est plus alimentée en électricité et ne fait donc plus avancer les déchets dans le four, le feu pouvant alors remonter vers les déchets situés à l'entrée du four ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    qu'il existe également un risque d'absence de combustion complète et d'arrêt des systèmes d'épuration des fumées et de tirage d'air pouvant conduire au rejet de fumées non épurées au niveau des fours et donc à l'extérieur du site ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    que pour se prémunir de tels risques, le dossier d'autorisation déposé le 8 février 2022 ayant fait l'objet de l'arrêté préfectoral du 11 mai 2023 susvisé, prévoit que l'installation est normalement secourue par un nouveau groupe électrogène de secours d'une puissance de 820 kW, installé en complément d'un groupe électrogène existant, ces deux groupes étant identifiés dans l'étude de dangers comme barrière de protection dans l'événement « Émission d'un nuage de fumées non traitées » lié à une coupure électrique et comme barrière de protection dans la détection d'un feu ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     1/4
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     2/4
+    </div>
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    que lors de la visite d'inspection du 20 mars 2025, aucun des deux groupes électrogènes précités n'étaient présents sur le site, et que l'exploitant, sans l'avoir porté préalablement à la connaissance du préfet, propose en compensation d'auto-consommer l'électricité produite par l'usine en cas de perte de l'alimentation électrique, mais avoue l'existence d'un risque important d'échec de la procédure d'îlotage en cas de perte subite non programmée ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    que lors de la visite d'inspection du 20 mars 2025, l'exploitant n'a pas été en mesure de présenter une procédure aboutie et éprouvée comprenant les opérations et contrôles à effectuer pour les phases d'arrêt, le cas échéant, avant la remise en service des équipements, les modalités d'arrêt d'urgence et de mise en sécurité de l'installation (électricité, réseaux de fluides), les modalités de maintien en fonctionnement des mesures de maîtrise des risques identifiées dans son dossier d'autorisation, et n'a pas présenté de preuves de formation des employés à la gestion de ces situations ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    que lors de la visite d'inspection du 20 mars 2025, l'exploitant n'a pas été en mesure de présenter la liste des opérations d'entretien du groupe électrogène de secours qui sera installé sur le site ainsi que leurs échéances ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    que l'exploitant ne respecte pas les dispositions des articles 52, 56, 59 et 64 de l'arrêté ministériel du 4 août 2010 susvisé, ainsi que de l'article 1.3 de l'arrêté préfectoral du 11 mai 2023 susvisé ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    qu'en réponse à la transmission du projet d'arrêté de mise en demeure, l'exploitant a indiqué que par suite d'erreurs matérielles, son dossier de demande d'autorisation aborde l'installation de deux groupes électrogènes alors qu'en réalité il est prévu d'installer un unique groupe électrogène d'une puissance de 820 kW et que l'installation ne comporte pas de groupe électrogène à l'heure actuelle ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    qu'il en ressort la nécessité pour l'exploitant de réviser l'étude de dangers afin de la mettre en conformité avec les mesures de maîtrise des risques effectivement prévues et de démontrer que les conclusions de l'analyse de risques sont inchangées ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    que l'exploitant a également indiqué que l'installation de ce groupe électrogène est prévu dans le cadre des travaux de modernisation du site dont le chantier demeure en cours et qui ne pourra se faire qu'à la fin de l'année 2025 ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    que l'exploitant a également indiqué que la location d'un groupe électrogène permettant de secourir le site n'est pas envisageable au regard des contraintes de place liées au chantier et des aménagements techniques nécessaires à l'accueil temporaire d'un tel équipement, notamment des travaux de génie civil, des raccordements électriques ainsi qu'une programmation des équipements en vue du secours et qui par conséquent ne sont pas compatibles avec le délai de 2 mois figurant au projet d'arrêté ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    que les observations de l'exploitant ne permettent pas de lever le projet d'arrêté de mise en demeure en cela qu'elles confirment que l'installation ne dispose pas d'équipements permettant de parer l'ensemble des conséquences d'une coupure électrique et que l'installation est non conforme au dossier de demande d'autorisation et à l'arrêté préfectoral d'autorisation délivré il y a plus de deux ans ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    que le risque de coupure électrique des installations ne peut être écarté au regard notamment des événements survenus dans le département en date du 24 mai 2025 ayant conduit à une coupure électrique généralisée de plusieurs heures sur une partie du territoire ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    que le délai de mise en conformité proposé par l'exploitant concernant l'installation du groupe électrogène est incompatible avec la gravité des risques encourus en cas de coupure électrique des installations ;
+   </div>
+   <a data-page_index="2" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     3/4
+    </div>
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    que l'exploitant sollicite comme point de départ des délais des mises en conformité aux prescriptions des articles 56, 59 et 64 de l'arrêté ministériel du 4 août 2010 susvisé ainsi que de l'article 1.3 de l'arrêté préfectoral du 11 mai 2023 la date de mise en service du groupe électrogène et non sa date d'installation, car la formation des employés, la réalisation d'un exercice de coupure électrique et l'établissement des opérations de maintenance présuppose sa mise en fonctionnement ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    qu'il peut être accédé à cette demande sous réserve de fixer un délai de mise en service d'un mois maximum à compter de la date d'installation du groupe électrogène afin de disposer sous 4 mois d'une installation opérationnelle permettant de se prémunir des risques encourus en cas de coupure électrique ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    que ces manquements constituent une atteinte aux intérêts protégés par l'article L.511-1 du code de l'environnement en cela que les dispositions prises par l'exploitant pour se prémunir des conséquences d'un arrêt subit de l'alimentation électrique sont insuffisantes pour empêcher tout risque de départ de feu ou de rejet de fumées non épurées et ne correspondent pas aux dispositions prévues dans son dossier de demande d'autorisation ;
+   </div>
+   <div data-spec="motifs">
+    CONSIDÉRANT
+   </div>
+   <div>
+    qu'en application de l'article L. 171-8 du code de l'environnement, il y a lieu de mettre en demeure la société ARIANEO de respecter les prescriptions des articles 52, 56, 59 et 64 de l'arrêté ministériel du 4 août 2010 susvisé, ainsi que de l'article 1.3 de l'arrêté préfectoral du 11 mai 2023 susvisé ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition du secrétaire général de la préfecture des Alpes-Maritimes ;
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1.
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société ARIANEO, dont le siège social est situé
+     <address data-spec="address">
+      33 boulevard de l'Ariane
+     </address>
+     à Nice, est mise en demeure, pour son installation implantée à la même adresse, de respecter les dispositions des articles suivants :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       -
+       <a data-parent_reference="2" data-spec="section_reference" data-start_num="56" data-type="article">
+        article 56
+       </a>
+       de l'
+       <a data-date="2010-08-04" data-spec="document_reference" data-tag_id="2" data-type="arrete-ministeriel">
+        arrêté ministériel du
+        <time data-spec="date" datetime="2010-08-04">
+         4 août 2010
+        </time>
+       </a>
+       et
+       <a data-parent_reference="3" data-spec="section_reference" data-start_num="1.3" data-type="article">
+        article 1.3
+       </a>
+       de l'
+       <a data-date="2023-05-11" data-spec="document_reference" data-tag_id="3" data-type="arrete-prefectoral">
+        arrêté préfectoral du
+        <time data-spec="date" datetime="2023-05-11">
+         11 mai 2023
+        </time>
+       </a>
+       susvisés, en installant sur son site sous trois mois à compter de la notification du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       , le groupe électrogène tel que prévu dans son dossier de demande d'autorisation déposé le 8 février 2022 et en le mettant en service sous un mois à compter de sa date d'installation ;
+      </li>
+      <li>
+       -
+       <a data-group_id="3" data-parent_reference="4" data-spec="section_reference" data-start_num="59" data-type="article">
+        articles 59
+       </a>
+       et
+       <a data-group_id="3" data-parent_reference="4" data-spec="section_reference" data-start_num="64" data-type="article">
+        64
+       </a>
+       de l'
+       <a data-date="2010-08-04" data-spec="document_reference" data-tag_id="4" data-type="arrete-ministeriel">
+        arrêté ministériel du
+        <time data-spec="date" datetime="2010-08-04">
+         4 août 2010
+        </time>
+       </a>
+       et
+       <a data-parent_reference="5" data-spec="section_reference" data-start_num="1.3" data-type="article">
+        article 1.3
+       </a>
+       de l'
+       <a data-date="2023-05-11" data-spec="document_reference" data-tag_id="5" data-type="arrete-prefectoral">
+        arrêté préfectoral du
+        <time data-spec="date" datetime="2023-05-11">
+         11 mai 2023
+        </time>
+       </a>
+       susvisés, en :
+      </li>
+      <li>
+       - établissant et portant à la connaissance du personnel, sous deux mois à compter de la mise en service du groupe électrogène, une procédure d'arrêt d'urgence faisant intervenir, conformément à son dossier d'autorisation déposé le 8 février 2022, l'utilisation d'un groupe électrogène de secours et détaillant précisément les opérations et contrôles à effectuer pour les phases d'arrêt et, le cas échéant, avant la remise en service des équipements, ainsi que les modalités de maintien en fonctionnement des mesures de maîtrise des risques identifiées dans le dossier d'autorisation ;
+      </li>
+      <li>
+       - fournissant à l'inspection des installations classées sous un mois à compter de la mise en service du groupe électrogène une preuve de formation des employés amenés à intervenir prioritairement dans le cas d'une coupure électrique ;
+      </li>
+      <li>
+       - fournissant à l'inspection des installations classées sous un mois à compter de la mise en service du groupe électrogène une preuve d'organisation d'un exercice simulant le cas d'une coupure électrique de longue durée ;
+      </li>
+      <li>
+       -
+       <a data-parent_reference="6" data-spec="section_reference" data-start_num="56" data-type="article">
+        article 56
+       </a>
+       de l'
+       <a data-date="2010-08-04" data-spec="document_reference" data-tag_id="6" data-type="arrete-ministeriel">
+        arrêté ministériel du
+        <time data-spec="date" datetime="2010-08-04">
+         4 août 2010
+        </time>
+       </a>
+       et
+       <a data-parent_reference="7" data-spec="section_reference" data-start_num="1.3" data-type="article">
+        article 1.3
+       </a>
+       de l'
+       <a data-date="2023-05-11" data-spec="document_reference" data-tag_id="7" data-type="arrete-prefectoral">
+        arrêté préfectoral du
+        <time data-spec="date" datetime="2023-05-11">
+         11 mai 2023
+        </time>
+       </a>
+       susvisés, en présentant sous un mois à compter de la mise en service du groupe électrogène, la liste des opérations d'entretien de ces derniers et leurs échéances ainsi qu'un justificatif de bon fonctionnement de l'installation ;
+       <a data-page_index="3" data-spec="page_separator">
+       </a>
+      </li>
+      <li>
+       -
+       <a data-parent_reference="8" data-spec="section_reference" data-start_num="1.3" data-type="article">
+        article 1.3
+       </a>
+       de l'
+       <a data-date="2023-05-11" data-spec="document_reference" data-tag_id="8" data-type="arrete-prefectoral">
+        arrêté préfectoral du
+        <time data-spec="date" datetime="2023-05-11">
+         11 mai 2023
+        </time>
+       </a>
+       susvisé, en révisant sous deux mois à compter de la notification du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       , son étude de dangers afin de la mettre en conformité avec les mesures de maîtrise des risques effectivement prévues et en démontrant dans le même délai que les conclusions de son étude de dangers demeurent inchangées au regard des nouvelles mesures envisagées.
+      </li>
+     </ul>
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2.
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Dans le cas où l'une des obligations prévues à l'
+     <a data-spec="section_reference" data-start_num="1" data-type="article">
+      article 1
+     </a>
+     ne serait pas satisfaite dans le délai prévu au même article, et indépendamment des poursuites pénales qui pourraient être engagées, il pourra être pris à l'encontre de l'exploitant, les sanctions prévues par les dispositions de l'
+     <a data-parent_reference="9" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+      article L. 171-8
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="9" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3. Délais et voies de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément à l'
+     <a data-parent_reference="10" data-spec="section_reference" data-start_num="L171-11" data-type="article">
+      article L. 171-11
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="10" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     ,
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     est soumis à un contentieux de pleine juridiction.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Un recours contentieux contre
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     peut être formé dans un délai de deux mois à compter de sa notification ou de sa publication, en application de l'
+     <a data-parent_reference="11" data-spec="section_reference" data-start_num="R421-1" data-type="article">
+      article R. 421-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="11" data-title="Code de justice administrative" data-type="code">
+      code de justice administrative
+     </a>
+     .
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     peut également faire l'objet d'un recours gracieux ou hiérarchique dans le même délai de deux mois.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le tribunal administratif de Nice peut être saisi d'une requête déposée via l'application Télérecours Citoyens accessible sur le site https://www.telerecours.fr.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Publicité et exécution" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4. Publicité et exécution
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     sera notifié à la société ARIANEO et publié sur le site internet des services de l'État dans les Alpes-Maritimes pendant une durée minimale de 2 mois conformément à l'
+     <a data-parent_reference="12" data-spec="section_reference" data-start_num="R171-1" data-type="article">
+      article R. 171-1
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="12" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     sera adressée :
+    </div>
+    <div data-number="3" data-spec="alinea">
+     <ul>
+      <li>
+       - au secrétaire général de la préfecture,
+      </li>
+      <li>
+       - au maire de Nice,
+      </li>
+      <li>
+       - au directeur régional de l'environnement, de l'aménagement et du logement, chargés, chacun en ce qui le concerne, de l'exécution du
+       <a data-spec="document_reference" data-type="self">
+        présent arrêté
+       </a>
+       .
+      </li>
+     </ul>
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

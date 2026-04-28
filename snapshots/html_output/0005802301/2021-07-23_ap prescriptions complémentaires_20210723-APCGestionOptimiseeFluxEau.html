@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.1.0" data-input_name="2021-07-23_ap prescriptions complémentaires_20210723-APCGestionOptimiseeFluxEau.pdf" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET
+DE LA SEINE-
+MARITIME
+Liberté
+Égalité
+Fraternité
+
+DIRECTION RÉGIONALE DE L'ENVIRONNEMENT, DE L'AMÉNAGEMENT ET DU LOGEMENT DE NORMANDIE
+    </div>
+   </div>
+   <div data-spec="entity">
+    <div>
+     Unité Départementale du Havre Équipe raffinage pétrochimie
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté du 23 JUIL. 2021 imposant à la société AIR LIQUIDE HYDROGENE un audit pour une gestion optimisée des flux d'eau sur son site situé sur la commune de Port-Jérôme-sur-Seine
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le préfet de la région Normandie, préfet de la Seine-Maritime,
+    </div>
+    <div>
+     Officier de la Légion d'honneur,
+    </div>
+    <div>
+     Officier de l'ordre national du Mérite
+    </div>
+   </div>
+   <div data-spec="visa">
+    Vu la
+    <a data-date="2000" data-num="60" data-spec="document_reference" data-type="eu-directive">
+     directive n° 2000/60/CE
+    </a>
+    du 23/10/00 établissant un cadre pour une politique communautaire dans le domaine de l'eau ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+     code de l'environnement
+    </a>
+    et notamment le titre Ier du livre V ;
+   </div>
+   <div data-spec="visa">
+    Vu la loi n° 2020-105 du 10 février 2020 relative à la lutte contre le gaspillage et à l'économie circulaire ;
+   </div>
+   <div data-spec="visa">
+    Vu le
+    <a data-date="2019-04-01" data-spec="document_reference" data-type="decret">
+     décret du
+     <time data-spec="date" datetime="2019-04-01">
+      1er avril 2019
+     </time>
+    </a>
+    du Président de la République nommant Monsieur Pierre-André DURAND préfet de la Région Normandie, préfet de la Seine-Maritime ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2021-07-16" data-num="21-054" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° 21-054 du
+     <time data-spec="date" datetime="2021-07-16">
+      16 juillet 2021
+     </time>
+    </a>
+    portant délégation de signature à Monsieur Yvan CORDIER, secrétaire général de la préfecture de la Seine-Maritime ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2012-04-03" data-num="2012-094-0001" data-spec="document_reference" data-type="arrete">
+     arrêté n°2012-094-0001 du
+     <time data-spec="date" datetime="2012-04-03">
+      3 avril 2012
+     </time>
+    </a>
+    du préfet de la région Île-de-France, préfet coordonnateur du bassin Seine-Normandie, préconisant des mesures coordonnées de gestion de l'eau sur le réseau hydrographique du bassin Seine-Normandie en période de sécheresse et définissant des seuils sur les rivières Oise, Aisne, Marne, Seine, Aube, Yonne, Avre, Epte, Eure, Loing, Essonne entraînant des mesures coordonnées de limitation provisoire des usages de l'eau et de surveillance sur ces rivières et leur nappe d'accompagnement ;
+   </div>
+   <div data-spec="visa">
+    Vu l'
+    <a data-date="2018-08-10" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2018-08-10">
+      10 août 2018
+     </time>
+    </a>
+    définissant les seuils en cas de sécheresse dans le département de la Seine-Maritime et les mesures coordonnées de surveillance, de limitations ou d'interdictions provisoires des usages de l'eau ;
+   </div>
+   <div data-spec="visa">
+    Vu les arrêtés préfectoraux réglementant les activités de la société AIR LIQUIDE HYDROGENE ;
+   </div>
+   <div data-spec="visa">
+    Vu le rapport de l'inspection des installations classées en date du 27/05/2021 ;
+   </div>
+   <div data-spec="visa">
+    Vu la doctrine régionale définissant des zones prioritaires en terme de tension hydrique sécheresse et des critères d'assujettissements pour la réalisation d'un audit pour une gestion optimisée de l'eau ;
+   </div>
+   <div data-spec="visa">
+    Vu la transmission du projet d'arrêté faite à l'exploitant le 17/06/2021 ;
+   </div>
+   <div data-spec="visa">
+    Vu l'absence d'observations formulées par l'exploitant ;
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     7 place de la Madeleine
+CS 16036 - 76036 ROUEN cedex
+Tél : 02 32 76 50 00
+www.seine-maritime.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div>
+    CONSIDÉRANT :
+   </div>
+   <div data-spec="motifs">
+    que la société AIR LIQUIDE HYDROGENE exploite sur son site de Port-Jérôme-sur-Seine des installations relevant de la réglementation des installations classées ;
+   </div>
+   <div data-spec="motifs">
+    que la préservation de la ressource en eau et l’atteinte du bon état quantitatif sont des enjeux de la directive cadre sur l’eau susvisée ;
+   </div>
+   <div data-spec="motifs">
+    que l’exploitant doit prendre toutes les dispositions nécessaires dans la conception et l’exploitation des installations pour limiter les flux d’eau liés à son activité ;
+   </div>
+   <div data-spec="motifs">
+    que les niveaux de prélèvement doivent prendre en considération les intérêts des différents utilisateurs de l’eau. En particulier, ils sont compatibles avec les dispositions du schéma directeur d’aménagement et de gestion des eaux et du schéma d’aménagement et de gestion des eaux s’il existe ;
+   </div>
+   <div data-spec="motifs">
+    que l’arrêté cadre sécheresse du bassin hydrographique définit quatre seuils de gestion qui sont le seuil de vigilance, le seuil d’alerte, le seuil d’alerte renforcé et le seuil de crise ;
+   </div>
+   <div data-spec="motifs">
+    que l’alimentation en eau destinée à la consommation humaine est issue de prélèvement dans le milieu naturel (eaux souterraines ou superficielles), et qu’il convient de préserver cette ressource prioritaire en période de situation hydrologique critique, en particulier en cas de dépassement du seuil de crise ;
+   </div>
+   <div data-spec="motifs">
+    la validation de la doctrine régionale en inter-MISEN du 8 octobre 2020 ;
+   </div>
+   <div data-spec="motifs">
+    la localisation du site dans une zone géographique identifiée en priorité 2 selon la doctrine régionale susvisée ;
+   </div>
+   <div data-spec="motifs">
+    que les quantités d’eau prélevées par la société AIR LIQUIDE HYDROGENE dans le milieu naturel et/ou le réseau d’alimentation en eau destinée à la consommation humaine, ou son niveau maximal autorisé, représentent plus de 100 000 m³/an et dépassent donc les critères définis pour cette zone dans la doctrine régionale pour l’élaboration de l’audit qui permettra d’identifier les consommations du site et les pistes d’améliorations envisageables et réalisables visant à limiter les flux d’eau ;
+   </div>
+   <div data-spec="motifs">
+    qu’il convient de rationaliser l’usage de l’eau qui est fait par l’exploitant en vue de limiter son impact direct sur le milieu naturel ;
+   </div>
+   <div data-spec="motifs">
+    la nécessité de prévoir, en cas de situation de sécheresse caractérisée par les dépassements de seuils de gestion définis pour les cours d’eau ou nappes d’une même zone d’alerte au sens de l’arrêté cadre sécheresse du bassin hydrographique susvisé, des mesures de réduction pérennes ou temporaires, voire de suspension des prélèvements d’eau par l’installation ainsi que des mesures de limitation et de surveillance renforcée des rejets polluants, afin de préserver la ressource et les usages prioritaires (santé, de la salubrité publique, de la sécurité civile et de l’alimentation en eau potable de la population) ;
+   </div>
+   <div data-spec="motifs">
+    qu’en ces périodes, il convient que l’exploitant adapte aussi la gestion de ses rejets, susceptibles d’être pollués, dans le milieu naturel, afin de ne pas altérer la qualité du milieu récepteur dont la capacité auto-épuratrice est diminuée par la situation d’étiage ;
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     Sur proposition du secrétaire général de la préfecture
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     ARRÊTE
+    </h1>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="Objet" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 1er – Objet
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société AIR LIQUIDE HYDROGENE, appelée après l’exploitant, est tenue de respecter les prescriptions complémentaires ci-annexées pour son site situé sur la commune de Port-Jérôme-sur-Seine.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      7 place de la Madeleine
+CS 16036 - 76036 ROUEN cedex
+Tél : 02 32 76 50 00
+www.seine-maritime.gouv.fr
+     </div>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="2" data-spec="section" data-title="Affichage" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 2 - Affichage
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Une copie du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     est tenue au siège de l'exploitation, à la disposition des autorités chargées d'en contrôler l'exécution et est affichée en permanence de façon visible à l'intérieur du site.
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="Surveillance" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 3 - Surveillance
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     L'établissement est soumis à la surveillance de l'inspection des installations classées ainsi qu'à l'exécution de toutes mesures ultérieures que l'administration jugerait nécessaire d'ordonner dans l'intérêt de la sécurité et de la salubrité publique.
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="Sanctions" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 4 - Sanctions
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les infractions ou l'inobservation des conditions légales fixées par
+     <a data-spec="document_reference" data-type="self">
+      le présent arrêté
+     </a>
+     entraînent l'application des sanctions pénales et administratives prévues par le titre VII du livre I du
+     <a data-spec="document_reference" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="Délais et voies de recours" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 5 - Délais et voies de recours
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est soumis à un contentieux de pleine juridiction. Conformément aux dispositions de l'
+     <a data-parent_reference="1" data-spec="section_reference" data-start_num="R181-50" data-type="article">
+      article R. 181-50
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , il peut être déféré auprès du tribunal administratif de ROUEN :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       1) par les pétitionnaires, ou exploitants, dans un délai de deux mois à compter du jour où ledit acte lui a été notifié ;
+      </li>
+      <li>
+       2) par les tiers intéressés en raison des inconvénients ou des dangers pour les intérêts mentionnés l'
+       <a data-parent_reference="2" data-spec="section_reference" data-start_num="L181-3" data-type="article">
+        article L. 181-3
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code">
+        code de l'environnement
+       </a>
+       , dans un délai de quatre mois à compter de :
+      </li>
+      <li>
+       a) l'affichage en mairie dudit acte dans les conditions prévues au 2° de l'
+       <a data-parent_reference="3" data-spec="section_reference" data-start_num="R181-44" data-type="article">
+        article R. 181-44
+       </a>
+       du
+       <a data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code">
+        Code de l'environnement
+       </a>
+       ;
+      </li>
+      <li>
+       b) la publication de la décision sur le site internet de la préfecture prévue au 4° du même article.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le délai court à compter de la dernière formalité accomplie. Si l'affichage constitue cette dernière formalité, le délai court à compter du premier jour d'affichage de la décision.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les tiers qui n'ont acquis ou pris à bail des immeubles ou n'ont élevé des constructions dans le voisinage d'une installation classée que postérieurement à l'affichage ou à la publication de l'arrêté autorisant l'ouverture de cette installation ou atténuant les prescriptions primitives ne sont pas recevables à déférer ledit arrêté à la juridiction administrative.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Conformément aux dispositions de l'
+     <a data-spec="section_reference" data-start_num="R414-6" data-type="article">
+      article R. 414-6
+     </a>
+     du code de la justice administrative, les personnes de droit privé autres que celles chargées de la gestion permanente d'un service public non représentées par un avocat, peuvent adresser leur requête à la juridiction par voie électronique au moyen d'un téléservice accessible par le site www.telerecours.fr. Ces personnes ne peuvent régulièrement saisir la juridiction par voie électronique que par l'usage de ce téléservice.
+    </div>
+   </section>
+   <section data-number="6" data-spec="section" data-title="Publicité" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 6 - Publicité
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Conformément aux dispositions de l'
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="R181-44" data-type="article">
+      article R. 181-44
+     </a>
+     du
+     <a data-spec="document_reference" data-tag_id="4" data-title="Code de l'environnement" data-type="code">
+      code de l'environnement
+     </a>
+     , un extrait du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     mentionnant qu'une copie du texte intégral est déposée aux archives des mairies et mise à disposition de toute personne intéressée, est affiché en mairie de Port-Jérôme-sur-Seine pendant une durée minimum d'un mois.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Le maire de Port-Jérôme-sur-Seine fait connaître par procès-verbal, adressé à la préfecture de la Seine-Maritime, l'accomplissement de cette formalité.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le même extrait est affiché en permanence, de façon visible, sur le site de l'exploitant à la diligence de la société AIR LIQUIDE HYDROGENE.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     L'arrêté est publié sur le site internet de la préfecture de la Seine-Maritime pendant une durée minimale de 4 mois.
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      7 place de la Madeleine
+CS 16036 - 76036 ROUEN cedex
+Tél : 02 32 76 50 00
+www.seine-maritime.gouv.fr
+     </div>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+   </section>
+   <section data-number="7" data-spec="section" data-title="Exécution" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     Article 7 - Exécution
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Le secrétaire général de la préfecture de la Seine-Maritime, la sous-préfète du HAVRE, le maire de Port-Jérôme-sur-Seine, le directeur régional de l'environnement, de l'aménagement et du logement, et l'inspection des installations classées pour la protection de l'environnement sont chargés chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     dont une copie sera adressée à la société AIR LIQUIDE HYDROGENE.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Pour le préfet de la Seine-Maritime,
+    </div>
+    <div data-number="3" data-spec="alinea">
+     et par délégation,
+    </div>
+    <div data-number="4" data-spec="alinea">
+     le secrétaire général adjoint,
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <img alt="img-0.jpeg" src="data:image/jpeg;base64,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"/>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      7 place de la Madeleine
+CS 16036 - 76036 ROUEN cedex
+Tél : 02 32 76 50 00
+www.seine-maritime.gouv.fr
+     </div>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-number="6" data-spec="alinea">
+     Prescriptions annexées à l'arrêté préfectoral
+    </div>
+    <div data-number="7" data-spec="alinea">
+     SOCIETE AIR LIQUIDE HYDROGENE
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Usine de Port-Jérôme-sur-Seine
+    </div>
+   </section>
+  </main>
+  <footer data-spec="appendix">
+   <section data-number="1" data-spec="section" data-type="annexe">
+    <h2 data-level="0" data-spec="section_title">
+     ANNEXE 1
+    </h2>
+    <section data-number="1" data-spec="section" data-title="objectif de l'arrêté" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 1er – objectif de l'arrêté
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant réalise un audit sur l'optimisation de la gestion des flux d'eau liés à ses activités qui comporte le diagnostic préliminaire, et l'analyse approfondie, définis ci-dessous.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      PARTIE I : DIAGNOSTIC PRÉLIMINAIRE
+     </div>
+    </section>
+    <section data-number="2" data-spec="section" data-title="cadrage de l'étude" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 2 – cadrage de l'étude
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'exploitant élabore un cahier des charges détaillé permettant d'identifier clairement les réflexions et études nécessaires à l'établissement d'un diagnostic préliminaire couvrant au minimum les quatre objectifs suivants :
+     </div>
+     <div data-number="2" data-spec="alinea">
+      1. disposer d'une alimentation en eau la moins impactante possible pour la ressource ou pour les milieux ;
+     </div>
+     <div data-number="3" data-spec="alinea">
+      2. gérer de manière optimale les consommations d'eau par rapport aux besoins et aux meilleures techniques disponibles ;
+     </div>
+     <div data-number="4" data-spec="alinea">
+      3. disposer d'indicateurs ou d'outils de suivi pertinents et suffisants pour garantir la maîtrise des consommations ;
+     </div>
+     <div data-number="5" data-spec="alinea">
+      4. recenser les actions ou dispositions temporaires envisageables pour faire face aux différents niveaux réglementés de sécheresse.
+     </div>
+     <div data-number="6" data-spec="alinea">
+      L'ensemble des points précisés en
+      <a data-parent_reference="5" data-spec="section_reference" data-start_num="2" data-type="annexe">
+       annexe 2
+      </a>
+      du
+      <a data-spec="document_reference" data-tag_id="5" data-type="self">
+       présent arrêté
+      </a>
+      est étudié dans le cadre de l'élaboration du cahier des charges. Si des études / données antérieures sont déjà disponibles sur certains aspects, celles-ci sont présentées, au besoin actualisées, avec l'ensemble des éléments d'appréciation afin de justifier leur portée et les modalités de leur prise en compte dans le cadre de ce diagnostic.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      Un mois avant le lancement effectif du diagnostic préliminaire, l'exploitant informe l'inspection des installations classées de sa stratégie de mise en œuvre et de son planning prévisionnel de réalisation dans le respect des obligations fixées aux articles ci-dessous. Le cahier des charges peut utilement être transmis dans ce cadre.
+     </div>
+    </section>
+    <section data-number="3" data-spec="section" data-title="réalisation du diagnostic préliminaire" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 3 – réalisation du diagnostic préliminaire
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le diagnostic préliminaire est mené, soit par un bureau d'études choisi par l'exploitant, soit par une équipe dédiée interne à l'établissement, disposant des compétences et de l'accès aux données nécessaires.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Le diagnostic préliminaire est déroulé afin de pouvoir établir :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - un état des lieux, avec les caractéristiques qualitatives et quantitatives, des données disponibles, accompagné de tous les éléments utiles à sa compréhension tels que : cartographies, photos, schémas de principe, descriptions des installations concernées...,
+       </li>
+       <li>
+        - une analyse des données recueillies au regard de l'objectif visé (pertinence, suffisance, identification des manques...) avec proposition de complément si nécessaire. Au minimum, 80 % des volumes consommés de l'eau doit pouvoir être traité dans le cadre de ce diagnostic.
+       </li>
+      </ul>
+     </div>
+     <a data-page_index="5" data-spec="page_separator">
+     </a>
+     <div data-number="4" data-spec="alinea">
+      Pour les usages éventuellement non étudiés, il est attendu une justification sur l'absence de pertinence de retenir ces flux au regard des objectifs recherchés,
+     </div>
+     <div data-number="5" data-spec="alinea">
+      <ul>
+       <li>
+        - un diagnostic des installations de l'exploitant permettant de se positionner par rapport aux objectifs visés à l'
+        <a data-spec="section_reference" data-start_num="2" data-type="article">
+         article 2
+        </a>
+        sur la base des données obtenues. L'ensemble des possibilités de réduction sont présentées avec estimation des gains. Les incertitudes sont clairement explicitées,
+       </li>
+       <li>
+        - une liste de scénarios de réduction techniquement envisageables à périmètre constant, couvrant au minimum :
+       </li>
+       <li>
+        - l'option de réduction maximale, en dissociant bien les mesures simples de mise en œuvre des complexes,
+       </li>
+       <li>
+        - l'option de réduction des prélèvements d'eau de 20 %, par rapport à la moyenne des consommations annuelles des trois dernières années représentatives de l'activité du site, si celle-ci est atteignable.
+       </li>
+       <li>
+        - un bilan coûts / avantages permettant de sélectionner les propositions retenues dans une approche ERC (Eviter-Réduire-Compenser) et de justifier les choix écartés. Ces justifications sont en particulier requises pour les mesures de réduction pérennes et temporaires,
+       </li>
+       <li>
+        - une analyse des choix retenus sur la nécessité, pour tout ou certains points, de mener des études de faisabilité ou de dimensionnement supplémentaires,
+       </li>
+       <li>
+        - une conclusion détaillant la stratégie de réduction proposée
+       </li>
+      </ul>
+     </div>
+     <div data-number="6" data-spec="alinea">
+      Le diagnostic détaillé ci-dessus est transmis à l'inspection des installations classées, dès sa validation.
+     </div>
+     <div data-number="7" data-spec="alinea">
+      PARTIE II : ANALYSE APPROFONDIE
+     </div>
+    </section>
+    <section data-number="4" data-spec="section" data-title="réalisation d'une analyse approfondie" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 4 – réalisation d'une analyse approfondie
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      L'analyse approfondie est mise en œuvre à la lumière des conclusions relatives au diagnostic préliminaire. Elle intègre si nécessaire les études pour statuer sur la faisabilité d'une solution ou pour confirmer sa performance au sein des installations de l'exploitant. Elle couvre en particulier les étapes d'essais-pilotes nécessaires à la validation d'un procédé.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      Le contenu de l'analyse approfondie permet de tracer :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - une description de la méthodologie adoptée pour procéder à l'étude approfondie,
+       </li>
+       <li>
+        - une définition de l'objectif attendu et les moyens envisagés pour y répondre,
+       </li>
+       <li>
+        - une synthèse des investigations approfondies réalisées et des principaux résultats obtenus. Tous les éléments utiles à leur compréhension sont également joints,
+       </li>
+       <li>
+        - une étude technico-économique de faisabilité des options choisies,
+       </li>
+       <li>
+        - une conclusion et un positionnement sur la mise en œuvre des propositions y compris en terme d'échéancier.
+       </li>
+      </ul>
+     </div>
+     <div data-number="4" data-spec="alinea">
+      PARTIE III : DISPOSITIONS GÉNÉRALES
+     </div>
+    </section>
+    <section data-number="5" data-spec="section" data-title="Délai de mise en œuvre" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 5 – Délai de mise en œuvre
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Le rapport final de l'audit sur l'optimisation de la gestion des flux d'eau est transmis à l'inspection des installations classées, au plus tard, pour le 31 mars 2023.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      La remise du rapport doit être accompagnée par :
+     </div>
+     <div data-number="3" data-spec="alinea">
+      <ul>
+       <li>
+        - un courrier de l'exploitant faisant état de ses choix concernant la prise en compte des propositions issues de l'audit et précisant et justifiant les priorités et les modalités opérationnelles de mise en œuvre, y compris l'échéancier, pour les solutions présentant un gain environnemental non marginal. Sauf contrainte dûment justifiée, les premières améliorations techniques sont mises en œuvre dans l'année qui suit la remise du rapport,
+        <a data-page_index="6" data-spec="page_separator">
+        </a>
+       </li>
+       <li>
+        - une synthèse affichant les gains pérennes ou saisonniers en consommation en eau qui seront obtenus à terme et mettant en lumière les techniques vertueuses retenues,
+       </li>
+       <li>
+        - un courrier de l'exploitant faisant état de ses propositions d'actions de réduction temporaires lors des périodes de sécheresse, à partir du seuil d'alerte. Elles sont obligatoires pour le seuil de crise. Pour les autres niveaux, elles peuvent, être graduées, voire facultatives sur demande de l'exploitant et après avis de l'inspection, suivant le niveau d'effort atteint dans l'optimisation de la gestion de l'eau du site.
+       </li>
+      </ul>
+     </div>
+    </section>
+    <section data-number="6" data-spec="section" data-title="Mutualisation" data-type="article">
+     <h3 data-level="1" data-spec="section_title">
+      Article 6 – Mutualisation
+     </h3>
+     <div data-number="1" data-spec="alinea">
+      Dans les cas où l'approvisionnement ou la gestion des usages de l'eau de l'exploitant sont communs à plusieurs établissements (cas des plateformes notamment), l'exploitant peut, à son initiative, mutualiser tout ou partie des recherches, études, analyses et rapports visés par
+      <a data-spec="document_reference" data-type="self">
+       le présent arrêté
+      </a>
+      avec les autres établissements concernés.
+     </div>
+     <div data-number="2" data-spec="alinea">
+      En cas de mutualisation dans les conditions visées à l'alinéa précédent, les sujets et études justifiant une approche commune sur la base d'une connaissance ou d'une analyse conjointe sont l'objet d'une coordination entre les exploitants concernés et de propositions conjointes.
+     </div>
+     <a data-page_index="7" data-spec="page_separator">
+     </a>
+    </section>
+   </section>
+   <section data-number="2" data-spec="section" data-type="annexe">
+    <h2 data-level="0" data-spec="section_title">
+     ANNEXE 2
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Éléments minimum à prendre en considération dans le cahier des charges du diagnostic préliminaire
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Objectif 1 : Prélèvements
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Analyser les origines des prélèvements et examiner les alternatives technico-économiques possibles moins impactantes sur la ressource et/ou pour le milieu.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     <ul>
+      <li>
+       - Origine des prélèvements : raccordement à un réseau d’alimentation en eau potable, eaux souterraines ou eaux superficielles,
+      </li>
+      <li>
+       - Caractéristiques de l’origine : localisation géographique des captages privés et le cas échéant des captages d’eau potable, nom des nappes captées et/ou des cours d’eau concernés, sensibilité masse d’eau,
+      </li>
+      <li>
+       - Caractéristiques des ouvrages de pompage : coupe, conception, matériels en place, référencement BSS...,
+      </li>
+      <li>
+       - Quantité d’eaux prélevées par type d’origine avec précision de la destination en termes d’usage (exemple : débit journalier moyen et maximal de pompage, nombre d’heures de prélèvements par jour, quantité annuelle prélevée),
+      </li>
+      <li>
+       - Indication de l’existence ou non d’une pression et de restrictions réglementaires sur la ressource prélevée, selon les données connues et/ou partiellement dans l’année,
+      </li>
+      <li>
+       - Évaluation de la pertinence de la ressource utilisée vis-à-vis des usages effectués et de sa sensibilité,
+      </li>
+      <li>
+       - Évaluation de la criticité des prélèvements sur la gestion durable de la ressource (impact sur la recharge, sensibilité en période de sécheresse...),
+      </li>
+      <li>
+       - Identification des ressources alternatives et examen de la faisabilité ou non de les utiliser, même partiellement ou pour certains usages ciblés,
+      </li>
+      <li>
+       - Conclusion sur l’existence de solutions alternatives pertinentes,
+      </li>
+     </ul>
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Objectif 2 : Consommations d’eau liées aux usages
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Caractériser qualitativement et quantitativement les différents usages de l’eau, y compris non industriels, analyser la performance de leur gestion au regard des besoins et/ou des contraintes (notamment qualitatives) en vue d’identifier les axes d’amélioration envisageable pour un usage optimal.
+    </div>
+    <div data-number="7" data-spec="alinea">
+     <ul>
+      <li>
+       - Bilan de la consommation en eau : inventaire des usages liés aux process, aux nettoyages, aux refroidissements, aux autres usages y compris non industriels ...,
+      </li>
+      <li>
+       - Quantification par usage,
+      </li>
+      <li>
+       - Connaissance des réseaux et de leur état : analyse de la pertinence des données disponibles et positionnement sur celle-ci, absences de fuites,
+      </li>
+      <li>
+       - Comparaison des consommations théoriques (besoins) au vu de la conception des procédés et des installations avec les consommations réelles,
+      </li>
+      <li>
+       - Analyse des consommations au regard des meilleures techniques disponibles, notamment évoquées dans les BREFs ou BATc, ou selon les règles de l’art (textes et guides professionnels, ratios à la tonne produite, comparaison intra, inter-groupe ...),
+      </li>
+      <li>
+       - Analyse critique des postes et des options de réduction de consommation, tels que :
+      </li>
+      <li>
+       - gestion des réseaux et de la circulation de l’eau dans les process,
+      </li>
+      <li>
+       - séparation des eaux par type d’usage,
+      </li>
+      <li>
+       - réduction des consommations des matières premières,
+      </li>
+      <li>
+       - limitation des entraînements et optimisation des nettoyages,
+      </li>
+      <li>
+       - mise en place de recyclage ou de 2ème usage de l’eau (réutilisation des eaux usées traitées, réutilisation des eaux pluviales, ...),
+      </li>
+      <li>
+       - Estimation des gains potentiels via un bilan coût/avantages.
+       <a data-page_index="8" data-spec="page_separator">
+       </a>
+      </li>
+      <li>
+       - Objectif 3 : Programme de surveillance
+      </li>
+     </ul>
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Recenser les moyens de surveillance mis en place (indicateurs de suivi), relever leur pertinence en vue de mettre en évidence l'intérêt de disposer d'un programme de suivi plus opérationnel ou adapté (points, périodes, paramètres, fréquence ...).
+    </div>
+    <div data-number="9" data-spec="alinea">
+     <ul>
+      <li>
+       - Détermination des installations et des postes à l'origine de consommation d'eau nécessitant un suivi (volume, vétusté ...)
+      </li>
+      <li>
+       - Détermination des paramètres représentatifs de la maîtrise des usages, des indicateurs de suivi et de ratios (débits spécifiques ...)
+      </li>
+      <li>
+       - Programme de surveillance en place et adéquation aux exigences réglementaires
+      </li>
+      <li>
+       - Mise à niveau du programme de surveillance proposée (points, paramètres, fréquences ...) et des seuils de détection ou d'alerte en vue de palier à des dysfonctionnements
+      </li>
+      <li>
+       - Objectif 4 : Dispositions applicables en cas de pénurie de la ressource
+      </li>
+     </ul>
+    </div>
+    <div data-number="10" data-spec="alinea">
+     Recenser les actions ou dispositions temporaires applicables ou déjà appliquées en cas de sécheresse, graduées si nécessaire en fonction de la gravité du déficit hydrique, et examiner, sur la base des nouveaux éléments identifiés par les objectifs ci-avant, les voies de réduction envisageables avec un bilan coûts/avantages.
+    </div>
+    <div data-number="11" data-spec="alinea">
+     <ul>
+      <li>
+       - Recensement et quantification des usages de l'eau pouvant faire l'objet de mesures de réduction ou de suspension temporaires, avec une estimation de la durée maximale de la période
+      </li>
+      <li>
+       - Recensement des usages de l'eau incompressibles, notamment pour des aspects de sécurité des installations et de l'environnement
+      </li>
+      <li>
+       - Détermination des solutions de réduction des consommations d'eaux envisageables avec une estimation des économies d'eaux par usage (en volume journalier et en %), des coûts associés, suivant divers scénarios tendanciels si adaptés (réduction progressive suivant niveau de sécheresse)
+      </li>
+      <li>
+       - Détermination des solutions de réduction envisageables des rejets d'effluents dans le milieu récepteur en regardant notamment l'acceptabilité du rejet avec le scénario avec débit du cours d'eau au QMNA5-10 %
+      </li>
+      <li>
+       - Détermination des rejets minimum qu'il est nécessaire de maintenir pour le fonctionnement de l'installation ainsi que le débit minimum du cours d'eau récepteur pouvant accepter ces rejets limités
+      </li>
+      <li>
+       - Détermination du programme de surveillance renforcé lors des périodes de sécheresse, avec hiérarchisation, si utile, suivant les niveaux de sécheresse.
+      </li>
+     </ul>
+    </div>
+   </section>
+  </footer>
+ </body>
+</html>
