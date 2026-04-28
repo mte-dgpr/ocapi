@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
