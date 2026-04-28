@@ -27,10 +27,8 @@ import unittest
 from pathlib import Path
 
 import pytest
-from bs4 import BeautifulSoup
 
 from ocapi.types import (
-    ArreteFile,
     ArticleHistory,
     ArticleVersion,
     FileType,
@@ -49,6 +47,7 @@ from ocapi.utils.io_utils import (
     save_history,
     save_operations,
 )
+from ocapi.utils.testing import make_arrete, make_op
 
 # Minimal valid Arrêtify HTML (version 0.2.0)
 _VALID_HTML = '<html><body data-arretify_version="0.2.0"><p>Content</p></body></html>'
@@ -60,16 +59,6 @@ _HTML_UNSUPPORTED_VERSION = '<html><body data-arretify_version="0.1.0"><p>Conten
 
 def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
-
-
-def _make_operation(op_id: str = "op1") -> Operation:
-    return Operation(
-        id=op_id,
-        source_id=NodeId(arrete_id="2021-06-15", article_id="1"),
-        target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
-        operation_type=OperationType.REPLACE,
-        operand="<p>new content</p>",
-    )
 
 
 class TestLoadHtmlFiles(unittest.TestCase):
@@ -158,7 +147,7 @@ class TestInitializeArreteFiles(unittest.TestCase):
 
 class TestSaveOperations:
     def test_creates_operations_json(self, tmp_path: Path) -> None:
-        save_operations([_make_operation()], tmp_path)
+        save_operations([make_op(OperationType.REPLACE)], tmp_path)
         assert (tmp_path / "operations.json").exists()
 
     def test_creates_parent_directories(self, tmp_path: Path) -> None:
@@ -172,7 +161,7 @@ class TestSaveOperations:
         assert data == []
 
     def test_saved_json_contains_operation_fields(self, tmp_path: Path) -> None:
-        op = _make_operation("op-xyz")
+        op = make_op(OperationType.REPLACE, operation_id="op-xyz", operand="<p>new content</p>")
         save_operations([op], tmp_path)
         data = json.loads((tmp_path / "operations.json").read_text(encoding="utf-8"))
         assert len(data) == 1
@@ -181,7 +170,11 @@ class TestSaveOperations:
         assert data[0]["operand"] == "<p>new content</p>"
 
     def test_multiple_operations_are_saved(self, tmp_path: Path) -> None:
-        ops = [_make_operation("op1"), _make_operation("op2"), _make_operation("op3")]
+        ops = [
+            make_op(OperationType.REPLACE, operation_id="op1"),
+            make_op(OperationType.REPLACE, operation_id="op2"),
+            make_op(OperationType.REPLACE, operation_id="op3"),
+        ]
         save_operations(ops, tmp_path)
         data = json.loads((tmp_path / "operations.json").read_text(encoding="utf-8"))
         assert len(data) == 3
@@ -190,7 +183,7 @@ class TestSaveOperations:
 
 class TestLoadOperations:
     def test_loads_previously_saved_operations(self, tmp_path: Path) -> None:
-        ops = [_make_operation("op1")]
+        ops = [make_op(OperationType.REPLACE, operation_id="op1")]
         save_operations(ops, tmp_path)
         loaded = load_operations(tmp_path)
         assert len(loaded) == 1
@@ -235,7 +228,7 @@ class TestLoadOperations:
             assert loaded[0].operation_type == op_type
 
     def test_loads_multiple_operations(self, tmp_path: Path) -> None:
-        ops = [_make_operation(f"op{i}") for i in range(5)]
+        ops = [make_op(OperationType.REPLACE, operation_id=f"op{i}") for i in range(5)]
         save_operations(ops, tmp_path)
         loaded = load_operations(tmp_path)
         assert len(loaded) == 5
@@ -313,22 +306,6 @@ class TestSaveHistory:
         assert data["2020-01-01#1"][0]["status_code"] == "error_extracting_operand"
 
 
-def _make_arrete_file(
-    arrete_id: str,
-    filename: str,
-    file_type: FileType,
-    html: str = _VALID_HTML,
-    aiot: str = "0001234567",
-) -> ArreteFile:
-    return ArreteFile(
-        id=arrete_id,
-        aiot=aiot,
-        filename=filename,
-        soup=BeautifulSoup(html, "html.parser"),
-        file_type=file_type,
-    )
-
-
 class TestFilterAndDeduplicateArreteFiles:
     """Tests for filter_and_deduplicate_arrete_files."""
 
@@ -351,16 +328,22 @@ class TestFilterAndDeduplicateArreteFiles:
     )
     def test_excludes_various_non_ap_types(self, pattern: str) -> None:
         files = [
-            _make_arrete_file("2020-01-01", f"2020-01-01_{pattern}.html", FileType.AUTRE),
+            make_arrete(
+                "2020-01-01",
+                _VALID_HTML,
+                filename=f"2020-01-01_{pattern}.html",
+                file_type=FileType.AUTRE,
+            ),
         ]
         assert filter_and_deduplicate_arrete_files(files) == []
 
     def test_keeps_ap_autorisation(self) -> None:
         files = [
-            _make_arrete_file(
+            make_arrete(
                 "2020-01-01",
-                "2020-01-01_ap d'autorisation.html",
-                FileType.AP_AUTORISATION,
+                _VALID_HTML,
+                filename="2020-01-01_ap d'autorisation.html",
+                file_type=FileType.AP_AUTORISATION,
             ),
         ]
         result = filter_and_deduplicate_arrete_files(files)
@@ -372,17 +355,17 @@ class TestFilterAndDeduplicateArreteFiles:
     def test_dedup_same_date_type_identical_content(self, caplog: pytest.LogCaptureFixture) -> None:
         html = '<html><body data-arretify_version="0.2.0"><p>Same</p></body></html>'
         files = [
-            _make_arrete_file(
+            make_arrete(
                 "2023-09-12",
-                "2023-09-12_ap prescriptions complémentaires_a.html",
-                FileType.AP_COMPLEMENTAIRE,
                 html,
+                filename="2023-09-12_ap prescriptions complémentaires_a.html",
+                file_type=FileType.AP_COMPLEMENTAIRE,
             ),
-            _make_arrete_file(
+            make_arrete(
                 "2023-09-12",
-                "2023-09-12_ap prescriptions complémentaires_b.html",
-                FileType.AP_COMPLEMENTAIRE,
                 html,
+                filename="2023-09-12_ap prescriptions complémentaires_b.html",
+                file_type=FileType.AP_COMPLEMENTAIRE,
             ),
         ]
         with caplog.at_level(logging.INFO, logger="ocapi.utils.io_utils"):
@@ -398,17 +381,17 @@ class TestFilterAndDeduplicateArreteFiles:
         html_a = '<html><body data-arretify_version="0.2.0"><p>Version A</p></body></html>'
         html_b = '<html><body data-arretify_version="0.2.0"><p>Version B</p></body></html>'
         files = [
-            _make_arrete_file(
+            make_arrete(
                 "2023-09-12",
-                "2023-09-12_ap prescriptions complémentaires_a.html",
-                FileType.AP_COMPLEMENTAIRE,
                 html_a,
+                filename="2023-09-12_ap prescriptions complémentaires_a.html",
+                file_type=FileType.AP_COMPLEMENTAIRE,
             ),
-            _make_arrete_file(
+            make_arrete(
                 "2023-09-12",
-                "2023-09-12_ap prescriptions complémentaires_b.html",
-                FileType.AP_COMPLEMENTAIRE,
                 html_b,
+                filename="2023-09-12_ap prescriptions complémentaires_b.html",
+                file_type=FileType.AP_COMPLEMENTAIRE,
             ),
         ]
         result = filter_and_deduplicate_arrete_files(files)
@@ -420,13 +403,17 @@ class TestFilterAndDeduplicateArreteFiles:
 
     def test_dedup_same_date_different_types_keeps_highest_priority(self) -> None:
         files = [
-            _make_arrete_file(
-                "2020-11-03", "2020-11-03_arrêté préfectoral_a.html", FileType.ARRETE_PREFECTORAL
-            ),
-            _make_arrete_file(
+            make_arrete(
                 "2020-11-03",
-                "2020-11-03_ap prescriptions complémentaires_b.html",
-                FileType.AP_COMPLEMENTAIRE,
+                _VALID_HTML,
+                filename="2020-11-03_arrêté préfectoral_a.html",
+                file_type=FileType.ARRETE_PREFECTORAL,
+            ),
+            make_arrete(
+                "2020-11-03",
+                _VALID_HTML,
+                filename="2020-11-03_ap prescriptions complémentaires_b.html",
+                file_type=FileType.AP_COMPLEMENTAIRE,
             ),
         ]
         result = filter_and_deduplicate_arrete_files(files)
@@ -435,13 +422,17 @@ class TestFilterAndDeduplicateArreteFiles:
 
     def test_dedup_ap_autorisation_wins_over_arrete_prefectoral(self) -> None:
         files = [
-            _make_arrete_file(
+            make_arrete(
                 "2022-02-02",
-                "2022-02-02_ap prescriptions complémentaires.html",
-                FileType.AP_COMPLEMENTAIRE,
+                _VALID_HTML,
+                filename="2022-02-02_ap prescriptions complémentaires.html",
+                file_type=FileType.AP_COMPLEMENTAIRE,
             ),
-            _make_arrete_file(
-                "2022-02-02", "2022-02-02_ap d'autorisation.html", FileType.AP_AUTORISATION
+            make_arrete(
+                "2022-02-02",
+                _VALID_HTML,
+                filename="2022-02-02_ap d'autorisation.html",
+                file_type=FileType.AP_AUTORISATION,
             ),
         ]
         result = filter_and_deduplicate_arrete_files(files)
@@ -452,10 +443,18 @@ class TestFilterAndDeduplicateArreteFiles:
 
     def test_excludes_rapport_and_keeps_ap_on_same_date(self) -> None:
         files = [
-            _make_arrete_file(
-                "2017-09-22", "2017-09-22_arrêté préfectoral.html", FileType.ARRETE_PREFECTORAL
+            make_arrete(
+                "2017-09-22",
+                _VALID_HTML,
+                filename="2017-09-22_arrêté préfectoral.html",
+                file_type=FileType.ARRETE_PREFECTORAL,
             ),
-            _make_arrete_file("2017-09-22", "2017-09-22_rapport.html", FileType.AUTRE),
+            make_arrete(
+                "2017-09-22",
+                _VALID_HTML,
+                filename="2017-09-22_rapport.html",
+                file_type=FileType.AUTRE,
+            ),
         ]
         result = filter_and_deduplicate_arrete_files(files)
         assert len(result) == 1
@@ -464,11 +463,11 @@ class TestFilterAndDeduplicateArreteFiles:
     def test_five_identical_duplicates_keeps_one(self) -> None:
         html = '<html><body data-arretify_version="0.2.0"><p>Same content</p></body></html>'
         files = [
-            _make_arrete_file(
+            make_arrete(
                 "2024-01-17",
-                f"2024-01-17_ap prescriptions complémentaires_{i}.html",
-                FileType.AP_COMPLEMENTAIRE,
                 html,
+                filename=f"2024-01-17_ap prescriptions complémentaires_{i}.html",
+                file_type=FileType.AP_COMPLEMENTAIRE,
             )
             for i in range(5)
         ]
@@ -477,16 +476,23 @@ class TestFilterAndDeduplicateArreteFiles:
 
     def test_preserves_order_across_dates(self) -> None:
         files = [
-            _make_arrete_file(
-                "2020-01-01", "2020-01-01_arrêté préfectoral.html", FileType.ARRETE_PREFECTORAL
+            make_arrete(
+                "2020-01-01",
+                _VALID_HTML,
+                filename="2020-01-01_arrêté préfectoral.html",
+                file_type=FileType.ARRETE_PREFECTORAL,
             ),
-            _make_arrete_file(
+            make_arrete(
                 "2021-06-15",
-                "2021-06-15_ap prescriptions complémentaires.html",
-                FileType.AP_COMPLEMENTAIRE,
+                _VALID_HTML,
+                filename="2021-06-15_ap prescriptions complémentaires.html",
+                file_type=FileType.AP_COMPLEMENTAIRE,
             ),
-            _make_arrete_file(
-                "2023-12-01", "2023-12-01_ap d'autorisation.html", FileType.AP_AUTORISATION
+            make_arrete(
+                "2023-12-01",
+                _VALID_HTML,
+                filename="2023-12-01_ap d'autorisation.html",
+                file_type=FileType.AP_AUTORISATION,
             ),
         ]
         result = filter_and_deduplicate_arrete_files(files)
@@ -497,13 +503,147 @@ class TestFilterAndDeduplicateArreteFiles:
 
     def test_single_file_passes_through(self) -> None:
         files = [
-            _make_arrete_file(
-                "2020-01-01", "2020-01-01_arrêté préfectoral.html", FileType.ARRETE_PREFECTORAL
+            make_arrete(
+                "2020-01-01",
+                _VALID_HTML,
+                filename="2020-01-01_arrêté préfectoral.html",
+                file_type=FileType.ARRETE_PREFECTORAL,
             ),
         ]
         result = filter_and_deduplicate_arrete_files(files)
         assert len(result) == 1
         assert result[0] is files[0]
+
+    # --- annexe handling (ticket #64) ---
+
+    def test_annexes_merged_into_base_with_existing_appendix(self) -> None:
+        base_html = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='base-main'>base</section></main>"
+            "<footer data-spec=\"appendix\"><section id='orig-app'>orig</section></footer>"
+            "</body></html>"
+        )
+        annexe_html = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='ann1'>annexe 1</section></main>"
+            "</body></html>"
+        )
+        files = [
+            make_arrete(
+                "2024-09-26",
+                base_html,
+                filename="2024-09-26_ap d'autorisation.html",
+                file_type=FileType.AP_AUTORISATION,
+            ),
+            make_arrete(
+                "2024-09-26",
+                annexe_html,
+                filename="2024-09-26_ap d'autorisation_Annexe 1.html",
+                file_type=FileType.AP_AUTORISATION,
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0].filename == "2024-09-26_ap d'autorisation.html"
+        appendix = result[0].soup.find("footer", attrs={"data-spec": "appendix"})
+        assert appendix is not None
+        section_ids = [s.get("id") for s in appendix.find_all("section")]
+        assert section_ids == ["orig-app", "ann1"]
+
+    def test_annexes_merged_creates_appendix_when_missing(self) -> None:
+        base_html = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='base-main'>base</section></main>"
+            "</body></html>"
+        )
+        annexe_a = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='ann2a'>2-a</section></main>"
+            "</body></html>"
+        )
+        annexe_b = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='ann1'>1</section></main>"
+            "</body></html>"
+        )
+        files = [
+            make_arrete(
+                "2024-09-26",
+                base_html,
+                filename="2024-09-26_ap d'autorisation.html",
+                file_type=FileType.AP_AUTORISATION,
+            ),
+            make_arrete(
+                "2024-09-26",
+                annexe_a,
+                filename="2024-09-26_ap d'autorisation_Annexe 2-a.html",
+                file_type=FileType.AP_AUTORISATION,
+            ),
+            make_arrete(
+                "2024-09-26",
+                annexe_b,
+                filename="2024-09-26_ap d'autorisation_Annexe 1.html",
+                file_type=FileType.AP_AUTORISATION,
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0].filename == "2024-09-26_ap d'autorisation.html"
+        appendix = result[0].soup.find("footer", attrs={"data-spec": "appendix"})
+        assert appendix is not None
+        section_ids = [s.get("id") for s in appendix.find_all("section")]
+        assert section_ids == ["ann2a", "ann1"]
+
+    def test_single_annexe_is_kept(self) -> None:
+        annexe_html = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='ann2a'>2-a</section></main>"
+            "</body></html>"
+        )
+        files = [
+            make_arrete(
+                "2024-09-26",
+                annexe_html,
+                filename="2024-09-26_ap d'autorisation_Annexe 2-a.html",
+                file_type=FileType.AP_AUTORISATION,
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0] is files[0]
+
+    def test_only_annexes_first_becomes_base(self) -> None:
+        annexe_a = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='ann2a'>2-a</section></main>"
+            "</body></html>"
+        )
+        annexe_b = (
+            '<html><body data-arretify_version="0.2.0">'
+            "<main data-spec=\"main\"><section id='ann1'>1</section></main>"
+            "</body></html>"
+        )
+        files = [
+            make_arrete(
+                "2024-09-26",
+                annexe_a,
+                filename="2024-09-26_ap d'autorisation_Annexe 2-a.html",
+                file_type=FileType.AP_AUTORISATION,
+            ),
+            make_arrete(
+                "2024-09-26",
+                annexe_b,
+                filename="2024-09-26_ap d'autorisation_Annexe 1.html",
+                file_type=FileType.AP_AUTORISATION,
+            ),
+        ]
+        result = filter_and_deduplicate_arrete_files(files)
+        assert len(result) == 1
+        assert result[0].filename == "2024-09-26_ap d'autorisation_Annexe 2-a.html"
+        appendix = result[0].soup.find("footer", attrs={"data-spec": "appendix"})
+        assert appendix is not None
+        section_ids = [s.get("id") for s in appendix.find_all("section")]
+        assert section_ids == ["ann1"]
 
 
 def test_article_history_to_json_dict_matches_save_history_shape() -> None:

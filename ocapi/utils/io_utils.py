@@ -26,7 +26,6 @@ from typing import Any, cast
 from bs4 import BeautifulSoup
 
 from ocapi.exceptions import InputOutputError, InvalidFileFormatError
-from ocapi.utils.utils import html_checksum
 from ocapi.types import (
     ArreteFile,
     ArticleHistory,
@@ -38,7 +37,9 @@ from ocapi.types import (
     parse_filename,
     validate_arretify_version,
 )
+from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC, ARRETIFY_APPENDIX_DATA_TAG
 from ocapi.utils.logging_utils import get_logger
+from ocapi.utils.utils import html_checksum
 
 _LOGGER = get_logger(__name__)
 
@@ -135,16 +136,100 @@ def _is_excluded_file_type(filename: str) -> bool:
     return any(pattern in filename_lower for pattern in EXCLUDED_FILE_TYPE_PATTERNS)
 
 
+def _is_annexe_file(filename: str) -> bool:
+    """Return True if *filename* denotes an annexe document (contains 'annexe')."""
+    return "annexe" in filename.lower()
+
+
+def _dedup_same_date(files: list[ArreteFile]) -> ArreteFile:
+    """Apply the per-date deduplication rules on *files* and return the kept one."""
+    by_type: dict[FileType, list[ArreteFile]] = {}
+    for af in files:
+        ft = af.file_type or FileType.AUTRE
+        by_type.setdefault(ft, []).append(af)
+
+    deduped: dict[FileType, ArreteFile] = {}
+    for ft, type_files in by_type.items():
+        keeper = type_files[0]
+        if len(type_files) > 1:
+            keeper_cs = html_checksum(keeper.soup)
+            for other in type_files[1:]:
+                if html_checksum(other.soup) == keeper_cs:
+                    _LOGGER.info(
+                        f"AP doublon rencontré: {other.filename} "
+                        f"(identique à {keeper.filename})"
+                    )
+                else:
+                    _LOGGER.warning(
+                        f"Deux documents différents rencontrés, "
+                        f"on ne garde que le premier rencontré: "
+                        f"{keeper.filename} (ignoré: {other.filename})"
+                    )
+        deduped[ft] = keeper
+
+    if len(deduped) > 1:
+        best_ft = min(deduped, key=lambda ft: FILE_TYPE_PRIORITY.get(ft, 99))
+        winner = deduped[best_ft]
+        for ft, af in deduped.items():
+            if ft != best_ft:
+                _LOGGER.info(
+                    f"AP doublon rencontré: {af.filename} "
+                    f"(même date, type moins prioritaire que {winner.filename})"
+                )
+        return winner
+    return next(iter(deduped.values()))
+
+
+def _merge_annexes_into_base(base: ArreteFile, annexes: list[ArreteFile]) -> None:
+    """Insert each annexe's ``<main>`` contents into *base*'s appendix.
+
+    Creates a ``<footer data-spec="appendix">`` after ``<main>`` if missing.
+    Mutates ``base.soup`` in place.
+    """
+    if not annexes:
+        return
+
+    soup = base.soup
+    appendix = soup.find(
+        ARRETIFY_APPENDIX_DATA_TAG, attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC}
+    )
+    if appendix is None:
+        appendix = soup.new_tag(
+            ARRETIFY_APPENDIX_DATA_TAG, attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC}
+        )
+        main_tag = soup.find("main")
+        if main_tag is not None:
+            main_tag.insert_after(appendix)
+        elif soup.body is not None:
+            soup.body.append(appendix)
+        else:
+            soup.append(appendix)
+
+    for annexe in annexes:
+        annexe_main = annexe.soup.find("main")
+        if annexe_main is None:
+            _LOGGER.warning(f"Annexe ignorée (pas de balise <main>): {annexe.filename}")
+            continue
+        for child in list(annexe_main.children):
+            appendix.append(child)
+        _LOGGER.info(f"Annexe intégrée: {annexe.filename} (base: {base.filename})")
+
+
 def filter_and_deduplicate_arrete_files(
     arrete_files: list[ArreteFile],
 ) -> list[ArreteFile]:
     """Filter excluded document types and deduplicate files sharing the same date.
 
     1. Remove files whose filename matches an excluded type pattern.
-    2. For files at the same date and same type: keep the first encountered,
-       log info when checksums match, warning otherwise.
-    3. For files at the same date but different types: keep the highest-priority
-       type according to ``FILE_TYPE_PRIORITY``.
+    2. At each date, files whose name contains "annexe" are set aside: their
+       ``<main>`` contents are appended to the base file's appendix instead of
+       being deduplicated away.
+    3. For remaining (non-annexe) files at the same date and same type: keep
+       the first encountered, log info when checksums match, warning otherwise.
+    4. For non-annexe files at the same date but different types: keep the
+       highest-priority type according to ``FILE_TYPE_PRIORITY``.
+    5. If a date only holds annexe files, the first one becomes the base and
+       the others are merged into it.
     """
     # --- Step 1: exclude non-AP types ---
     kept: list[ArreteFile] = []
@@ -161,49 +246,18 @@ def filter_and_deduplicate_arrete_files(
 
     result: list[ArreteFile] = []
     for _date, files in by_date.items():
-        if len(files) == 1:
-            result.append(files[0])
-            continue
+        annexes = [af for af in files if _is_annexe_file(af.filename)]
+        non_annexes = [af for af in files if not _is_annexe_file(af.filename)]
 
-        # Group by file type
-        by_type: dict[FileType, list[ArreteFile]] = {}
-        for af in files:
-            ft = af.file_type or FileType.AUTRE
-            by_type.setdefault(ft, []).append(af)
-
-        # Deduplicate within each type group
-        deduped: dict[FileType, ArreteFile] = {}
-        for ft, type_files in by_type.items():
-            keeper = type_files[0]
-            if len(type_files) > 1:
-                keeper_cs = html_checksum(keeper.soup)
-                for other in type_files[1:]:
-                    if html_checksum(other.soup) == keeper_cs:
-                        _LOGGER.info(
-                            f"AP doublon rencontré: {other.filename} "
-                            f"(identique à {keeper.filename})"
-                        )
-                    else:
-                        _LOGGER.warning(
-                            f"Deux documents différents rencontrés, "
-                            f"on ne garde que le premier rencontré: "
-                            f"{keeper.filename} (ignoré: {other.filename})"
-                        )
-            deduped[ft] = keeper
-
-        # Keep only the highest-priority type for this date
-        if len(deduped) > 1:
-            best_ft = min(deduped, key=lambda ft: FILE_TYPE_PRIORITY.get(ft, 99))
-            winner = deduped[best_ft]
-            for ft, af in deduped.items():
-                if ft != best_ft:
-                    _LOGGER.info(
-                        f"AP doublon rencontré: {af.filename} "
-                        f"(même date, type moins prioritaire que {winner.filename})"
-                    )
-            result.append(winner)
+        if non_annexes:
+            base = non_annexes[0] if len(non_annexes) == 1 else _dedup_same_date(non_annexes)
+            extra_annexes = annexes
         else:
-            result.append(next(iter(deduped.values())))
+            base = annexes[0]
+            extra_annexes = annexes[1:]
+
+        _merge_annexes_into_base(base, extra_annexes)
+        result.append(base)
 
     # Preserve original ordering (by filename / date)
     index = {af.filename: i for i, af in enumerate(arrete_files)}
