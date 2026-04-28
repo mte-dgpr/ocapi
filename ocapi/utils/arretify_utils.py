@@ -25,6 +25,7 @@ from ocapi.types import ImageMap
 
 ARRETIFY_SECTION_DATA_SPEC = SectionSpec.spec_name
 ARRETIFY_APPENDIX_DATA_SPEC = AppendixSpec.spec_name
+ARRETIFY_APPENDIX_DATA_TAG = AppendixSpec.tag_name
 
 ARRETIFY_SECTION_SELECTOR = f'*[data-spec="{ARRETIFY_SECTION_DATA_SPEC}"]'
 

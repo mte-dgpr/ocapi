@@ -37,6 +37,7 @@ from ocapi.types import (
     parse_filename,
     validate_arretify_version,
 )
+from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC, ARRETIFY_APPENDIX_DATA_TAG
 from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.utils import html_checksum
 
@@ -189,9 +190,13 @@ def _merge_annexes_into_base(base: ArreteFile, annexes: list[ArreteFile]) -> Non
         return
 
     soup = base.soup
-    appendix = soup.find("footer", attrs={"data-spec": "appendix"})
+    appendix = soup.find(
+        ARRETIFY_APPENDIX_DATA_TAG, attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC}
+    )
     if appendix is None:
-        appendix = soup.new_tag("footer", attrs={"data-spec": "appendix"})
+        appendix = soup.new_tag(
+            ARRETIFY_APPENDIX_DATA_TAG, attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC}
+        )
         main_tag = soup.find("main")
         if main_tag is not None:
             main_tag.insert_after(appendix)
