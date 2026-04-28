@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Optional, TypedDict
 
-from arretify.parsing_utils.numbering import str_to_levels
+from arretify.parsing_utils.numbering import ROMAN_NUMERALS_PATTERN_S, str_to_levels
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, field_validator
 from typing_extensions import NotRequired
@@ -41,7 +41,10 @@ AiotId = str
 ImageMap = Dict[str, str]  # mapping token -> original src
 
 
-_NUMERIC_ID_PATTERN = re.compile(r"^\d+([.\-]\d+)*$")
+# Article ids can mix roman numerals (I, IV, XII…), single letters (A, b…) and
+# numbers at each level, separated by "." or "-" (e.g. "1.2", "I.1", "A-3", "4-1").
+_ARTICLE_LEVEL_PATTERN_S = rf"({ROMAN_NUMERALS_PATTERN_S}|[A-Za-z]|\d+)"
+_ARTICLE_ID_PATTERN = re.compile(rf"^{_ARTICLE_LEVEL_PATTERN_S}([.\-]{_ARTICLE_LEVEL_PATTERN_S})*$")
 
 
 def parse_article_id(article_id: str) -> str:
@@ -61,16 +64,16 @@ def parse_article_id(article_id: str) -> str:
         return article_id
     if article_id.startswith("APPENDIX:"):
         suffix = article_id[len("APPENDIX:") :]
-        if _NUMERIC_ID_PATTERN.match(suffix):
+        if _ARTICLE_ID_PATTERN.match(suffix):
             return article_id
     elif article_id.startswith("NEW_ARTICLE:"):
         suffix = article_id[len("NEW_ARTICLE:") :]
-        if _NUMERIC_ID_PATTERN.match(suffix):
+        if _ARTICLE_ID_PATTERN.match(suffix):
             return article_id
-    elif _NUMERIC_ID_PATTERN.match(article_id):
+    elif _ARTICLE_ID_PATTERN.match(article_id):
         return article_id
     raise InvalidArticleIdError(
-        "article_id must be in numeric format (e.g. '1.2', '3.1.4'), "
+        "article_id must be a dotted/dashed numbering (e.g. '1.2', 'I.1', 'A-3'), "
         f"APPENDIX, ALL, END or NEW_ARTICLE:X, got: '{article_id}'"
     )
 
