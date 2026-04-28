@@ -19,10 +19,10 @@
 
 from ocapi.step_rendering.operation_messages import (
     build_source_operation_messages,
-    inject_messages_into_main,
+    inject_messages_into_body,
 )
 from ocapi.types import ArreteFile, ArticleHistory, Operation, StatusCode
-from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main
+from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main_and_appendix
 
 
 def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
@@ -72,7 +72,7 @@ def make_permit_other(
 
         identification = extract_first_spec_html(arrete_file.soup, "identification")
         arrete_title = extract_first_spec_html(arrete_file.soup, "arrete_title")
-        main_content = extract_main(arrete_file.soup)
+        body_content = extract_main_and_appendix(arrete_file.soup)
 
         if has_no_ops(arrete_file, operations):
             complement_sections.append(
@@ -80,7 +80,7 @@ def make_permit_other(
    <article data-spec="permit_complement" data-date="{arrete_file.id}">
     {identification}
     {arrete_title}
-    {main_content}
+    {body_content}
    </article>
 """
             )
@@ -91,13 +91,13 @@ def make_permit_other(
                 operations,
                 history,
             )
-            annotated_main = inject_messages_into_main(main_content, messages)
+            annotated_body = inject_messages_into_body(body_content, messages)
             modifying_sections.append(
                 f"""
    <article data-spec="permit_modifying" data-date="{arrete_file.id}">
     {identification}
     {arrete_title}
-    {annotated_main}
+    {annotated_body}
    </article>
 """
             )

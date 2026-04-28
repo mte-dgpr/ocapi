@@ -212,6 +212,51 @@ def test_target_all_shows_arrete_only() -> None:
     assert "l'article ALL" not in html
 
 
+def test_make_permit_other_includes_appendix_with_operation_messages() -> None:
+    """Operations sourced from an appendix article get a message inside the appendix."""
+    ap_initial = make_arrete("2020-01-01", _EMPTY_AP)
+    modifying = make_arrete(
+        "2022-01-01",
+        """
+<html><body data-arretify_version="0.2.0">
+ <div data-spec="identification">ID</div>
+ <div data-spec="arrete_title">TITLE</div>
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><h3>Art 1</h3><p>Main</p></section>
+ </main>
+ <footer data-spec="appendix">
+  <section data-spec="section" data-number="2.1"><h4>Annexe 2.1</h4><p>Body</p></section>
+ </footer>
+</body></html>
+""",
+    )
+    op = Operation(
+        id="op-app",
+        source_id=NodeId(arrete_id="2022-01-01", article_id="APPENDIX:2.1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
+        operation_type=OperationType.REPLACE,
+    )
+    history: ArticleHistory = {
+        NodeId(arrete_id="2020-01-01", article_id="3"): [
+            {"version": 0, "title": "", "content": "old", "operation_id": None},
+            {"version": 1, "title": "", "content": "new", "operation_id": "op-app"},
+        ],
+    }
+
+    html = make_permit_other([ap_initial, modifying], [op], history=history)
+
+    assert 'data-spec="permit_modifying"' in html
+    assert 'data-spec="appendix"' in html
+    assert "Annexe 2.1" in html
+    soup = BeautifulSoup(html, "html.parser")
+    appendix_section = soup.find("section", attrs={"data-number": "2.1"})
+    assert appendix_section is not None
+    msg = appendix_section.find("div", attrs={"data-spec": "operation_result"})
+    assert msg is not None
+    assert "Opération de consolidation résolue" in msg.get_text()
+    assert "l'article 3 de l'arrêté 2020-01-01" in msg.get_text()
+
+
 def test_target_new_article_strips_prefix() -> None:
     """Target article_id=NEW_ARTICLE:4.1 renders as 'l'article 4.1'."""
     ap_initial = make_arrete("2020-01-01", _EMPTY_AP)

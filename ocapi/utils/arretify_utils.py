@@ -144,3 +144,16 @@ def extract_main(soup: BeautifulSoup) -> str:
     if main is None:
         return ""
     return str(main)
+
+
+def extract_main_and_appendix(soup: BeautifulSoup) -> str:
+    """Return the HTML of the ``<main>`` tag concatenated with the appendix ``<footer>``.
+
+    The appendix footer (``<footer data-spec="appendix">``) is appended only
+    when present.
+    """
+    main_html = extract_main(soup)
+    footer = soup.find("footer", attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC})
+    if footer is None:
+        return main_html
+    return main_html + str(footer)

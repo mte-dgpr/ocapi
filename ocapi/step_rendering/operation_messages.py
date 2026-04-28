@@ -25,7 +25,7 @@ source arrêté is rendered.
 
 from collections import defaultdict
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from ocapi.types import (
     ArticleHistory,
@@ -35,6 +35,7 @@ from ocapi.types import (
     operation_type_label,
     status_code_reason,
 )
+from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC
 
 _WHOLE_ARRETE_ARTICLE_IDS = frozenset({"ALL", "END", "APPENDIX"})
 
@@ -89,20 +90,35 @@ def build_source_operation_messages(
     return messages
 
 
-def inject_messages_into_main(main_html: str, messages: dict[str, list[str]]) -> str:
-    """Inject operation result messages into a ``<main>`` HTML fragment.
+def _section_logical_id(section: Tag) -> str | None:
+    """Return the logical article id of *section* (with ``APPENDIX:`` prefix when in appendix)."""
+    data_number = section.get("data-number")
+    if not isinstance(data_number, str):
+        return None
+    if section.find_parent("footer", attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC}):
+        return f"APPENDIX:{data_number}"
+    return data_number
+
+
+def inject_messages_into_body(body_html: str, messages: dict[str, list[str]]) -> str:
+    """Inject operation result messages into a body HTML fragment.
+
+    The fragment may contain the ``<main>`` element and/or an appendix
+    ``<footer data-spec="appendix">``. Messages keyed by ``APPENDIX:x.y`` are
+    placed inside the matching appendix section, while plain article ids land
+    in the corresponding ``<section>`` of the main.
 
     Messages are inserted right after the section title (``<hX>``), or at the
-    beginning of the section if no title is found. Sections are matched by
-    ``data-number`` so this works on both raw arrêté sections (``data-spec
-    ="section"``) and consolidated ones (``data-spec="section_version"``).
+    beginning of the section if no title is found. Sections are matched on
+    their logical id so this works on both raw arrêté sections
+    (``data-spec="section"``) and consolidated ones (``data-spec="section_version"``).
     """
     if not messages:
-        return main_html
-    soup = BeautifulSoup(main_html, "html.parser")
+        return body_html
+    soup = BeautifulSoup(body_html, "html.parser")
     for section in soup.find_all("section"):
-        article_id = section.get("data-number")
-        if not isinstance(article_id, str) or article_id not in messages:
+        article_id = _section_logical_id(section)
+        if article_id is None or article_id not in messages:
             continue
         title_el = section.find(["h1", "h2", "h3", "h4", "h5", "h6"])
         for msg in reversed(messages[article_id]):

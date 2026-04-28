@@ -26,7 +26,7 @@ from ocapi.exceptions import InvalidArticleIdError, OcapiError
 from ocapi.step_rendering.article_filter import filter_superfluous_sections
 from ocapi.step_rendering.operation_messages import (
     build_source_operation_messages,
-    inject_messages_into_main,
+    inject_messages_into_body,
 )
 from ocapi.types import (
     ArreteFile,
@@ -121,7 +121,7 @@ def make_permit_content(
     )
 
     messages = build_source_operation_messages(ap_initial_id, operations, history)
-    return inject_messages_into_main(str(main), messages)
+    return inject_messages_into_body(str(main), messages)
 
 
 def _top_level_sections(main: Tag) -> list[Tag]:
