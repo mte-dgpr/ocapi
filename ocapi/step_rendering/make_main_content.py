@@ -22,7 +22,7 @@ import logging
 from bs4 import BeautifulSoup, Tag
 
 from ocapi.config import FullSectionName
-from ocapi.exceptions import InvalidArticleIdError
+from ocapi.exceptions import InvalidArticleIdError, OcapiError
 from ocapi.step_rendering.article_filter import filter_superfluous_sections
 from ocapi.types import (
     ArreteFile,
@@ -47,9 +47,18 @@ _LOGGER = logging.getLogger(__name__)
 def _select_initial_ap(arrete_files: list[ArreteFile]) -> ArreteFile:
     """Pick the arrêté to use as the consolidation base.
 
-    Prefers the most recent non-abrogated AP_AUTORISATION (typically the
-    latest refonte).  Falls back to the first non-abrogated arrêté.
+    Honours a user-provided ``principal`` flag when set (exactly one arrêté
+    must be marked). Otherwise prefers the most recent non-abrogated
+    AP_AUTORISATION (typically the latest refonte), falling back to the
+    first non-abrogated arrêté.
     """
+    principals = [af for af in arrete_files if af.principal]
+    if len(principals) > 1:
+        ids = ", ".join(af.id for af in principals)
+        raise OcapiError(f"Multiple arrêtés flagged as principal: {ids}")
+    if len(principals) == 1:
+        return principals[0]
+
     active = [af for af in arrete_files if af.status]
     ap_autorisations = [af for af in active if af.file_type == FileType.AP_AUTORISATION]
     if ap_autorisations:

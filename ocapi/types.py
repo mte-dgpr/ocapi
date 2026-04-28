@@ -142,6 +142,7 @@ class ArreteFile:
     soup: BeautifulSoup
     file_type: "FileType | None" = None
     status: bool = True
+    principal: bool = False
 
 
 class Permis(BaseModel):

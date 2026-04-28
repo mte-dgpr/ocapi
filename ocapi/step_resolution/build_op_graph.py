@@ -169,16 +169,31 @@ def build_graph(
     """Build the operations graph.
 
     Returns the graph, the list of arrêtés, and the list of failed operations.
+
+    A full removal (REMOVE/REPLACE ALL) targeting an arrêté flagged as
+    ``principal`` is not applied: the operation is marked
+    ``ERROR_EXTRACTING_TARGET`` in place because such a removal most likely
+    reflects a detection mistake.
     """
     G = nx.MultiDiGraph()
     soups: dict[ArreteId, BeautifulSoup] = {
         arrete_file.id: arrete_file.soup for arrete_file in arrete_files
     }
+    principal_ids = {af.id for af in arrete_files if af.principal}
     skipped_ops: list[tuple[Operation, str]] = []  # (operation, reason) for each failure
 
-    for op in ops:
+    for index, op in enumerate(ops):
         try:
             if _is_full_removal_op(op):
+                if op.target_id.arrete_id in principal_ids:
+                    _LOGGER.warning(
+                        "A full removal of the principal arrete has been detected. "
+                        "This operation was not resolved."
+                    )
+                    ops[index] = op.model_copy(
+                        update={"status_code": StatusCode.ERROR_EXTRACTING_TARGET}
+                    )
+                    continue
                 for arrete_file in arrete_files:
                     if arrete_file.id == op.target_id.arrete_id:
                         arrete_file.status = False

@@ -56,6 +56,7 @@ def run_main(
     output_dir: Path | None = None,
     start_date: str | None = None,
     operations_from: Path | None = None,
+    principal_id: str | None = None,
 ) -> int:
     """Run the OCAPI pipeline with explicit parameters.
 
@@ -78,6 +79,9 @@ def run_main(
     operations_from : Path | None
         Directory containing ``operations.json``. Loads operations and skips detection
         (snapshot mode, no LLM).
+    principal_id : str | None
+        Date (YYYY-MM-DD) of the arrêté to flag as principal. Returns an error
+        when no loaded arrêté matches that date.
     """
     resolved_aiot = aiot or input_dir.name
     _LOGGER.info(f"AIOT: {resolved_aiot}")
@@ -98,6 +102,15 @@ def run_main(
         if not arrete_files:
             _LOGGER.error("No arrêté matches the specified IDs")
             return 1
+
+    if principal_id is not None:
+        matches = [af for af in arrete_files if af.id == principal_id]
+        if not matches:
+            _LOGGER.error(f"No arrêté found for --principal-id {principal_id}")
+            return 1
+        for af in matches:
+            af.principal = True
+        _LOGGER.info(f"Principal arrêté: {principal_id}")
 
     preloaded_ops: list[Operation] | None = None
     if operations_from is not None:
@@ -224,6 +237,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         output_dir=Path(args.output) if args.output else None,
         start_date=getattr(args, "start_date", None),
         operations_from=operations_from,
+        principal_id=getattr(args, "principal_id", None),
     )
 
 
@@ -346,6 +360,11 @@ Examples:
         type=Path,
         metavar="DIR",
         help="Load DIR/operations.json and skip detection (snapshot mode, no LLM)",
+    )
+    run_parser.add_argument(
+        "--principal-id",
+        metavar="YYYY-MM-DD",
+        help="Date of the arrêté to flag as principal (must match a loaded arrêté)",
     )
     run_parser.set_defaults(func=cmd_run)
 
