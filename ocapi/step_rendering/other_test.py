@@ -53,7 +53,7 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
             source_id=NodeId(arrete_id="2022-01-01", article_id="1"),
             target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
             operation_type=OperationType.REPLACE,
-            status_code=frozenset(),
+            error_codes=frozenset(),
         )
     ]
 
@@ -140,7 +140,7 @@ def test_make_permit_other_shows_unresolved_message_for_failed_operation() -> No
                 "title": "",
                 "content": "old",
                 "operation_id": "op-err",
-                "status_code": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
+                "error_codes": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
             },
         ],
     }
@@ -343,7 +343,7 @@ def test_has_unresolved_ops_returns_true_with_unresolved_outgoing_ops() -> None:
             source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
             target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
             operation_type=OperationType.ADD,
-            status_code=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+            error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
         ),
     ]
     assert has_unresolved_ops(arrete, ops) is True
@@ -358,14 +358,14 @@ def test_has_unresolved_ops_returns_false_when_all_outgoing_ops_resolved() -> No
             target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
             operation_type=OperationType.REPLACE,
             operand="<section>op-1 body</section>",
-            status_code=frozenset(),
+            error_codes=frozenset(),
         ),
         Operation(
             id="op-2",
             source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
             target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
             operation_type=OperationType.REMOVE,
-            status_code=frozenset(),
+            error_codes=frozenset(),
         ),
     ]
     assert has_unresolved_ops(arrete, ops) is False
@@ -379,14 +379,14 @@ def test_has_unresolved_ops_returns_true_when_some_ops_have_errors() -> None:
             source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
             target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
             operation_type=OperationType.REPLACE,
-            status_code=frozenset(),
+            error_codes=frozenset(),
         ),
         Operation(
             id="op-2",
             source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
             target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
             operation_type=OperationType.ADD,
-            status_code=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+            error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
         ),
     ]
     assert has_unresolved_ops(arrete, ops) is True

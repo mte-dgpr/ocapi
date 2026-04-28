@@ -188,7 +188,7 @@ def test_complex_subtarget_on_operation_still_applies_replace(mock_replace: mock
             operation_type=OperationType.REPLACE,
             operand="<p>x</p>",
             sub_target=SubTarget(type=SubTargetType.COMPLEX, description="ligne 7 du tableau"),
-            status_code=frozenset({ErrorCode.COMPLEX_SUBTARGET}),
+            error_codes=frozenset({ErrorCode.COMPLEX_SUBTARGET}),
         ),
     )
     history: ArticleHistory = {
@@ -199,7 +199,7 @@ def test_complex_subtarget_on_operation_still_applies_replace(mock_replace: mock
     assert skipped_ops == []
     mock_replace.assert_called_once()
     assert output_history[target][-1]["content"] == "consolidated"
-    assert output_history[target][-1]["status_code"] == StatusCode.RESOLVED
+    assert not output_history[target][-1].get("error_codes")
 
 
 @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
@@ -217,7 +217,7 @@ def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) ->
             target_id=target,
             operation_type=OperationType.REPLACE,
             operand=None,
-            status_code=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+            error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
         ),
     )
 
@@ -228,7 +228,7 @@ def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) ->
                 "title": "",
                 "content": "content v0",
                 "operation_id": None,
-                "status_code": frozenset(),
+                "error_codes": frozenset(),
             }
         ]
     }
@@ -241,7 +241,7 @@ def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) ->
         "title": "",
         "content": "content v0",
         "operation_id": "op-unresolved",
-        "status_code": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+        "error_codes": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
     }
 
 
@@ -277,7 +277,7 @@ def test_subtarget_not_found_sets_error_finding_subtarget(mock_replace: mock.Moc
         "title": "",
         "content": "content v0",
         "operation_id": "op-subtarget-missing",
-        "status_code": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
+        "error_codes": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
     }
 
 
@@ -486,7 +486,7 @@ def test_error_extracting_target_keeps_content_and_stores_status(
             target_id=target,
             operation_type=OperationType.REPLACE,
             operand="new",
-            status_code=frozenset({ErrorCode.ERROR_EXTRACTING_TARGET}),
+            error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_TARGET}),
         ),
     )
     history: ArticleHistory = {
@@ -498,7 +498,7 @@ def test_error_extracting_target_keeps_content_and_stores_status(
     mock_replace.assert_not_called()
     last = output_history[target][-1]
     assert last["content"] == ""
-    assert last["status_code"] == frozenset({ErrorCode.ERROR_EXTRACTING_TARGET})
+    assert last["error_codes"] == frozenset({ErrorCode.ERROR_EXTRACTING_TARGET})
     assert last["operation_id"] == "op-missing-target"
 
 
@@ -570,7 +570,7 @@ def test_propagated_error_when_previous_version_has_error(mock_replace: mock.Moc
                 "title": "",
                 "content": "v0",
                 "operation_id": "op-prev",
-                "status_code": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+                "error_codes": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
             },
         ]
     }
@@ -579,7 +579,7 @@ def test_propagated_error_when_previous_version_has_error(mock_replace: mock.Moc
     assert skipped == []
     mock_replace.assert_not_called()
     last = output_history[target][-1]
-    assert last["status_code"] == frozenset({ErrorCode.PROPAGATED_ERROR})
+    assert last["error_codes"] == frozenset({ErrorCode.PROPAGATED_ERROR})
     assert last["content"] == "v0"
     assert last["operation_id"] == "op-next"
 
@@ -612,7 +612,7 @@ def test_propagated_error_chains_from_previous_propagated_error(mock_replace: mo
                 "title": "",
                 "content": "v0",
                 "operation_id": "op-prev",
-                "status_code": frozenset({ErrorCode.PROPAGATED_ERROR}),
+                "error_codes": frozenset({ErrorCode.PROPAGATED_ERROR}),
             },
         ]
     }
@@ -620,7 +620,7 @@ def test_propagated_error_chains_from_previous_propagated_error(mock_replace: mo
 
     assert skipped == []
     mock_replace.assert_not_called()
-    assert output_history[target][-1]["status_code"] == frozenset({ErrorCode.PROPAGATED_ERROR})
+    assert output_history[target][-1]["error_codes"] == frozenset({ErrorCode.PROPAGATED_ERROR})
 
 
 @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
@@ -652,7 +652,7 @@ def test_replace_all_bypasses_propagation(mock_replace: mock.Mock) -> None:
                 "title": "",
                 "content": "v0",
                 "operation_id": "op-prev",
-                "status_code": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+                "error_codes": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
             },
         ]
     }
@@ -662,7 +662,7 @@ def test_replace_all_bypasses_propagation(mock_replace: mock.Mock) -> None:
     mock_replace.assert_called_once()
     last = output_history[target][-1]
     assert last["content"] == "replaced all content"
-    assert last["status_code"] == StatusCode.RESOLVED
+    assert not last.get("error_codes")
 
 
 @mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
@@ -689,7 +689,7 @@ def test_replace_all_with_extraction_error_records_own_error_not_propagated(
             operation_type=OperationType.REPLACE,
             operand=None,
             sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
-            status_code=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+            error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
         ),
     )
 
@@ -701,7 +701,7 @@ def test_replace_all_with_extraction_error_records_own_error_not_propagated(
                 "title": "",
                 "content": "v0",
                 "operation_id": "op-prev",
-                "status_code": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+                "error_codes": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
             },
         ]
     }
@@ -710,7 +710,7 @@ def test_replace_all_with_extraction_error_records_own_error_not_propagated(
     assert skipped == []
     mock_replace.assert_not_called()
     last = output_history[target][-1]
-    assert last["status_code"] == frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})
+    assert last["error_codes"] == frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})
 
 
 @mock.patch("ocapi.step_resolution.apply_ops.apply_remove")
@@ -741,7 +741,7 @@ def test_remove_all_bypasses_propagation(mock_remove: mock.Mock) -> None:
                 "title": "",
                 "content": "v0",
                 "operation_id": "op-prev",
-                "status_code": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+                "error_codes": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
             },
         ]
     }
@@ -751,7 +751,7 @@ def test_remove_all_bypasses_propagation(mock_remove: mock.Mock) -> None:
     mock_remove.assert_called_once()
     last = output_history[target][-1]
     assert last["content"] == ""
-    assert last["status_code"] == StatusCode.RESOLVED
+    assert not last.get("error_codes")
 
 
 def test_apply_add_full_section_new_article_returns_inner_content() -> None:
@@ -915,7 +915,7 @@ def test_disabled_llm_returns_unchanged_content_and_status() -> None:
             operation_type=OperationType.REPLACE,
             operand="<p>new</p>",
             sub_target=SubTarget(type=SubTargetType.COMPLEX, description="ligne 3"),
-            status_code=frozenset({ErrorCode.COMPLEX_SUBTARGET}),
+            error_codes=frozenset({ErrorCode.COMPLEX_SUBTARGET}),
         ),
     )
     history: ArticleHistory = {
@@ -926,7 +926,7 @@ def test_disabled_llm_returns_unchanged_content_and_status() -> None:
     assert skipped == []
     last = output_history[target][-1]
     assert last["content"] == "content v0"
-    assert last["status_code"] == frozenset({ErrorCode.DISABLED_LLM_CALL})
+    assert last["error_codes"] == frozenset({ErrorCode.DISABLED_LLM_CALL})
 
 
 # ---------------------------------------------------------------------------
@@ -1160,7 +1160,7 @@ def test_apply_subgraph_operations_resolved_status_dict(
             target_id=tgt_propagated,
             operation_type=OperationType.REPLACE,
             operand=None,
-            status_code=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+            error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
         ),
     )
     history: ArticleHistory = {

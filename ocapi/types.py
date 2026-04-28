@@ -214,7 +214,7 @@ class ArticleVersion(TypedDict):
     title: Content
     content: Content
     operation_id: str | None
-    status_code: NotRequired[frozenset[ErrorCode]]
+    error_codes: NotRequired[frozenset[ErrorCode]]
 
 
 ArticleHistory = Dict[NodeId, list[ArticleVersion]]
@@ -248,17 +248,17 @@ ERROR_CODE_MESSAGES: dict[ErrorCode, str] = {
 DEFAULT_ERROR_CODE_MESSAGE = "Opération non résolue automatiquement"
 
 
-def status_codes_reason(status_codes: "frozenset[ErrorCode] | None") -> str | None:
+def error_codes_reason(error_codes: "frozenset[ErrorCode] | None") -> str | None:
     """Return the human-readable reason(s) for a set of error codes.
 
     Joins all error messages with " ; ". Returns ``None`` when the set is
     empty or ``None`` (no error to display).
     """
-    if not status_codes:
+    if not error_codes:
         return None
     reasons = [
         ERROR_CODE_MESSAGES.get(code, DEFAULT_ERROR_CODE_MESSAGE)
-        for code in sorted(status_codes, key=lambda c: c.value)
+        for code in sorted(error_codes, key=lambda c: c.value)
     ]
     return " ; ".join(reasons)
 
@@ -431,7 +431,7 @@ class Operation(_BaseModelWithConfig):
     operation_type: OperationType
     operand: str | None = None
     sub_target: SubTarget | None = None
-    status_code: frozenset[ErrorCode] = frozenset()
+    error_codes: frozenset[ErrorCode] = frozenset()
     confidence_score: int | None = None
 
     @field_validator("operation_type", mode="before")
@@ -439,12 +439,12 @@ class Operation(_BaseModelWithConfig):
     def _ensure_operation_type(cls, v: OperationType | str) -> OperationType:
         return v if isinstance(v, OperationType) else OperationType(v)
 
-    @field_serializer("status_code", when_used="json")
-    def _serialize_status_code(self, codes: frozenset[ErrorCode]) -> list[str]:
+    @field_serializer("error_codes", when_used="json")
+    def _serialize_error_codes(self, codes: frozenset[ErrorCode]) -> list[str]:
         return sorted(c.value for c in codes)
 
     @model_validator(mode="after")
-    def _derive_detection_status_code(self) -> "Operation":
+    def _derive_detection_error_codes(self) -> "Operation":
         """Derive ``ERROR_EXTRACTING_OPERAND`` from the operation shape.
 
         Two cases are flagged here so callers don't have to track it themselves:
@@ -454,7 +454,7 @@ class Operation(_BaseModelWithConfig):
           "all articles").
         - REPLACE / ADD operations with no operand: there is nothing to apply.
         """
-        if ErrorCode.ERROR_EXTRACTING_OPERAND in self.status_code:
+        if ErrorCode.ERROR_EXTRACTING_OPERAND in self.error_codes:
             return self
 
         if (
@@ -467,7 +467,7 @@ class Operation(_BaseModelWithConfig):
                 f"sub_target={self.sub_target.type} is not fully defined "
                 f"(target_arrete={self.target_id.arrete_id})"
             )
-            self.status_code = self.status_code | {ErrorCode.ERROR_EXTRACTING_OPERAND}
+            self.error_codes = self.error_codes | {ErrorCode.ERROR_EXTRACTING_OPERAND}
             return self
 
         # REPLACE on the whole arrêté is a refonte (handled later as a full removal),
@@ -477,7 +477,7 @@ class Operation(_BaseModelWithConfig):
             and self.operand is None
             and self.target_id.article_id != "ALL"
         ):
-            self.status_code = self.status_code | {ErrorCode.ERROR_EXTRACTING_OPERAND}
+            self.error_codes = self.error_codes | {ErrorCode.ERROR_EXTRACTING_OPERAND}
 
         return self
 
@@ -532,7 +532,7 @@ class Operation(_BaseModelWithConfig):
 
 def is_resolved_op(operation: "Operation") -> bool:
     """Return True when no error is attached to *operation*."""
-    return not operation.status_code
+    return not operation.error_codes
 
 
 def _to_operation_type(raw_type: OperationType | str) -> OperationType:

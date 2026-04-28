@@ -290,7 +290,7 @@ class TestSaveHistory:
         assert "2020-01-01#1" in data
         assert "2020-01-01#2" in data
 
-    def test_status_code_is_serialized_as_sorted_list(self, tmp_path: Path) -> None:
+    def test_error_codes_is_serialized_as_sorted_list(self, tmp_path: Path) -> None:
         node_id = NodeId(arrete_id="2020-01-01", article_id="1")
         history: ArticleHistory = {
             node_id: [
@@ -299,7 +299,7 @@ class TestSaveHistory:
                     title="",
                     content="<p>x</p>",
                     operation_id=None,
-                    status_code=frozenset(
+                    error_codes=frozenset(
                         {
                             ErrorCode.ERROR_EXTRACTING_OPERAND,
                             ErrorCode.PROPAGATED_ERROR,
@@ -310,7 +310,7 @@ class TestSaveHistory:
         }
         save_history(history, tmp_path)
         data = json.loads((tmp_path / "history.json").read_text(encoding="utf-8"))
-        assert data["2020-01-01#1"][0]["status_code"] == [
+        assert data["2020-01-01#1"][0]["error_codes"] == [
             "error_extracting_operand",
             "propagated_error",
         ]
@@ -663,7 +663,7 @@ def test_article_history_to_json_dict_matches_save_history_shape() -> None:
         "title": "",
         "content": "c",
         "operation_id": None,
-        "status_code": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+        "error_codes": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
     }
     assert article_history_to_json_dict({node_id: [v]}) == {
         "2020-01-01#1": [
@@ -672,7 +672,7 @@ def test_article_history_to_json_dict_matches_save_history_shape() -> None:
                 "title": "",
                 "content": "c",
                 "operation_id": None,
-                "status_code": ["error_extracting_operand"],
+                "error_codes": ["error_extracting_operand"],
             }
         ]
     }

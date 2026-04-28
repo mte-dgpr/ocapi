@@ -99,8 +99,8 @@ def add_edge(G: nx.MultiDiGraph, operation: Operation) -> None:
         Operation to represent as a directed edge.
     """
     exclude: set[str] = {"source_id", "target_id"}
-    if not operation.status_code:
-        exclude.add("status_code")
+    if not operation.error_codes:
+        exclude.add("error_codes")
     edge_data = operation.model_dump(
         exclude=exclude,
         exclude_none=True,
@@ -172,7 +172,7 @@ def build_graph(
     """Build the operations graph.
 
     Returns the graph, the list of arrêtés, the list of failed operations,
-    and the operations list with their ``status_code`` updated for the ones
+    and the operations list with their ``error_codes`` updated for the ones
     resolved at graph-building time (full removals marked ``RESOLVED``,
     missing target sections marked ``ERROR_EXTRACTING_TARGET``).
 
@@ -200,7 +200,7 @@ def build_graph(
                     updated_ops.append(
                         op.model_copy(
                             update={
-                                "status_code": op.status_code
+                                "error_codes": op.error_codes
                                 | {ErrorCode.ERROR_EXTRACTING_TARGET}
                             }
                         )
@@ -232,7 +232,7 @@ def build_graph(
                 )
                 target_title, target_content = "", ""
                 op = op.model_copy(
-                    update={"status_code": op.status_code | {ErrorCode.ERROR_EXTRACTING_TARGET}}
+                    update={"error_codes": op.error_codes | {ErrorCode.ERROR_EXTRACTING_TARGET}}
                 )
 
             source_soup = soups[op.source_id.arrete_id]
@@ -273,6 +273,6 @@ def _is_full_removal_op(operation: Operation) -> bool:
     if operation.sub_target is not None and operation.sub_target.type != SubTargetType.FULL_SECTION:
         return False
     # Only abrogate when the operation was cleanly resolved.
-    if operation.status_code:
+    if operation.error_codes:
         return False
     return True

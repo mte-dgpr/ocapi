@@ -399,8 +399,8 @@ def save_operations(operations: list[Operation], output_dir: Path) -> None:
         serialized = []
         for op in operations:
             data = op.model_dump(mode="json", exclude_defaults=True)
-            if not data.get("status_code"):
-                data.pop("status_code", None)
+            if not data.get("error_codes"):
+                data.pop("error_codes", None)
             serialized.append(data)
         with output_path.open("w", encoding="utf-8") as f:
             json.dump(serialized, f, ensure_ascii=False, indent=2)
@@ -411,7 +411,7 @@ def save_operations(operations: list[Operation], output_dir: Path) -> None:
 def load_operations(input_dir: Path) -> list[Operation]:
     """Load operations from ``{input_dir}/operations.json``.
 
-    Any ``status_code`` stored in the file is dropped: a freshly loaded
+    Any ``error_codes`` stored in the file is dropped: a freshly loaded
     operation is considered to have no error attached, and the resolution
     step is responsible for re-deriving it.
 
@@ -438,6 +438,7 @@ def load_operations(input_dir: Path) -> list[Operation]:
         operations: list[Operation] = []
         for item in raw:
             if isinstance(item, dict):
+                item.pop("error_codes", None)
                 item.pop("status_code", None)
             operations.append(Operation.model_validate(item))
         return operations
@@ -446,7 +447,7 @@ def load_operations(input_dir: Path) -> list[Operation]:
 
 
 def _article_version_to_json_dict(version: ArticleVersion) -> dict[str, Any]:
-    """Convert an :class:`ArticleVersion` to a JSON-serialisable dict (incl. ``status_code``)."""
+    """Convert an :class:`ArticleVersion` to a JSON-serialisable dict (incl. ``error_codes``)."""
     out: dict[str, Any] = {
         "version": version["version"],
         "content": version["content"],
@@ -454,9 +455,9 @@ def _article_version_to_json_dict(version: ArticleVersion) -> dict[str, Any]:
     }
     if "title" in version:
         out["title"] = version["title"]
-    codes = version.get("status_code")
+    codes = version.get("error_codes")
     if codes:
-        out["status_code"] = sorted(c.value for c in codes)
+        out["error_codes"] = sorted(c.value for c in codes)
     return out
 
 
@@ -464,7 +465,7 @@ def article_history_to_json_dict(history: ArticleHistory) -> dict[str, list[dict
     """Serialize :class:`ArticleHistory` to nested dicts suitable for ``json.dump``.
 
     ``NodeId`` keys become ``"{arrete_id}#{article_id}"`` strings.
-    ``status_code`` is written as a sorted list of error code string values.
+    ``error_codes`` is written as a sorted list of error code string values.
     """
     return {
         str(node_id): [_article_version_to_json_dict(v) for v in versions]

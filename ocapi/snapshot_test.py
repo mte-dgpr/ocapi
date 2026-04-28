@@ -54,8 +54,8 @@ def _run_snapshot_pipeline(
     ops_dumped: list[dict[str, Any]] = []
     for op in ops:
         data = op.model_dump(mode="json")
-        if not data.get("status_code"):
-            data.pop("status_code", None)
+        if not data.get("error_codes"):
+            data.pop("error_codes", None)
         ops_dumped.append(data)
     ops_json = strip_none_values(ops_dumped)
     history_json = strip_none_values(article_history_to_json_dict(history))

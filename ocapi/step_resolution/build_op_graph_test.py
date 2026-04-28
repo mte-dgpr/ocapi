@@ -227,19 +227,19 @@ def test_is_full_removal_op_remove_all_with_complex_subtarget() -> None:
         target_id=NodeId(arrete_id="2006-12-14", article_id="ALL"),
         operation_type=OperationType.REMOVE,
         sub_target=SubTarget(type=SubTargetType.COMPLEX, description="annexe 1"),
-        status_code=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+        error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
     )
     assert _is_full_removal_op(op) is False
 
 
 def test_is_full_removal_op_remove_all_with_error_status() -> None:
-    """REMOVE ALL with a non-RESOLVED status_code is not a valid abrogation."""
+    """REMOVE ALL with a non-RESOLVED error_codes is not a valid abrogation."""
     op = Operation(
         id="1",
         source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
         target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
         operation_type=OperationType.REMOVE,
-        status_code=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+        error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
     )
     assert _is_full_removal_op(op) is False
 
@@ -277,7 +277,7 @@ def test_build_graph_ill_defined_remove_all_does_not_abrogate() -> None:
         target_id=NodeId(arrete_id="2006-12-14", article_id="ALL"),
         operation_type=OperationType.REMOVE,
         sub_target=SubTarget(type=SubTargetType.COMPLEX, description="annexe 1"),
-        status_code=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+        error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
     )
 
     _, updated_arrete_files, _, _ = build_graph([ill_defined_op], arrete_files)
@@ -453,4 +453,4 @@ def test_build_graph_missing_target_section_creates_empty_node_with_error() -> N
     assert G.nodes[target].get("content") == ""
     edge_data = G.get_edge_data(NodeId(arrete_id="1981-01-01", article_id="1"), target, 0)
     assert edge_data is not None
-    assert edge_data["status_code"] == [ErrorCode.ERROR_EXTRACTING_TARGET.value]
+    assert edge_data["error_codes"] == [ErrorCode.ERROR_EXTRACTING_TARGET.value]

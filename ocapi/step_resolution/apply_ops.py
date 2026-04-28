@@ -94,7 +94,7 @@ def _edge_to_operation(
         operation_type=op_type,
         operand=data.get("operand", None),
         sub_target=data.get("sub_target", None),
-        status_code=data.get("status_code") or frozenset(),
+        error_codes=data.get("error_codes") or frozenset(),
     )
     return operation
 
@@ -427,29 +427,29 @@ def _apply_single_edge(
         # (i.e. it replaces/removes the full article and does not rely on
         # the current — potentially corrupted — content).
         previous_status = (
-            history[tgt][-1].get("status_code") if tgt in history else None
+            history[tgt][-1].get("error_codes") if tgt in history else None
         ) or frozenset()
         previous_has_error = bool(previous_status)
 
-        article_status_code: frozenset[ErrorCode]
+        article_error_codes: frozenset[ErrorCode]
         new_content = current_content
         if previous_has_error and not _is_unambiguous_all_operation(op):
-            article_status_code = frozenset({ErrorCode.PROPAGATED_ERROR})
+            article_error_codes = frozenset({ErrorCode.PROPAGATED_ERROR})
             _LOGGER.warning(
                 f"Operation {op.id} skipped (propagated_error): "
-                f"target={tgt} had previous status_code={sorted(c.value for c in previous_status)}"
+                f"target={tgt} had previous error_codes={sorted(c.value for c in previous_status)}"
             )
         else:
             try:
-                detection_errors = op.status_code & {
+                detection_errors = op.error_codes & {
                     ErrorCode.ERROR_EXTRACTING_OPERAND,
                     ErrorCode.ERROR_EXTRACTING_TARGET,
                 }
                 if detection_errors:
-                    article_status_code = frozenset(op.status_code)
+                    article_error_codes = frozenset(op.error_codes)
                 elif op.operation_type == OperationType.REPLACE:
                     if op.operand is None:
-                        article_status_code = frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})
+                        article_error_codes = frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})
                     else:
                         target_title_html = (
                             history[tgt][-1].get("title", "")
@@ -463,14 +463,14 @@ def _apply_single_edge(
                         )
                         if cleaned != op.operand:
                             op = op.model_copy(update={"operand": cleaned})
-                        article_status_code, new_content = apply_replace(
+                        article_error_codes, new_content = apply_replace(
                             op,
                             BeautifulSoup(current_content, "html.parser"),
                             source_content=source_html,
                             enable_llm=enable_llm,
                         )
                 elif op.operation_type == OperationType.REMOVE:
-                    article_status_code, new_content = apply_remove(
+                    article_error_codes, new_content = apply_remove(
                         op,
                         BeautifulSoup(current_content, "html.parser"),
                         source_content=source_html,
@@ -478,9 +478,9 @@ def _apply_single_edge(
                     )
                 elif op.operation_type == OperationType.ADD:
                     if op.operand is None:
-                        article_status_code = frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})
+                        article_error_codes = frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})
                     else:
-                        article_status_code, new_content = apply_add(
+                        article_error_codes, new_content = apply_add(
                             op,
                             BeautifulSoup(current_content, "html.parser"),
                             source_content=source_html,
@@ -490,9 +490,9 @@ def _apply_single_edge(
                     raise OperationError(f"Unknown operation type: {op.operation_type}")
             except SubtargetNotFoundError as e:
                 _LOGGER.warning(f"Operation {op_id}: sub-target element not found — {e}")
-                article_status_code = frozenset({ErrorCode.ERROR_FINDING_SUBTARGET})
+                article_error_codes = frozenset({ErrorCode.ERROR_FINDING_SUBTARGET})
 
-        resolved_status[op.id] = article_status_code
+        resolved_status[op.id] = article_error_codes
 
         if creation:
             created_title, created_content = split_section_title(new_content)
@@ -501,7 +501,7 @@ def _apply_single_edge(
                 title=created_title,
                 content=created_content,
                 operation_id=op.id,
-                status_code=article_status_code,
+                error_codes=article_error_codes,
             )
             history[tgt] = [new_version]
             return
@@ -513,7 +513,7 @@ def _apply_single_edge(
             title=prev_title,
             content=new_content,
             operation_id=op.id,
-            status_code=article_status_code,
+            error_codes=article_error_codes,
         )
         history[tgt].append(new_version)
 
@@ -552,18 +552,19 @@ def apply_subgraph_operations(
     stored with ``operation_id`` set to the creation operation.
 
     Returns the updated history, the list of failed operations, and a mapping
-    of ``{operation_id: resolved_status_code}`` for every processed operation.
+    of ``{operation_id: resolved_error_codes}`` for every processed operation.
 
-    Operations may carry ``status_code=COMPLEX_SUBTARGET`` to indicate that the
-    sub-target requires LLM consolidation; that code is **not** copied onto the
-    article history as an error — the apply functions run the LLM path instead.
+    Operations may carry ``error_codes`` containing ``COMPLEX_SUBTARGET`` to
+    indicate that the sub-target requires LLM consolidation; that code is
+    **not** copied onto the article history as an error — the apply functions
+    run the LLM path instead.
 
     Error propagation
     -----------------
-    If the latest version of a target article carries a non-resolved
-    ``status_code`` (e.g. ``ERROR_EXTRACTING_OPERAND`` or ``PROPAGATED_ERROR``),
+    If the latest version of a target article carries any
+    ``error_codes`` (e.g. ``ERROR_EXTRACTING_OPERAND`` or ``PROPAGATED_ERROR``),
     the new operation is *not* applied and the new version receives
-    ``status_code = PROPAGATED_ERROR`` — unless the operation is *unambiguous*
+    ``error_codes = {PROPAGATED_ERROR}`` — unless the operation is *unambiguous*
     (see :func:`_is_unambiguous_all_operation`).  Unambiguous operations
     (REPLACE or REMOVE with ``sub_target.type == FULL_SECTION``) discard the
     existing content entirely, so the previous error is irrelevant and the
@@ -611,7 +612,7 @@ def apply_all_ops(
     """Build the complete article history by processing arrêtés chronologically.
 
     Returns a dict ``{NodeId: [versions]}`` with all modifications, the list
-    of failed operations, and a mapping of ``{operation_id: resolved_status_code}``.
+    of failed operations, and a mapping of ``{operation_id: resolved_error_codes}``.
     """
     history: ArticleHistory = {}
     all_skipped_ops: list[tuple[OperationId, str]] = []
