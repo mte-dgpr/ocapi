@@ -22,7 +22,7 @@ import logging
 from bs4 import BeautifulSoup, Tag
 
 from ocapi.config import FullSectionName
-from ocapi.exceptions import InvalidArticleIdError, OcapiError
+from ocapi.exceptions import InvalidArticleIdError
 from ocapi.step_rendering.article_filter import filter_superfluous_sections
 from ocapi.step_rendering.operation_messages import (
     build_source_operation_messages,
@@ -33,7 +33,6 @@ from ocapi.types import (
     ArticleHistory,
     ArticleVersion,
     ErrorCode,
-    FileType,
     NodeId,
     Operation,
     OperationType,
@@ -48,41 +47,19 @@ from ocapi.utils.arretify_utils import ARRETIFY_SECTION_DATA_SPEC
 _LOGGER = logging.getLogger(__name__)
 
 
-def _select_initial_ap(arrete_files: list[ArreteFile]) -> ArreteFile:
-    """Pick the arrêté to use as the consolidation base.
-
-    Honours a user-provided ``principal`` flag when set (exactly one arrêté
-    must be marked). Otherwise prefers the most recent non-abrogated
-    AP_AUTORISATION (typically the latest refonte), falling back to the
-    first non-abrogated arrêté.
-    """
-    principals = [af for af in arrete_files if af.principal]
-    if len(principals) > 1:
-        ids = ", ".join(af.id for af in principals)
-        raise OcapiError(f"Multiple arrêtés flagged as principal: {ids}")
-    if len(principals) == 1:
-        return principals[0]
-
-    active = [af for af in arrete_files if af.status]
-    ap_autorisations = [af for af in active if af.file_type == FileType.AP_AUTORISATION]
-    if ap_autorisations:
-        return ap_autorisations[-1]
-    if active:
-        return active[0]
-    return arrete_files[0]
-
-
 def make_permit_content(
-    history: ArticleHistory, arrete_files: list[ArreteFile], operations: list[Operation]
+    history: ArticleHistory,
+    arrete_files: list[ArreteFile],
+    operations: list[Operation],
+    ap_principal_id: str,
 ) -> str:
     """Generate the consolidated permit content from the modification history.
 
-    1. Starts from the first non-abrogated AP (status=True); if the initial arrêté
-       was replaced by a refonte (REPLACE ALL), it is skipped.
+    1. Uses the principal AP (selected upstream) as the consolidation base.
     2. For each article of that AP, applies the latest version from history
     3. Returns the consolidated HTML (without header)
     """
-    ap_initial = _select_initial_ap(arrete_files)
+    ap_initial = next(af for af in arrete_files if af.id == ap_principal_id)
     ap_initial_id = ap_initial.id
 
     # Clone the soup to avoid mutating the original

@@ -27,6 +27,7 @@ import pytest
 
 from ocapi.pipeline import run_pipeline
 from ocapi.snapshot import SNAPSHOT_CASES
+from ocapi.step_rendering.step_rendering import permis_to_html
 from ocapi.utils.io_utils import article_history_to_json_dict, load_arrete_files, load_operations
 from ocapi.utils.testing import normalize_html
 from ocapi.utils.utils import strip_none_values
@@ -51,15 +52,9 @@ def _run_snapshot_pipeline(
         operations=operations,
     )
 
-    ops_dumped: list[dict[str, Any]] = []
-    for op in ops:
-        data = op.model_dump(mode="json")
-        if not data.get("error_codes"):
-            data.pop("error_codes", None)
-        ops_dumped.append(data)
-    ops_json = strip_none_values(ops_dumped)
+    ops_json = strip_none_values([op.model_dump(mode="json") for op in ops])
     history_json = strip_none_values(article_history_to_json_dict(history))
-    permis_html = permis.to_html() if permis else ""
+    permis_html = permis_to_html(permis) if permis else ""
     return ops_json, history_json, permis_html
 
 

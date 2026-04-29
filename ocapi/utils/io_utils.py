@@ -341,8 +341,10 @@ def write_permis_output(permis: Permis, output_path: Path) -> None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         if output_path.suffix in [".html", ".htm"]:
-            # Save as HTML
-            output_path.write_text(permis.to_html(), encoding="utf-8")
+            # Imported lazily so io_utils stays usable without rendering deps.
+            from ocapi.step_rendering.step_rendering import permis_to_html
+
+            output_path.write_text(permis_to_html(permis), encoding="utf-8")
         else:
             # Default: save as JSON
             output_path.write_text(permis.model_dump_json(indent=2), encoding="utf-8")

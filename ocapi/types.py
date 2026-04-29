@@ -28,7 +28,7 @@ from typing_extensions import NotRequired
 
 from ocapi.utils.logging_utils import get_logger
 
-from .config import SUPPORTED_ARRETIFY_VERSION, SUPPORTED_ARRETIFY_VERSION_PATTERN, settings
+from .config import SUPPORTED_ARRETIFY_VERSION, SUPPORTED_ARRETIFY_VERSION_PATTERN
 from .exceptions import InvalidArreteIdError, InvalidArticleIdError, InvalidFileFormatError
 
 _LOGGER = get_logger(__name__)
@@ -153,22 +153,6 @@ class Permis(BaseModel):
     contenu: str
     other: str
     aiot: AiotId | None = None
-
-    def to_html(self) -> str:
-        """Render the permit using the fixed HTML template."""
-        template_path = settings.paths.permis_template_path
-        template = template_path.read_text(encoding="utf-8")
-        required_tokens = ("{{HEADER}}", "{{CONTENT}}", "{{OTHER}}")
-        if not all(token in template for token in required_tokens):
-            raise ValueError(
-                "Invalid consolidated permit HTML template: "
-                "placeholders {{HEADER}}, {{CONTENT}} and {{OTHER}} are required."
-            )
-        return (
-            template.replace("{{HEADER}}", self.header)
-            .replace("{{CONTENT}}", self.contenu)
-            .replace("{{OTHER}}", self.other)
-        )
 
 
 class NodeId(BaseModel):

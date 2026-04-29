@@ -21,10 +21,8 @@ from typing import cast
 import pytest
 from bs4 import BeautifulSoup
 
-from ocapi.exceptions import OcapiError
 from ocapi.step_rendering.main_content import (
     _is_abrogated,
-    _select_initial_ap,
     make_permit_content,
     make_section_version,
 )
@@ -75,7 +73,7 @@ class TestIntegrationWithArticleFilter:
             status=True,
         )
         history: ArticleHistory = {}
-        result = make_permit_content(history, [arrete], [])
+        result = make_permit_content(history, [arrete], [], arrete.id)
 
         assert "Article important" in result
         assert "Article superflu" not in result
@@ -291,6 +289,7 @@ def test_make_permit_content_starts_from_first_non_abrogated_arrete() -> None:
         history=history,
         arrete_files=[ap_2020_abroge, ap_2021_refonte],
         operations=[],
+        ap_principal_id=ap_2021_refonte.id,
     )
 
     assert "Article 1 refonte" in html
@@ -333,6 +332,7 @@ def test_make_permit_content_prefers_last_ap_autorisation_as_initial() -> None:
         history=history,
         arrete_files=[ap_complement_old, ap_refonte],
         operations=[],
+        ap_principal_id=ap_refonte.id,
     )
 
     assert "Refonte content" in html
@@ -383,6 +383,7 @@ def test_make_permit_content_renders_full_main_with_section_versions() -> None:
         history=history,
         arrete_files=[ap_initial],
         operations=[op_replace],
+        ap_principal_id=ap_initial.id,
     )
 
     assert 'data-spec="main"' in html
@@ -435,6 +436,7 @@ def test_make_permit_content_inserts_new_article_after_predecessor() -> None:
         history=history,
         arrete_files=[ap_initial],
         operations=[op_create],
+        ap_principal_id=ap_initial.id,
     )
     assert html.index("Article 1 initial") < html.index("Article 2 inséré")
     assert html.index("Article 2 inséré") < html.index("Article 3 initial")
@@ -791,32 +793,6 @@ class TestIsAbrogated:
         assert _is_abrogated(make_testing_article_version("op-other"), {"op-other": op}) is False
 
 
-class TestSelectInitialAp:
-    """Cover the user-provided principal flag in _select_initial_ap."""
-
-    def test_principal_flag_overrides_heuristic(self) -> None:
-        older = make_testing_arrete("2018-01-01", file_type=FileType.AP_AUTORISATION)
-        refonte = make_testing_arrete("2022-01-01", file_type=FileType.AP_AUTORISATION)
-        older.principal = True
-
-        assert _select_initial_ap([older, refonte]) is older
-
-    def test_multiple_principals_raise(self) -> None:
-        first = make_testing_arrete("2018-01-01")
-        second = make_testing_arrete("2022-01-01")
-        first.principal = True
-        second.principal = True
-
-        with pytest.raises(OcapiError):
-            _select_initial_ap([first, second])
-
-    def test_no_principal_keeps_existing_heuristic(self) -> None:
-        older = make_testing_arrete("2018-01-01", file_type=FileType.AP_AUTORISATION)
-        refonte = make_testing_arrete("2022-01-01", file_type=FileType.AP_AUTORISATION)
-
-        assert _select_initial_ap([older, refonte]) is refonte
-
-
 def test_make_permit_content_marks_main_ap_source_articles() -> None:
     """Operations sourced from the main AP get a result message in their source article."""
     html = """
@@ -859,7 +835,7 @@ def test_make_permit_content_marks_main_ap_source_articles() -> None:
         ],
     }
 
-    result = make_permit_content(history, [arrete], [op_ok, op_err])
+    result = make_permit_content(history, [arrete], [op_ok, op_err], arrete.id)
 
     soup = BeautifulSoup(result, "html.parser")
     section_1 = soup.find("section", attrs={"data-number": "1"})
