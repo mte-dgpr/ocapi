@@ -323,7 +323,7 @@ def test_build_graph_full_removal_on_principal_is_not_resolved() -> None:
     assert len(G.nodes) == 0
     assert len(G.edges) == 0
     assert next(af for af in updated_arrete_files if af.id == "2020-04-20").status is True
-    assert updated_ops[0].status_code == StatusCode.ERROR_EXTRACTING_TARGET
+    assert ErrorCode.ERROR_EXTRACTING_TARGET in updated_ops[0].error_codes
 
 
 def test_build_graph_remove_all_marks_arrete_abrogated() -> None:

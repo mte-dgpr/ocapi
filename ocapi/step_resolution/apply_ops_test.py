@@ -763,8 +763,8 @@ def test_apply_add_full_section_new_article_returns_inner_content() -> None:
         operand="<p>Corps neuf</p>",
         sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="contenu entier"),
     )
-    status, out = apply_add(op, BeautifulSoup("", "html.parser"))
-    assert status == frozenset()
+    error_codes, out = apply_add(op, BeautifulSoup("", "html.parser"))
+    assert error_codes == frozenset()
     assert "Corps neuf" in out
     assert "<section" not in out
 
@@ -778,8 +778,8 @@ def test_apply_add_new_article_unwraps_section_operand() -> None:
         operand='<section data-spec="section" data-number="5.1"><p>Wrapped</p></section>',
         sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
     )
-    status, out = apply_add(op, BeautifulSoup("", "html.parser"))
-    assert status == frozenset()
+    error_codes, out = apply_add(op, BeautifulSoup("", "html.parser"))
+    assert error_codes == frozenset()
     assert "Wrapped" in out
     assert "<section" not in out
 
@@ -798,8 +798,8 @@ def test_apply_add_simple_inserts_after_table() -> None:
         operand="<p>Suite</p>",
         sub_target=SubTarget(type=SubTargetType.TABLEAU, position=None, description="le tableau"),
     )
-    status, out = apply_add(op, BeautifulSoup(html, "html.parser"))
-    assert status == frozenset()
+    error_codes, out = apply_add(op, BeautifulSoup(html, "html.parser"))
+    assert error_codes == frozenset()
     assert out.index("<table") < out.index("Suite")
 
 

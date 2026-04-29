@@ -438,6 +438,9 @@ def load_operations(input_dir: Path) -> list[Operation]:
         operations: list[Operation] = []
         for item in raw:
             if isinstance(item, dict):
+                # Drop transient/legacy error fields (status_code is the
+                # pre-rename name kept for backward compatibility with old
+                # operations.json files).
                 item.pop("error_codes", None)
                 item.pop("status_code", None)
             operations.append(Operation.model_validate(item))
