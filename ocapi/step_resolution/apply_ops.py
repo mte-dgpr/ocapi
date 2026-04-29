@@ -140,22 +140,23 @@ def _strip_duplicate_section_title(
     return str(operand_soup).strip()
 
 
-def apply_replace(
+def apply_replace_or_remove(
     operation: Operation,
     soup_input: Content | BeautifulSoup,
     *,
     source_content: str | None = None,
     enable_llm: bool = True,
 ) -> tuple[frozenset[ErrorCode], Content]:
-    """Apply a REPLACE operation to an article's content.
+    """Apply a REPLACE or REMOVE operation to an article's content.
 
     Simple sub-targets are resolved via regex; complex or ambiguous ones fall
-    back to the LLM.
+    back to the LLM. REMOVE is treated as a REPLACE with an empty operand.
 
     Parameters
     ----------
     operation : Operation
-        REPLACE operation; must have both ``sub_target`` and ``operand``.
+        REPLACE or REMOVE operation; must have ``sub_target``. REPLACE operations
+        also require ``operand``.
     soup_input : Content | BeautifulSoup
         Current HTML content of the target article.
     source_content : str | None
@@ -167,97 +168,50 @@ def apply_replace(
     Returns
     -------
     tuple[frozenset[ErrorCode], Content]
-        Resolution status (empty when resolved) and HTML content after replacement.
+        Resolution status (empty when resolved) and HTML content after the operation.
 
     Raises
     ------
     OperationError
-        If ``sub_target`` or ``operand`` is missing from the operation.
+        If ``sub_target`` is missing, or if ``operand`` is missing on a REPLACE.
     """
-    if operation.sub_target is None or operation.operand is None:
-        raise OperationError("REPLACE operations require sub_target and operand.")
+    if operation.operation_type not in (OperationType.REPLACE, OperationType.REMOVE):
+        raise OperationError(
+            "apply_replace_or_remove only handles REPLACE and REMOVE "
+            f"(got {operation.operation_type})."
+        )
+    if operation.sub_target is None:
+        raise OperationError(f"{operation.operation_type.value} operations require sub_target.")
+    is_replace = operation.operation_type == OperationType.REPLACE
+    if is_replace and operation.operand is None:
+        raise OperationError("REPLACE operations require operand.")
+
+    log_action = "replace" if is_replace else "remove"
+    # Narrow type: operand is guaranteed non-None on REPLACE by the check above.
+    replacement = operation.operand if is_replace else ""
+    assert replacement is not None
+
     soup = ensure_soup(soup_input)
     if is_simple_subtarget(operation.sub_target):
         try:
-            modified_soup = replace_subtarget(soup, operation.sub_target, operation.operand)
+            modified_soup = replace_subtarget(soup, operation.sub_target, replacement)
             return frozenset(), str(modified_soup)
         except ValueError:
             # Ambiguity detected, fall back to LLM
-            llm_consolidation_log(operation, "replace")
+            llm_consolidation_log(operation, log_action)
     else:
-        llm_consolidation_log(operation, "replace")
+        llm_consolidation_log(operation, log_action)
     # Complex or ambiguous case: use the LLM (or skip if disabled)
     if not enable_llm:
         return frozenset({ErrorCode.DISABLED_LLM_CALL}), str(soup)
     if ErrorCode.ERROR_EXTRACTING_SOURCE in operation.error_codes:
         return frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE}), str(soup)
     prompt = query_llm_for_subtarget(
-        OperationType.REPLACE,
+        operation.operation_type,
         str(soup),
         operation.sub_target.description or "",
         target_article_id=operation.target_id.article_id,
-        operand=operation.operand,
-        source_content=source_content,
-    )
-    raw = call_llm_api(LLM_CFG, prompt)
-    return frozenset(), extract_html_from_llm_response(raw, str(soup))
-
-
-def apply_remove(
-    operation: Operation,
-    soup_input: Content | BeautifulSoup,
-    *,
-    source_content: str | None = None,
-    enable_llm: bool = True,
-) -> tuple[frozenset[ErrorCode], Content]:
-    """Apply a REMOVE operation to an article's content.
-
-    Simple sub-targets are resolved via regex; complex or ambiguous ones fall
-    back to the LLM.
-
-    Parameters
-    ----------
-    operation : Operation
-        REMOVE operation; must have ``sub_target``.
-    soup_input : Content | BeautifulSoup
-        Current HTML content of the target article.
-    source_content : str | None
-        Optional HTML of the source article (arrêté modifiant).
-    enable_llm : bool
-        When ``False``, return ``DISABLED_LLM_CALL`` instead of calling the LLM.
-
-    Returns
-    -------
-    tuple[frozenset[ErrorCode], Content]
-        Resolution status (empty when resolved) and HTML content after removal.
-
-    Raises
-    ------
-    OperationError
-        If ``sub_target`` is missing from the operation.
-    """
-    if operation.sub_target is None:
-        raise OperationError("REMOVE operations require sub_target.")
-    sub_target = operation.sub_target
-    soup = ensure_soup(soup_input)
-    if is_simple_subtarget(sub_target):
-        try:
-            modified_soup = replace_subtarget(soup, sub_target, "")
-            return frozenset(), str(modified_soup)
-        except ValueError:
-            llm_consolidation_log(operation, "remove")
-    else:
-        llm_consolidation_log(operation, "remove")
-    # Complex or ambiguous case: use the LLM (or skip if disabled)
-    if not enable_llm:
-        return frozenset({ErrorCode.DISABLED_LLM_CALL}), str(soup)
-    if ErrorCode.ERROR_EXTRACTING_SOURCE in operation.error_codes:
-        return frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE}), str(soup)
-    prompt = query_llm_for_subtarget(
-        OperationType.REMOVE,
-        str(soup),
-        sub_target.description or "",
-        target_article_id=operation.target_id.article_id,
+        operand=operation.operand if is_replace else None,
         source_content=source_content,
     )
     raw = call_llm_api(LLM_CFG, prompt)
@@ -453,35 +407,29 @@ def _apply_single_edge(
                 }
                 if detection_errors:
                     article_error_codes = frozenset(op.error_codes)
-                elif op.operation_type == OperationType.REPLACE:
-                    if op.operand is None:
+                elif op.operation_type in (OperationType.REPLACE, OperationType.REMOVE):
+                    if op.operation_type == OperationType.REPLACE and op.operand is None:
                         article_error_codes = frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})
                     else:
-                        target_title_html = (
-                            history[tgt][-1].get("title", "")
-                            if tgt in history
-                            else subG.nodes[tgt].get("title", "")
-                        )
-                        cleaned = _strip_duplicate_section_title(
-                            op.operand,
-                            article_display_number(op.target_id.article_id),
-                            target_title_html,
-                        )
-                        if cleaned != op.operand:
-                            op = op.model_copy(update={"operand": cleaned})
-                        article_error_codes, new_content = apply_replace(
+                        if op.operation_type == OperationType.REPLACE and op.operand:
+                            target_title_html = (
+                                history[tgt][-1].get("title", "")
+                                if tgt in history
+                                else subG.nodes[tgt].get("title", "")
+                            )
+                            cleaned = _strip_duplicate_section_title(
+                                op.operand,
+                                article_display_number(op.target_id.article_id),
+                                target_title_html,
+                            )
+                            if cleaned != op.operand:
+                                op = op.model_copy(update={"operand": cleaned})
+                        article_error_codes, new_content = apply_replace_or_remove(
                             op,
                             BeautifulSoup(current_content, "html.parser"),
                             source_content=source_html,
                             enable_llm=enable_llm,
                         )
-                elif op.operation_type == OperationType.REMOVE:
-                    article_error_codes, new_content = apply_remove(
-                        op,
-                        BeautifulSoup(current_content, "html.parser"),
-                        source_content=source_html,
-                        enable_llm=enable_llm,
-                    )
                 elif op.operation_type == OperationType.ADD:
                     if op.operand is None:
                         article_error_codes = frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})
