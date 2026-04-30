@@ -504,7 +504,7 @@ logger.exception("Erreur avec traceback")
 
 ## 📄 Licence
 
-Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 

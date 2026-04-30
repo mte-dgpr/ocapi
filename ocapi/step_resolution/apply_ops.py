@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -28,13 +28,15 @@ are applied in order. This builds a version history of modified articles across
 successive operations.
 """
 
-import re
 from copy import copy
 
 import networkx as nx
 from bs4 import BeautifulSoup
 
 from ocapi.exceptions import OperationError, SubtargetNotFoundError
+from ocapi.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
+from ocapi.llm_utils.logging import llm_consolidation_log
+from ocapi.llm_utils.prompts import extract_html_from_llm_response
 from ocapi.step_resolution.build_op_graph import split_section_title
 from ocapi.types import (
     ArreteFile,
@@ -51,9 +53,6 @@ from ocapi.types import (
     _to_operation_type,
     article_display_number,
 )
-from ocapi.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
-from ocapi.llm_utils.logging import llm_consolidation_log
-from ocapi.llm_utils.prompts import extract_html_from_llm_response
 from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.subtarget_utils import (
     insert_content_after_subtarget,
@@ -494,9 +493,8 @@ def _apply_single_edge(
                 title=created_title,
                 content=created_content,
                 operation_id=op.id,
+                status_code=article_status_code,
             )
-            if article_status_code != StatusCode.RESOLVED:
-                new_version["status_code"] = article_status_code
             history[tgt] = [new_version]
             return
 
@@ -507,9 +505,8 @@ def _apply_single_edge(
             title=prev_title,
             content=new_content,
             operation_id=op.id,
+            status_code=article_status_code,
         )
-        if article_status_code != StatusCode.RESOLVED:
-            new_version["status_code"] = article_status_code
         history[tgt].append(new_version)
 
         # Propagate downstream: if the target itself has outgoing edges,

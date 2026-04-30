@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -19,18 +19,17 @@
 import pytest
 from bs4 import BeautifulSoup
 
-from ocapi.step_rendering.make_header import (
+from ocapi.step_rendering.header import (
     make_permit_header,
     make_permit_motif,
     make_permit_sources,
     make_permit_visa,
 )
-from ocapi.types import FileType
-from ocapi.utils.testing import make_arrete
+from ocapi.utils.testing import make_testing_arrete
 
 
 def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
-    arrete_2021 = make_arrete(
+    arrete_2021 = make_testing_arrete(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="arrete_2021",
@@ -43,7 +42,7 @@ def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
 </body></html>
 """,
     )
-    arrete_2020 = make_arrete(
+    arrete_2020 = make_testing_arrete(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="arrete_2020",
@@ -74,7 +73,7 @@ def test_make_permit_header_contains_permit_specs_and_ordering() -> None:
 
 def test_make_permit_sources_marks_abrogated_arretes() -> None:
     """Abrogated arrêtés must carry the (ABROGE) mention."""
-    active = make_arrete(
+    active = make_testing_arrete(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="ap_initial",
@@ -85,7 +84,7 @@ def test_make_permit_sources_marks_abrogated_arretes() -> None:
 """,
         status=True,
     )
-    abroge = make_arrete(
+    abroge = make_testing_arrete(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="ap_abroge",
@@ -113,7 +112,7 @@ def test_make_permit_sources_marks_abrogated_arretes() -> None:
 
 def test_make_permit_header_includes_abrogated_arrete_with_visas_and_motifs() -> None:
     """Abrogated arrêté (refonte) must appear in header with ABROGE, its visas and motifs."""
-    ap_2020_abroge = make_arrete(
+    ap_2020_abroge = make_testing_arrete(
         arrete_id="2020-04-20",
         aiot="0001",
         filename="ap_2020",
@@ -126,7 +125,7 @@ def test_make_permit_header_includes_abrogated_arrete_with_visas_and_motifs() ->
 """,
         status=False,
     )
-    ap_2021_refonte = make_arrete(
+    ap_2021_refonte = make_testing_arrete(
         arrete_id="2021-09-24",
         aiot="0001",
         filename="ap_2021",
@@ -158,7 +157,7 @@ def test_make_permit_header_includes_abrogated_arrete_with_visas_and_motifs() ->
 
 def test_make_permit_visa_is_collapsible() -> None:
     """Consolidated visas must be inside a <details> element."""
-    arrete = make_arrete(
+    arrete = make_testing_arrete(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="arrete",
@@ -179,7 +178,7 @@ def test_make_permit_visa_is_collapsible() -> None:
 
 def test_make_permit_motif_is_collapsible() -> None:
     """Consolidated motifs must be inside a <details> element."""
-    arrete = make_arrete(
+    arrete = make_testing_arrete(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="arrete",
@@ -200,13 +199,13 @@ def test_make_permit_motif_is_collapsible() -> None:
 
 
 def test_make_permit_header_raises_when_multiple_aiot_detected() -> None:
-    arrete_1 = make_arrete(
+    arrete_1 = make_testing_arrete(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="arrete_1",
         html='<html><body data-arretify_version="0.2.0"></body></html>',
     )
-    arrete_2 = make_arrete(
+    arrete_2 = make_testing_arrete(
         arrete_id="2022-01-01",
         aiot="0002",
         filename="arrete_2",

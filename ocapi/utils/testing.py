@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -18,7 +18,7 @@
 #
 """Shared helpers for tests."""
 
-from typing import Any, cast
+from typing import cast
 
 from bs4 import BeautifulSoup
 
@@ -49,7 +49,7 @@ def normalize_html(html: str) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
-def make_arrete(
+def make_testing_arrete(
     arrete_id: str,
     html: str | None = None,
     *,
@@ -76,7 +76,7 @@ def make_arrete(
     )
 
 
-def make_raw_op(
+def make_testing_raw_op(
     score: int | None, source: str = "1", target: str = "2", target_arrete: str = "2021-01-01"
 ) -> RawOperation:
     return RawOperation(
@@ -88,7 +88,7 @@ def make_raw_op(
     )
 
 
-def make_op(
+def make_testing_op(
     op_type: OperationType,
     sub_target: SubTarget | None = None,
     *,
@@ -109,7 +109,7 @@ def make_op(
     )
 
 
-def make_article_version(
+def make_testing_article_version(
     operation_id: str | None,
     *,
     version: int = 1,

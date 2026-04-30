@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -16,9 +16,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from ocapi.step_rendering.make_header import make_permit_header
-from ocapi.step_rendering.make_main_content import make_permit_content
-from ocapi.step_rendering.make_other import make_permit_other
+from ocapi.step_rendering.header import make_permit_header
+from ocapi.step_rendering.main_content import make_permit_content
+from ocapi.step_rendering.other import make_permit_other
 from ocapi.types import ArreteFile, ArticleHistory, Operation, Permis
 from ocapi.utils.logging_utils import get_logger
 

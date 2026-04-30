@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -26,7 +26,6 @@ from langchain_core.documents import Document
 
 from ocapi.exceptions import OperationError
 from ocapi.llm_utils import ConfidenceScoreConfig, prompt_detection
-from ocapi.utils.testing import make_raw_op
 from ocapi.step_detection.step_detection import (
     _OPERATION_ID_COUNTER,
     _filter_low_confidence_operations,
@@ -43,6 +42,7 @@ from ocapi.types import (
     SubTarget,
     SubTargetType,
 )
+from ocapi.utils.testing import make_testing_raw_op
 
 
 def _fake_arrete(arrete_id: str = "2022-01-01") -> ArreteFile:
@@ -279,14 +279,14 @@ def test_convert_raw_operation_confidence_score_none_when_absent(
 
 
 def test_filter_low_confidence_keeps_all_when_above_threshold() -> None:
-    ops = [make_raw_op(80), make_raw_op(100), make_raw_op(70)]
+    ops = [make_testing_raw_op(80), make_testing_raw_op(100), make_testing_raw_op(70)]
     kept, had_low = _filter_low_confidence_operations(ops, min_threshold=70, arrete_id="2022-01-01")
     assert len(kept) == 3
     assert had_low is False
 
 
 def test_filter_low_confidence_drops_below_threshold(caplog: pytest.LogCaptureFixture) -> None:
-    ops = [make_raw_op(80), make_raw_op(40), make_raw_op(None)]
+    ops = [make_testing_raw_op(80), make_testing_raw_op(40), make_testing_raw_op(None)]
     with caplog.at_level("WARNING"):
         kept, had_low = _filter_low_confidence_operations(
             ops, min_threshold=70, arrete_id="2022-01-01"
@@ -298,7 +298,7 @@ def test_filter_low_confidence_drops_below_threshold(caplog: pytest.LogCaptureFi
 
 def test_filter_low_confidence_keeps_op_with_none_score() -> None:
     """Operations without a confidence score are always kept (score is optional)."""
-    ops = [make_raw_op(None)]
+    ops = [make_testing_raw_op(None)]
     kept, had_low = _filter_low_confidence_operations(ops, min_threshold=70, arrete_id="2022-01-01")
     assert len(kept) == 1
     assert had_low is False

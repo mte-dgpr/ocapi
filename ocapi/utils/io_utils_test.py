@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -47,7 +47,7 @@ from ocapi.utils.io_utils import (
     save_history,
     save_operations,
 )
-from ocapi.utils.testing import make_arrete, make_op
+from ocapi.utils.testing import make_testing_arrete, make_testing_op
 
 # Minimal valid Arrêtify HTML (version 0.2.0)
 _VALID_HTML = '<html><body data-arretify_version="0.2.0"><p>Content</p></body></html>'
@@ -147,7 +147,7 @@ class TestInitializeArreteFiles(unittest.TestCase):
 
 class TestSaveOperations:
     def test_creates_operations_json(self, tmp_path: Path) -> None:
-        save_operations([make_op(OperationType.REPLACE)], tmp_path)
+        save_operations([make_testing_op(OperationType.REPLACE)], tmp_path)
         assert (tmp_path / "operations.json").exists()
 
     def test_creates_parent_directories(self, tmp_path: Path) -> None:
@@ -161,7 +161,9 @@ class TestSaveOperations:
         assert data == []
 
     def test_saved_json_contains_operation_fields(self, tmp_path: Path) -> None:
-        op = make_op(OperationType.REPLACE, operation_id="op-xyz", operand="<p>new content</p>")
+        op = make_testing_op(
+            OperationType.REPLACE, operation_id="op-xyz", operand="<p>new content</p>"
+        )
         save_operations([op], tmp_path)
         data = json.loads((tmp_path / "operations.json").read_text(encoding="utf-8"))
         assert len(data) == 1
@@ -171,9 +173,9 @@ class TestSaveOperations:
 
     def test_multiple_operations_are_saved(self, tmp_path: Path) -> None:
         ops = [
-            make_op(OperationType.REPLACE, operation_id="op1"),
-            make_op(OperationType.REPLACE, operation_id="op2"),
-            make_op(OperationType.REPLACE, operation_id="op3"),
+            make_testing_op(OperationType.REPLACE, operation_id="op1"),
+            make_testing_op(OperationType.REPLACE, operation_id="op2"),
+            make_testing_op(OperationType.REPLACE, operation_id="op3"),
         ]
         save_operations(ops, tmp_path)
         data = json.loads((tmp_path / "operations.json").read_text(encoding="utf-8"))
@@ -183,7 +185,7 @@ class TestSaveOperations:
 
 class TestLoadOperations:
     def test_loads_previously_saved_operations(self, tmp_path: Path) -> None:
-        ops = [make_op(OperationType.REPLACE, operation_id="op1")]
+        ops = [make_testing_op(OperationType.REPLACE, operation_id="op1")]
         save_operations(ops, tmp_path)
         loaded = load_operations(tmp_path)
         assert len(loaded) == 1
@@ -228,7 +230,7 @@ class TestLoadOperations:
             assert loaded[0].operation_type == op_type
 
     def test_loads_multiple_operations(self, tmp_path: Path) -> None:
-        ops = [make_op(OperationType.REPLACE, operation_id=f"op{i}") for i in range(5)]
+        ops = [make_testing_op(OperationType.REPLACE, operation_id=f"op{i}") for i in range(5)]
         save_operations(ops, tmp_path)
         loaded = load_operations(tmp_path)
         assert len(loaded) == 5
@@ -328,7 +330,7 @@ class TestFilterAndDeduplicateArreteFiles:
     )
     def test_excludes_various_non_ap_types(self, pattern: str) -> None:
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2020-01-01",
                 _VALID_HTML,
                 filename=f"2020-01-01_{pattern}.html",
@@ -339,7 +341,7 @@ class TestFilterAndDeduplicateArreteFiles:
 
     def test_keeps_ap_autorisation(self) -> None:
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2020-01-01",
                 _VALID_HTML,
                 filename="2020-01-01_ap d'autorisation.html",
@@ -355,13 +357,13 @@ class TestFilterAndDeduplicateArreteFiles:
     def test_dedup_same_date_type_identical_content(self, caplog: pytest.LogCaptureFixture) -> None:
         html = '<html><body data-arretify_version="0.2.0"><p>Same</p></body></html>'
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2023-09-12",
                 html,
                 filename="2023-09-12_ap prescriptions complémentaires_a.html",
                 file_type=FileType.AP_COMPLEMENTAIRE,
             ),
-            make_arrete(
+            make_testing_arrete(
                 "2023-09-12",
                 html,
                 filename="2023-09-12_ap prescriptions complémentaires_b.html",
@@ -381,13 +383,13 @@ class TestFilterAndDeduplicateArreteFiles:
         html_a = '<html><body data-arretify_version="0.2.0"><p>Version A</p></body></html>'
         html_b = '<html><body data-arretify_version="0.2.0"><p>Version B</p></body></html>'
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2023-09-12",
                 html_a,
                 filename="2023-09-12_ap prescriptions complémentaires_a.html",
                 file_type=FileType.AP_COMPLEMENTAIRE,
             ),
-            make_arrete(
+            make_testing_arrete(
                 "2023-09-12",
                 html_b,
                 filename="2023-09-12_ap prescriptions complémentaires_b.html",
@@ -403,13 +405,13 @@ class TestFilterAndDeduplicateArreteFiles:
 
     def test_dedup_same_date_different_types_keeps_highest_priority(self) -> None:
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2020-11-03",
                 _VALID_HTML,
                 filename="2020-11-03_arrêté préfectoral_a.html",
                 file_type=FileType.ARRETE_PREFECTORAL,
             ),
-            make_arrete(
+            make_testing_arrete(
                 "2020-11-03",
                 _VALID_HTML,
                 filename="2020-11-03_ap prescriptions complémentaires_b.html",
@@ -422,13 +424,13 @@ class TestFilterAndDeduplicateArreteFiles:
 
     def test_dedup_ap_autorisation_wins_over_arrete_prefectoral(self) -> None:
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2022-02-02",
                 _VALID_HTML,
                 filename="2022-02-02_ap prescriptions complémentaires.html",
                 file_type=FileType.AP_COMPLEMENTAIRE,
             ),
-            make_arrete(
+            make_testing_arrete(
                 "2022-02-02",
                 _VALID_HTML,
                 filename="2022-02-02_ap d'autorisation.html",
@@ -443,13 +445,13 @@ class TestFilterAndDeduplicateArreteFiles:
 
     def test_excludes_rapport_and_keeps_ap_on_same_date(self) -> None:
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2017-09-22",
                 _VALID_HTML,
                 filename="2017-09-22_arrêté préfectoral.html",
                 file_type=FileType.ARRETE_PREFECTORAL,
             ),
-            make_arrete(
+            make_testing_arrete(
                 "2017-09-22",
                 _VALID_HTML,
                 filename="2017-09-22_rapport.html",
@@ -463,7 +465,7 @@ class TestFilterAndDeduplicateArreteFiles:
     def test_five_identical_duplicates_keeps_one(self) -> None:
         html = '<html><body data-arretify_version="0.2.0"><p>Same content</p></body></html>'
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2024-01-17",
                 html,
                 filename=f"2024-01-17_ap prescriptions complémentaires_{i}.html",
@@ -476,19 +478,19 @@ class TestFilterAndDeduplicateArreteFiles:
 
     def test_preserves_order_across_dates(self) -> None:
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2020-01-01",
                 _VALID_HTML,
                 filename="2020-01-01_arrêté préfectoral.html",
                 file_type=FileType.ARRETE_PREFECTORAL,
             ),
-            make_arrete(
+            make_testing_arrete(
                 "2021-06-15",
                 _VALID_HTML,
                 filename="2021-06-15_ap prescriptions complémentaires.html",
                 file_type=FileType.AP_COMPLEMENTAIRE,
             ),
-            make_arrete(
+            make_testing_arrete(
                 "2023-12-01",
                 _VALID_HTML,
                 filename="2023-12-01_ap d'autorisation.html",
@@ -503,7 +505,7 @@ class TestFilterAndDeduplicateArreteFiles:
 
     def test_single_file_passes_through(self) -> None:
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2020-01-01",
                 _VALID_HTML,
                 filename="2020-01-01_arrêté préfectoral.html",
@@ -529,13 +531,13 @@ class TestFilterAndDeduplicateArreteFiles:
             "</body></html>"
         )
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2024-09-26",
                 base_html,
                 filename="2024-09-26_ap d'autorisation.html",
                 file_type=FileType.AP_AUTORISATION,
             ),
-            make_arrete(
+            make_testing_arrete(
                 "2024-09-26",
                 annexe_html,
                 filename="2024-09-26_ap d'autorisation_Annexe 1.html",
@@ -567,19 +569,19 @@ class TestFilterAndDeduplicateArreteFiles:
             "</body></html>"
         )
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2024-09-26",
                 base_html,
                 filename="2024-09-26_ap d'autorisation.html",
                 file_type=FileType.AP_AUTORISATION,
             ),
-            make_arrete(
+            make_testing_arrete(
                 "2024-09-26",
                 annexe_a,
                 filename="2024-09-26_ap d'autorisation_Annexe 2-a.html",
                 file_type=FileType.AP_AUTORISATION,
             ),
-            make_arrete(
+            make_testing_arrete(
                 "2024-09-26",
                 annexe_b,
                 filename="2024-09-26_ap d'autorisation_Annexe 1.html",
@@ -601,7 +603,7 @@ class TestFilterAndDeduplicateArreteFiles:
             "</body></html>"
         )
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2024-09-26",
                 annexe_html,
                 filename="2024-09-26_ap d'autorisation_Annexe 2-a.html",
@@ -624,13 +626,13 @@ class TestFilterAndDeduplicateArreteFiles:
             "</body></html>"
         )
         files = [
-            make_arrete(
+            make_testing_arrete(
                 "2024-09-26",
                 annexe_a,
                 filename="2024-09-26_ap d'autorisation_Annexe 2-a.html",
                 file_type=FileType.AP_AUTORISATION,
             ),
-            make_arrete(
+            make_testing_arrete(
                 "2024-09-26",
                 annexe_b,
                 filename="2024-09-26_ap d'autorisation_Annexe 1.html",

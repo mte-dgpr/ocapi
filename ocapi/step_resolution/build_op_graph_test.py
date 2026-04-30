@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -96,7 +96,7 @@ def test_build_graph() -> None:
             operation_type=OperationType.REMOVE,
         ),
     ]
-    G, updated_arrete_files, skipped_ops = build_graph(operations, arrete_files)
+    G, updated_arrete_files, skipped_ops, _updated_ops = build_graph(operations, arrete_files)
 
     assert len(G.nodes) == 4
     assert len(G.edges) == 2
@@ -170,7 +170,7 @@ def test_build_graph_replace_all_marks_arrete_abrogated() -> None:
         operation_type=OperationType.REPLACE,
     )
 
-    G, updated_arrete_files, skipped_ops = build_graph([replace_all_op], arrete_files)
+    G, updated_arrete_files, skipped_ops, updated_ops = build_graph([replace_all_op], arrete_files)
 
     assert len(G.nodes) == 0
     assert len(G.edges) == 0
@@ -180,6 +180,8 @@ def test_build_graph_replace_all_marks_arrete_abrogated() -> None:
     assert arrete_2020.status is False
     arrete_2021 = next(af for af in updated_arrete_files if af.id == "2021-09-24")
     assert arrete_2021.status is True
+
+    assert updated_ops[0].status_code == StatusCode.RESOLVED
 
 
 def test_is_full_removal_op_replace_all() -> None:
@@ -276,7 +278,7 @@ def test_build_graph_ill_defined_remove_all_does_not_abrogate() -> None:
         status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
     )
 
-    _, updated_arrete_files, _ = build_graph([ill_defined_op], arrete_files)
+    _, updated_arrete_files, _, _ = build_graph([ill_defined_op], arrete_files)
 
     arrete_2006 = updated_arrete_files[0]
     assert arrete_2006.status is True
@@ -314,12 +316,12 @@ def test_build_graph_full_removal_on_principal_is_not_resolved() -> None:
         )
     ]
 
-    G, updated_arrete_files, _ = build_graph(ops, [principal, later])
+    G, updated_arrete_files, _, updated_ops = build_graph(ops, [principal, later])
 
     assert len(G.nodes) == 0
     assert len(G.edges) == 0
     assert next(af for af in updated_arrete_files if af.id == "2020-04-20").status is True
-    assert ops[0].status_code == StatusCode.ERROR_EXTRACTING_TARGET
+    assert updated_ops[0].status_code == StatusCode.ERROR_EXTRACTING_TARGET
 
 
 def test_build_graph_remove_all_marks_arrete_abrogated() -> None:
@@ -344,12 +346,13 @@ def test_build_graph_remove_all_marks_arrete_abrogated() -> None:
         operation_type=OperationType.REMOVE,
     )
 
-    G, updated_arrete_files, _ = build_graph([remove_all_op], arrete_files)
+    G, updated_arrete_files, _, updated_ops = build_graph([remove_all_op], arrete_files)
 
     assert len(G.nodes) == 0
     assert len(G.edges) == 0
     arrete_2020 = updated_arrete_files[0]
     assert arrete_2020.status is False
+    assert updated_ops[0].status_code == StatusCode.RESOLVED
 
 
 def test_build_graph_keeps_target_content_with_multiple_ops_same_target() -> None:
@@ -396,7 +399,7 @@ def test_build_graph_keeps_target_content_with_multiple_ops_same_target() -> Non
         ),
     ]
 
-    G, _updated_arrete_files, skipped_ops = build_graph(operations, arrete_files)
+    G, _updated_arrete_files, skipped_ops, _ = build_graph(operations, arrete_files)
 
     assert len(skipped_ops) == 0
     assert G.in_degree(target) == 2
@@ -440,7 +443,7 @@ def test_build_graph_missing_target_section_creates_empty_node_with_error() -> N
             sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
         ),
     ]
-    G, _, skipped_ops = build_graph(operations, arrete_files)
+    G, _, skipped_ops, _ = build_graph(operations, arrete_files)
 
     assert len(skipped_ops) == 0
     target = NodeId(arrete_id="1980-01-01", article_id="99")

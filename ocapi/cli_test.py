@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -20,7 +20,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from ocapi.cli import main, run_main
-from ocapi.utils.testing import make_arrete
+from ocapi.utils.testing import make_testing_arrete
 
 
 @patch("ocapi.cli.initialize_root_logger")
@@ -173,7 +173,7 @@ def test_run_main_principal_id_flags_matching_arrete(
     mock_load: MagicMock, mock_pipeline: MagicMock
 ) -> None:
     """--principal-id marks the matching arrêté before the pipeline runs."""
-    arretes = [make_arrete("2020-01-01"), make_arrete("2024-09-27")]
+    arretes = [make_testing_arrete("2020-01-01"), make_testing_arrete("2024-09-27")]
     mock_load.return_value = arretes
     mock_pipeline.return_value = ([], {}, arretes, None)
 
@@ -194,7 +194,7 @@ def test_run_main_principal_id_missing_returns_error(
     mock_load: MagicMock, mock_pipeline: MagicMock
 ) -> None:
     """--principal-id with no matching arrêté returns exit code 1 and skips the pipeline."""
-    mock_load.return_value = [make_arrete("2020-01-01")]
+    mock_load.return_value = [make_testing_arrete("2020-01-01")]
 
     exit_code = run_main(
         Path("ignored"),

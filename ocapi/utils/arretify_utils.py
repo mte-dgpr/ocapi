@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -18,6 +18,8 @@
 #
 from typing import Tuple
 
+from typing import cast
+
 from arretify.semantic_tag_specs import AppendixSpec, SectionSpec
 from bs4 import BeautifulSoup, Tag
 
@@ -25,7 +27,9 @@ from ocapi.types import ImageMap
 
 ARRETIFY_SECTION_DATA_SPEC = SectionSpec.spec_name
 ARRETIFY_APPENDIX_DATA_SPEC = AppendixSpec.spec_name
-ARRETIFY_APPENDIX_DATA_TAG = AppendixSpec.tag_name
+# AppendixSpec.tag_name is typed as a union including a builder callable in
+# arretify, but appendix is a static tag name in practice.
+ARRETIFY_APPENDIX_DATA_TAG = cast(str, AppendixSpec.tag_name)
 
 ARRETIFY_SECTION_SELECTOR = f'*[data-spec="{ARRETIFY_SECTION_DATA_SPEC}"]'
 

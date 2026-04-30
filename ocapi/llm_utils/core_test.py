@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -19,7 +19,7 @@
 from unittest.mock import Mock, patch
 
 import pytest
-import requests  # type: ignore[import-untyped]
+import requests
 
 import ocapi.llm_utils.core as llm_utils_module
 from ocapi.exceptions import LLMNetworkError, LLMResponseError

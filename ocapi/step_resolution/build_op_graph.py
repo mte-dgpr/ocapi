@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -28,7 +28,6 @@ import networkx as nx
 from bs4 import BeautifulSoup
 
 from ocapi.exceptions import SectionNotFoundError
-from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC, ARRETIFY_SECTION_DATA_SPEC
 from ocapi.types import (
     ArreteFile,
     ArreteId,
@@ -39,6 +38,7 @@ from ocapi.types import (
     StatusCode,
     SubTargetType,
 )
+from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC, ARRETIFY_SECTION_DATA_SPEC
 from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
@@ -165,15 +165,18 @@ def get_node_content(node: NodeId, soup: BeautifulSoup) -> Tuple[str, str]:
 
 def build_graph(
     ops: list[Operation], arrete_files: list[ArreteFile]
-) -> Tuple[nx.MultiDiGraph, list[ArreteFile], list[tuple[Operation, str]]]:
+) -> Tuple[nx.MultiDiGraph, list[ArreteFile], list[tuple[Operation, str]], list[Operation]]:
     """Build the operations graph.
 
-    Returns the graph, the list of arrêtés, and the list of failed operations.
+    Returns the graph, the list of arrêtés, the list of failed operations,
+    and the operations list with their ``status_code`` updated for the ones
+    resolved at graph-building time (full removals marked ``RESOLVED``,
+    missing target sections marked ``ERROR_EXTRACTING_TARGET``).
 
     A full removal (REMOVE/REPLACE ALL) targeting an arrêté flagged as
     ``principal`` is not applied: the operation is marked
-    ``ERROR_EXTRACTING_TARGET`` in place because such a removal most likely
-    reflects a detection mistake.
+    ``ERROR_EXTRACTING_TARGET`` because such a removal most likely reflects
+    a detection mistake.
     """
     G = nx.MultiDiGraph()
     soups: dict[ArreteId, BeautifulSoup] = {
@@ -181,8 +184,9 @@ def build_graph(
     }
     principal_ids = {af.id for af in arrete_files if af.principal}
     skipped_ops: list[tuple[Operation, str]] = []  # (operation, reason) for each failure
+    updated_ops: list[Operation] = []
 
-    for index, op in enumerate(ops):
+    for op in ops:
         try:
             if _is_full_removal_op(op):
                 if op.target_id.arrete_id in principal_ids:
@@ -190,14 +194,15 @@ def build_graph(
                         "A full removal of the principal arrete has been detected. "
                         "This operation was not resolved."
                     )
-                    ops[index] = op.model_copy(
-                        update={"status_code": StatusCode.ERROR_EXTRACTING_TARGET}
+                    updated_ops.append(
+                        op.model_copy(update={"status_code": StatusCode.ERROR_EXTRACTING_TARGET})
                     )
                     continue
                 for arrete_file in arrete_files:
                     if arrete_file.id == op.target_id.arrete_id:
                         arrete_file.status = False
                         break
+                updated_ops.append(op.model_copy(update={"status_code": StatusCode.RESOLVED}))
                 continue
 
             target_soup = soups.get(op.target_id.arrete_id)
@@ -205,6 +210,7 @@ def build_graph(
                 error_msg = f"Operation {op.id}: arrêté {op.target_id.arrete_id} not found in files"
                 _LOGGER.warning(error_msg)
                 skipped_ops.append((op, error_msg))
+                updated_ops.append(op)
                 continue
 
             try:
@@ -224,20 +230,22 @@ def build_graph(
             add_node(G, op.source_id, node_content=source_content, node_title=source_title)
             add_node(G, op.target_id, node_content=target_content, node_title=target_title)
             add_edge(G, op)
+            updated_ops.append(op)
         except Exception as e:
             error_msg = f"Operation {op.id} skipped: {str(e)}"
             _LOGGER.warning(error_msg)
             skipped_ops.append((op, str(e)))
+            updated_ops.append(op)
             continue
 
     if skipped_ops:
         _LOGGER.warning(f"{len(skipped_ops)} operation(s) skipped while building the graph")
 
-    return G, arrete_files, skipped_ops
+    return G, arrete_files, skipped_ops, updated_ops
 
 
 def _is_full_removal_op(operation: Operation) -> bool:
-    """Return True if the operation removes or replaces an entire arrêté (REMOVE ALL or REPLACE ALL).
+    """Return True if the operation removes or replaces an entire arrêté.
 
     REMOVE with target ALL = explicit abrogation.
     REPLACE with target ALL = arrêté refonte : the source arrêté replaces the entire

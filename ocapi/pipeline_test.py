@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -20,16 +20,16 @@ from unittest.mock import MagicMock, patch
 
 from ocapi.pipeline import run_pipeline
 from ocapi.types import NodeId, Operation, OperationType
-from ocapi.utils.testing import make_arrete
+from ocapi.utils.testing import make_testing_arrete
 
 
 @patch("ocapi.pipeline.step_detection", return_value=[])
 def test_start_date_skips_earlier_arretes(mock_detection: MagicMock) -> None:
     """start_date excludes the initial arrêté (<=): only strictly later arrêtés are detected."""
     arretes = [
-        make_arrete("2009-12-08"),
-        make_arrete("2014-01-09"),
-        make_arrete("2023-12-04"),
+        make_testing_arrete("2009-12-08"),
+        make_testing_arrete("2014-01-09"),
+        make_testing_arrete("2023-12-04"),
     ]
 
     run_pipeline(arretes, start_date="2014-01-09", enable_rendering=False)
@@ -44,7 +44,7 @@ def test_start_date_skips_earlier_arretes(mock_detection: MagicMock) -> None:
 @patch("ocapi.pipeline.step_detection", return_value=[])
 def test_start_date_none_defaults_to_first_arrete(mock_detection: MagicMock) -> None:
     """Without start_date, the first arrêté is excluded from detection by default."""
-    arretes = [make_arrete("2009-12-08"), make_arrete("2014-01-09")]
+    arretes = [make_testing_arrete("2009-12-08"), make_testing_arrete("2014-01-09")]
 
     run_pipeline(arretes, start_date=None, enable_rendering=False)
 
@@ -56,7 +56,7 @@ def test_start_date_none_defaults_to_first_arrete(mock_detection: MagicMock) -> 
 
 @patch("ocapi.pipeline.step_detection", return_value=[])
 def test_start_date_after_all_arretes_processes_none(mock_detection: MagicMock) -> None:
-    arretes = [make_arrete("2009-12-08"), make_arrete("2014-01-09")]
+    arretes = [make_testing_arrete("2009-12-08"), make_testing_arrete("2014-01-09")]
 
     run_pipeline(arretes, start_date="2025-01-01", enable_rendering=False)
 
@@ -73,9 +73,9 @@ def test_start_date_passes_all_arretes_to_resolution(
 ) -> None:
     """start_date filters detection, but all arrêtés must still reach resolution."""
     arretes = [
-        make_arrete("2009-12-08"),
-        make_arrete("2014-01-09"),
-        make_arrete("2023-12-04"),
+        make_testing_arrete("2009-12-08"),
+        make_testing_arrete("2014-01-09"),
+        make_testing_arrete("2023-12-04"),
     ]
 
     run_pipeline(arretes, start_date="2014-01-09", enable_rendering=False)
@@ -96,7 +96,7 @@ def test_run_pipeline_with_preloaded_operations(
     mock_resolution: MagicMock,
 ) -> None:
     """When operations are provided and enable_detection=False, detection is skipped."""
-    arretes = [make_arrete("2009-12-08"), make_arrete("2014-01-09")]
+    arretes = [make_testing_arrete("2009-12-08"), make_testing_arrete("2014-01-09")]
     preloaded = [
         Operation(
             id="1",
@@ -124,7 +124,7 @@ def test_run_pipeline_with_preloaded_operations(
 @patch("ocapi.pipeline.step_detection", return_value=[])
 def test_start_date_equal_to_first_arrete_skips_it(mock_detection: MagicMock) -> None:
     """Boundary: start_date == earliest arrêté excludes that arrêté from detection (<=)."""
-    arretes = [make_arrete("2009-12-08"), make_arrete("2014-01-09")]
+    arretes = [make_testing_arrete("2009-12-08"), make_testing_arrete("2014-01-09")]
 
     run_pipeline(arretes, start_date="2009-12-08", enable_rendering=False)
 

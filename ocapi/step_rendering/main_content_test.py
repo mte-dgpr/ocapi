@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -22,7 +22,7 @@ import pytest
 from bs4 import BeautifulSoup
 
 from ocapi.exceptions import OcapiError
-from ocapi.step_rendering.make_main_content import (
+from ocapi.step_rendering.main_content import (
     _is_abrogated,
     _select_initial_ap,
     make_permit_content,
@@ -42,7 +42,7 @@ from ocapi.types import (
     SubTargetType,
     status_code_reason,
 )
-from ocapi.utils.testing import make_arrete, make_article_version
+from ocapi.utils.testing import make_testing_arrete, make_testing_article_version
 
 
 class TestIntegrationWithArticleFilter:
@@ -258,7 +258,7 @@ def test_make_section_version_full_remove_marks_abrogated() -> None:
 
 def test_make_permit_content_starts_from_first_non_abrogated_arrete() -> None:
     """When the initial arrêté is abrogated (refonte), content starts from the next one."""
-    ap_2020_abroge = make_arrete(
+    ap_2020_abroge = make_testing_arrete(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="ap_2020_abroge",
@@ -271,7 +271,7 @@ def test_make_permit_content_starts_from_first_non_abrogated_arrete() -> None:
 """,
         status=False,
     )
-    ap_2021_refonte = make_arrete(
+    ap_2021_refonte = make_testing_arrete(
         arrete_id="2021-01-01",
         aiot="0001",
         filename="ap_2021_refonte",
@@ -300,7 +300,7 @@ def test_make_permit_content_starts_from_first_non_abrogated_arrete() -> None:
 
 def test_make_permit_content_prefers_last_ap_autorisation_as_initial() -> None:
     """When an old complementary AP comes first, the latest AP_AUTORISATION is used."""
-    ap_complement_old = make_arrete(
+    ap_complement_old = make_testing_arrete(
         arrete_id="2018-01-01",
         aiot="0001",
         filename="ap_complement_old",
@@ -314,7 +314,7 @@ def test_make_permit_content_prefers_last_ap_autorisation_as_initial() -> None:
         file_type=FileType.AP_COMPLEMENTAIRE,
     )
 
-    ap_refonte = make_arrete(
+    ap_refonte = make_testing_arrete(
         arrete_id="2022-01-01",
         aiot="0001",
         filename="ap_refonte",
@@ -341,7 +341,7 @@ def test_make_permit_content_prefers_last_ap_autorisation_as_initial() -> None:
 
 def test_make_permit_content_renders_full_main_with_section_versions() -> None:
     """Layout / section_version behaviour; kept for future refonte of permit HTML."""
-    ap_initial = make_arrete(
+    ap_initial = make_testing_arrete(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="ap_initial",
@@ -395,7 +395,7 @@ def test_make_permit_content_renders_full_main_with_section_versions() -> None:
 
 def test_make_permit_content_inserts_new_article_after_predecessor() -> None:
     """NEW_ARTICLE sections are inserted after the greatest existing article id below them."""
-    ap_initial = make_arrete(
+    ap_initial = make_testing_arrete(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="ap_initial",
@@ -676,10 +676,10 @@ class TestIsAbrogated:
     """Direct unit tests for _is_abrogated edge cases."""
 
     def test_no_operation_id_returns_false(self) -> None:
-        assert _is_abrogated(make_article_version(None), {}) is False
+        assert _is_abrogated(make_testing_article_version(None), {}) is False
 
     def test_unknown_operation_id_returns_false(self) -> None:
-        assert _is_abrogated(make_article_version("unknown"), {}) is False
+        assert _is_abrogated(make_testing_article_version("unknown"), {}) is False
 
     def test_replace_operation_returns_false(self) -> None:
         op = Operation(
@@ -688,7 +688,7 @@ class TestIsAbrogated:
             target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
             operation_type=OperationType.REPLACE,
         )
-        assert _is_abrogated(make_article_version("op-r"), {"op-r": op}) is False
+        assert _is_abrogated(make_testing_article_version("op-r"), {"op-r": op}) is False
 
     def test_add_operation_returns_false(self) -> None:
         op = Operation(
@@ -697,7 +697,7 @@ class TestIsAbrogated:
             target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
             operation_type=OperationType.ADD,
         )
-        assert _is_abrogated(make_article_version("op-a"), {"op-a": op}) is False
+        assert _is_abrogated(make_testing_article_version("op-a"), {"op-a": op}) is False
 
     def test_remove_no_sub_target_returns_true(self) -> None:
         op = Operation(
@@ -706,7 +706,7 @@ class TestIsAbrogated:
             target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
             operation_type=OperationType.REMOVE,
         )
-        assert _is_abrogated(make_article_version("op-rm"), {"op-rm": op}) is True
+        assert _is_abrogated(make_testing_article_version("op-rm"), {"op-rm": op}) is True
 
     def test_remove_full_section_all_returns_true(self) -> None:
         op = Operation(
@@ -716,7 +716,7 @@ class TestIsAbrogated:
             operation_type=OperationType.REMOVE,
             sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="ALL"),
         )
-        assert _is_abrogated(make_article_version("op-fs"), {"op-fs": op}) is True
+        assert _is_abrogated(make_testing_article_version("op-fs"), {"op-fs": op}) is True
 
     def test_remove_full_section_contenu_entier_returns_true(self) -> None:
         op = Operation(
@@ -726,7 +726,7 @@ class TestIsAbrogated:
             operation_type=OperationType.REMOVE,
             sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="contenu entier"),
         )
-        assert _is_abrogated(make_article_version("op-ce"), {"op-ce": op}) is True
+        assert _is_abrogated(make_testing_article_version("op-ce"), {"op-ce": op}) is True
 
     def test_remove_tableau_returns_false(self) -> None:
         op = Operation(
@@ -736,7 +736,7 @@ class TestIsAbrogated:
             operation_type=OperationType.REMOVE,
             sub_target=SubTarget(type=SubTargetType.TABLEAU, description="tableau X"),
         )
-        assert _is_abrogated(make_article_version("op-tab"), {"op-tab": op}) is False
+        assert _is_abrogated(make_testing_article_version("op-tab"), {"op-tab": op}) is False
 
     def test_remove_alinea_returns_false(self) -> None:
         op = Operation(
@@ -746,7 +746,7 @@ class TestIsAbrogated:
             operation_type=OperationType.REMOVE,
             sub_target=SubTarget(type=SubTargetType.ALINEA, description="premier alinéa"),
         )
-        assert _is_abrogated(make_article_version("op-al"), {"op-al": op}) is False
+        assert _is_abrogated(make_testing_article_version("op-al"), {"op-al": op}) is False
 
     def test_remove_phrase_returns_false(self) -> None:
         op = Operation(
@@ -756,7 +756,7 @@ class TestIsAbrogated:
             operation_type=OperationType.REMOVE,
             sub_target=SubTarget(type=SubTargetType.PHRASE, description="phrase Y"),
         )
-        assert _is_abrogated(make_article_version("op-ph"), {"op-ph": op}) is False
+        assert _is_abrogated(make_testing_article_version("op-ph"), {"op-ph": op}) is False
 
     def test_remove_complex_returns_false(self) -> None:
         op = Operation(
@@ -766,7 +766,7 @@ class TestIsAbrogated:
             operation_type=OperationType.REMOVE,
             sub_target=SubTarget(type=SubTargetType.COMPLEX, description="desc"),
         )
-        assert _is_abrogated(make_article_version("op-cx"), {"op-cx": op}) is False
+        assert _is_abrogated(make_testing_article_version("op-cx"), {"op-cx": op}) is False
 
     def test_remove_full_section_other_description_returns_false(self) -> None:
         op = Operation(
@@ -776,22 +776,22 @@ class TestIsAbrogated:
             operation_type=OperationType.REMOVE,
             sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="titre uniquement"),
         )
-        assert _is_abrogated(make_article_version("op-other"), {"op-other": op}) is False
+        assert _is_abrogated(make_testing_article_version("op-other"), {"op-other": op}) is False
 
 
 class TestSelectInitialAp:
     """Cover the user-provided principal flag in _select_initial_ap."""
 
     def test_principal_flag_overrides_heuristic(self) -> None:
-        older = make_arrete("2018-01-01", file_type=FileType.AP_AUTORISATION)
-        refonte = make_arrete("2022-01-01", file_type=FileType.AP_AUTORISATION)
+        older = make_testing_arrete("2018-01-01", file_type=FileType.AP_AUTORISATION)
+        refonte = make_testing_arrete("2022-01-01", file_type=FileType.AP_AUTORISATION)
         older.principal = True
 
         assert _select_initial_ap([older, refonte]) is older
 
     def test_multiple_principals_raise(self) -> None:
-        first = make_arrete("2018-01-01")
-        second = make_arrete("2022-01-01")
+        first = make_testing_arrete("2018-01-01")
+        second = make_testing_arrete("2022-01-01")
         first.principal = True
         second.principal = True
 
@@ -799,8 +799,8 @@ class TestSelectInitialAp:
             _select_initial_ap([first, second])
 
     def test_no_principal_keeps_existing_heuristic(self) -> None:
-        older = make_arrete("2018-01-01", file_type=FileType.AP_AUTORISATION)
-        refonte = make_arrete("2022-01-01", file_type=FileType.AP_AUTORISATION)
+        older = make_testing_arrete("2018-01-01", file_type=FileType.AP_AUTORISATION)
+        refonte = make_testing_arrete("2022-01-01", file_type=FileType.AP_AUTORISATION)
 
         assert _select_initial_ap([older, refonte]) is refonte
 
@@ -815,7 +815,7 @@ def test_make_permit_content_marks_main_ap_source_articles() -> None:
  </main>
 </body></html>
 """
-    arrete = make_arrete("2021-01-01", html)
+    arrete = make_testing_arrete("2021-01-01", html)
     op_ok = Operation(
         id="op-1",
         source_id=NodeId(arrete_id="2021-01-01", article_id="1"),

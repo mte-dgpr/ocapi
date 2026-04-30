@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -30,6 +30,7 @@ from pathlib import Path
 
 from ocapi.config import settings
 from ocapi.exceptions import OcapiError
+from ocapi.llm_utils import config_model_llm
 from ocapi.pipeline import run_pipeline
 from ocapi.snapshot import SNAPSHOT_CASES
 from ocapi.types import Operation
@@ -41,7 +42,6 @@ from ocapi.utils.io_utils import (
     write_json_output,
     write_permis_output,
 )
-from ocapi.llm_utils import config_model_llm
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
 
 _LOGGER = get_logger(__name__)
