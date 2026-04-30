@@ -447,12 +447,9 @@ class Operation(_BaseModelWithConfig):
     def _derive_detection_error_codes(self) -> "Operation":
         """Derive ``ERROR_EXTRACTING_OPERAND`` from the operation shape.
 
-        Two cases are flagged here so callers don't have to track it themselves:
-
-        - target_article=ALL with a sub-target other than FULL_SECTION is
-          incoherent (the LLM tried to target something specific inside
-          "all articles").
-        - REPLACE / ADD operations with no operand: there is nothing to apply.
+        target_article=ALL with a sub-target other than FULL_SECTION is
+        incoherent (the LLM tried to target something specific inside
+        "all articles").
         """
         if ErrorCode.ERROR_EXTRACTING_OPERAND in self.error_codes:
             return self
@@ -467,16 +464,6 @@ class Operation(_BaseModelWithConfig):
                 f"sub_target={self.sub_target.type} is not fully defined "
                 f"(target_arrete={self.target_id.arrete_id})"
             )
-            self.error_codes = self.error_codes | {ErrorCode.ERROR_EXTRACTING_OPERAND}
-            return self
-
-        # REPLACE on the whole arrêté is a refonte (handled later as a full removal),
-        # so a missing operand on that path is not an extraction error.
-        if (
-            self.operation_type in (OperationType.REPLACE, OperationType.ADD)
-            and self.operand is None
-            and self.target_id.article_id != "ALL"
-        ):
             self.error_codes = self.error_codes | {ErrorCode.ERROR_EXTRACTING_OPERAND}
 
         return self

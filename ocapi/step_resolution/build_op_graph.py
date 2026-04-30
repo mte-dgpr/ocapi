@@ -200,8 +200,7 @@ def build_graph(
                     updated_ops.append(
                         op.model_copy(
                             update={
-                                "error_codes": op.error_codes
-                                | {ErrorCode.ERROR_EXTRACTING_TARGET}
+                                "error_codes": op.error_codes | {ErrorCode.ERROR_EXTRACTING_TARGET}
                             }
                         )
                     )

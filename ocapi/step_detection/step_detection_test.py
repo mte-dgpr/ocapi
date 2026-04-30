@@ -21,6 +21,7 @@ from unittest import mock
 from unittest.mock import Mock, patch
 
 import pytest
+from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 
 from ocapi.exceptions import OperationError
@@ -32,6 +33,7 @@ from ocapi.step_detection.step_detection import (
     step_detection,
 )
 from ocapi.types import (
+    ArreteFile,
     ErrorCode,
     NodeId,
     OperationType,
@@ -40,7 +42,7 @@ from ocapi.types import (
     SubTarget,
     SubTargetType,
 )
-from ocapi.utils.testing import make_testing_raw_op
+from ocapi.utils.testing import make_testing_arrete, make_testing_raw_op
 
 
 def _fake_arrete(arrete_id: str = "2022-01-01") -> ArreteFile:
@@ -111,30 +113,6 @@ def test_convert_raw_operation_to_operation(
     assert op2.operand is None
     assert op2.error_codes == frozenset()
     assert op2.id == "2"
-
-
-@patch("ocapi.step_detection.step_detection.extract_operand_with_images")
-def test_operand_extraction_failure_flags_error_extracting_operand(
-    mock_extract_operand_with_images: Mock,
-) -> None:
-    """A failed operand extraction must yield ``ERROR_EXTRACTING_OPERAND``."""
-    mock_extract_operand_with_images.return_value = None
-    html_block = Document(page_content="<section>Test content</section>", metadata={})
-    raw_operation = RawOperation(
-        operation_type=RawOperationType.REPLACE,
-        source_article="1",
-        target_arrete="1981-01-01",
-        target_article="2",
-        new_content_start_marker="<start>",
-        new_content_end_marker="<end>",
-    )
-
-    operation = _raw_operation_to_operation(
-        html_block.page_content, raw_operation, "1980-01-01", {}
-    )
-
-    assert operation.operand is None
-    assert operation.error_codes == frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})
 
 
 def test_convert_raw_operation_replace_all_refonte() -> None:
@@ -339,7 +317,7 @@ def test_step_detection_pass_skips_low_confidence_ops(
     mock_llm.return_value = _llm_response_with_ops(90, 40)
     mock_chunk.return_value = ([Document(page_content="<section/>", metadata={})], {})
 
-    ops = step_detection(make_arrete("2022-01-01", "<html/>"))
+    ops = step_detection(make_testing_arrete("2022-01-01", "<html/>"))
 
     assert len(ops) == 1
     assert ops[0].confidence_score == 90
@@ -371,7 +349,7 @@ def test_step_detection_retry_reruns_llm_on_low_confidence(
     mock_chunk.return_value = ([Document(page_content="<section/>", metadata={})], {})
 
     with caplog.at_level("WARNING"):
-        ops = step_detection(make_arrete("2022-01-01", "<html/>"))
+        ops = step_detection(make_testing_arrete("2022-01-01", "<html/>"))
 
     assert mock_llm.call_count == 2
     assert len(ops) == 1
@@ -402,7 +380,7 @@ def test_step_detection_retry_still_drops_low_confidence_after_retry(
     ]
     mock_chunk.return_value = ([Document(page_content="<section/>", metadata={})], {})
 
-    ops = step_detection(make_arrete("2022-01-01", "<html/>"))
+    ops = step_detection(make_testing_arrete("2022-01-01", "<html/>"))
 
     assert mock_llm.call_count == 2
     assert len(ops) == 0
@@ -428,7 +406,7 @@ def test_step_detection_disabled_keeps_all_ops_regardless_of_score(
     mock_llm.return_value = _llm_response_with_ops(10, 0)
     mock_chunk.return_value = ([Document(page_content="<section/>", metadata={})], {})
 
-    ops = step_detection(make_arrete("2022-01-01", "<html/>"))
+    ops = step_detection(make_testing_arrete("2022-01-01", "<html/>"))
 
     assert len(ops) == 2
     mock_llm.assert_called_once()

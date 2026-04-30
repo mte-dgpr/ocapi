@@ -21,7 +21,7 @@ from ocapi.step_rendering.operation_messages import (
     build_source_operation_messages,
     inject_messages_into_body,
 )
-from ocapi.types import ArreteFile, ArticleHistory, Operation, StatusCode
+from ocapi.types import ArreteFile, ArticleHistory, Operation
 from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main_and_appendix
 
 
@@ -31,9 +31,13 @@ def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
 
 
 def has_unresolved_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
-    """Return True when at least one outgoing operation is not resolved."""
+    """Return True when at least one outgoing operation has unresolved errors."""
     outgoing = [op for op in operations if op.source_id.arrete_id == arrete_file.id]
-    return any(op.status_code != StatusCode.RESOLVED for op in outgoing)
+    return any(op.error_codes for op in outgoing)
+
+
+def _has_outgoing_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
+    return any(op.source_id.arrete_id == arrete_file.id for op in operations)
 
 
 def make_permit_other(
@@ -85,7 +89,7 @@ def make_permit_other(
 """
             )
 
-        if has_unresolved_ops(arrete_file, operations) and history is not None:
+        if _has_outgoing_ops(arrete_file, operations) and history is not None:
             messages = build_source_operation_messages(
                 arrete_file.id,
                 operations,

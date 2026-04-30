@@ -366,14 +366,14 @@ def test_multiple_operations_same_target_preserve_single_initial_version(
         "title": "",
         "content": "updated once",
         "operation_id": "op-1",
-        "status_code": StatusCode.RESOLVED,
+        "error_codes": frozenset(),
     }
     assert output_history[target][2] == {
         "version": 2,
         "title": "",
         "content": "updated twice",
         "operation_id": "op-2",
-        "status_code": StatusCode.RESOLVED,
+        "error_codes": frozenset(),
     }
 
 
@@ -830,7 +830,7 @@ def test_apply_remove_simple_drops_table() -> None:
         sub_target=SubTarget(type=SubTargetType.TABLEAU, position=None, description="le tableau"),
     )
     status, out = apply_remove(op, BeautifulSoup(html, "html.parser"))
-    assert status == StatusCode.RESOLVED
+    assert status == frozenset()
     assert "<table" not in out
     assert "Before" in out
     assert "After" in out
@@ -848,7 +848,7 @@ def test_apply_remove_complex_falls_back_to_llm(mock_llm: mock.Mock) -> None:
         sub_target=SubTarget(type=SubTargetType.COMPLEX, description="le dernier alinéa"),
     )
     status, out = apply_remove(op, BeautifulSoup(html, "html.parser"))
-    assert status == StatusCode.RESOLVED
+    assert status == frozenset()
     mock_llm.assert_called_once()
     assert "cleaned" in out
 
@@ -863,7 +863,7 @@ def test_apply_remove_complex_disabled_llm_returns_unchanged() -> None:
         sub_target=SubTarget(type=SubTargetType.COMPLEX, description="un truc vague"),
     )
     status, out = apply_remove(op, BeautifulSoup(html, "html.parser"), enable_llm=False)
-    assert status == StatusCode.DISABLED_LLM_CALL
+    assert status == frozenset({ErrorCode.DISABLED_LLM_CALL})
     assert "keep" in out
 
 

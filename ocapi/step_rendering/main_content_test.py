@@ -853,7 +853,7 @@ def test_make_permit_content_marks_main_ap_source_articles() -> None:
                     "version": 1,
                     "content": "old",
                     "operation_id": "op-2",
-                    "status_code": StatusCode.ERROR_FINDING_SUBTARGET,
+                    "error_codes": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
                 },
             ),
         ],

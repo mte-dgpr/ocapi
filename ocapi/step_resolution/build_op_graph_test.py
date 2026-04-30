@@ -182,7 +182,7 @@ def test_build_graph_replace_all_marks_arrete_abrogated() -> None:
     arrete_2021 = next(af for af in updated_arrete_files if af.id == "2021-09-24")
     assert arrete_2021.status is True
 
-    assert updated_ops[0].status_code == StatusCode.RESOLVED
+    assert not updated_ops[0].error_codes
 
 
 def test_is_full_removal_op_replace_all() -> None:
@@ -354,7 +354,7 @@ def test_build_graph_remove_all_marks_arrete_abrogated() -> None:
     assert len(G.edges) == 0
     arrete_2020 = updated_arrete_files[0]
     assert arrete_2020.status is False
-    assert updated_ops[0].status_code == StatusCode.RESOLVED
+    assert not updated_ops[0].error_codes
 
 
 def test_build_graph_keeps_target_content_with_multiple_ops_same_target() -> None:
