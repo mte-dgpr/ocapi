@@ -34,7 +34,7 @@ def step_resolution(
 
     Builds the operations graph, then applies each operation in chronological
     order. Updates the status of abrogated arrêtés and writes back the
-    resolved ``status_code`` onto each operation.
+    resolved ``error_codes`` onto each operation.
 
     Parameters
     ----------
@@ -54,7 +54,7 @@ def step_resolution(
     list[ArreteFile]
         Updated arrêtés (``status`` set to ``False`` for abrogated ones).
     list[Operation]
-        Operations with their resolved ``status_code``.
+        Operations with their resolved ``error_codes``.
     """
     _LOGGER.info(f"Resolution: {len(operations)} operation(s) to process")
     operations_graph, arrete_files, skipped_ops_graph, graph_ops = build_graph(
@@ -68,7 +68,7 @@ def step_resolution(
 
     updated_ops = [
         (
-            op.model_copy(update={"status_code": resolved_status[op.id]})
+            op.model_copy(update={"error_codes": resolved_status[op.id]})
             if op.id in resolved_status
             else op
         )

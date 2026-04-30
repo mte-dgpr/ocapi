@@ -32,16 +32,16 @@ from ocapi.types import (
     ArreteFile,
     ArticleHistory,
     ArticleVersion,
+    ErrorCode,
     FileType,
     NodeId,
     Operation,
     OperationType,
-    StatusCode,
     SubTargetType,
     article_display_number,
     article_id_sort_tuple,
+    error_codes_reason,
     operation_type_label,
-    status_code_reason,
 )
 from ocapi.utils.arretify_utils import ARRETIFY_SECTION_DATA_SPEC
 
@@ -305,10 +305,10 @@ def _build_section_history_html(
         return "".join(history_parts)
 
     last_version = versions[-1]
-    last_status_code = last_version.get("status_code")
+    last_error_codes = last_version.get("error_codes")
     last_operation_id = last_version.get("operation_id")
     last_operation = operation_by_id.get(str(last_operation_id)) if last_operation_id else None
-    last_reason = status_code_reason(last_status_code)
+    last_reason = error_codes_reason(last_error_codes)
     if last_operation and last_reason is not None:
         last_text = (
             f"Opération non résolue {operation_type_label(last_operation.operation_type)} "
@@ -329,10 +329,10 @@ def _build_section_history_html(
     history_parts.append(f'<p style="font-weight: bold; margin-top: 0.5rem;">{last_text}</p>')
 
     for index, version in enumerate(versions[:-1]):
-        status_code = version.get("status_code")
+        error_codes = version.get("error_codes")
         operation_id = version.get("operation_id")
         operation = operation_by_id.get(str(operation_id)) if operation_id else None
-        reason = status_code_reason(status_code)
+        reason = error_codes_reason(error_codes)
         if index == 0 and not operation:
             text = "Version de l'arrêté initial"
         elif operation and reason is not None:
@@ -371,11 +371,13 @@ def _build_section_history_html(
 
 _FULL_REMOVAL_DESCRIPTIONS: frozenset[str] = frozenset(name.value for name in FullSectionName)
 
-_UNRESOLVED_STATUS_CODES = {
-    StatusCode.ERROR_EXTRACTING_OPERAND,
-    StatusCode.ERROR_FINDING_SUBTARGET,
-    StatusCode.COMPLEX_SUBTARGET,
-}
+_UNRESOLVED_ERROR_CODES = frozenset(
+    {
+        ErrorCode.ERROR_EXTRACTING_OPERAND,
+        ErrorCode.ERROR_FINDING_SUBTARGET,
+        ErrorCode.COMPLEX_SUBTARGET,
+    }
+)
 
 
 def _is_abrogated(
@@ -401,8 +403,8 @@ def _is_abrogated(
     bool
         ``True`` if the article should be marked as abrogated.
     """
-    status_code = latest_version.get("status_code")
-    if status_code in _UNRESOLVED_STATUS_CODES:
+    error_codes = latest_version.get("error_codes") or frozenset()
+    if error_codes & _UNRESOLVED_ERROR_CODES:
         return False
     operation_id = latest_version.get("operation_id")
     if not operation_id:

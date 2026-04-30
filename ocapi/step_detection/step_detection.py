@@ -39,7 +39,6 @@ from ocapi.types import (
     Operation,
     RawOperation,
     RawOperationType,
-    StatusCode,
     parse_arrete_id,
     parse_article_id,
 )
@@ -235,9 +234,8 @@ def _raw_operation_to_operation(
     operation_id = make_id(_OPERATION_ID_COUNTER)
 
     operand: str | None = None
-    op_status_code: StatusCode | None = None
     if raw_operation.new_content_start_marker and raw_operation.new_content_end_marker:
-        operand, op_status_code = extract_operand_with_images(
+        operand = extract_operand_with_images(
             html_block,
             raw_operation.source_article,
             raw_operation.new_content_start_marker,
@@ -253,6 +251,5 @@ def _raw_operation_to_operation(
         source_arrete_id=source_arrete_id,
         operation_id=operation_id,
         operand=operand,
-        op_status_code=op_status_code,
         sub_target=sub_target,
     )

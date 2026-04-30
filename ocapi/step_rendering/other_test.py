@@ -19,7 +19,7 @@
 from bs4 import BeautifulSoup, Tag
 
 from ocapi.step_rendering.other import has_no_ops, has_unresolved_ops, make_permit_other
-from ocapi.types import ArticleHistory, NodeId, Operation, OperationType, StatusCode
+from ocapi.types import ArticleHistory, ErrorCode, NodeId, Operation, OperationType
 from ocapi.utils.testing import make_testing_arrete
 
 _EMPTY_AP = '<html><body data-arretify_version="0.2.0"><main data-spec="main"></main></body></html>'
@@ -53,7 +53,7 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
             source_id=NodeId(arrete_id="2022-01-01", article_id="1"),
             target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
             operation_type=OperationType.REPLACE,
-            status_code=StatusCode.RESOLVED,
+            error_codes=frozenset(),
         )
     ]
 
@@ -91,7 +91,13 @@ def test_make_permit_other_includes_modifying_arretes_with_operation_messages() 
     history: ArticleHistory = {
         NodeId(arrete_id="2020-01-01", article_id="3"): [
             {"version": 0, "title": "", "content": "old", "operation_id": None},
-            {"version": 1, "title": "", "content": "new", "operation_id": "op-1"},
+            {
+                "version": 1,
+                "title": "",
+                "content": "old",
+                "operation_id": "op-1",
+                "error_codes": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
+            },
         ],
     }
 
@@ -100,7 +106,7 @@ def test_make_permit_other_includes_modifying_arretes_with_operation_messages() 
     assert 'data-spec="permit_modifying"' in html
     assert "ID MOD" in html
     assert "TITLE MOD" in html
-    assert "Opération de consolidation résolue" in html
+    assert "Opération de consolidation non résolue" in html
     assert "l'article 3 de l'arrêté 2020-01-01" in html
     # Message should appear after the title, not at the end
     soup = BeautifulSoup(html, "html.parser")
@@ -140,7 +146,7 @@ def test_make_permit_other_shows_unresolved_message_for_failed_operation() -> No
                 "title": "",
                 "content": "old",
                 "operation_id": "op-err",
-                "status_code": StatusCode.ERROR_FINDING_SUBTARGET,
+                "error_codes": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
             },
         ],
     }
@@ -202,7 +208,13 @@ def test_target_all_shows_arrete_only() -> None:
     history: ArticleHistory = {
         NodeId(arrete_id="2020-01-01", article_id="ALL"): [
             {"version": 0, "title": "", "content": "", "operation_id": None},
-            {"version": 1, "title": "", "content": "x", "operation_id": "op-all"},
+            {
+                "version": 1,
+                "title": "",
+                "content": "x",
+                "operation_id": "op-all",
+                "error_codes": frozenset({ErrorCode.ERROR_EXTRACTING_TARGET}),
+            },
         ],
     }
 
@@ -239,7 +251,13 @@ def test_make_permit_other_includes_appendix_with_operation_messages() -> None:
     history: ArticleHistory = {
         NodeId(arrete_id="2020-01-01", article_id="3"): [
             {"version": 0, "title": "", "content": "old", "operation_id": None},
-            {"version": 1, "title": "", "content": "new", "operation_id": "op-app"},
+            {
+                "version": 1,
+                "title": "",
+                "content": "old",
+                "operation_id": "op-app",
+                "error_codes": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
+            },
         ],
     }
 
@@ -253,7 +271,7 @@ def test_make_permit_other_includes_appendix_with_operation_messages() -> None:
     assert appendix_section is not None
     msg = appendix_section.find("div", attrs={"data-spec": "operation_result"})
     assert msg is not None
-    assert "Opération de consolidation résolue" in msg.get_text()
+    assert "Opération de consolidation non résolue" in msg.get_text()
     assert "l'article 3 de l'arrêté 2020-01-01" in msg.get_text()
 
 
@@ -280,7 +298,13 @@ def test_target_new_article_strips_prefix() -> None:
     )
     history: ArticleHistory = {
         NodeId(arrete_id="2020-01-01", article_id="NEW_ARTICLE:4.1"): [
-            {"version": 0, "title": "", "content": "new", "operation_id": "op-new"},
+            {
+                "version": 0,
+                "title": "",
+                "content": "new",
+                "operation_id": "op-new",
+                "error_codes": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
+            },
         ],
     }
 
@@ -343,6 +367,7 @@ def test_has_unresolved_ops_returns_true_with_unresolved_outgoing_ops() -> None:
             source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
             target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
             operation_type=OperationType.ADD,
+            error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
         ),
     ]
     assert has_unresolved_ops(arrete, ops) is True
@@ -356,14 +381,15 @@ def test_has_unresolved_ops_returns_false_when_all_outgoing_ops_resolved() -> No
             source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
             target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
             operation_type=OperationType.REPLACE,
-            status_code=StatusCode.RESOLVED,
+            operand="<section>op-1 body</section>",
+            error_codes=frozenset(),
         ),
         Operation(
             id="op-2",
             source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
             target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
             operation_type=OperationType.REMOVE,
-            status_code=StatusCode.RESOLVED,
+            error_codes=frozenset(),
         ),
     ]
     assert has_unresolved_ops(arrete, ops) is False
@@ -377,14 +403,14 @@ def test_has_unresolved_ops_returns_true_when_some_ops_have_errors() -> None:
             source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
             target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
             operation_type=OperationType.REPLACE,
-            status_code=StatusCode.RESOLVED,
+            error_codes=frozenset(),
         ),
         Operation(
             id="op-2",
             source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
             target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
             operation_type=OperationType.ADD,
-            status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
+            error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
         ),
     ]
     assert has_unresolved_ops(arrete, ops) is True

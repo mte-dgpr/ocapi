@@ -44,11 +44,11 @@ from ocapi.types import (
     ArticleHistory,
     ArticleVersion,
     Content,
+    ErrorCode,
     NodeId,
     Operation,
     OperationId,
     OperationType,
-    StatusCode,
     SubTargetType,
     _to_operation_type,
     article_display_number,
@@ -94,7 +94,7 @@ def _edge_to_operation(
         operation_type=op_type,
         operand=data.get("operand", None),
         sub_target=data.get("sub_target", None),
-        status_code=data.get("status_code", None),
+        error_codes=data.get("error_codes") or frozenset(),
     )
     return operation
 
@@ -146,7 +146,7 @@ def apply_replace(
     *,
     source_content: str | None = None,
     enable_llm: bool = True,
-) -> tuple[StatusCode, Content]:
+) -> tuple[frozenset[ErrorCode], Content]:
     """Apply a REPLACE operation to an article's content.
 
     Simple sub-targets are resolved via regex; complex or ambiguous ones fall
@@ -166,8 +166,8 @@ def apply_replace(
 
     Returns
     -------
-    tuple[StatusCode, Content]
-        Resolution status and HTML content after replacement.
+    tuple[frozenset[ErrorCode], Content]
+        Resolution status (empty when resolved) and HTML content after replacement.
 
     Raises
     ------
@@ -180,7 +180,7 @@ def apply_replace(
     if is_simple_subtarget(operation.sub_target):
         try:
             modified_soup = replace_subtarget(soup, operation.sub_target, operation.operand)
-            return StatusCode.RESOLVED, str(modified_soup)
+            return frozenset(), str(modified_soup)
         except ValueError:
             # Ambiguity detected, fall back to LLM
             llm_consolidation_log(operation, "replace")
@@ -188,7 +188,7 @@ def apply_replace(
         llm_consolidation_log(operation, "replace")
     # Complex or ambiguous case: use the LLM (or skip if disabled)
     if not enable_llm:
-        return StatusCode.DISABLED_LLM_CALL, str(soup)
+        return frozenset({ErrorCode.DISABLED_LLM_CALL}), str(soup)
     prompt = query_llm_for_subtarget(
         OperationType.REPLACE,
         str(soup),
@@ -198,7 +198,7 @@ def apply_replace(
         source_content=source_content,
     )
     raw = call_llm_api(LLM_CFG, prompt)
-    return StatusCode.RESOLVED, extract_html_from_llm_response(raw, str(soup))
+    return frozenset(), extract_html_from_llm_response(raw, str(soup))
 
 
 def apply_remove(
@@ -207,7 +207,7 @@ def apply_remove(
     *,
     source_content: str | None = None,
     enable_llm: bool = True,
-) -> tuple[StatusCode, Content]:
+) -> tuple[frozenset[ErrorCode], Content]:
     """Apply a REMOVE operation to an article's content.
 
     Simple sub-targets are resolved via regex; complex or ambiguous ones fall
@@ -226,8 +226,8 @@ def apply_remove(
 
     Returns
     -------
-    tuple[StatusCode, Content]
-        Resolution status and HTML content after removal.
+    tuple[frozenset[ErrorCode], Content]
+        Resolution status (empty when resolved) and HTML content after removal.
 
     Raises
     ------
@@ -241,14 +241,14 @@ def apply_remove(
     if is_simple_subtarget(sub_target):
         try:
             modified_soup = replace_subtarget(soup, sub_target, "")
-            return StatusCode.RESOLVED, str(modified_soup)
+            return frozenset(), str(modified_soup)
         except ValueError:
             llm_consolidation_log(operation, "remove")
     else:
         llm_consolidation_log(operation, "remove")
     # Complex or ambiguous case: use the LLM (or skip if disabled)
     if not enable_llm:
-        return StatusCode.DISABLED_LLM_CALL, str(soup)
+        return frozenset({ErrorCode.DISABLED_LLM_CALL}), str(soup)
     prompt = query_llm_for_subtarget(
         OperationType.REMOVE,
         str(soup),
@@ -257,7 +257,7 @@ def apply_remove(
         source_content=source_content,
     )
     raw = call_llm_api(LLM_CFG, prompt)
-    return StatusCode.RESOLVED, extract_html_from_llm_response(raw, str(soup))
+    return frozenset(), extract_html_from_llm_response(raw, str(soup))
 
 
 def _append_operand_to_section_body(soup: BeautifulSoup, operand: str) -> str:
@@ -306,7 +306,7 @@ def apply_add(
     *,
     source_content: str | None = None,
     enable_llm: bool = True,
-) -> tuple[StatusCode, Content]:
+) -> tuple[frozenset[ErrorCode], Content]:
     """Apply an ADD operation to an article's content.
 
     - ``FULL_SECTION`` + ``NEW_ARTICLE:…``: wrap operand as a new section (no LLM).
@@ -327,8 +327,8 @@ def apply_add(
 
     Returns
     -------
-    tuple[StatusCode, Content]
-        Resolution status and HTML content after insertion.
+    tuple[frozenset[ErrorCode], Content]
+        Resolution status (empty when resolved) and HTML content after insertion.
 
     Raises
     ------
@@ -339,7 +339,7 @@ def apply_add(
         raise OperationError("ADD operations require operand.")
 
     if _is_new_article_full_section_add(operation):
-        return StatusCode.RESOLVED, _unwrap_operand_section(operation.operand)
+        return frozenset(), _unwrap_operand_section(operation.operand)
 
     if operation.sub_target is None:
         raise OperationError("ADD operations require sub_target.")
@@ -350,16 +350,16 @@ def apply_add(
         st = SubTargetType(st)
 
     if st == SubTargetType.FULL_SECTION:
-        return StatusCode.RESOLVED, _append_operand_to_section_body(soup, operation.operand)
+        return frozenset(), _append_operand_to_section_body(soup, operation.operand)
 
     if is_simple_subtarget(sub_target):
         modified = insert_content_after_subtarget(soup, sub_target, operation.operand)
-        return StatusCode.RESOLVED, str(modified)
+        return frozenset(), str(modified)
 
     # Complex sub-target: use the LLM (or skip if disabled)
     llm_consolidation_log(operation, "add")
     if not enable_llm:
-        return StatusCode.DISABLED_LLM_CALL, str(soup)
+        return frozenset({ErrorCode.DISABLED_LLM_CALL}), str(soup)
     desc = sub_target.description or ""
     prompt = query_llm_for_subtarget(
         OperationType.ADD,
@@ -370,7 +370,7 @@ def apply_add(
         source_content=source_content,
     )
     raw = call_llm_api(LLM_CFG, prompt)
-    return StatusCode.RESOLVED, extract_html_from_llm_response(raw, str(soup))
+    return frozenset(), extract_html_from_llm_response(raw, str(soup))
 
 
 def _apply_single_edge(
@@ -380,7 +380,7 @@ def _apply_single_edge(
     key: int,
     history: ArticleHistory,
     skipped_ops: list[tuple[OperationId, str]],
-    resolved_status: dict[OperationId, StatusCode],
+    resolved_status: dict[OperationId, frozenset[ErrorCode]],
     *,
     chain_depth: int = 0,
     enable_llm: bool = True,
@@ -426,26 +426,31 @@ def _apply_single_edge(
         # Propagate an earlier error unless the operation is unambiguous
         # (i.e. it replaces/removes the full article and does not rely on
         # the current — potentially corrupted — content).
-        previous_status = history[tgt][-1].get("status_code") if tgt in history else None
-        previous_has_error = previous_status is not None and previous_status != StatusCode.RESOLVED
+        previous_status = (
+            history[tgt][-1].get("error_codes") if tgt in history else None
+        ) or frozenset()
+        previous_has_error = bool(previous_status)
 
-        article_status_code: StatusCode
+        article_error_codes: frozenset[ErrorCode]
         new_content = current_content
         if previous_has_error and not _is_unambiguous_all_operation(op):
-            article_status_code = StatusCode.PROPAGATED_ERROR
+            article_error_codes = frozenset({ErrorCode.PROPAGATED_ERROR})
             _LOGGER.warning(
                 f"Operation {op.id} skipped (propagated_error): "
-                f"target={tgt} had previous status_code={previous_status}"
+                f"target={tgt} had previous error_codes={sorted(c.value for c in previous_status)}"
             )
         else:
             try:
-                if op.status_code in (
-                    StatusCode.ERROR_EXTRACTING_OPERAND,
-                    StatusCode.ERROR_EXTRACTING_TARGET,
-                ):
-                    article_status_code = op.status_code
+                detection_errors = op.error_codes & {
+                    ErrorCode.ERROR_EXTRACTING_OPERAND,
+                    ErrorCode.ERROR_EXTRACTING_TARGET,
+                }
+                if detection_errors:
+                    article_error_codes = frozenset(op.error_codes)
                 elif op.operation_type == OperationType.REPLACE:
-                    if op.operand:
+                    if op.operand is None:
+                        article_error_codes = frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})
+                    else:
                         target_title_html = (
                             history[tgt][-1].get("title", "")
                             if tgt in history
@@ -458,33 +463,36 @@ def _apply_single_edge(
                         )
                         if cleaned != op.operand:
                             op = op.model_copy(update={"operand": cleaned})
-                    article_status_code, new_content = apply_replace(
-                        op,
-                        BeautifulSoup(current_content, "html.parser"),
-                        source_content=source_html,
-                        enable_llm=enable_llm,
-                    )
+                        article_error_codes, new_content = apply_replace(
+                            op,
+                            BeautifulSoup(current_content, "html.parser"),
+                            source_content=source_html,
+                            enable_llm=enable_llm,
+                        )
                 elif op.operation_type == OperationType.REMOVE:
-                    article_status_code, new_content = apply_remove(
+                    article_error_codes, new_content = apply_remove(
                         op,
                         BeautifulSoup(current_content, "html.parser"),
                         source_content=source_html,
                         enable_llm=enable_llm,
                     )
                 elif op.operation_type == OperationType.ADD:
-                    article_status_code, new_content = apply_add(
-                        op,
-                        BeautifulSoup(current_content, "html.parser"),
-                        source_content=source_html,
-                        enable_llm=enable_llm,
-                    )
+                    if op.operand is None:
+                        article_error_codes = frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})
+                    else:
+                        article_error_codes, new_content = apply_add(
+                            op,
+                            BeautifulSoup(current_content, "html.parser"),
+                            source_content=source_html,
+                            enable_llm=enable_llm,
+                        )
                 else:
                     raise OperationError(f"Unknown operation type: {op.operation_type}")
             except SubtargetNotFoundError as e:
                 _LOGGER.warning(f"Operation {op_id}: sub-target element not found — {e}")
-                article_status_code = StatusCode.ERROR_FINDING_SUBTARGET
+                article_error_codes = frozenset({ErrorCode.ERROR_FINDING_SUBTARGET})
 
-        resolved_status[op.id] = article_status_code
+        resolved_status[op.id] = article_error_codes
 
         if creation:
             created_title, created_content = split_section_title(new_content)
@@ -493,7 +501,7 @@ def _apply_single_edge(
                 title=created_title,
                 content=created_content,
                 operation_id=op.id,
-                status_code=article_status_code,
+                error_codes=article_error_codes,
             )
             history[tgt] = [new_version]
             return
@@ -505,7 +513,7 @@ def _apply_single_edge(
             title=prev_title,
             content=new_content,
             operation_id=op.id,
-            status_code=article_status_code,
+            error_codes=article_error_codes,
         )
         history[tgt].append(new_version)
 
@@ -536,7 +544,7 @@ def _apply_single_edge(
 
 def apply_subgraph_operations(
     subG: nx.MultiDiGraph, history: ArticleHistory, *, enable_llm: bool = True
-) -> tuple[ArticleHistory, list[tuple[OperationId, str]], dict[OperationId, StatusCode]]:
+) -> tuple[ArticleHistory, list[tuple[OperationId, str]], dict[OperationId, frozenset[ErrorCode]]]:
     """Apply sub-graph operations and update the article history.
 
     For each operation, appends a new version to the target article's history.
@@ -544,18 +552,19 @@ def apply_subgraph_operations(
     stored with ``operation_id`` set to the creation operation.
 
     Returns the updated history, the list of failed operations, and a mapping
-    of ``{operation_id: resolved_status_code}`` for every processed operation.
+    of ``{operation_id: resolved_error_codes}`` for every processed operation.
 
-    Operations may carry ``status_code=COMPLEX_SUBTARGET`` to indicate that the
-    sub-target requires LLM consolidation; that code is **not** copied onto the
-    article history as an error — the apply functions run the LLM path instead.
+    Operations may carry ``error_codes`` containing ``COMPLEX_SUBTARGET`` to
+    indicate that the sub-target requires LLM consolidation; that code is
+    **not** copied onto the article history as an error — the apply functions
+    run the LLM path instead.
 
     Error propagation
     -----------------
-    If the latest version of a target article carries a non-resolved
-    ``status_code`` (e.g. ``ERROR_EXTRACTING_OPERAND`` or ``PROPAGATED_ERROR``),
+    If the latest version of a target article carries any
+    ``error_codes`` (e.g. ``ERROR_EXTRACTING_OPERAND`` or ``PROPAGATED_ERROR``),
     the new operation is *not* applied and the new version receives
-    ``status_code = PROPAGATED_ERROR`` — unless the operation is *unambiguous*
+    ``error_codes = {PROPAGATED_ERROR}`` — unless the operation is *unambiguous*
     (see :func:`_is_unambiguous_all_operation`).  Unambiguous operations
     (REPLACE or REMOVE with ``sub_target.type == FULL_SECTION``) discard the
     existing content entirely, so the previous error is irrelevant and the
@@ -569,7 +578,7 @@ def apply_subgraph_operations(
     transitive chains like C → B → A.
     """
     skipped_ops: list[tuple[OperationId, str]] = []
-    resolved_status: dict[OperationId, StatusCode] = {}
+    resolved_status: dict[OperationId, frozenset[ErrorCode]] = {}
     start_nodes = sorted(
         [node for node in subG.nodes if subG.in_degree(node) == 0],
         key=lambda n: (n.arrete_id, n.article_id),
@@ -599,15 +608,15 @@ def apply_all_ops(
     arrete_list: list[ArreteFile],
     *,
     enable_llm: bool = True,
-) -> tuple[ArticleHistory, list[tuple[OperationId, str]], dict[OperationId, StatusCode]]:
+) -> tuple[ArticleHistory, list[tuple[OperationId, str]], dict[OperationId, frozenset[ErrorCode]]]:
     """Build the complete article history by processing arrêtés chronologically.
 
     Returns a dict ``{NodeId: [versions]}`` with all modifications, the list
-    of failed operations, and a mapping of ``{operation_id: resolved_status_code}``.
+    of failed operations, and a mapping of ``{operation_id: resolved_error_codes}``.
     """
     history: ArticleHistory = {}
     all_skipped_ops: list[tuple[OperationId, str]] = []
-    all_resolved_status: dict[OperationId, StatusCode] = {}
+    all_resolved_status: dict[OperationId, frozenset[ErrorCode]] = {}
 
     for arrete_file in arrete_list:
         subG = build_next_subgraph(operations_graph, history, arrete_file.id)

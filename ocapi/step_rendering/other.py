@@ -20,8 +20,9 @@
 from ocapi.step_rendering.operation_messages import (
     build_source_operation_messages,
     inject_messages_into_body,
+    resolve_operation_error_codes,
 )
-from ocapi.types import ArreteFile, ArticleHistory, Operation, StatusCode
+from ocapi.types import ArreteFile, ArticleHistory, Operation
 from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main_and_appendix
 
 
@@ -30,10 +31,21 @@ def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
     return not any(op.source_id.arrete_id == arrete_file.id for op in operations)
 
 
-def has_unresolved_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
-    """Return True when at least one outgoing operation is not resolved."""
+def has_unresolved_ops(
+    arrete_file: ArreteFile,
+    operations: list[Operation],
+    history: ArticleHistory | None = None,
+) -> bool:
+    """Return True when at least one outgoing operation has unresolved errors.
+
+    When *history* is provided, the final per-version error codes are used so
+    failures recorded during application (e.g. ``ERROR_FINDING_SUBTARGET``) are
+    detected even when the operation itself was emitted without errors.
+    """
     outgoing = [op for op in operations if op.source_id.arrete_id == arrete_file.id]
-    return any(op.status_code != StatusCode.RESOLVED for op in outgoing)
+    if history is None:
+        return any(op.error_codes for op in outgoing)
+    return any(resolve_operation_error_codes(op, history) for op in outgoing)
 
 
 def make_permit_other(
@@ -85,7 +97,7 @@ def make_permit_other(
 """
             )
 
-        if has_unresolved_ops(arrete_file, operations) and history is not None:
+        if history is not None and has_unresolved_ops(arrete_file, operations, history):
             messages = build_source_operation_messages(
                 arrete_file.id,
                 operations,

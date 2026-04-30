@@ -20,11 +20,11 @@ from bs4 import BeautifulSoup
 
 from ocapi.types import (
     ArreteFile,
+    ErrorCode,
     FileType,
     NodeId,
     Operation,
     OperationType,
-    StatusCode,
     SubTarget,
     SubTargetType,
 )
@@ -168,6 +168,7 @@ def test_build_graph_replace_all_marks_arrete_abrogated() -> None:
         source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
         target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
         operation_type=OperationType.REPLACE,
+        operand="<section>refonte body</section>",
     )
 
     G, updated_arrete_files, skipped_ops, updated_ops = build_graph([replace_all_op], arrete_files)
@@ -181,7 +182,7 @@ def test_build_graph_replace_all_marks_arrete_abrogated() -> None:
     arrete_2021 = next(af for af in updated_arrete_files if af.id == "2021-09-24")
     assert arrete_2021.status is True
 
-    assert updated_ops[0].status_code == StatusCode.RESOLVED
+    assert not updated_ops[0].error_codes
 
 
 def test_is_full_removal_op_replace_all() -> None:
@@ -191,6 +192,7 @@ def test_is_full_removal_op_replace_all() -> None:
         source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
         target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
         operation_type=OperationType.REPLACE,
+        operand="<section>refonte body</section>",
     )
     assert _is_full_removal_op(op_replace_all) is True
 
@@ -225,19 +227,19 @@ def test_is_full_removal_op_remove_all_with_complex_subtarget() -> None:
         target_id=NodeId(arrete_id="2006-12-14", article_id="ALL"),
         operation_type=OperationType.REMOVE,
         sub_target=SubTarget(type=SubTargetType.COMPLEX, description="annexe 1"),
-        status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
+        error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
     )
     assert _is_full_removal_op(op) is False
 
 
 def test_is_full_removal_op_remove_all_with_error_status() -> None:
-    """REMOVE ALL with a non-RESOLVED status_code is not a valid abrogation."""
+    """REMOVE ALL with a non-RESOLVED error_codes is not a valid abrogation."""
     op = Operation(
         id="1",
         source_id=NodeId(arrete_id="2021-09-24", article_id="1.1.2"),
         target_id=NodeId(arrete_id="2020-04-20", article_id="ALL"),
         operation_type=OperationType.REMOVE,
-        status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
+        error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
     )
     assert _is_full_removal_op(op) is False
 
@@ -275,7 +277,7 @@ def test_build_graph_ill_defined_remove_all_does_not_abrogate() -> None:
         target_id=NodeId(arrete_id="2006-12-14", article_id="ALL"),
         operation_type=OperationType.REMOVE,
         sub_target=SubTarget(type=SubTargetType.COMPLEX, description="annexe 1"),
-        status_code=StatusCode.ERROR_EXTRACTING_OPERAND,
+        error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
     )
 
     _, updated_arrete_files, _, _ = build_graph([ill_defined_op], arrete_files)
@@ -321,7 +323,7 @@ def test_build_graph_full_removal_on_principal_is_not_resolved() -> None:
     assert len(G.nodes) == 0
     assert len(G.edges) == 0
     assert next(af for af in updated_arrete_files if af.id == "2020-04-20").status is True
-    assert updated_ops[0].status_code == StatusCode.ERROR_EXTRACTING_TARGET
+    assert ErrorCode.ERROR_EXTRACTING_TARGET in updated_ops[0].error_codes
 
 
 def test_build_graph_remove_all_marks_arrete_abrogated() -> None:
@@ -352,7 +354,7 @@ def test_build_graph_remove_all_marks_arrete_abrogated() -> None:
     assert len(G.edges) == 0
     arrete_2020 = updated_arrete_files[0]
     assert arrete_2020.status is False
-    assert updated_ops[0].status_code == StatusCode.RESOLVED
+    assert not updated_ops[0].error_codes
 
 
 def test_build_graph_keeps_target_content_with_multiple_ops_same_target() -> None:
@@ -451,4 +453,4 @@ def test_build_graph_missing_target_section_creates_empty_node_with_error() -> N
     assert G.nodes[target].get("content") == ""
     edge_data = G.get_edge_data(NodeId(arrete_id="1981-01-01", article_id="1"), target, 0)
     assert edge_data is not None
-    assert edge_data["status_code"] == StatusCode.ERROR_EXTRACTING_TARGET.value
+    assert edge_data["error_codes"] == [ErrorCode.ERROR_EXTRACTING_TARGET.value]

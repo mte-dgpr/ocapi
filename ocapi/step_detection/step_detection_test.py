@@ -21,7 +21,6 @@ from unittest import mock
 from unittest.mock import Mock, patch
 
 import pytest
-from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 
 from ocapi.exceptions import OperationError
@@ -33,25 +32,15 @@ from ocapi.step_detection.step_detection import (
     step_detection,
 )
 from ocapi.types import (
-    ArreteFile,
+    ErrorCode,
     NodeId,
     OperationType,
     RawOperation,
     RawOperationType,
-    StatusCode,
     SubTarget,
     SubTargetType,
 )
-from ocapi.utils.testing import make_testing_raw_op
-
-
-def _fake_arrete(arrete_id: str = "2022-01-01") -> ArreteFile:
-    return ArreteFile(
-        id=arrete_id,
-        aiot="0001",
-        filename=f"{arrete_id}.html",
-        soup=BeautifulSoup("<html/>", "html.parser"),
-    )
+from ocapi.utils.testing import make_testing_arrete, make_testing_raw_op
 
 
 @pytest.fixture(autouse=True)
@@ -65,10 +54,7 @@ def test_convert_raw_operation_to_operation(
     mock_parse_subtarget: Mock,
     mock_extract_operand_with_images: Mock,
 ) -> None:
-    mock_extract_operand_with_images.return_value = (
-        "<mocked>operand content</mocked>",
-        StatusCode.RESOLVED,
-    )
+    mock_extract_operand_with_images.return_value = "<mocked>operand content</mocked>"
     mock_parse_subtarget.return_value = SubTarget(type=SubTargetType.TABLEAU, position=1)
 
     html_block = Document(page_content="<section>Test content</section>", metadata={})
@@ -104,7 +90,7 @@ def test_convert_raw_operation_to_operation(
     assert op1.target_id == NodeId(arrete_id="1981-01-01", article_id="2")
     assert op1.operation_type == OperationType.REPLACE
     assert op1.sub_target.type == SubTargetType.TABLEAU
-    assert op1.status_code == StatusCode.RESOLVED
+    assert op1.error_codes == frozenset()
     mock_extract_operand_with_images.assert_called_once()
     mock_parse_subtarget.assert_called_once_with("le tableau")
 
@@ -114,31 +100,8 @@ def test_convert_raw_operation_to_operation(
     assert op2.operation_type == OperationType.REMOVE
     assert op2.sub_target is None
     assert op2.operand is None
-    assert op2.status_code is None
+    assert op2.error_codes == frozenset()
     assert op2.id == "2"
-
-
-@patch("ocapi.step_detection.step_detection.extract_operand_with_images")
-def test_status_code_error_when_operand_extraction_fails(
-    mock_extract_operand_with_images: Mock,
-) -> None:
-    mock_extract_operand_with_images.return_value = (None, StatusCode.ERROR_EXTRACTING_OPERAND)
-    html_block = Document(page_content="<section>Test content</section>", metadata={})
-    raw_operation = RawOperation(
-        operation_type=RawOperationType.REPLACE,
-        source_article="1",
-        target_arrete="1981-01-01",
-        target_article="2",
-        new_content_start_marker="<start>",
-        new_content_end_marker="<end>",
-    )
-
-    operation = _raw_operation_to_operation(
-        html_block.page_content, raw_operation, "1980-01-01", {}
-    )
-
-    assert operation.status_code == StatusCode.ERROR_EXTRACTING_OPERAND
-    assert operation.operand is None
 
 
 def test_convert_raw_operation_replace_all_refonte() -> None:
@@ -181,7 +144,7 @@ def test_all_with_non_full_section_subtarget_sets_error(
     with caplog.at_level("WARNING"):
         op = _raw_operation_to_operation("<section/>", raw_op, "2025-02-10", {})
 
-    assert op.status_code == StatusCode.ERROR_EXTRACTING_OPERAND
+    assert ErrorCode.ERROR_EXTRACTING_OPERAND in op.error_codes
     assert any("not fully defined" in msg for msg in caplog.messages)
 
 
@@ -197,7 +160,7 @@ def test_all_with_full_section_subtarget_converts_to_remove() -> None:
     op = _raw_operation_to_operation("<section/>", raw_op, "2021-09-24", {})
 
     assert op.operation_type == OperationType.REMOVE
-    assert op.status_code is None
+    assert op.error_codes == frozenset()
     assert op.operand is None
 
 
@@ -246,7 +209,7 @@ def test_prompt_detection_includes_confidence_score_field() -> None:
 def test_convert_raw_operation_propagates_confidence_score(
     mock_extract: mock.Mock,
 ) -> None:
-    mock_extract.return_value = (None, None)
+    mock_extract.return_value = None
     raw_op = RawOperation(
         operation_type=RawOperationType.REMOVE,
         source_article="1",
@@ -262,7 +225,7 @@ def test_convert_raw_operation_propagates_confidence_score(
 def test_convert_raw_operation_confidence_score_none_when_absent(
     mock_extract: mock.Mock,
 ) -> None:
-    mock_extract.return_value = (None, None)
+    mock_extract.return_value = None
     raw_op = RawOperation(
         operation_type=RawOperationType.REMOVE,
         source_article="1",
@@ -328,7 +291,7 @@ def _llm_response_with_ops(*scores: int | None) -> str:
 @patch("ocapi.step_detection.step_detection.call_llm_api")
 @patch(
     "ocapi.step_detection.step_detection.extract_operand_with_images",
-    return_value=(None, None),
+    return_value=None,
 )
 def test_step_detection_pass_skips_low_confidence_ops(
     _mock_extract: mock.Mock,
@@ -343,7 +306,7 @@ def test_step_detection_pass_skips_low_confidence_ops(
     mock_llm.return_value = _llm_response_with_ops(90, 40)
     mock_chunk.return_value = ([Document(page_content="<section/>", metadata={})], {})
 
-    ops = step_detection(_fake_arrete())
+    ops = step_detection(make_testing_arrete("2022-01-01", "<html/>"))
 
     assert len(ops) == 1
     assert ops[0].confidence_score == 90
@@ -355,7 +318,7 @@ def test_step_detection_pass_skips_low_confidence_ops(
 @patch("ocapi.step_detection.step_detection.call_llm_api")
 @patch(
     "ocapi.step_detection.step_detection.extract_operand_with_images",
-    return_value=(None, None),
+    return_value=None,
 )
 def test_step_detection_retry_reruns_llm_on_low_confidence(
     _mock_extract: mock.Mock,
@@ -375,7 +338,7 @@ def test_step_detection_retry_reruns_llm_on_low_confidence(
     mock_chunk.return_value = ([Document(page_content="<section/>", metadata={})], {})
 
     with caplog.at_level("WARNING"):
-        ops = step_detection(_fake_arrete())
+        ops = step_detection(make_testing_arrete("2022-01-01", "<html/>"))
 
     assert mock_llm.call_count == 2
     assert len(ops) == 1
@@ -388,7 +351,7 @@ def test_step_detection_retry_reruns_llm_on_low_confidence(
 @patch("ocapi.step_detection.step_detection.call_llm_api")
 @patch(
     "ocapi.step_detection.step_detection.extract_operand_with_images",
-    return_value=(None, None),
+    return_value=None,
 )
 def test_step_detection_retry_still_drops_low_confidence_after_retry(
     _mock_extract: mock.Mock,
@@ -406,7 +369,7 @@ def test_step_detection_retry_still_drops_low_confidence_after_retry(
     ]
     mock_chunk.return_value = ([Document(page_content="<section/>", metadata={})], {})
 
-    ops = step_detection(_fake_arrete())
+    ops = step_detection(make_testing_arrete("2022-01-01", "<html/>"))
 
     assert mock_llm.call_count == 2
     assert len(ops) == 0
@@ -417,7 +380,7 @@ def test_step_detection_retry_still_drops_low_confidence_after_retry(
 @patch("ocapi.step_detection.step_detection.call_llm_api")
 @patch(
     "ocapi.step_detection.step_detection.extract_operand_with_images",
-    return_value=(None, None),
+    return_value=None,
 )
 def test_step_detection_disabled_keeps_all_ops_regardless_of_score(
     _mock_extract: mock.Mock,
@@ -432,7 +395,7 @@ def test_step_detection_disabled_keeps_all_ops_regardless_of_score(
     mock_llm.return_value = _llm_response_with_ops(10, 0)
     mock_chunk.return_value = ([Document(page_content="<section/>", metadata={})], {})
 
-    ops = step_detection(_fake_arrete())
+    ops = step_detection(make_testing_arrete("2022-01-01", "<html/>"))
 
     assert len(ops) == 2
     mock_llm.assert_called_once()

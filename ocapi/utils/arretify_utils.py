@@ -16,9 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Tuple
-
-from typing import cast
+from typing import Tuple, cast
 
 from arretify.semantic_tag_specs import AppendixSpec, SectionSpec
 from bs4 import BeautifulSoup, Tag

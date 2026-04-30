@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -29,11 +29,11 @@ from bs4 import BeautifulSoup, Tag
 
 from ocapi.types import (
     ArticleHistory,
+    ErrorCode,
     Operation,
-    StatusCode,
     article_display_number,
+    error_codes_reason,
     operation_type_label,
-    status_code_reason,
 )
 from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC
 
@@ -49,13 +49,13 @@ def format_target_reference(op: Operation) -> str:
     return f"l'article {display} de l'arrêté {op.target_id.arrete_id}"
 
 
-def resolve_operation_status(op: Operation, history: ArticleHistory) -> StatusCode | None:
-    """Return the status_code of the ArticleVersion produced by *op*, or None if resolved."""
+def resolve_operation_error_codes(op: Operation, history: ArticleHistory) -> frozenset[ErrorCode]:
+    """Return the error codes of the ArticleVersion produced by *op* (empty if resolved)."""
     target_versions = history.get(op.target_id, [])
     for version in target_versions:
         if version.get("operation_id") == op.id:
-            return version.get("status_code")
-    return op.status_code
+            return version.get("error_codes") or frozenset()
+    return op.error_codes
 
 
 def build_source_operation_messages(
@@ -73,13 +73,13 @@ def build_source_operation_messages(
     for article_id, ops in ops_by_source_article.items():
         article_msgs: list[str] = []
         for op in ops:
-            status = resolve_operation_status(op, history)
+            error_codes = resolve_operation_error_codes(op, history)
             label = operation_type_label(op.operation_type)
             target = format_target_reference(op)
-            if status is None or status == StatusCode.RESOLVED:
+            if not error_codes:
                 msg = f"Opération de consolidation résolue ({label}) dans {target}"
             else:
-                reason = status_code_reason(status) or "opération non résolue"
+                reason = error_codes_reason(error_codes) or "opération non résolue"
                 msg = (
                     f"Opération de consolidation non résolue ({label}) "
                     f"dans {target} (raison\u00a0: {reason})"

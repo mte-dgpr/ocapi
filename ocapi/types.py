@@ -23,7 +23,7 @@ from typing import Dict, Optional, TypedDict
 
 from arretify.parsing_utils.numbering import ROMAN_NUMERALS_PATTERN_S, str_to_levels
 from bs4 import BeautifulSoup
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_serializer, field_validator, model_validator
 from typing_extensions import NotRequired
 
 from ocapi.utils.logging_utils import get_logger
@@ -199,8 +199,7 @@ class NodeId(BaseModel):
         return hash((self.arrete_id, self.article_id))
 
 
-class StatusCode(str, Enum):
-    RESOLVED = "resolved"
+class ErrorCode(str, Enum):
     ERROR_EXTRACTING_OPERAND = "error_extracting_operand"
     ERROR_FINDING_SUBTARGET = "error_finding_subtarget"
     # Sub-target requires LLM consolidation; must not block later operations as an error.
@@ -215,7 +214,7 @@ class ArticleVersion(TypedDict):
     title: Content
     content: Content
     operation_id: str | None
-    status_code: NotRequired[StatusCode]
+    error_codes: NotRequired[frozenset[ErrorCode]]
 
 
 ArticleHistory = Dict[NodeId, list[ArticleVersion]]
@@ -227,36 +226,41 @@ class OperationType(Enum):
     REPLACE = "REPLACE"
 
 
-STATUS_CODE_MESSAGES: dict[StatusCode, str] = {
-    StatusCode.ERROR_EXTRACTING_OPERAND: (
+ERROR_CODE_MESSAGES: dict[ErrorCode, str] = {
+    ErrorCode.ERROR_EXTRACTING_OPERAND: (
         "Le contenu de l'opération n'a pas pu être extrait de l'arrêté modificatif"
     ),
-    StatusCode.ERROR_EXTRACTING_TARGET: (
+    ErrorCode.ERROR_EXTRACTING_TARGET: (
         "L'article cible de l'opération n'a pas pu être extrait de l'arrêté concerné"
     ),
-    StatusCode.ERROR_FINDING_SUBTARGET: (
+    ErrorCode.ERROR_FINDING_SUBTARGET: (
         "La sous-cible de l'opération n'a pas pu être trouvée dans l'article cible"
     ),
-    StatusCode.COMPLEX_SUBTARGET: (
+    ErrorCode.COMPLEX_SUBTARGET: (
         "La sous-cible de l'opération est trop complexe pour être résolue automatiquement"
     ),
-    StatusCode.PROPAGATED_ERROR: (
+    ErrorCode.PROPAGATED_ERROR: (
         "Une erreur sur une opération précédente empêche l'application de cette opération"
     ),
-    StatusCode.DISABLED_LLM_CALL: ("La résolution des opérations complexes par IA est désactivée"),
+    ErrorCode.DISABLED_LLM_CALL: ("La résolution des opérations complexes par IA est désactivée"),
 }
 
-DEFAULT_STATUS_CODE_MESSAGE = "Opération non résolue automatiquement"
+DEFAULT_ERROR_CODE_MESSAGE = "Opération non résolue automatiquement"
 
 
-def status_code_reason(status_code: "StatusCode | None") -> str | None:
-    """Return the human-readable reason for a non-resolved *status_code*.
+def error_codes_reason(error_codes: "frozenset[ErrorCode] | None") -> str | None:
+    """Return the human-readable reason(s) for a set of error codes.
 
-    Returns ``None`` for ``RESOLVED`` or ``None`` inputs (no error to display).
+    Joins all error messages with " ; ". Returns ``None`` when the set is
+    empty or ``None`` (no error to display).
     """
-    if status_code is None or status_code == StatusCode.RESOLVED:
+    if not error_codes:
         return None
-    return STATUS_CODE_MESSAGES.get(status_code, DEFAULT_STATUS_CODE_MESSAGE)
+    reasons = [
+        ERROR_CODE_MESSAGES.get(code, DEFAULT_ERROR_CODE_MESSAGE)
+        for code in sorted(error_codes, key=lambda c: c.value)
+    ]
+    return " ; ".join(reasons)
 
 
 def operation_type_label(operation_type: "OperationType") -> str:
@@ -427,13 +431,42 @@ class Operation(_BaseModelWithConfig):
     operation_type: OperationType
     operand: str | None = None
     sub_target: SubTarget | None = None
-    status_code: StatusCode | None = None
+    error_codes: frozenset[ErrorCode] = frozenset()
     confidence_score: int | None = None
 
     @field_validator("operation_type", mode="before")
     @classmethod
     def _ensure_operation_type(cls, v: OperationType | str) -> OperationType:
         return v if isinstance(v, OperationType) else OperationType(v)
+
+    @field_serializer("error_codes", when_used="json")
+    def _serialize_error_codes(self, codes: frozenset[ErrorCode]) -> list[str]:
+        return sorted(c.value for c in codes)
+
+    @model_validator(mode="after")
+    def _derive_detection_error_codes(self) -> "Operation":
+        """Derive ``ERROR_EXTRACTING_OPERAND`` from the operation shape.
+
+        target_article=ALL with a sub-target other than FULL_SECTION is
+        incoherent (the LLM tried to target something specific inside
+        "all articles").
+        """
+        if ErrorCode.ERROR_EXTRACTING_OPERAND in self.error_codes:
+            return self
+
+        if (
+            self.target_id.article_id == "ALL"
+            and self.sub_target is not None
+            and self.sub_target.type != SubTargetType.FULL_SECTION
+        ):
+            _LOGGER.warning(
+                f"Operation {self.id}: target_article=ALL with "
+                f"sub_target={self.sub_target.type} is not fully defined "
+                f"(target_arrete={self.target_id.arrete_id})"
+            )
+            self.error_codes = self.error_codes | {ErrorCode.ERROR_EXTRACTING_OPERAND}
+
+        return self
 
     @classmethod
     def from_raw_detection(
@@ -442,16 +475,14 @@ class Operation(_BaseModelWithConfig):
         source_arrete_id: ArreteId,
         operation_id: OperationId,
         operand: str | None,
-        op_status_code: "StatusCode | None",
         sub_target: "SubTarget | None",
     ) -> "Operation":
         """Build an ``Operation`` from a validated raw detection and its extracted operand.
 
         Caller is expected to have validated ``raw_operation.source_article`` and
         ``raw_operation.target_article`` and to pass the already-extracted ``operand``
-        and ``sub_target``. This method only handles the pure model-level
-        transformations: operation-type coercion, special-case ``ALL`` handling,
-        ``REPLACE ALL`` → ``REMOVE`` conversion, and the final instantiation.
+        and ``sub_target``. This method handles operation-type coercion and the
+        ``REPLACE ALL`` → ``REMOVE`` conversion before instantiation.
         """
         assert raw_operation.source_article is not None
         assert raw_operation.target_article is not None
@@ -459,22 +490,6 @@ class Operation(_BaseModelWithConfig):
         raw_op_type = raw_operation.operation_type
         op_type_value = getattr(raw_op_type, "value", raw_op_type)
         op_type = OperationType(op_type_value)
-
-        # target_article=ALL with a non-FULL_SECTION sub-target is incoherent:
-        # the LLM tried to target something specific inside "all articles".
-        if raw_operation.target_article == "ALL" and sub_target is not None:
-            st = (
-                sub_target.type
-                if isinstance(sub_target.type, SubTargetType)
-                else SubTargetType(sub_target.type)
-            )
-            if st != SubTargetType.FULL_SECTION:
-                _LOGGER.warning(
-                    f"Operation {operation_id}: target_article=ALL with "
-                    f"sub_target={sub_target.type} is not fully defined "
-                    f"(target_arrete={raw_operation.target_arrete})"
-                )
-                op_status_code = StatusCode.ERROR_EXTRACTING_OPERAND
 
         # A full-arrêté REPLACE (target_article=ALL) is in practice an abrogation.
         if op_type == OperationType.REPLACE and raw_operation.target_article == "ALL":
@@ -498,9 +513,13 @@ class Operation(_BaseModelWithConfig):
             operation_type=op_type,
             operand=operand,
             sub_target=sub_target,
-            status_code=op_status_code,
             confidence_score=raw_operation.confidence_score,
         )
+
+
+def is_resolved_op(operation: "Operation") -> bool:
+    """Return True when no error is attached to *operation*."""
+    return not operation.error_codes
 
 
 def _to_operation_type(raw_type: OperationType | str) -> OperationType:

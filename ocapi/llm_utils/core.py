@@ -89,8 +89,8 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
         }
         if model.reasoning_model:
             payload["reasoning_effort"] = "high"
-            payload["verbosity"] = 0
-        if model.temperature is not None:
+            payload["verbosity"] = "low"
+        elif model.temperature is not None:
             payload["temperature"] = model.temperature
         return payload
 

@@ -32,10 +32,10 @@ from ocapi.types import (
     ArreteFile,
     ArreteId,
     Content,
+    ErrorCode,
     NodeId,
     Operation,
     OperationType,
-    StatusCode,
     SubTargetType,
 )
 from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC, ARRETIFY_SECTION_DATA_SPEC
@@ -98,8 +98,11 @@ def add_edge(G: nx.MultiDiGraph, operation: Operation) -> None:
     operation : Operation
         Operation to represent as a directed edge.
     """
+    exclude: set[str] = {"source_id", "target_id"}
+    if not operation.error_codes:
+        exclude.add("error_codes")
     edge_data = operation.model_dump(
-        exclude={"source_id", "target_id"},
+        exclude=exclude,
         exclude_none=True,
         exclude_defaults=True,
         mode="json",
@@ -169,7 +172,7 @@ def build_graph(
     """Build the operations graph.
 
     Returns the graph, the list of arrêtés, the list of failed operations,
-    and the operations list with their ``status_code`` updated for the ones
+    and the operations list with their ``error_codes`` updated for the ones
     resolved at graph-building time (full removals marked ``RESOLVED``,
     missing target sections marked ``ERROR_EXTRACTING_TARGET``).
 
@@ -195,14 +198,18 @@ def build_graph(
                         "This operation was not resolved."
                     )
                     updated_ops.append(
-                        op.model_copy(update={"status_code": StatusCode.ERROR_EXTRACTING_TARGET})
+                        op.model_copy(
+                            update={
+                                "error_codes": op.error_codes | {ErrorCode.ERROR_EXTRACTING_TARGET}
+                            }
+                        )
                     )
                     continue
                 for arrete_file in arrete_files:
                     if arrete_file.id == op.target_id.arrete_id:
                         arrete_file.status = False
                         break
-                updated_ops.append(op.model_copy(update={"status_code": StatusCode.RESOLVED}))
+                updated_ops.append(op)
                 continue
 
             target_soup = soups.get(op.target_id.arrete_id)
@@ -223,7 +230,9 @@ def build_graph(
                     op.target_id,
                 )
                 target_title, target_content = "", ""
-                op = op.model_copy(update={"status_code": StatusCode.ERROR_EXTRACTING_TARGET})
+                op = op.model_copy(
+                    update={"error_codes": op.error_codes | {ErrorCode.ERROR_EXTRACTING_TARGET}}
+                )
 
             source_soup = soups[op.source_id.arrete_id]
             source_title, source_content = get_node_content(op.source_id, source_soup)
@@ -245,7 +254,7 @@ def build_graph(
 
 
 def _is_full_removal_op(operation: Operation) -> bool:
-    """Return True if the operation removes or replaces an entire arrêté.
+    """Return True if the operation removes or replaces an entire arrêté (REMOVE/REPLACE ALL).
 
     REMOVE with target ALL = explicit abrogation.
     REPLACE with target ALL = arrêté refonte : the source arrêté replaces the entire
@@ -263,6 +272,6 @@ def _is_full_removal_op(operation: Operation) -> bool:
     if operation.sub_target is not None and operation.sub_target.type != SubTargetType.FULL_SECTION:
         return False
     # Only abrogate when the operation was cleanly resolved.
-    if operation.status_code is not None and operation.status_code != StatusCode.RESOLVED:
+    if operation.error_codes:
         return False
     return True

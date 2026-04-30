@@ -51,7 +51,13 @@ def _run_snapshot_pipeline(
         operations=operations,
     )
 
-    ops_json = strip_none_values([op.model_dump(mode="json") for op in ops])
+    ops_dumped: list[dict[str, Any]] = []
+    for op in ops:
+        data = op.model_dump(mode="json")
+        if not data.get("error_codes"):
+            data.pop("error_codes", None)
+        ops_dumped.append(data)
+    ops_json = strip_none_values(ops_dumped)
     history_json = strip_none_values(article_history_to_json_dict(history))
     permis_html = permis.to_html() if permis else ""
     return ops_json, history_json, permis_html
