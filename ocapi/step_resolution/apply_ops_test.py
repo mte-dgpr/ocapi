@@ -829,8 +829,8 @@ def test_apply_remove_simple_drops_table() -> None:
         operation_type=OperationType.REMOVE,
         sub_target=SubTarget(type=SubTargetType.TABLEAU, position=None, description="le tableau"),
     )
-    status, out = apply_remove(op, BeautifulSoup(html, "html.parser"))
-    assert status == frozenset()
+    error_codes, out = apply_remove(op, BeautifulSoup(html, "html.parser"))
+    assert error_codes == frozenset()
     assert "<table" not in out
     assert "Before" in out
     assert "After" in out
@@ -847,8 +847,8 @@ def test_apply_remove_complex_falls_back_to_llm(mock_llm: mock.Mock) -> None:
         operation_type=OperationType.REMOVE,
         sub_target=SubTarget(type=SubTargetType.COMPLEX, description="le dernier alinéa"),
     )
-    status, out = apply_remove(op, BeautifulSoup(html, "html.parser"))
-    assert status == frozenset()
+    error_codes, out = apply_remove(op, BeautifulSoup(html, "html.parser"))
+    assert error_codes == frozenset()
     mock_llm.assert_called_once()
     assert "cleaned" in out
 
@@ -862,8 +862,8 @@ def test_apply_remove_complex_disabled_llm_returns_unchanged() -> None:
         operation_type=OperationType.REMOVE,
         sub_target=SubTarget(type=SubTargetType.COMPLEX, description="un truc vague"),
     )
-    status, out = apply_remove(op, BeautifulSoup(html, "html.parser"), enable_llm=False)
-    assert status == frozenset({ErrorCode.DISABLED_LLM_CALL})
+    error_codes, out = apply_remove(op, BeautifulSoup(html, "html.parser"), enable_llm=False)
+    assert error_codes == frozenset({ErrorCode.DISABLED_LLM_CALL})
     assert "keep" in out
 
 

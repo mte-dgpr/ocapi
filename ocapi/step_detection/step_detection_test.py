@@ -21,7 +21,6 @@ from unittest import mock
 from unittest.mock import Mock, patch
 
 import pytest
-from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 
 from ocapi.exceptions import OperationError
@@ -33,7 +32,6 @@ from ocapi.step_detection.step_detection import (
     step_detection,
 )
 from ocapi.types import (
-    ArreteFile,
     ErrorCode,
     NodeId,
     OperationType,
@@ -43,15 +41,6 @@ from ocapi.types import (
     SubTargetType,
 )
 from ocapi.utils.testing import make_testing_arrete, make_testing_raw_op
-
-
-def _fake_arrete(arrete_id: str = "2022-01-01") -> ArreteFile:
-    return ArreteFile(
-        id=arrete_id,
-        aiot="0001",
-        filename=f"{arrete_id}.html",
-        soup=BeautifulSoup("<html/>", "html.parser"),
-    )
 
 
 @pytest.fixture(autouse=True)

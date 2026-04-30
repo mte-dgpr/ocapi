@@ -91,7 +91,13 @@ def test_make_permit_other_includes_modifying_arretes_with_operation_messages() 
     history: ArticleHistory = {
         NodeId(arrete_id="2020-01-01", article_id="3"): [
             {"version": 0, "title": "", "content": "old", "operation_id": None},
-            {"version": 1, "title": "", "content": "new", "operation_id": "op-1"},
+            {
+                "version": 1,
+                "title": "",
+                "content": "old",
+                "operation_id": "op-1",
+                "error_codes": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
+            },
         ],
     }
 
@@ -100,7 +106,7 @@ def test_make_permit_other_includes_modifying_arretes_with_operation_messages() 
     assert 'data-spec="permit_modifying"' in html
     assert "ID MOD" in html
     assert "TITLE MOD" in html
-    assert "Opération de consolidation résolue" in html
+    assert "Opération de consolidation non résolue" in html
     assert "l'article 3 de l'arrêté 2020-01-01" in html
     # Message should appear after the title, not at the end
     soup = BeautifulSoup(html, "html.parser")
@@ -202,7 +208,13 @@ def test_target_all_shows_arrete_only() -> None:
     history: ArticleHistory = {
         NodeId(arrete_id="2020-01-01", article_id="ALL"): [
             {"version": 0, "title": "", "content": "", "operation_id": None},
-            {"version": 1, "title": "", "content": "x", "operation_id": "op-all"},
+            {
+                "version": 1,
+                "title": "",
+                "content": "x",
+                "operation_id": "op-all",
+                "error_codes": frozenset({ErrorCode.ERROR_EXTRACTING_TARGET}),
+            },
         ],
     }
 
@@ -239,7 +251,13 @@ def test_make_permit_other_includes_appendix_with_operation_messages() -> None:
     history: ArticleHistory = {
         NodeId(arrete_id="2020-01-01", article_id="3"): [
             {"version": 0, "title": "", "content": "old", "operation_id": None},
-            {"version": 1, "title": "", "content": "new", "operation_id": "op-app"},
+            {
+                "version": 1,
+                "title": "",
+                "content": "old",
+                "operation_id": "op-app",
+                "error_codes": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
+            },
         ],
     }
 
@@ -253,7 +271,7 @@ def test_make_permit_other_includes_appendix_with_operation_messages() -> None:
     assert appendix_section is not None
     msg = appendix_section.find("div", attrs={"data-spec": "operation_result"})
     assert msg is not None
-    assert "Opération de consolidation résolue" in msg.get_text()
+    assert "Opération de consolidation non résolue" in msg.get_text()
     assert "l'article 3 de l'arrêté 2020-01-01" in msg.get_text()
 
 
@@ -280,7 +298,13 @@ def test_target_new_article_strips_prefix() -> None:
     )
     history: ArticleHistory = {
         NodeId(arrete_id="2020-01-01", article_id="NEW_ARTICLE:4.1"): [
-            {"version": 0, "title": "", "content": "new", "operation_id": "op-new"},
+            {
+                "version": 0,
+                "title": "",
+                "content": "new",
+                "operation_id": "op-new",
+                "error_codes": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
+            },
         ],
     }
 
