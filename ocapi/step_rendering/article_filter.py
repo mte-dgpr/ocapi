@@ -31,15 +31,28 @@ _SUPERFLUOUS_TITLES: frozenset[str] = frozenset(
     for raw in (
         "MODIFICATIONS ET COMPLÉMENTS APPORTÉS AUX PRESCRIPTIONS DES ACTES ANTÉRIEURS",
         "MODALITÉS D'EXÉCUTION",
+        "MODALITÉ D'EXÉCUTION, VOIES DE RECOURS",
         "FRAIS",
         "SANCTIONS",
         "DIFFUSION",
         "PUBLICATION",
         "PUBLICATION ET AMPLIATION",
         "AMPLIATION",
+        "PUBLICITÉ",
+        "MESURES DE PUBLICITÉ",
+        "PUBLICITÉ ET EXÉCUTION",
+        "INFORMATION DES TIERS",
         "TRANSMISSION À L'EXPLOITANT",
         "EXÉCUTION",
+        "DÉLAIS",
+        "DÉLAIS DE RÉALISATION",
+        "ÉCHÉANCES",
+        "ÉCHÉANCES ET DURÉE",
+        "RECOURS",
+        "DÉLAI ET VOIE DE RECOURS",
         "DÉLAIS ET VOIES DE RECOURS",
+        "DÉLAIS ET VOIES DE RECOURS-PUBLICITÉ-EXÉCUTION",
+        "DÉLAIS ET VOIES DE RECOURS - PUBLICITÉ - EXECUTION",
     )
 )
 

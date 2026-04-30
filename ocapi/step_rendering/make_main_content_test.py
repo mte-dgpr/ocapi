@@ -42,10 +42,7 @@ from ocapi.types import (
     SubTargetType,
     status_code_reason,
 )
-from ocapi.utils.testing import (
-    make_article_version,
-    make_arrete,
-)
+from ocapi.utils.testing import make_arrete, make_article_version
 
 
 class TestIntegrationWithArticleFilter:
@@ -806,3 +803,61 @@ class TestSelectInitialAp:
         refonte = make_arrete("2022-01-01", file_type=FileType.AP_AUTORISATION)
 
         assert _select_initial_ap([older, refonte]) is refonte
+
+
+def test_make_permit_content_marks_main_ap_source_articles() -> None:
+    """Operations sourced from the main AP get a result message in their source article."""
+    html = """
+<html><body data-arretify_version="0.2.0">
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><h3>Art 1</h3><p>Source article</p></section>
+  <section data-spec="section" data-number="2"><h3>Art 2</h3><p>Other</p></section>
+ </main>
+</body></html>
+"""
+    arrete = make_arrete("2021-01-01", html)
+    op_ok = Operation(
+        id="op-1",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
+        operation_type=OperationType.REPLACE,
+    )
+    op_err = Operation(
+        id="op-2",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="4"),
+        operation_type=OperationType.REMOVE,
+    )
+    history: ArticleHistory = {
+        NodeId(arrete_id="2020-01-01", article_id="3"): [
+            cast(ArticleVersion, {"version": 0, "content": "old", "operation_id": None}),
+            cast(ArticleVersion, {"version": 1, "content": "new", "operation_id": "op-1"}),
+        ],
+        NodeId(arrete_id="2020-01-01", article_id="4"): [
+            cast(ArticleVersion, {"version": 0, "content": "old", "operation_id": None}),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 1,
+                    "content": "old",
+                    "operation_id": "op-2",
+                    "status_code": StatusCode.ERROR_FINDING_SUBTARGET,
+                },
+            ),
+        ],
+    }
+
+    result = make_permit_content(history, [arrete], [op_ok, op_err])
+
+    soup = BeautifulSoup(result, "html.parser")
+    section_1 = soup.find("section", attrs={"data-number": "1"})
+    section_2 = soup.find("section", attrs={"data-number": "2"})
+    assert section_1 is not None and section_2 is not None
+    msg_1 = section_1.find("div", attrs={"data-spec": "operation_result"})
+    msg_2 = section_2.find("div", attrs={"data-spec": "operation_result"})
+    assert msg_1 is not None
+    assert "Opération de consolidation résolue" in msg_1.get_text()
+    assert "l'article 3 de l'arrêté 2020-01-01" in msg_1.get_text()
+    assert msg_2 is not None
+    assert "Opération de consolidation non résolue" in msg_2.get_text()
+    assert "sous-cible" in msg_2.get_text()
