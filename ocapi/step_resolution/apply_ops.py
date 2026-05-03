@@ -189,6 +189,8 @@ def apply_replace(
     # Complex or ambiguous case: use the LLM (or skip if disabled)
     if not enable_llm:
         return frozenset({ErrorCode.DISABLED_LLM_CALL}), str(soup)
+    if ErrorCode.ERROR_EXTRACTING_SOURCE in operation.error_codes:
+        return frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE}), str(soup)
     prompt = query_llm_for_subtarget(
         OperationType.REPLACE,
         str(soup),
@@ -249,6 +251,8 @@ def apply_remove(
     # Complex or ambiguous case: use the LLM (or skip if disabled)
     if not enable_llm:
         return frozenset({ErrorCode.DISABLED_LLM_CALL}), str(soup)
+    if ErrorCode.ERROR_EXTRACTING_SOURCE in operation.error_codes:
+        return frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE}), str(soup)
     prompt = query_llm_for_subtarget(
         OperationType.REMOVE,
         str(soup),
@@ -360,6 +364,8 @@ def apply_add(
     llm_consolidation_log(operation, "add")
     if not enable_llm:
         return frozenset({ErrorCode.DISABLED_LLM_CALL}), str(soup)
+    if ErrorCode.ERROR_EXTRACTING_SOURCE in operation.error_codes:
+        return frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE}), str(soup)
     desc = sub_target.description or ""
     prompt = query_llm_for_subtarget(
         OperationType.ADD,
