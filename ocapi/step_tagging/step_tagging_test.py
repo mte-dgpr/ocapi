@@ -32,7 +32,7 @@ from ocapi.semantic_tag_specs import OperationSpec, OperationType
 from ocapi.step_tagging import step_tagging
 
 
-class TestStepTagging(BaseTestCaseHtml):  # type: ignore[misc]
+class TestStepTagging(BaseTestCaseHtml):
     def test_tags_replace_operation_and_resolves_operand(self) -> None:
         self.soup_extend(
             [

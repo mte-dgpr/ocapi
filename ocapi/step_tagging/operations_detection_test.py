@@ -24,7 +24,7 @@ from ocapi.semantic_tag_specs import OperationData, OperationSpec
 from .operations_detection import parse_operations
 
 
-class TestReplaceOperations(BaseTestCaseHtml):  # type: ignore[misc]
+class TestReplaceOperations(BaseTestCaseHtml):
     def test_has_operand(self) -> None:
         # Arrange
         elements = ["sont remplacées comme suit :"]
@@ -417,7 +417,7 @@ class TestReplaceOperations(BaseTestCaseHtml):  # type: ignore[misc]
         )
 
 
-class TestAddOperations(BaseTestCaseHtml):  # type: ignore[misc]
+class TestAddOperations(BaseTestCaseHtml):
     def test_add_completed_as_follows(self) -> None:
         # Arrange
         elements = [
@@ -1024,7 +1024,7 @@ class TestAddOperations(BaseTestCaseHtml):  # type: ignore[misc]
         )
 
 
-class TestDeleteOperations(BaseTestCaseHtml):  # type: ignore[misc]
+class TestDeleteOperations(BaseTestCaseHtml):
     def test_delete_abroge(self) -> None:
         # Arrange
         elements = [

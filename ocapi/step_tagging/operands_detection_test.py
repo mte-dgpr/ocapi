@@ -35,7 +35,7 @@ from ocapi.semantic_tag_specs import OperationData, OperationSpec
 from .operands_detection import resolve_references_and_operands
 
 
-class TestParseOperations(BaseTestCaseHtml):  # type: ignore[misc]
+class TestParseOperations(BaseTestCaseHtml):
 
     def test_several_references_no_operand(self) -> None:
         # Arrange

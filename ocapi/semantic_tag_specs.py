@@ -42,7 +42,7 @@ class OperationType(Enum):
     REPLACE = "replace"
 
 
-class OperationData(SemanticTagData):  # type: ignore[misc]
+class OperationData(SemanticTagData):
     operation_type: Annotated[OperationType, enum_serializer]
     direction: Literal["ltr", "rtl"]
     references: StrList | None = None

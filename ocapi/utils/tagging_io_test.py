@@ -34,7 +34,7 @@ from ocapi.utils.tagging_io import extract_operations_from_tagged_soup
 
 
 def _build_replace_alinea(case: BaseTestCaseHtml) -> ProtectedTag:
-    return case.make_semantic_tag(  # type: ignore[no-any-return]
+    return case.make_semantic_tag(
         AlineaSpec,
         data=AlineaData(number=1),
         contents=[
@@ -64,7 +64,7 @@ def _build_replace_alinea(case: BaseTestCaseHtml) -> ProtectedTag:
 
 
 def _build_add_alinea(case: BaseTestCaseHtml) -> ProtectedTag:
-    return case.make_semantic_tag(  # type: ignore[no-any-return]
+    return case.make_semantic_tag(
         AlineaSpec,
         data=AlineaData(number=1),
         contents=[
@@ -90,7 +90,7 @@ def _build_add_alinea(case: BaseTestCaseHtml) -> ProtectedTag:
 
 
 def _build_delete_alinea(case: BaseTestCaseHtml) -> ProtectedTag:
-    return case.make_semantic_tag(  # type: ignore[no-any-return]
+    return case.make_semantic_tag(
         AlineaSpec,
         data=AlineaData(number=1),
         contents=[
@@ -115,7 +115,7 @@ def _build_delete_alinea(case: BaseTestCaseHtml) -> ProtectedTag:
     )
 
 
-class TestExtractOperationsFromTaggedSoup(BaseTestCaseHtml):  # type: ignore[misc]
+class TestExtractOperationsFromTaggedSoup(BaseTestCaseHtml):
     def test_replace_operation(self) -> None:
         self.soup_extend([_build_replace_alinea(self)])
         step_tagging(self.context)
