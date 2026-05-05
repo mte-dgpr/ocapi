@@ -480,6 +480,12 @@ class Operation(_BaseModelWithConfig):
             and self.target_id.article_id == "ALL"
             and (self.sub_target is None or self.sub_target.type == SubTargetType.FULL_SECTION)
         ):
+            _LOGGER.info(
+                f"Operation {self.id}: ADD targeting target_article=ALL without a "
+                f"specific sub-target (target_arrete={self.target_id.arrete_id}); "
+                f"likely just signals a complementary arrêté rather than a "
+                f"consolidation operation"
+            )
             self.error_codes = self.error_codes | {ErrorCode.NOT_AN_OPERATION}
 
         return self

@@ -220,7 +220,7 @@ def test_add_all_with_full_section_subtarget_flagged_as_not_an_operation(
 
 
 @patch("ocapi.step_detection.step_detection.parse_subtarget")
-def test_add_all_with_partial_subtarget_is_not_not_an_operation(
+def test_add_all_with_partial_subtarget_is_an_operation(
     mock_parse_subtarget: Mock,
 ) -> None:
     """ADD + ALL + non-FULL_SECTION sub-target keeps ERROR_EXTRACTING_OPERAND."""
