@@ -31,7 +31,7 @@ successive operations.
 from copy import copy
 
 import networkx as nx
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from ocapi.exceptions import OperationError, SubtargetNotFoundError
 from ocapi.llm_utils import call_llm_api, config_model_llm, query_llm_for_subtarget
@@ -110,11 +110,11 @@ def _strip_duplicate_section_title(
     """
     operand_soup = BeautifulSoup(operand, "html.parser")
     section = operand_soup.find("section", attrs={"data-number": target_data_number})
-    if section is None:
+    if not isinstance(section, Tag):
         return operand
 
     operand_title = section.find(["h1", "h2", "h3", "h4", "h5", "h6"])
-    if operand_title is None:
+    if not isinstance(operand_title, Tag):
         return operand
 
     if not target_title_html:
@@ -122,7 +122,7 @@ def _strip_duplicate_section_title(
 
     target_title_soup = BeautifulSoup(target_title_html, "html.parser")
     target_title = target_title_soup.find(["h1", "h2", "h3", "h4", "h5", "h6"])
-    if target_title is None:
+    if not isinstance(target_title, Tag):
         return operand
 
     if normalize_title_text(operand_title.get_text()) != normalize_title_text(
@@ -235,7 +235,7 @@ def _unwrap_operand_section(operand: str) -> str:
         return operand
     soup = BeautifulSoup(stripped, "html.parser")
     sec = soup.find("section")
-    if sec is None:
+    if not isinstance(sec, Tag):
         return operand
     return str(sec.decode_contents())
 

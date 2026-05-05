@@ -67,7 +67,7 @@ def make_permit_content(
 
     # Extract only the main content (skip header)
     main = consolidated_soup.find("main")
-    if main is None:
+    if not isinstance(main, Tag):
         return ""
 
     # Find all sections (articles) in the main element
@@ -156,7 +156,7 @@ def _insert_new_article_sections(
         )
         frag = BeautifulSoup(section_html, "html.parser")
         section_el = frag.find("section")
-        assert section_el is not None
+        assert isinstance(section_el, Tag)
 
         pred = _find_predecessor_display_id(disp, set(pool))
         if pred is None:

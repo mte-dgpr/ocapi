@@ -33,6 +33,7 @@ from ocapi.exceptions import OcapiError
 from ocapi.llm_utils import config_model_llm
 from ocapi.pipeline import run_pipeline
 from ocapi.snapshot import SNAPSHOT_CASES
+from ocapi.step_rendering.step_rendering import permis_to_html
 from ocapi.types import Operation
 from ocapi.utils.io_utils import (
     InputOutputError,
@@ -151,7 +152,7 @@ def run_main(
 
         if permis:
             permis_path = consolidation_dir / "permis.html"
-            write_permis_output(permis, permis_path)
+            write_permis_output(permis_to_html(permis), permis_path)
             _LOGGER.info(f"Consolidated permit saved → {permis_path}")
 
         return 0
@@ -221,7 +222,7 @@ def cmd_update_snapshots(args: argparse.Namespace) -> int:
         write_json_output(ops_dict, consolidation_dir / "operations.json")
         write_json_output(article_history_to_json_dict(history), consolidation_dir / "history.json")
         if permis:
-            write_permis_output(permis, consolidation_dir / "permis.html")
+            write_permis_output(permis_to_html(permis), consolidation_dir / "permis.html")
         _LOGGER.info(f"Updated snapshots → {consolidation_dir}")
     return 0
 

@@ -25,7 +25,7 @@ between two articles.
 from typing import Tuple
 
 import networkx as nx
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from ocapi.exceptions import SectionNotFoundError
 from ocapi.types import (
@@ -118,18 +118,18 @@ def split_section_title(section_html: str) -> Tuple[str, str]:
     """
     section_soup = BeautifulSoup(section_html, "html.parser")
     section_tag = section_soup.find("section")
-    if section_tag is None:
+    if not isinstance(section_tag, Tag):
         title_tag = section_soup.find(["h1", "h2", "h3", "h4", "h5", "h6"])
-        if title_tag is None:
+        if not isinstance(title_tag, Tag):
             return "", section_html
         title_html = str(title_tag)
         title_tag.decompose()
         return title_html, str(section_soup)
 
-    title_tag = section_tag.find(["h1", "h2", "h3", "h4", "h5", "h6"], recursive=False)
-    title_html = str(title_tag) if title_tag else ""
-    if title_tag:
-        title_tag.decompose()
+    inner_title = section_tag.find(["h1", "h2", "h3", "h4", "h5", "h6"], recursive=False)
+    title_html = str(inner_title) if isinstance(inner_title, Tag) else ""
+    if isinstance(inner_title, Tag):
+        inner_title.decompose()
     return title_html, str(section_tag.decode_contents())
 
 

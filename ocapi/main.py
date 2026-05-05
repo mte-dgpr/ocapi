@@ -39,6 +39,7 @@ from ocapi.config import settings
 from ocapi.exceptions import OcapiError
 from ocapi.llm_utils import config_model_llm
 from ocapi.pipeline import run_pipeline
+from ocapi.step_rendering.step_rendering import permis_to_html
 from ocapi.types import Operation
 from ocapi.utils.io_utils import (
     InputOutputError,
@@ -164,7 +165,7 @@ def main(
         # Save permit if generated
         if permis:
             permis_path = consolidation_dir / "permis.html"
-            write_permis_output(permis, permis_path)
+            write_permis_output(permis_to_html(permis), permis_path)
             _LOGGER.info(f"Consolidated permit saved → {permis_path}")
 
         _LOGGER.info("Pipeline completed successfully!")

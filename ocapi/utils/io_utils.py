@@ -23,7 +23,7 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from ocapi.exceptions import InputOutputError, InvalidFileFormatError
 from ocapi.types import (
@@ -33,7 +33,6 @@ from ocapi.types import (
     FileType,
     NodeId,
     Operation,
-    Permis,
     parse_filename,
     validate_arretify_version,
 )
@@ -207,7 +206,7 @@ def _merge_annexes_into_base(base: ArreteFile, annexes: list[ArreteFile]) -> Non
 
     for annexe in annexes:
         annexe_main = annexe.soup.find("main")
-        if annexe_main is None:
+        if not isinstance(annexe_main, Tag):
             _LOGGER.warning(f"Annexe ignorée (pas de balise <main>): {annexe.filename}")
             continue
         for child in list(annexe_main.children):
@@ -334,21 +333,11 @@ def load_arrete_files(input_dir: Path, aiot: str) -> list[ArreteFile]:
     return arrete_files
 
 
-def write_permis_output(permis: Permis, output_path: Path) -> None:
-    """Write the consolidated permit to an output file."""
+def write_permis_output(permis_html: str, output_path: Path) -> None:
+    """Write the rendered consolidated permit HTML to *output_path*."""
     try:
-        # Create parent directory if needed
         output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        if output_path.suffix in [".html", ".htm"]:
-            # Imported lazily so io_utils stays usable without rendering deps.
-            from ocapi.step_rendering.step_rendering import permis_to_html
-
-            output_path.write_text(permis_to_html(permis), encoding="utf-8")
-        else:
-            # Default: save as JSON
-            output_path.write_text(permis.model_dump_json(indent=2), encoding="utf-8")
-
+        output_path.write_text(permis_html, encoding="utf-8")
     except OSError as e:
         raise InputOutputError(f"Cannot write to output file: {e}") from e
 

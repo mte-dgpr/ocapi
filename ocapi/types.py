@@ -22,7 +22,7 @@ from enum import Enum
 from typing import Dict, Optional, TypedDict
 
 from arretify.parsing_utils.numbering import ROMAN_NUMERALS_PATTERN_S, str_to_levels
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator, model_validator
 from typing_extensions import NotRequired
 
@@ -620,7 +620,7 @@ def validate_arretify_version(soup: BeautifulSoup, filename: str = "") -> None:
         If the Arrêtify version is missing or not supported.
     """
     body = soup.find("body")
-    if not body:
+    if not isinstance(body, Tag):
         raise InvalidFileFormatError(f"Invalid HTML document (missing <body> tag): {filename}")
 
     arretify_version = body.get("data-arretify_version")

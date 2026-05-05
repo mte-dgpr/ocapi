@@ -33,7 +33,7 @@ import re
 from copy import copy
 from typing import TypeVar
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from ocapi.config import FullSectionName
 from ocapi.exceptions import SubtargetNotFoundError
@@ -283,7 +283,7 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
 
     elif subtarget_type == SubTargetType.LIGNE_TABLEAU:
         table = soup.find("table")
-        if table:
+        if isinstance(table, Tag):
             rows = table.find_all("tr")
             target_row = _find_target_element(
                 rows, subtarget.position, subtarget.description, "rows"
@@ -294,7 +294,7 @@ def replace_subtarget(soup: BeautifulSoup, subtarget: SubTarget, operand: str) -
 
     elif subtarget_type == SubTargetType.COLONNE_TABLEAU:
         table = soup.find("table")
-        if table:
+        if isinstance(table, Tag):
             rows = table.find_all("tr")
 
             # For None position, check uniqueness on the first row
@@ -396,7 +396,7 @@ def insert_content_after_subtarget(
 
     if subtarget_type == SubTargetType.LIGNE_TABLEAU:
         table = soup.find("table")
-        if table:
+        if isinstance(table, Tag):
             rows = table.find_all("tr")
             target_row = _find_target_element(
                 rows, subtarget.position, subtarget.description, "rows"
@@ -407,7 +407,7 @@ def insert_content_after_subtarget(
 
     if subtarget_type == SubTargetType.COLONNE_TABLEAU:
         table = soup.find("table")
-        if table:
+        if isinstance(table, Tag):
             rows = table.find_all("tr")
             if subtarget.position is None and rows:
                 first_row_cols = rows[0].find_all(["td", "th"])

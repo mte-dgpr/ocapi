@@ -19,7 +19,7 @@
 from typing import cast
 
 import pytest
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from ocapi.step_rendering.main_content import (
     _is_abrogated,
@@ -85,7 +85,7 @@ def test_make_section_version_sets_default_attrs_when_article_not_in_history() -
         '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
         "html.parser",
     ).find("section")
-    assert section is not None
+    assert isinstance(section, Tag)
 
     make_section_version(
         section=section,
@@ -107,7 +107,7 @@ def test_make_section_version_skips_invalid_article_id() -> None:
         '<section data-spec="section" data-number="bad id!"><p>Content</p></section>',
         "html.parser",
     ).find("section")
-    assert section is not None
+    assert isinstance(section, Tag)
 
     make_section_version(
         section=section,
@@ -128,7 +128,7 @@ def test_make_section_version_marks_removed_article() -> None:
         '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
         "html.parser",
     ).find("section")
-    assert section is not None
+    assert isinstance(section, Tag)
 
     operation = Operation(
         id="op-remove",
@@ -167,7 +167,7 @@ def test_make_section_version_partial_remove_does_not_mark_abrogated() -> None:
         '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
         "html.parser",
     ).find("section")
-    assert section is not None
+    assert isinstance(section, Tag)
 
     operation = Operation(
         id="op-partial-remove",
@@ -216,7 +216,7 @@ def test_make_section_version_full_remove_marks_abrogated() -> None:
         '<section data-spec="section" data-number="1"><p>Texte initial</p></section>',
         "html.parser",
     ).find("section")
-    assert section is not None
+    assert isinstance(section, Tag)
 
     operation = Operation(
         id="op-full-remove",
@@ -447,7 +447,7 @@ def test_make_section_version_places_previous_version_in_details_only() -> None:
         '<section data-spec="section" data-number="1"><p>Article 1 initial</p></section>',
         "html.parser",
     ).find("section")
-    assert section is not None
+    assert isinstance(section, Tag)
 
     operation = Operation(
         id="op-1",
@@ -501,7 +501,7 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
         '<section data-spec="section" data-number="1"><p>Article 1 initial</p></section>',
         "html.parser",
     ).find("section")
-    assert section is not None
+    assert isinstance(section, Tag)
 
     operation = Operation(
         id="op-1",
@@ -599,7 +599,7 @@ def test_make_section_version_displays_unresolved_message_for_subtarget_errors(
         '<section data-spec="section" data-number="1"><p>Article 1 initial</p></section>',
         "html.parser",
     ).find("section")
-    assert section is not None
+    assert isinstance(section, Tag)
 
     operation = Operation(
         id="op-1",
@@ -647,7 +647,7 @@ def test_make_section_version_displays_error_extracting_target_reason() -> None:
         '<section data-spec="section" data-number="1"><p>Initial</p></section>',
         "html.parser",
     ).find("section")
-    assert section is not None
+    assert isinstance(section, Tag)
 
     operation = Operation(
         id="op-target",
@@ -840,12 +840,13 @@ def test_make_permit_content_marks_main_ap_source_articles() -> None:
     soup = BeautifulSoup(result, "html.parser")
     section_1 = soup.find("section", attrs={"data-number": "1"})
     section_2 = soup.find("section", attrs={"data-number": "2"})
-    assert section_1 is not None and section_2 is not None
+    assert isinstance(section_1, Tag)
+    assert isinstance(section_2, Tag)
     msg_1 = section_1.find("div", attrs={"data-spec": "operation_result"})
     msg_2 = section_2.find("div", attrs={"data-spec": "operation_result"})
-    assert msg_1 is not None
+    assert isinstance(msg_1, Tag)
     assert "Opération de consolidation résolue" in msg_1.get_text()
     assert "l'article 3 de l'arrêté 2020-01-01" in msg_1.get_text()
-    assert msg_2 is not None
+    assert isinstance(msg_2, Tag)
     assert "Opération de consolidation non résolue" in msg_2.get_text()
     assert "sous-cible" in msg_2.get_text()
