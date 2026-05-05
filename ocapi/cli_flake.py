@@ -19,7 +19,7 @@
 import sys
 from pathlib import Path
 
-from flake8.main.cli import main as flake8_main
+from flake8.main.cli import main as flake8_main  # type: ignore[import-untyped]
 
 
 def main() -> None:

@@ -268,43 +268,45 @@ def filter_and_deduplicate_arrete_files(
     return result
 
 
+def _initialize_arrete_file(html_path: Path, soup: BeautifulSoup, aiot: str) -> "ArreteFile | None":
+    """Build an :class:`ArreteFile` from a parsed soup, or ``None`` to skip."""
+    try:
+        arrete_id, file_type = parse_filename(html_path.name)
+    except InvalidFileFormatError as e:
+        _LOGGER.warning(f"File skipped (invalid format): {html_path.name} - Reason: {e}")
+        return None
+
+    try:
+        validate_arretify_version(soup, html_path.name)
+    except InvalidFileFormatError as e:
+        _LOGGER.warning(
+            f"File skipped (incompatible Arrêtify version): {html_path.name} - Reason: {e}"
+        )
+        return None
+
+    arrete = ArreteFile(
+        id=arrete_id,
+        aiot=aiot,
+        filename=html_path.name,
+        soup=soup,
+        file_type=file_type,
+    )
+    file_type_str = file_type.value if file_type else "unknown"
+    _LOGGER.info(f"Loaded: {html_path.name} (id={arrete_id}, type={file_type_str})")
+    return arrete
+
+
 def initialize_arrete_files(html_files: list[Path], aiot: str) -> list["ArreteFile"]:
     """Initialise ArreteFile objects from a list of HTML files."""
     arrete_files: list[ArreteFile] = []
 
     for html_path in html_files:
-        try:
-            arrete_id, file_type = parse_filename(html_path.name)
-        except InvalidFileFormatError as e:
-            _LOGGER.warning(f"File skipped (invalid format): {html_path.name} - Reason: {e}")
-            continue
-
-        # Load HTML content
         with open(html_path, encoding="utf-8") as f:
             html_content = f.read()
-
         soup = BeautifulSoup(html_content, "html.parser")
-
-        # Validate Arrêtify version
-        try:
-            validate_arretify_version(soup, html_path.name)
-        except InvalidFileFormatError as e:
-            _LOGGER.warning(
-                f"File skipped (incompatible Arrêtify version): {html_path.name} - Reason: {e}"
-            )
-            continue
-
-        # Create ArreteFile object
-        arrete = ArreteFile(
-            id=arrete_id,
-            aiot=aiot,
-            filename=html_path.name,
-            soup=soup,
-            file_type=file_type,
-        )
-        arrete_files.append(arrete)
-        file_type_str = file_type.value if file_type else "unknown"
-        _LOGGER.info(f"Loaded: {html_path.name} (id={arrete_id}, type={file_type_str})")
+        arrete = _initialize_arrete_file(html_path, soup, aiot)
+        if arrete is not None:
+            arrete_files.append(arrete)
 
     return filter_and_deduplicate_arrete_files(arrete_files)
 
@@ -378,32 +380,10 @@ def load_document_contexts(
     session_context = _make_session_context()
     pairs: list[tuple[ArreteFile, DocumentContext]] = []
     for html_path in html_files:
-        try:
-            arrete_id, file_type = parse_filename(html_path.name)
-        except InvalidFileFormatError as e:
-            _LOGGER.warning(f"File skipped (invalid format): {html_path.name} - Reason: {e}")
-            continue
-
         document_context = _load_document_context(session_context, html_path)
-
-        try:
-            validate_arretify_version(document_context.soup, html_path.name)
-        except InvalidFileFormatError as e:
-            _LOGGER.warning(
-                f"File skipped (incompatible Arrêtify version): {html_path.name} - Reason: {e}"
-            )
-            continue
-
-        arrete = ArreteFile(
-            id=arrete_id,
-            aiot=aiot,
-            filename=html_path.name,
-            soup=document_context.soup,
-            file_type=file_type,
-        )
-        pairs.append((arrete, document_context))
-        file_type_str = file_type.value if file_type else "unknown"
-        _LOGGER.info(f"Loaded: {html_path.name} (id={arrete_id}, type={file_type_str})")
+        arrete = _initialize_arrete_file(html_path, document_context.soup, aiot)
+        if arrete is not None:
+            pairs.append((arrete, document_context))
 
     kept = filter_and_deduplicate_arrete_files([af for af, _ in pairs])
     dc_by_filename = {af.filename: dc for af, dc in pairs}

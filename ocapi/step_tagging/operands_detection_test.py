@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -99,7 +99,7 @@ class TestParseOperations(BaseTestCaseHtml):  # type: ignore[misc]
                 )
             ]
         )
-        operation_tag = self.soup.select_one(css_selector(OperationSpec))
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
 
         # Act
         resolve_references_and_operands(self.context, operation_tag)
@@ -221,7 +221,7 @@ class TestParseOperations(BaseTestCaseHtml):  # type: ignore[misc]
                 )
             ]
         )
-        operation_tag = self.soup.select_one(css_selector(OperationSpec))
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
 
         # Act
         resolve_references_and_operands(self.context, operation_tag)
@@ -318,7 +318,7 @@ class TestParseOperations(BaseTestCaseHtml):  # type: ignore[misc]
                 )
             ]
         )
-        operation_tag = self.soup.select_one(css_selector(OperationSpec))
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
 
         # Act
         resolve_references_and_operands(self.context, operation_tag)
@@ -412,7 +412,7 @@ class TestParseOperations(BaseTestCaseHtml):  # type: ignore[misc]
                 )
             ]
         )
-        operation_tag = self.soup.select_one(css_selector(OperationSpec))
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
 
         # Act
         resolve_references_and_operands(self.context, operation_tag)

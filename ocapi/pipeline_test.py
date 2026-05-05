@@ -158,7 +158,7 @@ def test_step_tagging_runs_when_enabled(
     arretes = [make_testing_arrete("2009-12-08"), make_testing_arrete("2014-01-09")]
     dcs = [MagicMock(soup=a.soup) for a in arretes]
 
-    run_pipeline(arretes, enable_rendering=False, document_contexts=dcs)
+    run_pipeline(arretes, enable_rendering=False, document_contexts=dcs)  # type: ignore[arg-type]
 
     assert mock_tagging.call_count == 2
 
@@ -176,7 +176,7 @@ def test_step_tagging_skipped_when_disabled(
         arretes,
         enable_rendering=False,
         enable_tagging=False,
-        document_contexts=dcs,
+        document_contexts=dcs,  # type: ignore[arg-type]
     )
 
     mock_tagging.assert_not_called()

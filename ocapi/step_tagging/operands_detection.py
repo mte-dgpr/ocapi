@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Direction générale de la prévention des risques (DGPR).
+# Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 #
 # This file is part of OCAPI.
 # See https://github.com/mte-dgpr/ocapi for further info.
@@ -17,6 +17,7 @@
 # limitations under the License.
 #
 import logging
+from typing import Any
 
 from arretify.semantic_tag_specs import (
     DocumentReferenceSpec,
@@ -41,7 +42,7 @@ from arretify.utils.references import build_reference_tree
 
 from ocapi.semantic_tag_specs import OperationSpec
 
-PAGINATION_TAG_SPECS: list[SemanticTagSpec] = [
+PAGINATION_TAG_SPECS: list[SemanticTagSpec[Any]] = [
     PageSeparatorSpec,
     PageHeaderSpec,
     PageFooterSpec,
