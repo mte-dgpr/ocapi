@@ -71,19 +71,16 @@ def extract_operations_from_tagged_soup(soup: ProtectedSoup, arrete_id: str) -> 
     """
     operations: list[RawOperation] = []
     for operation_tag in soup.select(css_selector(OperationSpec)):
-        operations.append(_operation_tag_to_raw_operation(soup, operation_tag, arrete_id))
+        operations.extend(_operation_tag_to_raw_operations(soup, operation_tag, arrete_id))
     return operations
 
 
-def _operation_tag_to_raw_operation(
+def _operation_tag_to_raw_operations(
     soup: ProtectedSoup, operation_tag: ProtectedTag, arrete_id: str
-) -> RawOperation:
+) -> list[RawOperation]:
     data = get_semantic_tag_data(OperationSpec, operation_tag)
     operation_type = data.operation_type
 
-    target_arrete = ""
-    target_article: str | None = None
-    sub_target: str | None = None
     failure_parts: list[str] = []
 
     reference_ids = data.references or []
@@ -98,6 +95,7 @@ def _operation_tag_to_raw_operation(
             continue
         leaf_tags.append(ref_tag)
 
+    tree: list[list[ProtectedTag]] = []
     if leaf_tags:
         first_section_leaf = next(
             (t for t in leaf_tags if is_semantic_tag(t, spec_in=[SectionReferenceSpec])),
@@ -109,39 +107,40 @@ def _operation_tag_to_raw_operation(
         except (RuntimeError, AssertionError):
             tree = []
 
-        target_arrete = _extract_arrete_date(tree)
-        target_article = _extract_article_text(tree)
-        sub_target = _extract_sub_target(tree, leaf_tags)
-
-    if not target_arrete:
+    fallback_arrete = ""
+    if not _extract_arrete_date(tree):
         # Fallback for trees without a document root (e.g. only a date tag).
         for ref_tag in leaf_tags:
             document_ref = _resolve_document_reference(soup, ref_tag)
             if document_ref is not None:
                 doc_data = get_semantic_tag_data(DocumentReferenceSpec, document_ref)
                 if doc_data.date:
-                    target_arrete = doc_data.date
+                    fallback_arrete = doc_data.date
                     break
 
-    if not target_arrete:
+    targets = _extract_targets(tree, leaf_tags, fallback_arrete)
+    if not targets:
         failure_parts.append("could not resolve target arrete date")
+        targets = [("", None, None)]
 
     source_article = _infer_source_article(operation_tag)
-
     failure_message = "; ".join(failure_parts) if failure_parts else None
     if failure_message is not None:
         _LOGGER.warning(
             f"Tagged operation in arrête {arrete_id} partially resolved: {failure_message}"
         )
 
-    return RawOperation(
-        operation_type=operation_type,
-        source_article=source_article,
-        target_arrete=target_arrete,
-        target_article=target_article,
-        sub_target=sub_target,
-        failure_message=failure_message,
-    )
+    return [
+        RawOperation(
+            operation_type=operation_type,
+            source_article=source_article,
+            target_arrete=target_arrete,
+            target_article=target_article,
+            sub_target=sub_target,
+            failure_message=failure_message,
+        )
+        for target_arrete, target_article, sub_target in targets
+    ]
 
 
 def _extract_arrete_date(tree: list[list[ProtectedTag]]) -> str:
@@ -156,31 +155,51 @@ def _extract_arrete_date(tree: list[list[ProtectedTag]]) -> str:
     return ""
 
 
-def _extract_article_text(tree: list[list[ProtectedTag]]) -> str | None:
-    """Pick the article reference shared by every branch (depth 1 in the tree)."""
-    article_tags = [branch[1] for branch in tree if len(branch) >= 2]
-    if not article_tags:
-        return None
-    first = article_tags[0]
-    if not all(t is first for t in article_tags):
-        # Operation references span several articles; we can't pick one.
-        return None
-    if not is_semantic_tag(first, spec_in=[SectionReferenceSpec]):
-        return None
-    return _strip_text(" ".join(first.stripped_strings))
+def _extract_targets(
+    tree: list[list[ProtectedTag]],
+    leaf_tags: list[ProtectedTag],
+    fallback_arrete: str,
+) -> list[tuple[str, str | None, str | None]]:
+    """Return one (target_arrete, target_article, sub_target) tuple per article referenced.
 
+    When several articles are referenced (e.g. "les articles 5 et 6 sont supprimés"),
+    one tuple is emitted per article so downstream code can split into independent
+    operations.
+    """
+    tree_arrete = _extract_arrete_date(tree) or fallback_arrete
 
-def _extract_sub_target(
-    tree: list[list[ProtectedTag]], leaf_tags: list[ProtectedTag]
-) -> str | None:
-    """Sub-target is the leaf level (depth ≥ 3) joined with " et " when present."""
-    deeper_tags = [branch[2] for branch in tree if len(branch) >= 3]
-    if not deeper_tags:
-        return None
+    article_groups: dict[int, list[list[ProtectedTag]]] = {}
+    article_order: list[ProtectedTag] = []
+    for branch in tree:
+        if len(branch) < 2:
+            continue
+        article_tag = branch[1]
+        if not is_semantic_tag(article_tag, spec_in=[SectionReferenceSpec]):
+            continue
+        key = id(article_tag)
+        if key not in article_groups:
+            article_groups[key] = []
+            article_order.append(article_tag)
+        article_groups[key].append(branch)
+
+    if not article_order:
+        if not tree_arrete:
+            return []
+        return [(tree_arrete, None, None)]
+
     leaf_set = {id(t) for t in leaf_tags}
-    selected = [t for t in deeper_tags if id(t) in leaf_set] or deeper_tags
-    texts = [_strip_text(" ".join(t.stripped_strings)) for t in selected]
-    return " et ".join(t for t in texts if t)
+    results: list[tuple[str, str | None, str | None]] = []
+    for article_tag in article_order:
+        branches = article_groups[id(article_tag)]
+        target_article = _strip_text(" ".join(article_tag.stripped_strings))
+        deeper_tags = [b[2] for b in branches if len(b) >= 3]
+        sub_target: str | None = None
+        if deeper_tags:
+            selected = [t for t in deeper_tags if id(t) in leaf_set] or deeper_tags
+            texts = [_strip_text(" ".join(t.stripped_strings)) for t in selected]
+            sub_target = " et ".join(t for t in texts if t) or None
+        results.append((tree_arrete, target_article, sub_target))
+    return results
 
 
 def _infer_source_article(operation_tag: ProtectedTag) -> str | None:

@@ -219,6 +219,65 @@ class TestExtractOperationsFromTaggedSoup(BaseTestCaseHtml):
         assert op.target_article == "article 8.5.1.1"
         assert op.sub_target == "paragraphes 3 et 4"
 
+    def test_multiple_articles_split_into_separate_operations(self) -> None:
+        """References targeting several articles emit one operation per article."""
+        self.soup_extend(
+            [
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=1),
+                    contents=[
+                        "Les ",
+                        self.make_semantic_tag(
+                            SectionReferenceSpec,
+                            data=SectionReferenceData(parent_reference="999"),
+                            contents=["article 5"],
+                            reserved_data_attrs=dict(tag_id="1", group_id="g1"),
+                        ),
+                        " et ",
+                        self.make_semantic_tag(
+                            SectionReferenceSpec,
+                            data=SectionReferenceData(parent_reference="999"),
+                            contents=["article 6"],
+                            reserved_data_attrs=dict(tag_id="2", group_id="g1"),
+                        ),
+                        " de l' ",
+                        self.make_semantic_tag(
+                            DocumentReferenceSpec,
+                            data=DocumentReferenceData(
+                                type=DocumentType.arrete_prefectoral,
+                                date="2008-12-10",
+                            ),
+                            contents=["arrêté préfectoral du 10 décembre 2008"],
+                            reserved_data_attrs=dict(tag_id="999"),
+                        ),
+                        " ",
+                        self.make_semantic_tag(
+                            OperationSpec,
+                            data=OperationData(
+                                direction="rtl",
+                                keyword="supprimés",
+                                operation_type="REMOVE",
+                                references=["1", "2"],
+                            ),
+                            contents=[
+                                "sont ",
+                                self.make_tag("b", contents=["supprimés"]),
+                            ],
+                        ),
+                    ],
+                )
+            ]
+        )
+
+        ops = extract_operations_from_tagged_soup(self.soup, arrete_id="2021-01-01")
+
+        assert len(ops) == 2
+        assert all(op.operation_type == RawOperationType.REMOVE for op in ops)
+        assert all(op.target_arrete == "2008-12-10" for op in ops)
+        assert [op.target_article for op in ops] == ["article 5", "article 6"]
+        assert all(op.sub_target is None for op in ops)
+
     def test_no_tags_returns_empty(self) -> None:
         self.soup_extend(
             [
