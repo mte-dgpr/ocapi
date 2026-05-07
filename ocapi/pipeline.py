@@ -85,7 +85,7 @@ def run_pipeline(
                 f"(got {len(document_contexts)} vs {len(arrete_files)})"
             )
         _LOGGER.info("=" * 60)
-        _LOGGER.info("STEP 0: TAGGING")
+        _LOGGER.info("STEP 1: TAGGING")
         _LOGGER.info("=" * 60)
         for arrete_file, document_context in zip(arrete_files, document_contexts):
             _LOGGER.info(f"Tagging operations in {arrete_file.id}...")
@@ -94,10 +94,10 @@ def run_pipeline(
 
     if enable_detection:
         # ========================================
-        # STEP 1: DETECTION
+        # STEP 2: DETECTION
         # ========================================
         _LOGGER.info("=" * 60)
-        _LOGGER.info("STEP 1: DETECTION")
+        _LOGGER.info("STEP 2: DETECTION")
         _LOGGER.info("=" * 60)
 
         for arrete_file in arrete_files:
@@ -117,10 +117,10 @@ def run_pipeline(
     _LOGGER.info(f"Total: {len(ops)} operation(s) detected")
 
     # ========================================
-    # STEP 2: RESOLUTION
+    # STEP 3: RESOLUTION
     # ========================================
     _LOGGER.info("=" * 60)
-    _LOGGER.info("STEP 2: RESOLUTION")
+    _LOGGER.info("STEP 3: RESOLUTION")
     _LOGGER.info("=" * 60)
 
     history, arrete_files, ops = step_resolution(ops, arrete_files, enable_llm=enable_llm)
@@ -130,12 +130,12 @@ def run_pipeline(
         _LOGGER.info("0 articles with history")
 
     # ========================================
-    # STEP 3: RENDERING (optional)
+    # STEP 4: RENDERING (optional)
     # ========================================
     permis = None
     if enable_rendering:
         _LOGGER.info("=" * 60)
-        _LOGGER.info("STEP 3: RENDERING")
+        _LOGGER.info("STEP 4: RENDERING")
         _LOGGER.info("=" * 60)
 
         permis = step_rendering(history, ops, arrete_files)

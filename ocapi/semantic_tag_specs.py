@@ -16,7 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from enum import Enum
 from typing import Annotated, Literal
 
 from arretify.utils.html_semantic import (
@@ -28,22 +27,17 @@ from arretify.utils.html_semantic import (
     enum_serializer,
 )
 
+from ocapi.types import RawOperationType
+
 __all__ = [
     "OperationData",
     "OperationSpec",
-    "OperationType",
     "OPERATION_DATA_SPEC",
 ]
 
 
-class OperationType(Enum):
-    ADD = "add"
-    DELETE = "delete"
-    REPLACE = "replace"
-
-
 class OperationData(SemanticTagData):
-    operation_type: Annotated[OperationType, enum_serializer]
+    operation_type: Annotated[RawOperationType, enum_serializer]
     direction: Literal["ltr", "rtl"]
     references: StrList | None = None
     keyword: str

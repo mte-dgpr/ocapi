@@ -23,6 +23,7 @@ This module is not wired into the pipeline yet; it lives alongside the LLM-based
 ``step_detection`` so downstream code can progressively consume Arrêtify tags.
 """
 from dataclasses import replace
+from typing import cast
 
 from arretify.semantic_tag_specs import DocumentReferenceSpec, SectionReferenceSpec
 from arretify.types import DocumentContext, ProtectedSoup, ProtectedTag
@@ -31,8 +32,9 @@ from arretify.utils.html_semantic import css_selector, get_semantic_tag_data, is
 from arretify.utils.references import build_reference_tree
 from bs4 import Tag
 
-from ocapi.semantic_tag_specs import OperationSpec, OperationType
-from ocapi.types import ArreteFile, RawOperation, RawOperationType
+from ocapi.semantic_tag_specs import OperationSpec
+from ocapi.types import ArreteFile, RawOperation
+from ocapi.utils.arretify_utils import ARRETIFY_SECTION_DATA_SPEC
 from ocapi.utils.logging_utils import get_logger
 
 __all__ = [
@@ -43,12 +45,6 @@ __all__ = [
 _LOGGER = get_logger(__name__)
 
 _PARENT_REF_ATTR = "data-parent_reference"
-
-_OPERATION_TYPE_MAP: dict[OperationType, RawOperationType] = {
-    OperationType.ADD: RawOperationType.ADD,
-    OperationType.DELETE: RawOperationType.REMOVE,
-    OperationType.REPLACE: RawOperationType.REPLACE,
-}
 
 
 def document_context_to_arrete_file(
@@ -83,9 +79,7 @@ def _operation_tag_to_raw_operation(
     soup: ProtectedSoup, operation_tag: ProtectedTag, arrete_id: str
 ) -> RawOperation:
     data = get_semantic_tag_data(OperationSpec, operation_tag)
-    operation_type = _OPERATION_TYPE_MAP.get(
-        OperationType(data.operation_type), RawOperationType.AUTRE
-    )
+    operation_type = data.operation_type
 
     target_arrete = ""
     target_article: str | None = None
@@ -191,13 +185,12 @@ def _extract_sub_target(
 
 def _infer_source_article(operation_tag: ProtectedTag) -> str | None:
     """Return the ``data-number`` of the closest enclosing section, when any."""
-    parent: object = operation_tag.parent
-    while isinstance(parent, Tag):
-        if parent.get("data-spec") == "section":
-            number = parent.get("data-number")
-            if isinstance(number, str) and number:
-                return number
-        parent = parent.parent
+    section = cast(Tag, operation_tag).find_parent(attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC})
+    while isinstance(section, Tag):
+        number = section.get("data-number")
+        if isinstance(number, str) and number:
+            return number
+        section = section.find_parent(attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC})
     return None
 
 

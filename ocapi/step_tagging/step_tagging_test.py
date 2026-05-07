@@ -28,8 +28,9 @@ from arretify.types import DocumentType
 from arretify.utils.html_semantic import css_selector, get_semantic_tag_data
 from arretify.utils.testing import BaseTestCaseHtml
 
-from ocapi.semantic_tag_specs import OperationSpec, OperationType
+from ocapi.semantic_tag_specs import OperationSpec
 from ocapi.step_tagging import step_tagging
+from ocapi.types import RawOperationType
 
 
 class TestStepTagging(BaseTestCaseHtml):
@@ -76,7 +77,7 @@ class TestStepTagging(BaseTestCaseHtml):
         operation_tags = self.soup.select(css_selector(OperationSpec))
         assert len(operation_tags) == 1
         data = get_semantic_tag_data(OperationSpec, operation_tags[0])
-        assert data.operation_type == OperationType.REPLACE
+        assert data.operation_type == RawOperationType.REPLACE
         assert data.keyword == "remplacée"
         assert data.direction == "rtl"
         assert data.references

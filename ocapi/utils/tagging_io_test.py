@@ -197,7 +197,7 @@ class TestExtractOperationsFromTaggedSoup(BaseTestCaseHtml):
                             data=OperationData(
                                 direction="rtl",
                                 keyword="supprimés",
-                                operation_type="delete",
+                                operation_type="REMOVE",
                                 references=["1", "2"],
                             ),
                             contents=[

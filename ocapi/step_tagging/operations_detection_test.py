@@ -44,7 +44,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
                         " comme suit :",
                     ],
                     data=OperationData(
-                        operation_type="replace",
+                        operation_type="REPLACE",
                         has_operand="true",
                         keyword="remplacées",
                         direction="rtl",
@@ -78,7 +78,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
                         " par les alinéas suivants :",
                     ],
                     data=OperationData(
-                        operation_type="replace",
+                        operation_type="REPLACE",
                         has_operand="true",
                         keyword="substitué",
                         direction="rtl",
@@ -111,7 +111,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
                         " par les dispositions du présent arrêté :",
                     ],
                     data=OperationData(
-                        operation_type="replace",
+                        operation_type="REPLACE",
                         has_operand="true",
                         keyword="annulées et remplacées",
                         direction="rtl",
@@ -141,7 +141,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
                         " par celles ci-après :",
                     ],
                     data=OperationData(
-                        operation_type="replace",
+                        operation_type="REPLACE",
                         has_operand="true",
                         keyword="abrogées et remplacées",
                         direction="rtl",
@@ -171,7 +171,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
                         " par :",
                     ],
                     data=OperationData(
-                        operation_type="replace",
+                        operation_type="REPLACE",
                         has_operand="true",
                         keyword="supprimé et remplacé",
                         direction="rtl",
@@ -202,7 +202,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
                         " par les dispositions suivantes :",
                     ],
                     data=OperationData(
-                        operation_type="replace",
+                        operation_type="REPLACE",
                         has_operand="true",
                         keyword="modifié et remplacé",
                         direction="rtl",
@@ -236,7 +236,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
                         " par les dispositions suivantes :",
                     ],
                     data=OperationData(
-                        operation_type="replace",
+                        operation_type="REPLACE",
                         has_operand="true",
                         keyword="modifié et complété",
                         direction="rtl",
@@ -274,7 +274,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
                         ),
                     ],
                     data=OperationData(
-                        operation_type="replace",
+                        operation_type="REPLACE",
                         has_operand="true",
                         keyword="modifiées, complétées, ou annulées",
                         direction="rtl",
@@ -308,7 +308,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
                         " par la disposition suivante :",
                     ],
                     data=OperationData(
-                        operation_type="replace",
+                        operation_type="REPLACE",
                         has_operand="true",
                         keyword="remplacée",
                         direction="rtl",
@@ -342,7 +342,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
                         " :",
                     ],
                     data=OperationData(
-                        operation_type="replace",
+                        operation_type="REPLACE",
                         has_operand="true",
                         keyword="modifiée",
                         direction="rtl",
@@ -373,7 +373,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
                         " par celles du tableau suivant :",
                     ],
                     data=OperationData(
-                        operation_type="replace",
+                        operation_type="REPLACE",
                         has_operand="true",
                         keyword="supprimées et sont remplacées",
                         direction="rtl",
@@ -407,7 +407,7 @@ class TestReplaceOperations(BaseTestCaseHtml):
                         " de la façon suivante :",
                     ],
                     data=OperationData(
-                        operation_type="replace",
+                        operation_type="REPLACE",
                         has_operand="true",
                         keyword="mis à jour",
                         direction="rtl",
@@ -439,7 +439,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " comme suit :",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         has_operand="true",
                         keyword="complété",
                         direction="rtl",
@@ -467,7 +467,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " ainsi",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         keyword="complété",
                         direction="rtl",
                     ),
@@ -502,7 +502,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " d'",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         keyword="complétés",
                         direction="rtl",
                     ),
@@ -526,7 +526,7 @@ class TestAddOperations(BaseTestCaseHtml):
                     OperationSpec,
                     contents=["Il est ", self.make_tag("b", contents=["créé"]), " un "],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         keyword="créé",
                         direction="rtl",
                     ),
@@ -561,7 +561,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " en fin de ",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         keyword="créé",
                         direction="rtl",
                     ),
@@ -593,7 +593,7 @@ class TestAddOperations(BaseTestCaseHtml):
                     OperationSpec,
                     contents=["Il est ", self.make_tag("b", contents=["créé"]), " un nouveau "],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         keyword="créé",
                         direction="rtl",
                     ),
@@ -619,7 +619,7 @@ class TestAddOperations(BaseTestCaseHtml):
                     OperationSpec,
                     contents=["Il est ", self.make_tag("b", contents=["créé"]), " un nouvel "],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         keyword="créé",
                         direction="rtl",
                     ),
@@ -652,7 +652,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " deux nouveaux articles ainsi rédigés :",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         has_operand="true",
                         keyword="créé",
                         direction="rtl",
@@ -685,7 +685,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " un paragraphe rédigé ainsi:",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         has_operand="true",
                         keyword="ajouté",
                         direction="rtl",
@@ -713,7 +713,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " à l'arrêté préfectoral",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         has_operand="true",
                         keyword="ajouté",
                         direction="rtl",
@@ -747,7 +747,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " du paragraphe",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         has_operand="true",
                         keyword="modifié par l'ajout",
                         direction="rtl",
@@ -775,7 +775,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " au début de ",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         keyword="inséré",
                         direction="rtl",
                     ),
@@ -811,7 +811,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " les dispositions suivantes :",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         has_operand="true",
                         keyword="insérées",
                         direction="rtl",
@@ -845,7 +845,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " le nouvel alinéa suivant :",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         has_operand="true",
                         keyword="inséré",
                         direction="rtl",
@@ -879,7 +879,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " les deux nouveaux alinéas suivants :",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         has_operand="true",
                         keyword="inséré",
                         direction="rtl",
@@ -913,7 +913,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " à la suite de ",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         keyword="inséré",
                         direction="rtl",
                     ),
@@ -952,7 +952,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " dans le ",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         keyword="insérée",
                         direction="rtl",
                     ),
@@ -980,7 +980,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " et est ainsi rédigé :",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         has_operand="true",
                         keyword="inséré",
                         direction="rtl",
@@ -1014,7 +1014,7 @@ class TestAddOperations(BaseTestCaseHtml):
                         " après le titre 14",
                     ],
                     data=OperationData(
-                        operation_type="add",
+                        operation_type="ADD",
                         has_operand="true",
                         keyword="inséré",
                         direction="rtl",
@@ -1048,7 +1048,7 @@ class TestDeleteOperations(BaseTestCaseHtml):
                         self.make_tag("b", contents=["abrogé"]),
                     ],
                     data=OperationData(
-                        operation_type="delete",
+                        operation_type="REMOVE",
                         keyword="abrogé",
                         direction="rtl",
                     ),
@@ -1081,7 +1081,7 @@ class TestDeleteOperations(BaseTestCaseHtml):
                         self.make_tag("b", contents=["supprimé"]),
                     ],
                     data=OperationData(
-                        operation_type="delete",
+                        operation_type="REMOVE",
                         keyword="supprimé",
                         direction="rtl",
                     ),
@@ -1113,7 +1113,7 @@ class TestDeleteOperations(BaseTestCaseHtml):
                         self.make_tag("b", contents=["annulé"]),
                     ],
                     data=OperationData(
-                        operation_type="delete",
+                        operation_type="REMOVE",
                         keyword="annulé",
                         direction="rtl",
                     ),

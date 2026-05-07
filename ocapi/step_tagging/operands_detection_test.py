@@ -88,7 +88,7 @@ class TestParseOperations(BaseTestCaseHtml):
                                 direction="rtl",
                                 keyword="supprimés",
                                 operand="",
-                                operation_type="delete",
+                                operation_type="REMOVE",
                             ),
                             contents=[
                                 "sont ",
@@ -154,7 +154,7 @@ class TestParseOperations(BaseTestCaseHtml):
                             direction="rtl",
                             keyword="supprimés",
                             operand="",
-                            operation_type="delete",
+                            operation_type="REMOVE",
                             references="1,2",
                         ),
                         contents=[
@@ -199,7 +199,7 @@ class TestParseOperations(BaseTestCaseHtml):
                                 has_operand=True,
                                 keyword="remplacée",
                                 operand="",
-                                operation_type="replace",
+                                operation_type="REPLACE",
                             ),
                             contents=[
                                 "est ",
@@ -259,7 +259,7 @@ class TestParseOperations(BaseTestCaseHtml):
                             has_operand=True,
                             keyword="remplacée",
                             operand="2",
-                            operation_type="replace",
+                            operation_type="REPLACE",
                             references="1",
                         ),
                         contents=[
@@ -306,7 +306,7 @@ class TestParseOperations(BaseTestCaseHtml):
                                 direction="rtl",
                                 keyword="abrogées",
                                 operand="",
-                                operation_type="delete",
+                                operation_type="REMOVE",
                             ),
                             contents=[
                                 "sont ",
@@ -346,7 +346,7 @@ class TestParseOperations(BaseTestCaseHtml):
                             direction="rtl",
                             keyword="abrogées",
                             operand="",
-                            operation_type="delete",
+                            operation_type="REMOVE",
                             references="1",
                         ),
                         contents=[
@@ -387,7 +387,7 @@ class TestParseOperations(BaseTestCaseHtml):
                                 has_operand=True,
                                 keyword="remplacées",
                                 operand="",
-                                operation_type="replace",
+                                operation_type="REPLACE",
                             ),
                             contents=[
                                 "sont ",
@@ -445,7 +445,7 @@ class TestParseOperations(BaseTestCaseHtml):
                             has_operand=True,
                             keyword="remplacées",
                             operand="2",
-                            operation_type="replace",
+                            operation_type="REPLACE",
                             references="1",
                         ),
                         contents=[

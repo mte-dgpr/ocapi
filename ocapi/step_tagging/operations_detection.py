@@ -32,12 +32,13 @@ from arretify.utils.html_split_merge import make_regex_tree_splitter
 from arretify.utils.split_merge import split_and_map_elements
 from arretify.utils.strings import merge_strings
 
-from ocapi.semantic_tag_specs import OperationData, OperationSpec, OperationType
+from ocapi.semantic_tag_specs import OperationData, OperationSpec
+from ocapi.types import RawOperationType
 
 OPERATION_TYPES_GROUP_NAMES = [
-    OperationType.ADD.value,
-    OperationType.DELETE.value,
-    OperationType.REPLACE.value,
+    RawOperationType.ADD.value,
+    RawOperationType.REMOVE.value,
+    RawOperationType.REPLACE.value,
 ]
 
 
@@ -103,7 +104,7 @@ RTL_OPERATION_NODE = regex_tree.Group(
                         [
                             regex_tree.Group(
                                 r"créée?s?",
-                                group_name=OperationType.ADD.value,
+                                group_name=RawOperationType.ADD.value,
                             ),
                             r"\s",
                             regex_tree.Branching(
@@ -121,7 +122,7 @@ RTL_OPERATION_NODE = regex_tree.Group(
                         [
                             regex_tree.Group(
                                 r"insérée?s?",
-                                group_name=OperationType.ADD.value,
+                                group_name=RawOperationType.ADD.value,
                             ),
                             r"(?!\saux?\srecueils?\sdes\sactes\sadministratifs)",
                             r"\s",
@@ -155,7 +156,7 @@ RTL_OPERATION_NODE = regex_tree.Group(
                         [
                             regex_tree.Group(
                                 r"complétée?s?",
-                                group_name=OperationType.ADD.value,
+                                group_name=RawOperationType.ADD.value,
                             ),
                             r"[,\s]+",
                             regex_tree.Branching(
@@ -176,7 +177,7 @@ RTL_OPERATION_NODE = regex_tree.Group(
                                 r"ajoutée?s?",
                             ]
                         ),
-                        group_name=OperationType.ADD.value,
+                        group_name=RawOperationType.ADD.value,
                     ),
                     # REPLACE OPERATIONS
                     regex_tree.Group(
@@ -189,7 +190,7 @@ RTL_OPERATION_NODE = regex_tree.Group(
                                 r"modifiée?s?,\scomplétée?s?,?\sou\sannulée?s?",
                             ],
                         ),
-                        group_name=OperationType.REPLACE.value,
+                        group_name=RawOperationType.REPLACE.value,
                     ),
                     regex_tree.Group(
                         regex_tree.Branching(
@@ -205,13 +206,13 @@ RTL_OPERATION_NODE = regex_tree.Group(
                                 r"modifiée?s?\s(et|ou)\ssupprimée?s?",
                             ],
                         ),
-                        group_name=OperationType.REPLACE.value,
+                        group_name=RawOperationType.REPLACE.value,
                     ),
                     regex_tree.Sequence(
                         [
                             regex_tree.Group(
                                 r"substituée?s?",
-                                group_name=OperationType.REPLACE.value,
+                                group_name=RawOperationType.REPLACE.value,
                             ),
                             r"\s",
                             r"par",
@@ -221,7 +222,7 @@ RTL_OPERATION_NODE = regex_tree.Group(
                         [
                             regex_tree.Group(
                                 r"remplacée?s?",
-                                group_name=OperationType.REPLACE.value,
+                                group_name=RawOperationType.REPLACE.value,
                             ),
                             r"\s",
                             regex_tree.Branching(
@@ -241,7 +242,7 @@ RTL_OPERATION_NODE = regex_tree.Group(
                         [
                             regex_tree.Group(
                                 r"modifiée?s?",
-                                group_name=OperationType.REPLACE.value,
+                                group_name=RawOperationType.REPLACE.value,
                             ),
                             r"\s",
                             regex_tree.Branching(
@@ -268,7 +269,7 @@ RTL_OPERATION_NODE = regex_tree.Group(
                         [
                             regex_tree.Group(
                                 r"mis(e|es)? a jour",
-                                group_name=OperationType.REPLACE.value,
+                                group_name=RawOperationType.REPLACE.value,
                             ),
                             r"\s",
                             regex_tree.Branching(
@@ -287,7 +288,7 @@ RTL_OPERATION_NODE = regex_tree.Group(
                                 r"annulée?s?",
                             ]
                         ),
-                        group_name=OperationType.DELETE.value,
+                        group_name=RawOperationType.REMOVE.value,
                     ),
                 ]
             ),
