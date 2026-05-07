@@ -186,6 +186,60 @@ def test_raw_operation_to_operation_requires_target_article() -> None:
         _raw_operation_to_operation("<p/>", raw, "2022-01-01", {})
 
 
+def test_add_all_without_subtarget_flagged_as_not_an_operation() -> None:
+    """ADD + target_article=ALL without sub_target is not a consolidation op."""
+    raw_op = RawOperation(
+        operation_type=RawOperationType.ADD,
+        source_article="1",
+        target_arrete="2008-12-10",
+        target_article="ALL",
+        sub_target=None,
+    )
+    op = _raw_operation_to_operation("<section/>", raw_op, "2010-12-24", {})
+
+    assert op.operation_type == OperationType.ADD
+    assert ErrorCode.NOT_AN_OPERATION in op.error_codes
+
+
+@patch("ocapi.step_detection.step_detection.parse_subtarget")
+def test_add_all_with_full_section_subtarget_flagged_as_not_an_operation(
+    mock_parse_subtarget: Mock,
+) -> None:
+    """ADD + ALL + FULL_SECTION sub-target is also NOT_AN_OPERATION."""
+    mock_parse_subtarget.return_value = SubTarget(type=SubTargetType.FULL_SECTION)
+    raw_op = RawOperation(
+        operation_type=RawOperationType.ADD,
+        source_article="1",
+        target_arrete="2008-12-10",
+        target_article="ALL",
+        sub_target="ALL",
+    )
+    op = _raw_operation_to_operation("<section/>", raw_op, "2010-12-24", {})
+
+    assert ErrorCode.NOT_AN_OPERATION in op.error_codes
+
+
+@patch("ocapi.step_detection.step_detection.parse_subtarget")
+def test_add_all_with_partial_subtarget_is_an_operation(
+    mock_parse_subtarget: Mock,
+) -> None:
+    """ADD + ALL + non-FULL_SECTION sub-target keeps ERROR_EXTRACTING_OPERAND."""
+    mock_parse_subtarget.return_value = SubTarget(
+        type=SubTargetType.COMPLEX, description="annexe 1"
+    )
+    raw_op = RawOperation(
+        operation_type=RawOperationType.ADD,
+        source_article="1",
+        target_arrete="2008-12-10",
+        target_article="ALL",
+        sub_target="annexe 1",
+    )
+    op = _raw_operation_to_operation("<section/>", raw_op, "2010-12-24", {})
+
+    assert ErrorCode.ERROR_EXTRACTING_OPERAND in op.error_codes
+    assert ErrorCode.NOT_AN_OPERATION not in op.error_codes
+
+
 def test_prompt_detection_includes_replace_all_schema() -> None:
     """The detection prompt must allow REPLACE with target_article ALL (refonte)."""
     html_block = "<html>test</html>"

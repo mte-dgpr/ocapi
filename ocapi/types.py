@@ -192,6 +192,9 @@ class ErrorCode(str, Enum):
     ERROR_EXTRACTING_SOURCE = "error_extracting_source"
     PROPAGATED_ERROR = "propagated_error"
     DISABLED_LLM_CALL = "disabled_llm_call"
+    # ADD targeting an entire arrêté without a real sub-target
+    # (e.g. "cet arrêté complète l'arrêté XXX"): nothing to consolidate.
+    NOT_AN_OPERATION = "not_an_operation"
 
 
 class ArticleVersion(TypedDict):
@@ -231,6 +234,7 @@ ERROR_CODE_MESSAGES: dict[ErrorCode, str] = {
         "Une erreur sur une opération précédente empêche l'application de cette opération"
     ),
     ErrorCode.DISABLED_LLM_CALL: ("La résolution des opérations complexes par IA est désactivée"),
+    ErrorCode.NOT_AN_OPERATION: ("Il n'y a pas d'opération de consolidation à réaliser"),
 }
 
 DEFAULT_ERROR_CODE_MESSAGE = "Opération non résolue automatiquement"
@@ -433,17 +437,18 @@ class Operation(_BaseModelWithConfig):
 
     @model_validator(mode="after")
     def _derive_detection_error_codes(self) -> "Operation":
-        """Derive ``ERROR_EXTRACTING_OPERAND`` from the operation shape.
+        """Derive error codes from the operation shape.
 
-        target_article=ALL with a sub-target other than FULL_SECTION is
-        incoherent (the LLM tried to target something specific inside
-        "all articles").
+        - target_article=ALL with a sub-target other than FULL_SECTION is
+          incoherent (the LLM tried to target something specific inside
+          "all articles") → ``ERROR_EXTRACTING_OPERAND``.
+        - ADD targeting an entire arrêté (target_article=ALL) without a
+          real sub-target (e.g. "cet arrêté complète l'arrêté XXX") is
+          not a consolidation operation → ``NOT_AN_OPERATION``.
         """
-        if ErrorCode.ERROR_EXTRACTING_OPERAND in self.error_codes:
-            return self
-
         if (
-            self.target_id.article_id == "ALL"
+            ErrorCode.ERROR_EXTRACTING_OPERAND not in self.error_codes
+            and self.target_id.article_id == "ALL"
             and self.sub_target is not None
             and self.sub_target.type != SubTargetType.FULL_SECTION
         ):
@@ -453,6 +458,19 @@ class Operation(_BaseModelWithConfig):
                 f"(target_arrete={self.target_id.arrete_id})"
             )
             self.error_codes = self.error_codes | {ErrorCode.ERROR_EXTRACTING_OPERAND}
+
+        if (
+            self.operation_type == OperationType.ADD
+            and self.target_id.article_id == "ALL"
+            and (self.sub_target is None or self.sub_target.type == SubTargetType.FULL_SECTION)
+        ):
+            _LOGGER.info(
+                f"Operation {self.id}: ADD targeting target_article=ALL without a "
+                f"specific sub-target (target_arrete={self.target_id.arrete_id}); "
+                f"likely just signals a complementary arrêté rather than a "
+                f"consolidation operation"
+            )
+            self.error_codes = self.error_codes | {ErrorCode.NOT_AN_OPERATION}
 
         return self
 

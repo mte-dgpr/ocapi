@@ -501,3 +501,47 @@ def test_build_graph_missing_source_section_creates_empty_node_with_error() -> N
     edge_data = G.get_edge_data(source, target, 0)
     assert edge_data is not None
     assert edge_data["error_codes"] == [ErrorCode.ERROR_EXTRACTING_SOURCE.value]
+
+
+def test_build_graph_preserves_not_an_operation_status_when_target_missing() -> None:
+    """A NOT_AN_OPERATION error code set at detection must survive the target lookup
+    failure caused by ``article_id=ALL``."""
+    html_1980 = """
+    <section data-spec="section" data-number="1">Article 1</section>
+    """
+    html_1981 = """
+    <section data-spec="section" data-number="1">cet arrêté complète l'arrêté 1980-01-01</section>
+    """
+    arrete_files = [
+        ArreteFile(
+            id="1980-01-01",
+            aiot="aiot1",
+            filename="1980-01-01.html",
+            soup=BeautifulSoup(html_1980, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+        ArreteFile(
+            id="1981-01-01",
+            aiot="aiot1",
+            filename="1981-01-01.html",
+            soup=BeautifulSoup(html_1981, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
+    operations = [
+        Operation(
+            id="op-complement",
+            source_id=NodeId(arrete_id="1981-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="1980-01-01", article_id="ALL"),
+            operation_type=OperationType.ADD,
+            error_codes=frozenset({ErrorCode.NOT_AN_OPERATION}),
+        ),
+    ]
+    G, _, skipped_ops, _ = build_graph(operations, arrete_files)
+
+    assert len(skipped_ops) == 0
+    target = NodeId(arrete_id="1980-01-01", article_id="ALL")
+    assert G.has_node(target)
+    edge_data = G.get_edge_data(NodeId(arrete_id="1981-01-01", article_id="1"), target, 0)
+    assert edge_data is not None
+    assert ErrorCode.NOT_AN_OPERATION.value in edge_data["error_codes"]
