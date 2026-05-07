@@ -21,7 +21,7 @@ Logic for extracting an operation's content (operand) from a parsed HTML block,
 using start and end markers to locate the relevant text.
 """
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from ocapi.utils.arretify_utils import (
     ARRETIFY_APPENDIX_DATA_SPEC,
@@ -71,7 +71,7 @@ def pick_arretify_section(
     if source_article.startswith("APPENDIX:"):
         appendix_number = source_article.split("APPENDIX:", 1)[1]
         footer = soup.find("footer", attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC})
-        if footer:
+        if isinstance(footer, Tag):
             for section in footer.find_all(
                 "section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC}
             ):

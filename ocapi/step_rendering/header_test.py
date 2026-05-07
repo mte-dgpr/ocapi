@@ -110,6 +110,44 @@ def test_make_permit_sources_marks_abrogated_arretes() -> None:
     assert "(ABROGE)" in abroge_source.get_text()
 
 
+def test_make_permit_sources_marks_principal_arrete() -> None:
+    """The principal arrêté must be flagged with a bold ``(Arrêté principal)`` mention."""
+    principal = make_testing_arrete(
+        arrete_id="2020-01-01",
+        aiot="0001",
+        filename="ap_principal",
+        html="""
+<html><body data-arretify_version="0.2.0">
+ <div data-spec="arrete_title"><h1>AP principal</h1></div>
+</body></html>
+""",
+    )
+    principal.principal = True
+    other = make_testing_arrete(
+        arrete_id="2021-01-01",
+        aiot="0001",
+        filename="ap_other",
+        html="""
+<html><body data-arretify_version="0.2.0">
+ <div data-spec="arrete_title"><h1>AP autre</h1></div>
+</body></html>
+""",
+    )
+
+    html = make_permit_sources([principal, other])
+    soup = BeautifulSoup(html, "html.parser")
+
+    sources = soup.find_all("li", attrs={"data-spec": "permit_source"})
+    assert len(sources) == 2
+    principal_li = next(li for li in sources if li.get("data-date") == "2020-01-01")
+    other_li = next(li for li in sources if li.get("data-date") == "2021-01-01")
+
+    principal_strong_texts = [s.get_text() for s in principal_li.find_all("strong")]
+    assert "(Arrêté principal)" in principal_strong_texts
+    other_strong_texts = [s.get_text() for s in other_li.find_all("strong")]
+    assert "(Arrêté principal)" not in other_strong_texts
+
+
 def test_make_permit_header_includes_abrogated_arrete_with_visas_and_motifs() -> None:
     """Abrogated arrêté (refonte) must appear in header with ABROGE, its visas and motifs."""
     ap_2020_abroge = make_testing_arrete(

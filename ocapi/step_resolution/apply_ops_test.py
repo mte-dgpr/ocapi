@@ -28,8 +28,7 @@ from ocapi.step_resolution.apply_ops import (
     _strip_duplicate_section_title,
     apply_add,
     apply_all_ops,
-    apply_remove,
-    apply_replace,
+    apply_replace_or_remove,
     apply_subgraph_operations,
     build_next_subgraph,
 )
@@ -111,20 +110,16 @@ def test_build_subgraph() -> None:
     }
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
-@mock.patch("ocapi.step_resolution.apply_ops.apply_remove")
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
 @mock.patch("ocapi.step_resolution.apply_ops.apply_add")
-def test_apply_subgraph_operations(
-    mock_add: mock.Mock, mock_remove: mock.Mock, mock_replace: mock.Mock
-) -> None:
+def test_apply_subgraph_operations(mock_add: mock.Mock, mock_replace_or_remove: mock.Mock) -> None:
     """Verify that apply_subgraph_operations dispatches each operation to the right function.
 
     Builds a sub-graph with a REPLACE and an ADD, mocks the application functions,
     and verifies that the history contains the contents returned by the mocks.
     """
     mock_add.return_value = (frozenset(), "new content after add")
-    mock_remove.return_value = (frozenset(), "")
-    mock_replace.return_value = (frozenset(), "new content after replace")
+    mock_replace_or_remove.return_value = (frozenset(), "new content after replace")
 
     G = nx.MultiDiGraph()
     add_node(G, NodeId(arrete_id="1980-01-01", article_id="1"))
@@ -164,17 +159,19 @@ def test_apply_subgraph_operations(
     history_content_1 = output_history[NodeId(arrete_id="1980-01-01", article_id="1")][-1][
         "content"
     ]
-    assert history_content_1 == mock_replace.return_value[1]
+    assert history_content_1 == mock_replace_or_remove.return_value[1]
     history_content_2 = output_history[NodeId(arrete_id="1980-01-01", article_id="2")][-1][
         "content"
     ]
     assert history_content_2 == mock_add.return_value[1]
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
-def test_complex_subtarget_on_operation_still_applies_replace(mock_replace: mock.Mock) -> None:
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
+def test_complex_subtarget_on_operation_still_applies_replace(
+    mock_replace_or_remove: mock.Mock,
+) -> None:
     """COMPLEX_SUBTARGET marks LLM consolidation; it must not block application."""
-    mock_replace.return_value = (frozenset(), "consolidated")
+    mock_replace_or_remove.return_value = (frozenset(), "consolidated")
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1981-01-01", article_id="2")
     target = NodeId(arrete_id="1980-01-01", article_id="1")
@@ -198,13 +195,13 @@ def test_complex_subtarget_on_operation_still_applies_replace(mock_replace: mock
     output_history, skipped_ops, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped_ops == []
-    mock_replace.assert_called_once()
+    mock_replace_or_remove.assert_called_once()
     assert output_history[target][-1]["content"] == "consolidated"
     assert not output_history[target][-1].get("error_codes")
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
-def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) -> None:
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
+def test_unresolved_operation_keeps_previous_content(mock_replace_or_remove: mock.Mock) -> None:
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1981-01-01", article_id="2")
     target = NodeId(arrete_id="1980-01-01", article_id="1")
@@ -236,7 +233,7 @@ def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) ->
     output_history, skipped_ops, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped_ops == []
-    mock_replace.assert_not_called()
+    mock_replace_or_remove.assert_not_called()
     assert output_history[target][-1] == {
         "version": 1,
         "title": "",
@@ -247,10 +244,12 @@ def test_unresolved_operation_keeps_previous_content(mock_replace: mock.Mock) ->
 
 
 @mock.patch(
-    "ocapi.step_resolution.apply_ops.apply_replace",
+    "ocapi.step_resolution.apply_ops.apply_replace_or_remove",
     side_effect=SubtargetNotFoundError("subtarget not found"),
 )
-def test_subtarget_not_found_sets_error_finding_subtarget(mock_replace: mock.Mock) -> None:
+def test_subtarget_not_found_sets_error_finding_subtarget(
+    mock_replace_or_remove: mock.Mock,
+) -> None:
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1981-01-01", article_id="2")
     target = NodeId(arrete_id="1980-01-01", article_id="1")
@@ -282,9 +281,9 @@ def test_subtarget_not_found_sets_error_finding_subtarget(mock_replace: mock.Moc
     }
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
-def test_initialize_history_from_graph_node_content(mock_replace: mock.Mock) -> None:
-    mock_replace.return_value = (frozenset(), "updated content")
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
+def test_initialize_history_from_graph_node_content(mock_replace_or_remove: mock.Mock) -> None:
+    mock_replace_or_remove.return_value = (frozenset(), "updated content")
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1981-01-01", article_id="2")
     target = NodeId(arrete_id="1980-01-01", article_id="1")
@@ -315,11 +314,11 @@ def test_initialize_history_from_graph_node_content(mock_replace: mock.Mock) -> 
     assert output_history[target][-1]["content"] == "updated content"
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
 def test_multiple_operations_same_target_preserve_single_initial_version(
-    mock_replace: mock.Mock,
+    mock_replace_or_remove: mock.Mock,
 ) -> None:
-    mock_replace.side_effect = [
+    mock_replace_or_remove.side_effect = [
         (frozenset(), "updated once"),
         (frozenset(), "updated twice"),
     ]
@@ -378,20 +377,16 @@ def test_multiple_operations_same_target_preserve_single_initial_version(
     }
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
-@mock.patch("ocapi.step_resolution.apply_ops.apply_remove")
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
 @mock.patch("ocapi.step_resolution.apply_ops.apply_add")
-def test_apply_all_operations(
-    mock_add: mock.Mock, mock_remove: mock.Mock, mock_replace: mock.Mock
-) -> None:
+def test_apply_all_operations(mock_add: mock.Mock, mock_replace_or_remove: mock.Mock) -> None:
     """Verify that apply_all_ops processes arrêtés chronologically and accumulates versions.
 
     Builds a complete graph with 4 operations across 3 arrêtés and verifies
     that the final history contains multiple versions for each target article.
     """
     mock_add.return_value = (frozenset(), "new content after add")
-    mock_remove.return_value = (frozenset(), "")
-    mock_replace.return_value = (frozenset(), "new content after replace")
+    mock_replace_or_remove.return_value = (frozenset(), "new content after replace")
 
     G = nx.MultiDiGraph()
     add_node(G, NodeId(arrete_id="1980-01-01", article_id="1"))
@@ -502,9 +497,9 @@ def test_not_an_operation_short_circuits_apply_and_stores_status(
     assert resolved["op-complement"] == frozenset({ErrorCode.NOT_AN_OPERATION})
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
 def test_error_extracting_target_keeps_content_and_stores_status(
-    mock_replace: mock.Mock,
+    mock_replace_or_remove: mock.Mock,
 ) -> None:
     """ERROR_EXTRACTING_TARGET must not call apply_* and must store the status code."""
     G = nx.MultiDiGraph()
@@ -529,7 +524,7 @@ def test_error_extracting_target_keeps_content_and_stores_status(
     output_history, skipped_ops, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped_ops == []
-    mock_replace.assert_not_called()
+    mock_replace_or_remove.assert_not_called()
     last = output_history[target][-1]
     assert last["content"] == ""
     assert last["error_codes"] == frozenset({ErrorCode.ERROR_EXTRACTING_TARGET})
@@ -582,8 +577,10 @@ def test_is_unambiguous_all_not_an_operation() -> None:
 # ---------------------------------------------------------------------------
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
-def test_propagated_error_when_previous_version_has_error(mock_replace: mock.Mock) -> None:
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
+def test_propagated_error_when_previous_version_has_error(
+    mock_replace_or_remove: mock.Mock,
+) -> None:
     """A new operation on an article with a previous error gets PROPAGATED_ERROR."""
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1982-01-01", article_id="3")
@@ -617,15 +614,17 @@ def test_propagated_error_when_previous_version_has_error(mock_replace: mock.Moc
     output_history, skipped, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped == []
-    mock_replace.assert_not_called()
+    mock_replace_or_remove.assert_not_called()
     last = output_history[target][-1]
     assert last["error_codes"] == frozenset({ErrorCode.PROPAGATED_ERROR})
     assert last["content"] == "v0"
     assert last["operation_id"] == "op-next"
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
-def test_propagated_error_chains_from_previous_propagated_error(mock_replace: mock.Mock) -> None:
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
+def test_propagated_error_chains_from_previous_propagated_error(
+    mock_replace_or_remove: mock.Mock,
+) -> None:
     """PROPAGATED_ERROR itself triggers further propagation on subsequent operations."""
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1983-01-01", article_id="1")
@@ -659,14 +658,14 @@ def test_propagated_error_chains_from_previous_propagated_error(mock_replace: mo
     output_history, skipped, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped == []
-    mock_replace.assert_not_called()
+    mock_replace_or_remove.assert_not_called()
     assert output_history[target][-1]["error_codes"] == frozenset({ErrorCode.PROPAGATED_ERROR})
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
-def test_replace_all_bypasses_propagation(mock_replace: mock.Mock) -> None:
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
+def test_replace_all_bypasses_propagation(mock_replace_or_remove: mock.Mock) -> None:
     """REPLACE FULL_SECTION is applied even when the previous version had an error."""
-    mock_replace.return_value = (frozenset(), "replaced all content")
+    mock_replace_or_remove.return_value = (frozenset(), "replaced all content")
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1982-01-01", article_id="2")
     target = NodeId(arrete_id="1980-01-01", article_id="1")
@@ -699,15 +698,15 @@ def test_replace_all_bypasses_propagation(mock_replace: mock.Mock) -> None:
     output_history, skipped, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped == []
-    mock_replace.assert_called_once()
+    mock_replace_or_remove.assert_called_once()
     last = output_history[target][-1]
     assert last["content"] == "replaced all content"
     assert not last.get("error_codes")
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
 def test_replace_all_with_extraction_error_records_own_error_not_propagated(
-    mock_replace: mock.Mock,
+    mock_replace_or_remove: mock.Mock,
 ) -> None:
     """REPLACE FULL_SECTION with a missing operand records ERROR_EXTRACTING_OPERAND.
 
@@ -748,15 +747,15 @@ def test_replace_all_with_extraction_error_records_own_error_not_propagated(
     output_history, skipped, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped == []
-    mock_replace.assert_not_called()
+    mock_replace_or_remove.assert_not_called()
     last = output_history[target][-1]
     assert last["error_codes"] == frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_remove")
-def test_remove_all_bypasses_propagation(mock_remove: mock.Mock) -> None:
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
+def test_remove_all_bypasses_propagation(mock_replace_or_remove: mock.Mock) -> None:
     """REMOVE FULL_SECTION is applied even when the previous version had an error."""
-    mock_remove.return_value = (frozenset(), "")
+    mock_replace_or_remove.return_value = (frozenset(), "")
     G = nx.MultiDiGraph()
     source = NodeId(arrete_id="1982-01-01", article_id="2")
     target = NodeId(arrete_id="1980-01-01", article_id="1")
@@ -788,7 +787,7 @@ def test_remove_all_bypasses_propagation(mock_remove: mock.Mock) -> None:
     output_history, skipped, _resolved = apply_subgraph_operations(G, history)
 
     assert skipped == []
-    mock_remove.assert_called_once()
+    mock_replace_or_remove.assert_called_once()
     last = output_history[target][-1]
     assert last["content"] == ""
     assert not last.get("error_codes")
@@ -851,7 +850,7 @@ def test_apply_remove_without_subtarget_raises() -> None:
         operation_type=OperationType.REMOVE,
     )
     with pytest.raises(OperationError):
-        apply_remove(op, BeautifulSoup("", "html.parser"))
+        apply_replace_or_remove(op, BeautifulSoup("", "html.parser"))
 
 
 def test_apply_remove_simple_drops_table() -> None:
@@ -869,7 +868,7 @@ def test_apply_remove_simple_drops_table() -> None:
         operation_type=OperationType.REMOVE,
         sub_target=SubTarget(type=SubTargetType.TABLEAU, position=None, description="le tableau"),
     )
-    error_codes, out = apply_remove(op, BeautifulSoup(html, "html.parser"))
+    error_codes, out = apply_replace_or_remove(op, BeautifulSoup(html, "html.parser"))
     assert error_codes == frozenset()
     assert "<table" not in out
     assert "Before" in out
@@ -887,7 +886,7 @@ def test_apply_remove_complex_falls_back_to_llm(mock_llm: mock.Mock) -> None:
         operation_type=OperationType.REMOVE,
         sub_target=SubTarget(type=SubTargetType.COMPLEX, description="le dernier alinéa"),
     )
-    error_codes, out = apply_remove(op, BeautifulSoup(html, "html.parser"))
+    error_codes, out = apply_replace_or_remove(op, BeautifulSoup(html, "html.parser"))
     assert error_codes == frozenset()
     mock_llm.assert_called_once()
     assert "cleaned" in out
@@ -902,7 +901,9 @@ def test_apply_remove_complex_disabled_llm_returns_unchanged() -> None:
         operation_type=OperationType.REMOVE,
         sub_target=SubTarget(type=SubTargetType.COMPLEX, description="un truc vague"),
     )
-    error_codes, out = apply_remove(op, BeautifulSoup(html, "html.parser"), enable_llm=False)
+    error_codes, out = apply_replace_or_remove(
+        op, BeautifulSoup(html, "html.parser"), enable_llm=False
+    )
     assert error_codes == frozenset({ErrorCode.DISABLED_LLM_CALL})
     assert "keep" in out
 
@@ -974,8 +975,8 @@ def test_disabled_llm_returns_unchanged_content_and_status() -> None:
 # ---------------------------------------------------------------------------
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
-def test_chain_branch_size_2_propagates_updated_operand(mock_replace: mock.Mock) -> None:
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
+def test_chain_branch_size_2_propagates_updated_operand(mock_replace_or_remove: mock.Mock) -> None:
     """Chain C → B → A: when C replaces B, B → A is re-applied with updated operand.
 
     Three arrêtés form a chain:
@@ -986,7 +987,7 @@ def test_chain_branch_size_2_propagates_updated_operand(mock_replace: mock.Mock)
     After processing all three, A article 1 should have 3 versions:
       v0 = original, v1 = B's operand, v2 = C's operand (propagated through B).
     """
-    mock_replace.side_effect = lambda op, soup, **kw: (frozenset(), op.operand)
+    mock_replace_or_remove.side_effect = lambda op, soup, **kw: (frozenset(), op.operand)
 
     G = nx.MultiDiGraph()
     node_a = NodeId(arrete_id="2005-11-08", article_id="1")
@@ -1152,13 +1153,13 @@ def test_strip_duplicate_section_title_applied_in_replace() -> None:
     assert out[tgt][-1].get("title") == target_title
 
 
-@mock.patch("ocapi.step_resolution.apply_ops.apply_replace")
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
 @mock.patch("ocapi.step_resolution.apply_ops.apply_add")
 def test_apply_subgraph_operations_resolved_status_dict(
-    mock_add: mock.Mock, mock_replace: mock.Mock
+    mock_add: mock.Mock, mock_replace_or_remove: mock.Mock
 ) -> None:
     """Each processed operation must appear in the resolved_status mapping."""
-    mock_replace.return_value = (frozenset(), "ok replace")
+    mock_replace_or_remove.return_value = (frozenset(), "ok replace")
     mock_add.return_value = (frozenset(), "ok add")
 
     G = nx.MultiDiGraph()
@@ -1240,7 +1241,7 @@ def test_apply_replace_complex_subtarget_error_extracting_source(
     )
     html = "<section data-number='1'><p>keep me</p></section>"
 
-    error_codes, out = apply_replace(op, BeautifulSoup(html, "html.parser"))
+    error_codes, out = apply_replace_or_remove(op, BeautifulSoup(html, "html.parser"))
 
     assert error_codes == frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE})
     assert "keep me" in out
@@ -1260,7 +1261,7 @@ def test_apply_remove_complex_subtarget_error_extracting_source(mock_llm: mock.M
     )
     html = "<section data-number='1'><p>keep me</p></section>"
 
-    error_codes, out = apply_remove(op, BeautifulSoup(html, "html.parser"))
+    error_codes, out = apply_replace_or_remove(op, BeautifulSoup(html, "html.parser"))
 
     assert error_codes == frozenset({ErrorCode.ERROR_EXTRACTING_SOURCE})
     assert "keep me" in out
@@ -1302,7 +1303,7 @@ def test_apply_replace_simple_subtarget_ignores_source_error(mock_llm: mock.Mock
     )
     html = "<p>phrase à changer ici</p>"
 
-    error_codes, out = apply_replace(op, BeautifulSoup(html, "html.parser"))
+    error_codes, out = apply_replace_or_remove(op, BeautifulSoup(html, "html.parser"))
 
     assert error_codes == frozenset()
     assert "remplacé" in out

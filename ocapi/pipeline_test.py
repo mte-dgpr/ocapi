@@ -19,6 +19,7 @@
 from unittest.mock import MagicMock, patch
 
 from ocapi.pipeline import run_pipeline
+from ocapi.step_detection.step_detection import _OPERATION_ID_COUNTER
 from ocapi.types import NodeId, Operation, OperationType
 from ocapi.utils.testing import make_testing_arrete
 
@@ -132,3 +133,17 @@ def test_start_date_equal_to_first_arrete_skips_it(mock_detection: MagicMock) ->
     assert "2009-12-08" not in detected_ids
     assert "2014-01-09" in detected_ids
     assert mock_detection.call_count == 1
+
+
+@patch("ocapi.pipeline.step_resolution", return_value=({}, [], []))
+@patch("ocapi.pipeline.step_detection", return_value=[])
+def test_run_pipeline_resets_operation_id_counter(
+    _mock_detection: MagicMock,
+    _mock_resolution: MagicMock,
+) -> None:
+    """Each pipeline run must restart operation ids from 1 (per-AIOT counter)."""
+    _OPERATION_ID_COUNTER.value = 42
+
+    run_pipeline([make_testing_arrete("2009-12-08")], enable_rendering=False)
+
+    assert _OPERATION_ID_COUNTER.value == 0

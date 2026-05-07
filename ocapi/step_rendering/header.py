@@ -73,10 +73,11 @@ def make_permit_sources(arrete_files: list[ArreteFile]) -> str:
         status = "active" if arrete_file.status else "abroge"
         label = arrete_title_text or arrete_file.filename
         abroge_mention = " (ABROGE)" if not arrete_file.status else ""
+        principal_mention = " <strong>(Arrêté principal)</strong>" if arrete_file.principal else ""
         items.append(
             f"""
     <li data-spec="permit_source" data-date="{arrete_file.id}" data-status="{status}">
-     <p><strong>Date arrêté :</strong> {arrete_file.id}{abroge_mention}</p>
+     <p><strong>Date arrêté :</strong> {arrete_file.id}{abroge_mention}{principal_mention}</p>
      <div data-spec="permit_source_title" aria-label="{label}">
       {source_title}
      </div>

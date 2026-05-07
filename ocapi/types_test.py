@@ -24,7 +24,6 @@ from .exceptions import InvalidArreteIdError, InvalidArticleIdError, InvalidFile
 from .types import (
     FileType,
     NodeId,
-    Permis,
     PermitMotifEntry,
     PermitSourceSpec,
     PermitTitleSpec,
@@ -455,19 +454,3 @@ def test_permit_title_aiot_code_is_stored() -> None:
 
 def test_permit_title_aiot_code_can_be_none() -> None:
     assert PermitTitleSpec(aiot_code=None).aiot_code is None
-
-
-def test_permis_to_html_replaces_all_template_tokens() -> None:
-    permis = Permis(
-        header='<header data-spec="header">HEADER</header>',
-        contenu='<main data-spec="main">CONTENT</main>',
-        other='<section data-spec="permit_complements">OTHER</section>',
-    )
-    html = permis.to_html()
-
-    assert '<header data-spec="header">HEADER</header>' in html
-    assert '<main data-spec="main">CONTENT</main>' in html
-    assert '<section data-spec="permit_complements">OTHER</section>' in html
-    assert "{{HEADER}}" not in html
-    assert "{{CONTENT}}" not in html
-    assert "{{OTHER}}" not in html

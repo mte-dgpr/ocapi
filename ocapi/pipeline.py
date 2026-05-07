@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from ocapi.step_detection.step_detection import step_detection
+from ocapi.step_detection.step_detection import _OPERATION_ID_COUNTER, step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
 from ocapi.types import ArreteFile, ArticleHistory, Operation, Permis
@@ -57,6 +57,8 @@ def run_pipeline(
         Tuple (operations, history, arrete_files, permis).
     """
     _LOGGER.info(f"Starting pipeline with {len(arrete_files)} arrêté(s)")
+    # Restart operation ids from 1 for every pipeline run (each AIOT is independent).
+    _OPERATION_ID_COUNTER.value = 0
     if start_date is None and arrete_files:
         start_date = arrete_files[0].id
     if start_date:
