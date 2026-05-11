@@ -13,31 +13,34 @@ Le pipeline est une fonction pure de bout en bout :
 
 ```mermaid
 flowchart LR
-  inputs[Arrêtés HTML Arrêtify<br/>pour un AIOT] --> tagging[Step 0<br/>Tagging]
-  tagging --> detection[Step 1<br/>Detection]
-  detection --> resolution[Step 2<br/>Resolution]
-  resolution --> rendering[Step 3<br/>Rendering]
-  rendering --> permis[permis.html]
-  detection -. operations.json .-> snapshot[(snapshots)]
+  inputs["Arrêtés HTML Arrêtify<br/>pour un AIOT"] --> detection["Step 1<br/>Detection"]
+  detection --> resolution["Step 2<br/>Resolution"]
+  resolution --> rendering["Step 3<br/>Rendering"]
+  rendering --> permis["permis.html"]
+  detection -. operations.json .-> snapshot[("snapshots")]
   resolution -. history.json .-> snapshot
 ```
 
 Le point d'entrée principal est [`run_pipeline`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/pipeline.py)
 dans [`ocapi/pipeline.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/pipeline.py).
 
+Un module [`step_tagging`](pipeline-steps/tagging.md) existe en parallèle
+(`ocapi/step_tagging/`) pour produire le HTML sémantique attendu par le pipeline
+à partir d'un HTML brut. Il n'est pas appelé par `run_pipeline` aujourd'hui :
+les arrêtés sont supposés déjà tagués Arrêtify en entrée.
+
 ## Étapes
 
 | Étape | Module | Entrée | Sortie | LLM |
 |---|---|---|---|---|
-| 0. [Tagging](pipeline-steps/tagging.md) | `ocapi/step_tagging/` | `DocumentContext` | HTML enrichi de spans sémantiques | non |
 | 1. [Detection](pipeline-steps/detection.md) | `ocapi/step_detection/` | `ArreteFile` | `list[Operation]` | oui |
 | 2. [Resolution](pipeline-steps/resolution.md) | `ocapi/step_resolution/` | `list[Operation]` + `list[ArreteFile]` | `ArticleHistory` | optionnel |
 | 3. [Rendering](pipeline-steps/rendering.md) | `ocapi/step_rendering/` | `ArticleHistory` + arrêtés + opérations | `Permis` (HTML) | non |
 
-Chaque étape peut être désactivée séparément via `run_pipeline(...)` ou les flags
-de la CLI (`--no-tagging`, `--operations-from`, `--no-rendering`). C'est ce qui
-permet le mode **snapshot** (rejouer le pipeline sans LLM à partir d'un
-`operations.json` figé).
+La détection et le rendering peuvent être désactivés via `run_pipeline(...)`
+(`enable_detection=False`, `enable_rendering=False`) ou les flags équivalents
+de la CLI. C'est ce qui permet le mode **snapshot** (rejouer le pipeline sans
+LLM à partir d'un `operations.json` figé).
 
 ## Modèle de données
 
@@ -93,66 +96,66 @@ de config et de templates.
 ```mermaid
 flowchart TB
   subgraph entry [Entrées]
-    cli[ocapi/cli.py<br/>console_script ocapi]
-    main[ocapi/main.py<br/>python -m ocapi.main]
-    flake[ocapi/cli_flake.py<br/>console_script flake]
+    cli["ocapi/cli.py<br/>console_script ocapi"]
+    main["ocapi/main.py<br/>python -m ocapi.main"]
+    flake["ocapi/cli_flake.py<br/>console_script flake"]
   end
 
   subgraph orch [Orchestration]
-    pipeline[ocapi/pipeline.py<br/>run_pipeline]
+    pipeline["ocapi/pipeline.py<br/>run_pipeline"]
   end
 
   subgraph steps [Étapes du pipeline]
-    tagging[step_tagging/<br/>step_tagging.py<br/>operations_detection.py<br/>operands_detection.py]
-    detection[step_detection/<br/>step_detection.py<br/>chunking.py<br/>extract_operand.py]
-    resolution[step_resolution/<br/>step_resolution.py<br/>build_op_graph.py<br/>apply_ops.py]
-    rendering[step_rendering/<br/>step_rendering.py<br/>header.py<br/>main_content.py<br/>other.py<br/>article_filter.py<br/>operation_messages.py]
+    tagging["step_tagging/<br/>step_tagging.py<br/>operations_detection.py<br/>operands_detection.py"]
+    detection["step_detection/<br/>step_detection.py<br/>chunking.py<br/>extract_operand.py"]
+    resolution["step_resolution/<br/>step_resolution.py<br/>build_op_graph.py<br/>apply_ops.py"]
+    rendering["step_rendering/<br/>step_rendering.py<br/>header.py<br/>main_content.py<br/>other.py<br/>article_filter.py<br/>operation_messages.py"]
   end
 
   subgraph llm [LLM]
-    llm_init[llm_utils/__init__.py]
-    llm_cfg[llm_utils/config.py]
-    llm_core[llm_utils/core.py<br/>retry, fallback, rate-limit]
-    llm_prompts[llm_utils/prompts.py]
-    llm_logging[llm_utils/logging.py]
-    llm_mocks[llm_utils/mocks.py]
+    llm_init["llm_utils/__init__.py"]
+    llm_cfg["llm_utils/config.py"]
+    llm_core["llm_utils/core.py<br/>retry, fallback, rate-limit"]
+    llm_prompts["llm_utils/prompts.py"]
+    llm_logging["llm_utils/logging.py"]
+    llm_mocks["llm_utils/mocks.py"]
   end
 
   subgraph data [Modèle de données]
-    types[types.py<br/>ArreteFile NodeId Operation<br/>ArticleHistory Permis ErrorCode]
-    semspec[semantic_tag_specs.py<br/>OperationSpec / OperationData]
-    excs[exceptions.py<br/>OcapiError + sous-classes]
-    appcfg[config.py<br/>AppConfig Pydantic Settings]
+    types["types.py<br/>ArreteFile NodeId Operation<br/>ArticleHistory Permis ErrorCode"]
+    semspec["semantic_tag_specs.py<br/>OperationSpec / OperationData"]
+    excs["exceptions.py<br/>OcapiError + sous-classes"]
+    appcfg["config.py<br/>AppConfig Pydantic Settings"]
   end
 
   subgraph utils [Utils transverses]
-    io[utils/io_utils.py]
-    arr[utils/arretify_utils.py]
-    docs_u[utils/documents.py]
-    sub[utils/subtarget_utils.py]
-    log[utils/logging_utils.py]
-    tagio[utils/tagging_io.py]
-    err[utils/error_handling.py]
-    ut[utils/utils.py]
-    test_u[utils/testing.py]
+    io["utils/io_utils.py"]
+    arr["utils/arretify_utils.py"]
+    docs_u["utils/documents.py"]
+    sub["utils/subtarget_utils.py"]
+    log["utils/logging_utils.py"]
+    tagio["utils/tagging_io.py"]
+    err["utils/error_handling.py"]
+    ut["utils/utils.py"]
+    test_u["utils/testing.py"]
   end
 
   subgraph snap [Snapshot]
-    snapcfg[snapshot.py<br/>SNAPSHOT_CASES]
-    snaptest[snapshot_test.py]
+    snapcfg["snapshot.py<br/>SNAPSHOT_CASES"]
+    snaptest["snapshot_test.py"]
   end
 
   subgraph cfg [Config externe]
-    env[.env<br/>Pydantic Settings]
-    models[config/llm_models.json]
-    resil[config/llm_resilience.json]
-    rate[config/llm_rate_limit.json]
-    tpl[templates/permis_consolide.html]
+    env[".env<br/>Pydantic Settings"]
+    models["config/llm_models.json"]
+    resil["config/llm_resilience.json"]
+    rate["config/llm_rate_limit.json"]
+    tpl["templates/permis_consolide.html"]
   end
 
   subgraph scripts_g [Scripts]
-    eval[scripts/evaluate_detection.py]
-    gendocs[scripts/generate_docs_index.py]
+    eval["scripts/evaluate_detection.py"]
+    gendocs["scripts/generate_docs_index.py"]
   end
 
   cli --> pipeline

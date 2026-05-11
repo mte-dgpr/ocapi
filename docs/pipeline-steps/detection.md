@@ -7,9 +7,9 @@ liste d'`Operation` typées. Module : [`ocapi/step_detection/`](https://github.c
 
 ```mermaid
 flowchart LR
-  af[ArreteFile<br/>Arrêtify HTML] --> chunk[chunk_arrete]
+  af["ArreteFile<br/>Arrêtify HTML"] --> chunk[chunk_arrete]
   chunk --> blocks[blocs HTML + ImageMap]
-  blocks --> llm[call_llm_api<br/>prompt_detection]
+  blocks --> llm["call_llm_api<br/>prompt_detection"]
   llm --> raw[RawOperation list]
   raw --> validate[parse + validate]
   validate -->|skip AUTRE / invalid / low confidence| dropped[(skipped)]

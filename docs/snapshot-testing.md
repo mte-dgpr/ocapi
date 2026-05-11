@@ -46,7 +46,7 @@ deux fois et vérifie que les sorties sont identiques d'un run à l'autre.
 
 ```mermaid
 flowchart LR
-  fixt[arretes_html/AIOT/<br/>+ operations.json] --> pipe[run_pipeline<br/>enable_detection=False<br/>enable_llm=False]
+  fixt["arretes_html/AIOT/<br/>+ operations.json"] --> pipe["run_pipeline<br/>enable_detection=False<br/>enable_llm=False"]
   pipe --> ops[operations.json gen]
   pipe --> hist[history.json gen]
   pipe --> permis[permis.html gen]

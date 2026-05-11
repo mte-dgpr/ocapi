@@ -37,8 +37,8 @@ dans le HTML d'entrée sont alors utilisés tels quels).
 
 ```mermaid
 flowchart LR
-  ctx[DocumentContext] --> sel[Sélection des AlineaSpec<br/>+ enfants]
-  sel -->|alinea contient<br/>une référence| parse[parse_operations]
+  ctx[DocumentContext] --> sel["Sélection des AlineaSpec<br/>+ enfants"]
+  sel -->|"alinea contient<br/>une référence"| parse[parse_operations]
   parse --> tagged[span data-spec=operation]
   ctx --> resolve[resolve_references_and_operands]
   tagged --> resolve

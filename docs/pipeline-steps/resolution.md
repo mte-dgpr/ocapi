@@ -23,7 +23,7 @@ flowchart LR
   ops[Operations] --> build[build_graph]
   af[ArreteFiles] --> build
   build --> g[(MultiDiGraph)]
-  build --> updated1[updated ops<br/>+ error_codes]
+  build --> updated1["updated ops<br/>+ error_codes"]
   g --> apply[apply_all_ops]
   af --> apply
   apply --> hist[ArticleHistory]

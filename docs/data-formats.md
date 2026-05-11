@@ -9,10 +9,10 @@ entrée. Les types Python correspondants vivent dans
 
 ```mermaid
 flowchart LR
-  in[arretes_html/AIOT/<br/>Arrêtify HTML] --> pipeline[run_pipeline]
-  pipeline --> ops[operations.json<br/>list of Operation]
-  pipeline --> hist[history.json<br/>NodeId to versions]
-  pipeline --> permis[permis.html<br/>Permis.to_html]
+  in["arretes_html/AIOT/<br/>Arrêtify HTML"] --> pipeline[run_pipeline]
+  pipeline --> ops["operations.json<br/>list of Operation"]
+  pipeline --> hist["history.json<br/>NodeId to versions"]
+  pipeline --> permis["permis.html<br/>Permis.to_html"]
 ```
 
 ## Entrée — `arretes_html/<AIOT>/`

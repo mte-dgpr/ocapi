@@ -14,7 +14,7 @@ flowchart LR
   resolve --> call
   cfg2[config/llm_resilience.json] --> call
   cfg3[config/llm_rate_limit.json] --> call
-  call --> primary[Modèle primaire<br/>retry + jitter]
+  call --> primary["Modèle primaire<br/>retry + jitter"]
   primary -- échec final + fallback --> secondary[Modèle secondaire]
   primary --> resp[Réponse texte]
   secondary --> resp

@@ -15,7 +15,7 @@ flowchart LR
   ops[Operations] --> content
   ops --> other
   hist --> other
-  header --> permis[Permis<br/>header / contenu / other]
+  header --> permis["Permis<br/>header / contenu / other"]
   content --> permis
   other --> permis
   permis --> tpl[templates/permis_consolide.html]
