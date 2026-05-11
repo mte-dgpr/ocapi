@@ -508,11 +508,25 @@ Copyright (c) 2026 Direction générale de la prévention des risques (DGPR).
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 
+## 📚 Documentation
+
+La documentation complète est publiée sur GitHub Pages : https://mte-dgpr.github.io/ocapi/
+
+Les sources sont dans le dossier [`docs/`](docs/) (site construit avec MkDocs + Material).
+
+Pour la prévisualiser en local :
+
+```bash
+pip install -e .[docs]
+mkdocs serve
+```
+
 ## 🔗 Liens utiles
 
-- **Documentation API** : [TODO]
-- **Issues** : [TODO]
-- **Wiki** : [TODO]
+- **Documentation** : https://mte-dgpr.github.io/ocapi/
+- **Exemples ICPE** : https://mte-dgpr.github.io/ocapi/snapshots/
+- **Repository** : https://github.com/mte-dgpr/ocapi
+- **Issues** : https://github.com/mte-dgpr/ocapi/issues
 
 ## ❓ FAQ
 
