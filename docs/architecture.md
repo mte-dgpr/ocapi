@@ -17,8 +17,8 @@ flowchart LR
   detection --> resolution["Step 2<br/>Resolution"]
   resolution --> rendering["Step 3<br/>Rendering"]
   rendering --> permis["permis.html"]
-  detection -. operations.json .-> snapshot[("snapshots")]
-  resolution -. history.json .-> snapshot
+  detection -.->|operations.json| snapshot[("snapshots")]
+  resolution -.->|history.json| snapshot
 ```
 
 Le point d'entrée principal est [`run_pipeline`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/pipeline.py)
