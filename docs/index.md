@@ -1,6 +1,14 @@
 # OCAPI
 
-**OCAPI** (Outil de Consolidation Automatique des Permis ICPE) est un pipeline de traitement automatisé des arrêtés préfectoraux pour les installations classées pour la protection de l'environnement (ICPE).
+**OCAPI** (Outil de Consolidation Automatique des Permis ICPE) est un pipeline qui génère un permis ICPE consolidé à partir des arrêtés préfectoraux successifs d'un site classé.
+
+À partir d'un dossier d'arrêtés HTML — un arrêté d'autorisation initial puis ses arrêtés complémentaires —, OCAPI :
+
+1. **détecte** les opérations (ajout, modification, suppression d'articles) introduites par chaque arrêté ;
+2. **résout** ces opérations dans l'ordre chronologique pour reconstruire l'historique de chaque article ;
+3. **génère** un permis HTML consolidé reflétant l'état en vigueur des prescriptions.
+
+Le projet vise les inspecteurs et bureaux d'études qui doivent reconstituer la version courante d'un arrêté préfectoral sans suivre manuellement la chaîne des modifications.
 
 ## Sommaire
 
@@ -10,19 +18,19 @@
 - [Usage](usage.md) — cas d'utilisation principaux
 - [Référence CLI](cli-reference.md) — toutes les commandes et options
 - Étapes du pipeline
+    - [Tagging](pipeline-steps/tagging.md)
     - [Detection](pipeline-steps/detection.md)
     - [Resolution](pipeline-steps/resolution.md)
     - [Rendering](pipeline-steps/rendering.md)
 - [LLM](llm.md) — modèles, prompts, résilience
+- [Format des données](data-formats.md) — schémas d'entrée et de sortie
+- [Snapshot testing](snapshot-testing.md) — tests de non-régression
+- [Évaluation](evaluation.md) — mesure de la détection vs ground-truth
+- [Logging](logging.md)
+- [Codes d'erreur](error-codes.md)
 - [Décisions d'architecture (ADR)](decision-records/index.md)
 - [API](api/index.md)
 - [Contribuer](contributing.md)
 - [Dépannage](troubleshooting.md)
+- [Roadmap](roadmap.md)
 - [Glossaire](glossary.md)
-
-> TODO :
->
-> - Pitch en 2-3 phrases du projet et de son public cible
-> - Statut du projet (alpha, périmètre couvert, limites connues)
-> - Liens vers les exemples publiés sur GitHub Pages (`/snapshots/`)
-> - Un schéma "vue d'ensemble" (mermaid) du flux global

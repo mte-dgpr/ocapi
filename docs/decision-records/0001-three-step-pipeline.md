@@ -1,28 +1,44 @@
-# ADR 0001 — Pipeline en trois étapes
+# ADR 0001 — Pipeline en étapes explicites
 
 - **Statut** : accepté
-- **Date** : TODO
+- **Date** : 2026-01
 
 ## Contexte
 
-> TODO : décrire le besoin (consolidation d'arrêtés ICPE), pourquoi un découpage en étapes était souhaitable.
+OCAPI doit produire un permis ICPE consolidé à partir d'une série d'arrêtés préfectoraux hétérogènes (AP d'autorisation + APC). Le traitement combine plusieurs préoccupations très différentes :
+
+- analyse en langage naturel (interpréter des phrases comme "à l'article 5.2, le 3ᵉ alinéa est supprimé") ;
+- mécanique de graphe (chaîner les opérations dans le bon ordre, propager les erreurs) ;
+- génération HTML lisible.
+
+Mélanger ces préoccupations dans une seule fonction rendrait l'outil difficile à tester, à itérer et à déboguer (un échec LLM masquerait un bug de rendering, etc.).
 
 ## Décision
 
-Le pipeline OCAPI est découpé en trois étapes successives :
+Le pipeline est découpé en étapes successives, exposées comme fonctions Python indépendantes et orchestrées par `ocapi/pipeline.py:run_pipeline` :
 
-1. **Detection** — extraction des opérations depuis les arrêtés.
-2. **Resolution** — construction de l'historique consolidé.
-3. **Rendering** — génération du permis consolidé HTML.
+1. **Tagging** (`step_tagging`) — annotation sémantique du HTML Arrêtify.
+2. **Detection** (`step_detection`) — extraction d'opérations brutes, principalement via LLM.
+3. **Resolution** (`step_resolution`) — graphe d'opérations + reconstruction des historiques.
+4. **Rendering** (`step_rendering`) — génération du permis HTML.
+
+Chaque étape a un type d'entrée et de sortie clair (`ArreteFile`, `Operation`, `ArticleHistory`, `Permis`). Chacune peut être désactivée indépendamment (`enable_detection`, `enable_rendering`, `enable_tagging`).
 
 ## Alternatives envisagées
 
-> TODO : pipeline monolithique, découpage plus fin, etc.
+- **Pipeline monolithique** : une seule fonction qui lit les HTML et écrit le permis. Rejeté : impossible à tester par morceau et à rejouer (mode snapshot).
+- **Découpage plus fin** (chunking, validation, persistance comme étapes séparées) : rejeté pour le moment ; les sous-modules existent (`chunking.py`, `extract_operand.py`, etc.) mais restent rangés sous l'étape qui les consomme. Quatre étapes restent un compromis lisible.
+- **Orchestrateur externe** (Airflow, Prefect, Dagster) : disproportionné pour un traitement qui s'exécute séquentiellement sur un AIOT.
 
 ## Conséquences
 
-> TODO :
->
-> - Avantages (testabilité, possibilité de désactiver une étape, snapshot par étape)
-> - Inconvénients (sérialisation/désérialisation entre étapes, duplication potentielle)
-> - Impact sur les artefacts intermédiaires (`operations.json`, `history.json`)
+Positives :
+
+- Mode snapshot trivial : on saute la détection (`--operations-from`) et on charge des `operations.json` existantes.
+- Tests unitaires par étape (couverture par module).
+- Évolution indépendante : on peut remplacer la détection LLM par une approche basée tags (`step_tagging`) sans toucher au resolution.
+
+Négatives :
+
+- Légère redondance dans les structures intermédiaires (`RawOperation` → `Operation`, `ArreteFile` partagé entre étapes).
+- Chaque étape doit documenter explicitement ses contrats d'entrée/sortie ; la dérive est facile sans ces docs.
