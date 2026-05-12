@@ -265,10 +265,33 @@ def operation_type_label(operation_type: "OperationType") -> str:
 
 
 class RawOperationType(Enum):
-    ADD = "ADD"
-    REMOVE = "REMOVE"
-    REPLACE = "REPLACE"
-    AUTRE = "AUTRE"
+    ADD = "add"
+    REMOVE = "delete"
+    REPLACE = "replace"
+    AUTRE = "autre"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "RawOperationType | None":
+        # Accept the legacy uppercase names ("ADD", "REMOVE", "REPLACE", "AUTRE")
+        # used by the LLM prompt and older operations.json fixtures, so callers
+        # can construct the enum from either the canonical lowercase value or
+        # the member name.
+        if isinstance(value, str):
+            try:
+                return cls[value.upper()]
+            except KeyError:
+                return None
+        return None
+
+
+# Maps the tag-level enum (lowercase, mirrors arretify's OperationType) to the
+# pipeline-level enum used downstream. AUTRE has no equivalent and is filtered
+# out before reaching this mapping.
+_RAW_TO_OPERATION_TYPE: "dict[RawOperationType, OperationType]" = {
+    RawOperationType.ADD: OperationType.ADD,
+    RawOperationType.REMOVE: OperationType.REMOVE,
+    RawOperationType.REPLACE: OperationType.REPLACE,
+}
 
 
 class FileType(Enum):
@@ -493,9 +516,7 @@ class Operation(_BaseModelWithConfig):
         assert raw_operation.source_article is not None
         assert raw_operation.target_article is not None
 
-        raw_op_type = raw_operation.operation_type
-        op_type_value = getattr(raw_op_type, "value", raw_op_type)
-        op_type = OperationType(op_type_value)
+        op_type = _RAW_TO_OPERATION_TYPE[raw_operation.operation_type]
 
         # A full-arrêté REPLACE (target_article=ALL) is in practice an abrogation.
         if op_type == OperationType.REPLACE and raw_operation.target_article == "ALL":

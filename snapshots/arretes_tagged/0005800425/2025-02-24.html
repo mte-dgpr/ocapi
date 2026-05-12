@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.0/dist/dsfr.css" rel="stylesheet"/>
+  <style>
+   :root {
+                --spacing-1: 1rem;
+                --spacing-0p5: 0.5rem;
+                --spacing-2: 2rem;
+
+                --page-separator-footer-height: 2em;
+                --page-separator-line-height: 0.5em;
+                --page-separator-header-height: 2em;
+                --page-separator-total-height: calc(var(--page-separator-footer-height) + var(--page-separator-line-height) + var(--page-separator-header-height));
+            }
+
+            header, main, footer {
+                max-width: 800px;
+                margin: auto;
+                padding: var(--spacing-1);
+            }
+
+            ul, ol {
+                list-style: none;
+            }
+
+            blockquote {
+                border-left: 1px solid var(--border-plain-grey);
+                padding-left: var(--spacing-1);
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th {
+                text-align: left;
+            }
+
+            td, th {
+                border: solid 1px #cecece;
+                padding: 0.5rem;
+            }
+
+            a[data-spec="document_reference"], a[data-spec="section_reference"] {
+                color: var(--text-action-high-blue-france);
+            }
+
+            *[data-error_codes] {
+                font-family: monospace;
+                background-color: #ffd0d0 !important;
+            }
+
+            [data-spec="alinea"]::before, [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                color: var(--text-disabled-grey);
+                position: absolute;
+                top: 0;
+                left: -1rem;
+            }
+
+            address {
+                display: inline;
+            }
+
+            /**************** HEADER ****************/
+            header {
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="arrete_title"], [data-spec="honorary"] {
+                padding: var(--spacing-1);
+                background-color: var(--background-alt-grey);
+                text-align: center;
+            }
+
+            [data-spec="arrete_title"] {
+                color: var(--text-title-grey);
+                margin-top: var(--spacing-2);
+            }
+
+            [data-spec="arrete_title"] h1 {
+                margin: 0;
+            }
+
+            [data-spec="emblem"], [data-spec="entity"], [data-spec="identification"], [data-spec="honorary"] {
+                color: var(--text-title-blue-france);
+                font-size: 120%;
+            }
+
+            [data-spec="visa"], [data-spec="motifs"], [data-spec="supplementary_motif_info"], [data-spec="table_of_contents"] {
+                position: relative;
+                margin-top: var(--spacing-1);
+                padding-bottom: 0;
+            }
+
+            [data-spec="visa"]::before, [data-spec="motifs"]::before {
+                content: '⮞';
+            }
+
+            header > *:last-child {
+                border-bottom: 1px solid var(--background-action-low-blue-france);
+                padding-bottom: var(--spacing-1);
+            }
+
+            /**************** MAIN CONTENT AND APPENDIX ****************/
+            [data-spec="section"] {
+                padding: var(--spacing-0p5) 0;
+            }
+
+            [data-spec="alinea"] {
+                position: relative;
+                margin-top: var(--spacing-0p5);
+            }
+
+            [data-spec="alinea"]::before {
+                content: '¶';
+            }
+
+            [data-spec="alinea"] img {
+                max-width: 100%;
+            }
+
+            [data-spec="operation"] {
+                background-color: var(--background-action-low-blue-france);
+            }
+
+            /**************** Original page_separator takes up space ****************/
+            [data-spec="page_separator"] {
+                display: block;
+                min-height: var(--page-separator-total-height);
+                visibility: hidden;
+            }
+
+            /**************** Hide original page_header and page_footer ****************/
+            [data-spec="page_header"],
+            [data-spec="page_footer"] {
+                display: none;
+            }
+
+            /**************** Page separator groups ****************/
+            .page_separator_group {
+                position: absolute;
+                left: 0;
+                width: 100vw;
+                height: var(--page-separator-total-height);
+            }
+
+            .page_separator_footer,
+            .page_separator_header {
+                width: 100%;
+                font-size: 75%;
+                color: var(--grey-625-425);
+                background-color: rgba(255, 255, 255, 0.9);
+                padding: 0.25rem 0.5rem;
+                box-sizing: border-box;
+            }
+
+            .page_separator_footer {
+                height: var(--page-separator-footer-height);
+                text-align: right;
+            }
+
+            .page_separator_header {
+                height: var(--page-separator-header-height);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .page_separator_hline {
+                width: 100%;
+                height: var(--page-separator-line-height);
+                background-color: var(--grey-950-100);
+            }
+
+            .page_separator_page_number {
+                color: var(--grey-625-425);
+            }
+  </style>
+  <script>
+   window.onload = function() {
+                // Page separators are inline elements, so they can be anywhere in the tree.
+                // We create visual page separator containers that include:
+                // - Footer from previous page (above, right)
+                // - Separator line
+                // - Page number (below, left)
+                // - Header from next page (below, right)
+
+                const elements = Array.from(document.querySelectorAll('[data-spec="page_footer"], [data-spec="page_separator"], [data-spec="page_header"]'))
+
+                const refreshPageSeparators = () => {
+                    // Remove existing page separator groups
+                    document.querySelectorAll('.page_separator_group')
+                        .forEach(el => el.remove())
+
+                    // Build list of {separator, header, footer} objects
+                    const separatorData = []
+                    let pendingFooter = null
+
+                    elements.forEach(element => {
+                        if (element.dataset.spec === 'page_footer') {
+                            pendingFooter = element
+                        } else if (element.dataset.spec === 'page_separator') {
+                            separatorData.push({
+                                separator: element,
+                                footer: pendingFooter,
+                                header: null
+                            })
+                            pendingFooter = null
+                        } else if (element.dataset.spec === 'page_header') {
+                            const lastSeparator = separatorData[separatorData.length - 1]
+                            if (lastSeparator) {
+                                lastSeparator.header = element
+                            }
+                            pendingFooter = null
+                        }
+                    })
+
+                    // Create a group container for each separator trio
+                    separatorData.forEach(data => {
+                        const pageIndex = parseInt(data.separator.dataset.page_index, 10)
+                        const position = getPositionRelativeToDocument(data.separator)
+
+                        // Create page separator group with fixed layout
+                        const group = document.createElement('div')
+                        group.classList.add('page_separator_group')
+                        group.style.top = `${position.top}px`
+                        group.innerHTML = `
+                            <div class="page_separator_footer">${data.footer ? data.footer.innerHTML : ''}</div>
+                            <div class="page_separator_hline"></div>
+                            <div class="page_separator_header">
+                                <span class="page_separator_page_number">↓ page ${pageIndex + 1}</span>
+                                <span>${data.header ? data.header.innerHTML : ''}</span>
+                            </div>
+                        `
+
+                        document.body.appendChild(group)
+                    })
+                }
+
+                refreshPageSeparators()
+                window.addEventListener('resize', refreshPageSeparators)
+            }
+
+            const getPositionRelativeToDocument = (el) => {
+                const rect = el.getBoundingClientRect()
+                return {
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                }
+            }
+  </script>
+ </head>
+ <body data-arretify_version="0.2.0" data-input_name="2025-02-24" data-spec="arrete">
+  <header data-spec="header">
+   <a data-page_index="0" data-spec="page_separator">
+   </a>
+   <div data-spec="page_header">
+    <div>
+     PRÉFET DE L'EURE
+Liberté
+Égalité
+Fraternité
+Direction régionale de l’environnement, de l’aménagement et du logement de Normandie
+    </div>
+   </div>
+   <div data-spec="arrete_title">
+    <h1>
+     Arrêté préfectoral n°UBDEO/ERA/25/13 modifiant l’arrêté préfectoral d’autorisation du
+     <time data-spec="date" datetime="2003-09-09">
+      9 septembre 2003
+     </time>
+     de la société CARPENTER ENGINEERED FOAMS SAS implantée sur la commune de Louviers
+    </h1>
+   </div>
+   <div data-spec="honorary">
+    <div>
+     Le préfet de l’Eure
+    </div>
+   </div>
+   <div>
+    Vu:
+   </div>
+   <div data-spec="visa">
+    le
+    <a data-id="LEGITEXT000006074220" data-spec="document_reference" data-title="Code de l'environnement" data-type="code" href="https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006074220">
+     Code de l’environnement
+    </a>
+    et notamment ses
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-6" data-type="article">
+     articles L.171-6
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L171-8" data-type="article">
+     L.171-8
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L172-1" data-type="article">
+     L.172-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+     L.511-1
+    </a>
+    ,
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L181-14" data-type="article">
+     L.181-14
+    </a>
+    et
+    <a data-group_id="1" data-spec="section_reference" data-start_num="L514-5" data-type="article">
+     L.514-5
+    </a>
+    ,
+   </div>
+   <div data-spec="visa">
+    le
+    <a data-date="2024-10-31" data-spec="document_reference" data-type="decret">
+     décret du
+     <time data-spec="date" datetime="2024-10-31">
+      31 octobre 2024
+     </time>
+    </a>
+    du Président de la République nommant Monsieur Charles GIUSTI, préfet de l’Eure,
+   </div>
+   <div data-spec="visa">
+    le procès-verbal d’installation de Monsieur Charles GIUSTI, préfet de l’Eure, au 18 novembre 2024,
+   </div>
+   <div data-spec="visa">
+    le
+    <a data-date="2024-02-14" data-spec="document_reference" data-type="decret">
+     décret du
+     <time data-spec="date" datetime="2024-02-14">
+      14 février 2024
+     </time>
+    </a>
+    du Président de la République nommant Monsieur Alaric MALVES, secrétaire général de la préfecture de l’Eure,
+   </div>
+   <div data-spec="visa">
+    l’
+    <a data-date="2024-11-18" data-num="DCAT-SJIPE-2024-92" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral n° DCAT-SJIPE-2024-92 du
+     <time data-spec="date" datetime="2024-11-18">
+      18 novembre 2024
+     </time>
+    </a>
+    portant délégation de signature à Monsieur Alaric MALVES, secrétaire général de la préfecture de l’Eure,
+   </div>
+   <div data-spec="visa">
+    l’
+    <a data-date="2003-09-09" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2003-09-09">
+      9 septembre 2003
+     </time>
+    </a>
+    autorisant la société à exploiter un établissement de fabrication et de transformation de mousse de polyuréthane sur la commune de Louviers (27400),
+   </div>
+   <div data-spec="visa">
+    l’
+    <a data-date="2005-11-08" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire du
+     <time data-spec="date" datetime="2005-11-08">
+      8 novembre 2005
+     </time>
+     modifiant
+    </a>
+    et complétant l’
+    <a data-date="2003-09-09" data-spec="document_reference" data-type="arrete">
+     arrêté du
+     <time data-spec="date" datetime="2003-09-09">
+      9 septembre 2003
+     </time>
+    </a>
+    autorisant les activités de la société,
+   </div>
+   <div data-spec="visa">
+    l’
+    <a data-date="2010-03-29" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2010-03-29">
+      29 mars 2010
+     </time>
+    </a>
+    prescrivant la surveillance des émissions de substances dangereuses dans l’eau,
+   </div>
+   <div data-spec="visa">
+    l’
+    <a data-date="2012-09-03" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral complémentaire du
+     <time data-spec="date" datetime="2012-09-03">
+      3 septembre 2012
+     </time>
+    </a>
+    réglementant les activités de la société,
+   </div>
+   <div data-spec="visa">
+    l’
+    <a data-date="2014-06-19" data-spec="document_reference" data-type="arrete-prefectoral">
+     arrêté préfectoral du
+     <time data-spec="date" datetime="2014-06-19">
+      19 juin 2014
+     </time>
+    </a>
+    portant sur des prescriptions complémentaires imposant la constitution de garanties financières pour la mise en sécurité en cas d’arrêt définitif de l’installation,
+   </div>
+   <div data-spec="visa">
+    le récépissé de déclaration de changement de dénomination sociale n°UBDEO/ERA/23/126 en date du
+   </div>
+   <div data-spec="page_footer">
+    <div>
+     Préfecture de l’Eure – Boulevard Georges Chauvin – CS 40011 – 27020 EVREUX Cedex
+Tél (standard) : 02 32 78 27 27 – www.eure.gouv.fr
+    </div>
+   </div>
+   <a data-page_index="1" data-spec="page_separator">
+   </a>
+   <div data-spec="visa">
+    26 octobre 2023,
+   </div>
+   <div data-spec="visa">
+    le porter à connaissance de cessation partielle d’activité d’installation classée pour la protection de l’environnement reçu en DREAL le 06 août 2024,
+   </div>
+   <div data-spec="visa">
+    le rapport et les propositions du 14 février 2025 de l’inspection des installations classées,
+   </div>
+   <div data-spec="visa">
+    le projet d’arrêté porté le 14 février 2025 à la connaissance du demandeur,
+   </div>
+   <div data-spec="visa">
+    la réponse du demandeur sur ce projet en date du 17 février 2025,
+   </div>
+   <div>
+    Considérant :
+   </div>
+   <div data-spec="motifs">
+    la demande déposée,
+   </div>
+   <div data-spec="motifs">
+    la nécessité d’actualiser le classement du site au titre de la nomenclature des installations classées,
+   </div>
+   <div data-spec="motifs">
+    le caractère non substantiel des modifications demandées au regard de l’
+    <a data-parent_reference="1" data-spec="section_reference" data-start_id="LEGIARTI000048873490" data-start_num="R181-46" data-type="article" href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000048873490">
+     article R.181-46
+    </a>
+    du
+    <a data-id="LEGITEXT000006074220" data-spec="document_reference" data-tag_id="1" data-title="Code de l'environnement" data-type="code" href="https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006074220">
+     Code de l’environnement
+    </a>
+    ,
+   </div>
+   <div data-spec="motifs">
+    l’
+    <a data-parent_reference="2" data-spec="section_reference" data-start_id="LEGIARTI000048873546" data-start_num="R181-45" data-type="article" href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000048873546">
+     article R.181-45
+    </a>
+    du
+    <a data-id="LEGITEXT000006074220" data-spec="document_reference" data-tag_id="2" data-title="Code de l'environnement" data-type="code" href="https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006074220">
+     code de l’environnement
+    </a>
+    susvisé permettant au préfet de fixer par arrêté complémentaire, toute prescription complémentaire nécessaire au respect des dispositions des
+    <a data-group_id="2" data-spec="section_reference" data-start_num="L181-3" data-type="article">
+     articles L181-3
+    </a>
+    et
+    <a data-group_id="2" data-spec="section_reference" data-start_num="L181-4" data-type="article">
+     L181-4
+    </a>
+    ,
+   </div>
+   <div data-spec="motifs">
+    l’
+    <a data-parent_reference="3" data-spec="section_reference" data-start_id="LEGIARTI000049913674" data-start_num="R181-39" data-type="article" href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000049913674">
+     article R.181-39
+    </a>
+    du
+    <a data-id="LEGITEXT000006074220" data-spec="document_reference" data-tag_id="3" data-title="Code de l'environnement" data-type="code" href="https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006074220">
+     code de l’environnement
+    </a>
+    rendant facultatif l’avis du conseil départemental de l’environnement et des risques sanitaires et technologiques,
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     SUR proposition de Monsieur le secrétaire général de la préfecture de l’Eure,
+    </div>
+   </div>
+   <div data-spec="supplementary_motif_info">
+    <div>
+     ARRÊTE
+    </div>
+   </div>
+  </header>
+  <main data-spec="main">
+   <section data-number="1" data-spec="section" data-title="OBJET" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE PREMIER : OBJET
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     La société CARPENTER ENGINEERED FOAMS SÁS, dont le siège social se situe
+     <address data-spec="address">
+      71 Avenue de Verdun
+     </address>
+     77470 Trilport, est tenue de se conformer aux prescriptions modificatives suivantes concernant son site situé rue de la Mécanique 27400 Louviers.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     L’
+     <a data-date="2010-03-29" data-spec="document_reference" data-tag_id="11" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2010-03-29">
+       29 mars 2010
+      </time>
+     </a>
+     <span data-direction="rtl" data-keyword="abrogé" data-operation_type="delete" data-references="11" data-spec="operation">
+      est
+      <b>
+       abrogé
+      </b>
+     </span>
+     .
+    </div>
+    <div data-number="3" data-spec="alinea">
+     L’
+     <a data-date="2014-06-19" data-spec="document_reference" data-tag_id="12" data-type="arrete-prefectoral">
+      arrêté préfectoral du
+      <time data-spec="date" datetime="2014-06-19">
+       19 juin 2014
+      </time>
+     </a>
+     <span data-direction="rtl" data-keyword="abrogé" data-operation_type="delete" data-references="12" data-spec="operation">
+      est
+      <b>
+       abrogé
+      </b>
+     </span>
+     .
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Les prescriptions ci-dessous se substituent aux prescriptions des articles nommés de l’
+     <a data-date="2012-09-03" data-spec="document_reference" data-type="arrete-prefectoral">
+      arrêté préfectoral complémentaire du
+      <time data-spec="date" datetime="2012-09-03">
+       03 septembre 2012
+      </time>
+     </a>
+     .
+    </div>
+   </section>
+   <section data-number="2" data-spec="section" data-title="LISTE DES INSTALLATIONS CONCERNÉES PAR UNE RUBRIQUE DE LA NOMENCLATURE DES INSTALLATIONS CLASSÉES" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 2 : LISTE DES INSTALLATIONS CONCERNÉES PAR UNE RUBRIQUE DE LA NOMENCLATURE DES INSTALLATIONS CLASSÉES
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions de l’
+     <a data-parent_reference="4" data-spec="section_reference" data-start_num="3" data-tag_id="13" data-type="article">
+      article 3
+     </a>
+     de l’
+     <a data-date="2012-09-03" data-spec="document_reference" data-tag_id="4" data-type="arrete">
+      arrêté complémentaire du
+      <time data-spec="date" datetime="2012-09-03">
+       03 septembre 2012
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="14" data-operation_type="replace" data-references="13" data-spec="operation">
+      sont
+      <b>
+       remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Préfecture de l’Eure – Boulevard Georges Chauvin – CS 40011 – 27020 IVREUX Cedex
+Tél (standard) : 02 32 78 27 27 – www.eure.gouv.fr
+     </div>
+    </div>
+    <a data-page_index="2" data-spec="page_separator">
+    </a>
+    <div data-spec="page_header">
+     <div>
+      Préfecture de l'Eure – Boulevard Georges Chauvin – CS 40011 – 27020 EVREUX Cedex&lt;br/&gt;Tél (standard) : 02 32 78 27 27 – www.eure.gouv.fr
+     </div>
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <table data-tag_id="14">
+      <tr>
+       <th>
+        Rubrique et alinéa
+       </th>
+       <th>
+        Régime*
+       </th>
+       <th>
+        Libellé de la rubrique (activité)
+       </th>
+       <th>
+        Nature de l'installation
+       </th>
+       <th>
+        Volume
+       </th>
+      </tr>
+      <tr>
+       <td>
+        2661.2
+       </td>
+       <td>
+        E
+       </td>
+       <td>
+        Polymères (matières plastiques, caoutchoucs, élastomères, résines et adhésifs synthétiques) (transformation de).
+        <br/>
+        2. Par tout procédé exclusivement mécanique (sciage, découpage, meulage, broyage, etc.), la quantité de matière susceptible d'être traitée étant :
+        <br/>
+        a) Supérieure ou égale à 20 t/j.
+       </td>
+       <td>
+        Activité : sciage/découpage/pressage et broyage
+        <br/>
+        Bâtiments :
+        <br/>
+        B4/B5 : découpe/pressage pour produits automobiles
+        <br/>
+        -B8 : découpe produits confort et industrie
+       </td>
+       <td>
+        57 t/j
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2663.1
+       </td>
+       <td>
+        E
+       </td>
+       <td>
+        Pneumatiques et produits dont 50 % au moins de la masse totale unitaire est composée de polymères (matières plastiques, caoutchoucs, élastomères, résines et adhésifs synthétiques) (stockage de).
+        <br/>
+        1. A l'état alvéolaire ou expansé (tels que mousse de latex, de polyuréthane, de polystyrène, etc.)
+        <br/>
+        a) Supérieur ou égal à 2 000 m³.
+       </td>
+       <td>
+        Stockage de polymères à l'état alvéolaire
+       </td>
+       <td>
+        31 138 m³
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2663.2
+       </td>
+       <td>
+        D
+       </td>
+       <td>
+        Pneumatiques et produits dont 50 % au moins de la masse totale unitaire est composée de polymères (matières plastiques, caoutchoucs, élastomères, résines et adhésifs synthétiques) (stockage de).
+        <br/>
+        2. Dans les autres cas (autre qu'alvéolaire ou expansé) et pour les pneumatiques
+        <br/>
+        b) supérieur ou égal à 1 000 m³ mais inférieur à 10 000 m³.
+       </td>
+       <td>
+        Stockage de matières plastiques à l'état non alvéolaire
+       </td>
+       <td>
+        1 953 m³
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2910-A
+       </td>
+       <td>
+        DC
+       </td>
+       <td>
+        Combustion à l'exclusion des activités visées par les rubriques 2770, 2771, 2971 ou 2931 et des installations classées au titre de la rubrique 3110 ou au titre d'autres rubriques de la nomenclature pour lesquelles la combustion participe à la fusion, la cuisson ou au traitement, en mélange avec les gaz de combustion, des matières entrantes.
+        <br/>
+        A. Lorsque sont consommés exclusivement, seuls ou en mélange, du gaz naturel, des gaz de pétrole liquéfiés, du biométhane, du fioul domestique, du charbon, des fiouls lourds, de la biomasse, des produits connexes de scierie et des chutes du travail mécanique de bois brut, ou du biogaz provenant d'installations classées sous la rubrique 2781-1, si la puissance thermique minimale totale est :
+        <br/>
+        2. Supérieure à 1 MW, mais inférieure à 20 MW.
+       </td>
+       <td>
+        2 chaudières fonctionnant au gaz : 3 MW et 0,62 MW
+       </td>
+       <td>
+        3,62 MW
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1530
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Papiers, cartons ou matériaux combustibles analogues y compris les produits finis conditionnés (dépôt de).
+        <br/>
+        Le volume susceptible d'être stocké étant inférieur à 1 000 m³
+       </td>
+       <td>
+        Stockage de papier et de carton
+       </td>
+       <td>
+        100 m³
+       </td>
+      </tr>
+      <tr>
+       <td>
+        1532
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Bois ou matériaux combustibles analogues y compris les produits finis conditionnés et les
+       </td>
+       <td>
+        Stockage de bois
+       </td>
+       <td>
+        100 m³
+       </td>
+      </tr>
+     </table>
+    </div>
+    <a data-page_index="3" data-spec="page_separator">
+    </a>
+    <div data-number="3" data-spec="alinea">
+     <table>
+      <tr>
+       <th>
+        Rubrique et alinéa
+       </th>
+       <th>
+        Régime*
+       </th>
+       <th>
+        Libellé de la rubrique (activité)
+       </th>
+       <th>
+        Nature de l'installation
+       </th>
+       <th>
+        Volume
+       </th>
+      </tr>
+      <tr>
+       <td>
+       </td>
+       <td>
+       </td>
+       <td>
+        produits ou déchets répondant à la définition de la biomasse et visés par la rubrique 2910-A, ne relevant pas de la rubrique 1531 (stockage de). Le volume susceptible d'être stocké étant inférieur à 1 000 m³.
+       </td>
+       <td>
+       </td>
+       <td>
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2661.1
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Polymères (matières plastiques, caoutchoucs, élastomères, résines et adhésifs synthétiques) (transformation de).
+        <br/>
+        1. Par des procédés exigeant des conditions particulières de température ou de pression (extrusion, injection, moulage, segmentation à chaud, vulcanisation, etc.), la quantité de matière susceptible d'être traitée étant inférieure à 1t/j.
+       </td>
+       <td>
+        Capacité de traitement
+       </td>
+       <td>
+        0,8 t/j
+       </td>
+      </tr>
+      <tr>
+       <td>
+        2925.2
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Accumulateurs électriques (ateliers de charge d').
+        <br/>
+        Lorsque la charge ne produit pas d'hydrogène, la puissance maximale de courant continu utilisable pour cette opération étant inférieure à 600 kW.
+       </td>
+       <td>
+        2 ateliers de charge
+       </td>
+       <td>
+        70 kW
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4331
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Liquides inflammables de catégorie 2 ou catégorie 3 à l'exclusion de la rubrique 4330.
+        <br/>
+        La quantité totale susceptible d'être présente dans les installations y compris dans les cavités souterraines étant : inférieure à 50 t.
+       </td>
+       <td>
+        Stockage de colles et solvants (liquides inflammables de catégorie 2)
+       </td>
+       <td>
+        0,4 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4719
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Acétylène (numéro CAS 74-86-2).
+        <br/>
+        La quantité susceptible d'être présente dans l'installation étant inférieure à 250 kg.
+       </td>
+       <td>
+        Stockage d'acétylène
+       </td>
+       <td>
+        0,11 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4725
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Oxygène (numéro CAS 7782-44-7).
+        <br/>
+        La quantité susceptible d'être présente dans l'installation étant inférieure à 2 t.
+       </td>
+       <td>
+        Stockage d'oxygène
+       </td>
+       <td>
+        0,22 t
+       </td>
+      </tr>
+      <tr>
+       <td>
+        4734
+       </td>
+       <td>
+        NC
+       </td>
+       <td>
+        Produits pétroliers spécifiques et carburants de substitution : essences et naphtas ; kérosènes (carburants d'aviation compris) ; gazoles (gazole diesel, gazole de chauffage domestique et mélanges de gazoles compris) ; fioul lourd ; carburants de substitution pour véhicules, utilisés aux mêmes fins et aux mêmes usages et présentant des propriétés similaires en matière d'inflammabilité et de danger pour l'environnement.
+        <br/>
+        La quantité totale susceptible d'être présente dans les installations y compris dans les cavités souterraines, étant :
+        <br/>
+        2. Pour les autres stockages :
+        <br/>
+        Inférieur à 50 t.
+       </td>
+       <td>
+        2 t de GNR pour le fonctionnement des monopompes du système de sprinklage et du groupe électrogène
+       </td>
+       <td>
+        2 t
+       </td>
+      </tr>
+     </table>
+     <br/>
+     *A (Autorisation) ou E (Enregistrement) ou DC (Déclaration et soumis au contrôle périodique prévu par l'
+     <a data-parent_reference="5" data-spec="section_reference" data-start_id="LEGIARTI000022495275" data-start_num="L512-11" data-type="article" href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000022495275">
+      article L.512-11
+     </a>
+     du
+     <a data-id="LEGITEXT000006074220" data-spec="document_reference" data-tag_id="5" data-title="Code de l'environnement" data-type="code" href="https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006074220">
+      Code de l'environnement
+     </a>
+     ) ou D (Déclaration) ou NC (Non concerné)
+    </div>
+    <div data-number="4" data-spec="alinea">
+     &amp;gt;&amp;gt;
+    </div>
+   </section>
+   <section data-number="3" data-spec="section" data-title="CLÔTURE ET GARDIENNAGE" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 3 : CLÔTURE ET GARDIENNAGE
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     Les dispositions de l'
+     <a data-parent_reference="6" data-spec="section_reference" data-start_num="4.23" data-tag_id="15" data-type="article">
+      article 4.23
+     </a>
+     de l'
+     <a data-date="2005-11-08" data-spec="document_reference" data-tag_id="6" data-type="arrete">
+      arrêté complémentaire du
+      <time data-spec="date" datetime="2005-11-08">
+       8 novembre 2005
+      </time>
+     </a>
+     <span data-direction="rtl" data-has_operand="true" data-keyword="remplacées" data-operand="16" data-operation_type="replace" data-references="15" data-spec="operation">
+      sont
+      <b>
+       remplacées
+      </b>
+      par les dispositions suivantes :
+     </span>
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      4 / 6
+Préfecture de l'Eure – Boulevard Georges Chauvin – CS 40011 – 27020 EVREUX Cedex
+Tél (standard) : 02 32 78 27 27 – www.eure.gouv.fr
+     </div>
+    </div>
+    <a data-page_index="4" data-spec="page_separator">
+    </a>
+    <div data-number="2" data-spec="alinea">
+     <blockquote data-tag_id="16">
+      <p>
+       L'établissement est entouré d'une clôture efficace de 2 m de hauteur et résistante, afin d'en interdire l'accès à toute personne ou véhicule en dehors des heures d'ouverture.
+      </p>
+      <p>
+       Un gardiennage ou une vidéosurveillance 24 h/24 associée au téléphone du cadre d'astreinte direction est assuré en dehors des heures d'ouverture.
+      </p>
+      <p>
+       En l'absence de présence physique sur site :
+      </p>
+      <ul>
+       <li>
+        - les alarmes du système anti-intrusion et les alarmes incendie sont également renvoyées vers le téléphone du cadre d'astreinte,
+       </li>
+       <li>
+        - le cadre d'astreinte est tenu de réaliser une levée de doute sur place, de prévenir les secours, de les accueillir et de leur donner accès à l'ensemble des installations, le cas échéant.
+       </li>
+      </ul>
+     </blockquote>
+    </div>
+   </section>
+   <section data-number="4" data-spec="section" data-title="DÉLAIS ET VOIES DE RECOURS" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 4 : DÉLAIS ET VOIES DE RECOURS
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     , conformément aux décisions mentionnées aux
+     <a data-group_id="3" data-parent_reference="7" data-spec="section_reference" data-start_num="L211-6" data-type="article">
+      articles L.211-6
+     </a>
+     et
+     <a data-group_id="3" data-parent_reference="7" data-spec="section_reference" data-start_num="L214-10" data-type="article">
+      L.214-10
+     </a>
+     et au I de l'
+     <a data-spec="section_reference" data-start_num="L514-6" data-tag_id="7" data-type="article">
+      article L. 514-6
+     </a>
+     , peut être déféré à la juridiction administrative selon les dispositions des
+     <a data-group_id="4" data-parent_reference="8" data-spec="section_reference" data-start_id="LEGIARTI000049531372" data-start_num="R514-3-1" data-type="article" href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000049531372">
+      articles R.514-3-1
+     </a>
+     et
+     <a data-group_id="4" data-parent_reference="8" data-spec="section_reference" data-start_id="LEGIARTI000049531386" data-start_num="R181-50" data-type="article" href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000049531386">
+      R.181-50
+     </a>
+     du
+     <a data-id="LEGITEXT000006074220" data-spec="document_reference" data-tag_id="8" data-title="Code de l'environnement" data-type="code" href="https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006074220">
+      code de l'environnement
+     </a>
+     :
+    </div>
+    <div data-number="2" data-spec="alinea">
+     <ul>
+      <li>
+       1° Par les pétitionnaires ou exploitants, dans un délai de deux mois à compter de la date où la décision leur a été notifiée ;
+      </li>
+      <li>
+       2° Par les tiers intéressés en raison des inconvénients ou des dangers que le fonctionnement de l'installation présente pour les intérêts mentionnés aux
+       <a data-group_id="5" data-spec="section_reference" data-start_num="L211-1" data-type="article">
+        articles L. 211-1
+       </a>
+       et
+       <a data-group_id="5" data-spec="section_reference" data-start_num="L511-1" data-type="article">
+        L. 511-1
+       </a>
+       dans un délai de quatre mois à compter du premier jour de la publication sur le site internet de la préfecture prévue au 4° de l'
+       <a data-parent_reference="9" data-spec="section_reference" data-start_id="LEGIARTI000037685677" data-start_num="R181-44" data-type="article" href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000037685677">
+        article R.181-44
+       </a>
+       du
+       <a data-id="LEGITEXT000006074220" data-spec="document_reference" data-tag_id="9" data-title="Code de l'environnement" data-type="code" href="https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006074220">
+        Code de l'environnement
+       </a>
+       ou de l'affichage de la décision en mairie dans les conditions prévues au 2° du même article.
+      </li>
+     </ul>
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Les personnes physiques et morales de droit privé non représentées par un avocat, autres que celles chargées de la gestion permanente d'un service public, peuvent adresser leur requête à la juridiction par voie électronique au moyen du téléservice
+     <q>
+      Télerecours citoyens
+     </q>
+     accessible par le site internet www.telerecours.fr.
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Le délai court à compter de la dernière formalité accomplie. Si l'affichage constitue cette dernière formalité, le délai court à compter du premier jour d'affichage de la décision.
+    </div>
+    <div data-number="5" data-spec="alinea">
+     Sans préjudice du recours gracieux mentionné à l'
+     <a data-spec="section_reference" data-start_num="R214-36" data-type="article">
+      article R.214-36
+     </a>
+     , les décisions mentionnées au
+     <a data-spec="section_reference" data-start_num="1" data-type="alinea">
+      premier alinéa
+     </a>
+     peuvent faire l'objet d'un recours gracieux ou hiérarchique dans le délai de deux mois. Ce recours administratif prolonge de deux mois les délais mentionnés aux 1° et 2°.
+    </div>
+   </section>
+   <section data-number="5" data-spec="section" data-title="PUBLICITÉ ET EXÉCUTION" data-type="article">
+    <h2 data-level="0" data-spec="section_title">
+     ARTICLE 5 : PUBLICITÉ ET EXÉCUTION
+    </h2>
+    <div data-number="1" data-spec="alinea">
+     <a data-spec="document_reference" data-type="self">
+      Le présent arrêté
+     </a>
+     est notifié à l'exploitant par voie administrative.
+    </div>
+    <div data-number="2" data-spec="alinea">
+     Conformément aux dispositions de l'
+     <a data-parent_reference="10" data-spec="section_reference" data-start_id="LEGIARTI000048873546" data-start_num="R181-45" data-type="article" href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000048873546">
+      article R.181-45
+     </a>
+     du
+     <a data-id="LEGITEXT000006074220" data-spec="document_reference" data-tag_id="10" data-title="Code de l'environnement" data-type="code" href="https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006074220">
+      code de l'environnement
+     </a>
+     , l'arrêté est publié sur le site internet de la préfecture de l'Eure qui a délivré l'acte pendant une durée minimale de quatre mois.
+    </div>
+    <div data-number="3" data-spec="alinea">
+     Le secrétaire général de la préfecture, l'inspection des installations classées pour la protection de l'environnement sont chargés, chacun en ce qui le concerne, de l'exécution du
+     <a data-spec="document_reference" data-type="self">
+      présent arrêté
+     </a>
+     .
+    </div>
+    <div data-number="4" data-spec="alinea">
+     Copie dudit arrêté est adressée à :
+    </div>
+    <div data-number="5" data-spec="alinea">
+     <ul>
+      <li>
+       - Monsieur le sous-préfet des Andelys,
+      </li>
+      <li>
+       - Monsieur le maire de la commune de Louviers,
+       <div data-spec="page_footer">
+        <div>
+         5 / 6
+Préfecture de l'Eure – Boulevard Georges Chauvin – CS 40011 – 27020 EVREUX Cedex
+Tél (standard) : 02 32 78 27 27 – www.eure.gouv.fr
+        </div>
+       </div>
+       <a data-page_index="5" data-spec="page_separator">
+       </a>
+       <div data-spec="page_header">
+        <div>
+         6 / 6
+        </div>
+       </div>
+      </li>
+      <li>
+       - à l'inspecteur de l'environnement (spécialité installations classées) (DREAL – UBDEO),
+      </li>
+     </ul>
+    </div>
+    <div data-number="6" data-spec="alinea">
+     Évreux, le 24 FEV. 2025
+    </div>
+    <div data-number="7" data-spec="alinea">
+     Le Préfet,
+    </div>
+    <div data-number="8" data-spec="alinea">
+     Charles GIUSTI
+    </div>
+    <div data-spec="page_footer">
+     <div>
+      Préfecture de l'Eure – Boulevard Georges Chauvin – CS 40011 – 27020 EVREUX Cedex
+Tél (standard) : 02 32 78 27 27 – www.eure.gouv.fr
+     </div>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>

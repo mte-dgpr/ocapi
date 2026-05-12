@@ -44,8 +44,7 @@ def step_tagging(document_context: DocumentContext) -> DocumentContext:
         )
         if document_reference_tags:
             contents = parse_operations(document_context, contents)
-
-        replace_contents(container_tag, contents)
+            replace_contents(container_tag, contents)
 
     for operation_tag in document_context.protected_soup.select(css_selector(OperationSpec)):
         resolve_references_and_operands(document_context, operation_tag)
