@@ -1,6 +1,6 @@
 # Évaluation de la détection
 
-Mesure de la qualité de l'**étape 1 (détection)** par comparaison à un
+Mesure de la qualité de l'**étape 2 (détection)** par comparaison à un
 ground-truth annoté manuellement. Outil :
 [`scripts/evaluate_detection.py`](https://github.com/mte-dgpr/ocapi/blob/main/scripts/evaluate_detection.py).
 

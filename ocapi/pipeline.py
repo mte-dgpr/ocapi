@@ -49,9 +49,9 @@ def run_pipeline(
         during detection but remain available for resolution and rendering.
         Defaults to the id of the first arrêté.
     enable_detection : bool
-        If True, run the detection step (step 1).
+        If True, run the detection step (step 2).
     enable_rendering : bool
-        If True, generate the consolidated permit (step 3).
+        If True, generate the consolidated permit (step 4).
     operations : list[Operation] | None
         Pre-loaded operations to use when enable_detection is False (snapshot mode).
         Callers load from disk via :func:`ocapi.utils.io_utils.load_operations` when needed.

@@ -4,9 +4,10 @@
 
 À partir d'un dossier d'arrêtés HTML — un arrêté d'autorisation initial puis ses arrêtés complémentaires —, OCAPI :
 
-1. **détecte** les opérations (ajout, modification, suppression d'articles) introduites par chaque arrêté ;
-2. **résout** ces opérations dans l'ordre chronologique pour reconstruire l'historique de chaque article ;
-3. **génère** un permis HTML consolidé reflétant l'état en vigueur des prescriptions.
+1. **annote** le HTML Arrêtify avec des balises sémantiques d'opérations (verbes, références, sous-cibles) ;
+2. **détecte** les opérations (ajout, modification, suppression d'articles) introduites par chaque arrêté ;
+3. **résout** ces opérations dans l'ordre chronologique pour reconstruire l'historique de chaque article ;
+4. **génère** un permis HTML consolidé reflétant l'état en vigueur des prescriptions.
 
 Le projet vise les inspecteurs et bureaux d'études qui doivent reconstituer la version courante d'un arrêté préfectoral sans suivre manuellement la chaîne des modifications.
 

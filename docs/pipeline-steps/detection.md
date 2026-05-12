@@ -1,4 +1,4 @@
-# Étape 1 — Detection
+# Étape 2 — Detection
 
 Découpe l'arrêté en blocs HTML, interroge le LLM bloc par bloc et retourne une
 liste d'`Operation` typées. Module : [`ocapi/step_detection/`](https://github.com/mte-dgpr/ocapi/tree/main/ocapi/step_detection).
@@ -22,7 +22,7 @@ Point d'entrée : [`step_detection(arrete_file)`](https://github.com/mte-dgpr/oc
 
 ## Tagging
 
-Une étape **0** facultative (`step_tagging`, [`ocapi/step_tagging/`](https://github.com/mte-dgpr/ocapi/tree/main/ocapi/step_tagging))
+Une étape **1** facultative (`step_tagging`, [`ocapi/step_tagging/`](https://github.com/mte-dgpr/ocapi/tree/main/ocapi/step_tagging))
 enrichit le HTML Arrêtify avec des spans sémantiques utilisés en aval (verbes
 d'opération, références d'articles, sous-cibles…). Sortie écrite sous
 `arretes_tagged/<aiot>/`. Désactivable via `--no-tagging` ; dans ce cas, les

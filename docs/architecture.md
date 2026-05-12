@@ -13,29 +13,27 @@ Le pipeline est une fonction pure de bout en bout :
 
 ```mermaid
 flowchart LR
-  inputs["Arrêtés HTML Arrêtify<br/>pour un AIOT"] --> detection["Step 1<br/>Detection"]
-  detection --> resolution["Step 2<br/>Resolution"]
-  resolution --> rendering["Step 3<br/>Rendering"]
+  inputs["Arrêtés HTML Arrêtify<br/>pour un AIOT"] --> tagging["Step 1<br/>Tagging"]
+  tagging --> detection["Step 2<br/>Detection"]
+  detection --> resolution["Step 3<br/>Resolution"]
+  resolution --> rendering["Step 4<br/>Rendering"]
   rendering --> permis["permis.html"]
-  detection -.->|operations.json| snapshot[("snapshots")]
+  tagging -.->|tagged HTML| snapshot[("snapshots")]
+  detection -.->|operations.json| snapshot
   resolution -.->|history.json| snapshot
 ```
 
 Le point d'entrée principal est [`run_pipeline`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/pipeline.py)
 dans [`ocapi/pipeline.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/pipeline.py).
 
-Un module [`step_tagging`](pipeline-steps/tagging.md) existe en parallèle
-(`ocapi/step_tagging/`) pour produire le HTML sémantique attendu par le pipeline
-à partir d'un HTML brut. Il n'est pas appelé par `run_pipeline` aujourd'hui :
-les arrêtés sont supposés déjà tagués Arrêtify en entrée.
-
 ## Étapes
 
 | Étape | Module | Entrée | Sortie | LLM |
 |---|---|---|---|---|
-| 1. [Detection](pipeline-steps/detection.md) | `ocapi/step_detection/` | `ArreteFile` | `list[Operation]` | oui |
-| 2. [Resolution](pipeline-steps/resolution.md) | `ocapi/step_resolution/` | `list[Operation]` + `list[ArreteFile]` | `ArticleHistory` | optionnel |
-| 3. [Rendering](pipeline-steps/rendering.md) | `ocapi/step_rendering/` | `ArticleHistory` + arrêtés + opérations | `Permis` (HTML) | non |
+| 1. [Tagging](pipeline-steps/tagging.md) | `ocapi/step_tagging/` | `DocumentContext` | `DocumentContext` annoté | non |
+| 2. [Detection](pipeline-steps/detection.md) | `ocapi/step_detection/` | `ArreteFile` | `list[Operation]` | oui |
+| 3. [Resolution](pipeline-steps/resolution.md) | `ocapi/step_resolution/` | `list[Operation]` + `list[ArreteFile]` | `ArticleHistory` | optionnel |
+| 4. [Rendering](pipeline-steps/rendering.md) | `ocapi/step_rendering/` | `ArticleHistory` + arrêtés + opérations | `Permis` (HTML) | non |
 
 La détection et le rendering peuvent être désactivés via `run_pipeline(...)`
 (`enable_detection=False`, `enable_rendering=False`) ou les flags équivalents
@@ -224,7 +222,7 @@ Lecture rapide :
 
 ## Décisions associées
 
-- [ADR 0001 — Pipeline en trois étapes](decision-records/0001-three-step-pipeline.md)
+- [ADR 0001 — Pipeline en étapes explicites](decision-records/0001-three-step-pipeline.md)
 - [ADR 0002 — Détection par LLM](decision-records/0002-llm-for-detection.md)
 - [ADR 0003 — Snapshot testing](decision-records/0003-snapshot-testing.md)
 - [ADR 0004 — Pinning de la version Arrêtify](decision-records/0004-arretify-version-pin.md)

@@ -1,4 +1,4 @@
-# Étape 2 — Resolution
+# Étape 3 — Resolution
 
 C'est l'étape la plus dense d'OCAPI. À partir d'une `list[Operation]` et de la
 liste d'`ArreteFile`, elle construit l'**historique des versions** de chaque

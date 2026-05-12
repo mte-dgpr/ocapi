@@ -16,19 +16,20 @@ Les exemples ICPE (arrêtés et permis consolidés en HTML) sont consultables da
 
 ## 🏗️ Architecture du pipeline
 
-Le pipeline OCAPI se décompose en 3 étapes principales :
+Le pipeline OCAPI se décompose en 4 étapes principales :
 
 ```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   STEP 1     │────▶│   STEP 2     │────▶│   STEP 3     │
-│  Detection   │     │  Resolution  │     │  Rendering   │
-└──────────────┘     └──────────────┘     └──────────────┘
- Arrêté → Ops        Ops → History     History → Permis
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   STEP 1     │────▶│   STEP 2     │────▶│   STEP 3     │────▶│   STEP 4     │
+│   Tagging    │     │  Detection   │     │  Resolution  │     │  Rendering   │
+└──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
+ HTML → Tagged       Arrêté → Ops         Ops → History       History → Permis
 ```
 
-1. **Detection** : Découpe l'arrêté et détecte les opérations via LLM (ajout, modification, suppression)
-2. **Resolution** : Résout les conflits et construit l'historique des versions
-3. **Rendering** : Génère le permis consolidé HTML final
+1. **Tagging** : Annote le HTML Arrêtify avec des spans sémantiques d'opérations (verbes, références, sous-cibles)
+2. **Detection** : Découpe l'arrêté et détecte les opérations via LLM (ajout, modification, suppression)
+3. **Resolution** : Résout les conflits et construit l'historique des versions
+4. **Rendering** : Génère le permis consolidé HTML final
 
 ### Filtrage des articles superflus
 
@@ -209,18 +210,23 @@ ocapi/
 │   ├── config.py                 # Configuration Pydantic
 │   ├── types.py                  # Types et modèles de données
 │   │
-│   ├── step_detection/           # Étape 1 : Détection (chunking + LLM)
+│   ├── step_tagging/             # Étape 1 : Tagging sémantique des opérations
+│   │   ├── step_tagging.py
+│   │   ├── operations_detection.py
+│   │   └── operands_detection.py
+│   │
+│   ├── step_detection/           # Étape 2 : Détection (chunking + LLM)
 │   │   ├── chunking.py
 │   │   ├── step_detection.py
 │   │   ├── extract_operand.py
 │   │   └── prompts.py
 │   │
-│   ├── step_resolution/          # Étape 2 : Resolution
+│   ├── step_resolution/          # Étape 3 : Resolution
 │   │   ├── step_resolution.py
 │   │   ├── apply_ops.py
 │   │   └── build_op_graph.py
 │   │
-│   ├── step_rendering/           # Étape 3 : Rendering
+│   ├── step_rendering/           # Étape 4 : Rendering
 │   │   ├── step_rendering.py
 │   │   ├── make_header.py
 │   │   ├── make_main_content.py

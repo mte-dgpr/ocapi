@@ -1,4 +1,4 @@
-# Étape 3 — Rendering
+# Étape 4 — Rendering
 
 Assemble le **permis consolidé HTML** à partir de l'historique des articles et
 des arrêtés sources. Module :
