@@ -17,13 +17,10 @@
 # limitations under the License.
 #
 
-from ocapi.step_rendering.operation_messages import (
-    build_source_operation_messages,
-    inject_messages_into_body,
-    resolve_operation_error_codes,
-)
+from ocapi.step_rendering.main_content import make_permit_content
+from ocapi.step_rendering.operation_messages import resolve_operation_error_codes
 from ocapi.types import ArreteFile, ArticleHistory, Operation
-from ocapi.utils.arretify_utils import extract_first_spec_html, extract_main_and_appendix
+from ocapi.utils.arretify_utils import extract_first_spec_html
 
 
 def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
@@ -52,39 +49,48 @@ def make_permit_other(
     arrete_files: list[ArreteFile],
     operations: list[Operation],
     history: ArticleHistory | None = None,
+    ap_principal_id: str | None = None,
 ) -> str:
     """Generate the HTML sections for complementary and modifying arrêtés.
 
-    - Non-modifying complementary arrêtés are rendered as before.
-    - Modifying arrêtés (those with outgoing operations) get operation result
-      messages injected into their source articles.
+    Each non-principal arrêté is consolidated through ``make_permit_content``
+    so its own articles carry their version history (and any operation result
+    messages for ops sourced from it). The consolidated body is then placed in
+    a ``permit_complement`` or ``permit_modifying`` block depending on whether
+    the arrêté has outgoing operations.
 
     Parameters
     ----------
     arrete_files : list[ArreteFile]
-        All arrêtés; ``arrete_files[0]`` (initial AP) is skipped.
+        All arrêtés.
     operations : list[Operation]
         All detected operations.
     history : ArticleHistory | None
-        Article version history, used to determine operation resolution status.
-
-    Returns
-    -------
-    str
-        HTML of the ``permit_complements`` section, or empty string if none.
+        Article version history, used to determine operation resolution status
+        and to consolidate per-arrêté article versions.
+    ap_principal_id : str | None
+        Id of the principal AP, which is excluded from this section. Falls
+        back to ``arrete_files[0].id`` when not provided.
     """
     complement_sections: list[str] = []
     modifying_sections: list[str] = []
+    skip_id = (
+        ap_principal_id
+        if ap_principal_id is not None
+        else (arrete_files[0].id if arrete_files else None)
+    )
 
-    for i, arrete_file in enumerate(arrete_files):
-        if i == 0:
+    history_for_consolidation: ArticleHistory = history if history is not None else {}
+
+    for arrete_file in arrete_files:
+        if arrete_file.id == skip_id:
             continue
         if not arrete_file.status:
             continue
 
         identification = extract_first_spec_html(arrete_file.soup, "identification")
         arrete_title = extract_first_spec_html(arrete_file.soup, "arrete_title")
-        body_content = extract_main_and_appendix(arrete_file.soup)
+        body_content = make_permit_content(history_for_consolidation, arrete_file, operations)
 
         if has_no_ops(arrete_file, operations):
             complement_sections.append(
@@ -98,18 +104,12 @@ def make_permit_other(
             )
 
         if history is not None and has_unresolved_ops(arrete_file, operations, history):
-            messages = build_source_operation_messages(
-                arrete_file.id,
-                operations,
-                history,
-            )
-            annotated_body = inject_messages_into_body(body_content, messages)
             modifying_sections.append(
                 f"""
    <article data-spec="permit_modifying" data-date="{arrete_file.id}">
     {identification}
     {arrete_title}
-    {annotated_body}
+    {body_content}
    </article>
 """
             )

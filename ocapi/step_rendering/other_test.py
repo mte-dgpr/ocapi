@@ -110,8 +110,8 @@ def test_make_permit_other_includes_modifying_arretes_with_operation_messages() 
     assert "l'article 3 de l'arrêté 2020-01-01" in html
     # Message should appear after the title, not at the end
     soup = BeautifulSoup(html, "html.parser")
-    section = soup.find("section", attrs={"data-spec": "section"})
-    assert section is not None
+    section = soup.find("section", attrs={"data-spec": "section_version"})
+    assert isinstance(section, Tag)
     children = [c for c in section.children if isinstance(c, Tag) and c.name]
     assert children[0].name == "h3"
     assert children[1].get("data-spec") == "operation_result"
@@ -268,9 +268,9 @@ def test_make_permit_other_includes_appendix_with_operation_messages() -> None:
     assert "Annexe 2.1" in html
     soup = BeautifulSoup(html, "html.parser")
     appendix_section = soup.find("section", attrs={"data-number": "2.1"})
-    assert appendix_section is not None
+    assert isinstance(appendix_section, Tag)
     msg = appendix_section.find("div", attrs={"data-spec": "operation_result"})
-    assert msg is not None
+    assert isinstance(msg, Tag)
     assert "Opération de consolidation non résolue" in msg.get_text()
     assert "l'article 3 de l'arrêté 2020-01-01" in msg.get_text()
 

@@ -32,7 +32,6 @@ from ocapi.types import (
     ArticleHistory,
     ArticleVersion,
     ErrorCode,
-    FileType,
     NodeId,
     Operation,
     OperationType,
@@ -73,7 +72,7 @@ class TestIntegrationWithArticleFilter:
             status=True,
         )
         history: ArticleHistory = {}
-        result = make_permit_content(history, [arrete], [], arrete.id)
+        result = make_permit_content(history, arrete, [])
 
         assert "Article important" in result
         assert "Article superflu" not in result
@@ -91,7 +90,7 @@ def test_make_section_version_sets_default_attrs_when_article_not_in_history() -
         section=section,
         article_id="1",
         history={},
-        ap_initial_id="2020-01-01",
+        arrete_id="2020-01-01",
         operation_by_id={},
     )
 
@@ -113,7 +112,7 @@ def test_make_section_version_skips_invalid_article_id() -> None:
         section=section,
         article_id="bad id!",
         history={},
-        ap_initial_id="2020-01-01",
+        arrete_id="2020-01-01",
         operation_by_id={},
     )
 
@@ -151,7 +150,7 @@ def test_make_section_version_marks_removed_article() -> None:
         section=section,
         article_id="1",
         history=history,
-        ap_initial_id="2020-01-01",
+        arrete_id="2020-01-01",
         operation_by_id={"op-remove": operation},
     )
 
@@ -201,7 +200,7 @@ def test_make_section_version_partial_remove_does_not_mark_abrogated() -> None:
         section=section,
         article_id="1",
         history=history,
-        ap_initial_id="2009-12-08",
+        arrete_id="2009-12-08",
         operation_by_id={"op-partial-remove": operation},
     )
 
@@ -246,97 +245,12 @@ def test_make_section_version_full_remove_marks_abrogated() -> None:
         section=section,
         article_id="1",
         history=history,
-        ap_initial_id="2009-12-08",
+        arrete_id="2009-12-08",
         operation_by_id={"op-full-remove": operation},
     )
 
     assert section["data-is_modified"] == "true"
     assert "Article abrogé" in str(section)
-
-
-def test_make_permit_content_starts_from_first_non_abrogated_arrete() -> None:
-    """When the initial arrêté is abrogated (refonte), content starts from the next one."""
-    ap_2020_abroge = make_testing_arrete(
-        arrete_id="2020-01-01",
-        aiot="0001",
-        filename="ap_2020_abroge",
-        html="""
-<html><body data-arretify_version="0.2.0">
- <main data-spec="main">
-  <section data-spec="section" data-number="1"><p>Article 1 ancien</p></section>
- </main>
-</body></html>
-""",
-        status=False,
-    )
-    ap_2021_refonte = make_testing_arrete(
-        arrete_id="2021-01-01",
-        aiot="0001",
-        filename="ap_2021_refonte",
-        html="""
-<html><body data-arretify_version="0.2.0">
- <main data-spec="main">
-  <section data-spec="section" data-number="1"><p>Article 1 refonte</p></section>
-  <section data-spec="section" data-number="2"><p>Article 2 refonte</p></section>
- </main>
-</body></html>
-""",
-        status=True,
-    )
-
-    history: ArticleHistory = {}
-    html = make_permit_content(
-        history=history,
-        arrete_files=[ap_2020_abroge, ap_2021_refonte],
-        operations=[],
-        ap_principal_id=ap_2021_refonte.id,
-    )
-
-    assert "Article 1 refonte" in html
-    assert "Article 2 refonte" in html
-    assert "Article 1 ancien" not in html
-
-
-def test_make_permit_content_prefers_last_ap_autorisation_as_initial() -> None:
-    """When an old complementary AP comes first, the latest AP_AUTORISATION is used."""
-    ap_complement_old = make_testing_arrete(
-        arrete_id="2018-01-01",
-        aiot="0001",
-        filename="ap_complement_old",
-        html="""
-<html><body data-arretify_version="0.2.0">
- <main data-spec="main">
-  <section data-spec="section" data-number="1"><p>Old complement</p></section>
- </main>
-</body></html>
-""",
-        file_type=FileType.AP_COMPLEMENTAIRE,
-    )
-
-    ap_refonte = make_testing_arrete(
-        arrete_id="2022-01-01",
-        aiot="0001",
-        filename="ap_refonte",
-        html="""
-<html><body data-arretify_version="0.2.0">
- <main data-spec="main">
-  <section data-spec="section" data-number="1"><p>Refonte content</p></section>
- </main>
-</body></html>
-""",
-        file_type=FileType.AP_AUTORISATION,
-    )
-
-    history: ArticleHistory = {}
-    html = make_permit_content(
-        history=history,
-        arrete_files=[ap_complement_old, ap_refonte],
-        operations=[],
-        ap_principal_id=ap_refonte.id,
-    )
-
-    assert "Refonte content" in html
-    assert "Old complement" not in html
 
 
 def test_make_permit_content_renders_full_main_with_section_versions() -> None:
@@ -381,9 +295,8 @@ def test_make_permit_content_renders_full_main_with_section_versions() -> None:
 
     html = make_permit_content(
         history=history,
-        arrete_files=[ap_initial],
+        arrete=ap_initial,
         operations=[op_replace],
-        ap_principal_id=ap_initial.id,
     )
 
     assert 'data-spec="main"' in html
@@ -392,6 +305,87 @@ def test_make_permit_content_renders_full_main_with_section_versions() -> None:
     assert "Article 2 initial" in html
     assert 'data-date_version="2021-06-01"' in html
     assert 'data-date_version="2020-01-01"' in html
+
+
+def test_make_permit_content_renders_all_versions_for_complementary_arrete() -> None:
+    """Article history of a complementary AP is fully rendered (regression for ICPE 0006802719).
+
+    The complementary AP has its own article 3.1.1 modified twice; the rendered
+    body must show the current content plus both previous versions.
+    """
+    ap_complement = make_testing_arrete(
+        arrete_id="2006-12-14",
+        aiot="0001",
+        filename="ap_complement",
+        html="""
+<html><body data-arretify_version="0.2.0">
+ <main data-spec="main">
+  <section data-spec="section" data-number="3.1.1">
+   <h4 data-spec="section_title">3.1.1 PRELEVEMENT D'EAU</h4>
+   <p>Contenu original 3.1.1</p>
+  </section>
+ </main>
+</body></html>
+""",
+    )
+    target = NodeId(arrete_id="2006-12-14", article_id="3.1.1")
+    op_v1 = Operation(
+        id="12",
+        source_id=NodeId(arrete_id="2014-06-19", article_id="2"),
+        target_id=target,
+        operation_type=OperationType.REPLACE,
+    )
+    op_v2 = Operation(
+        id="15",
+        source_id=NodeId(arrete_id="2017-09-01", article_id="3"),
+        target_id=target,
+        operation_type=OperationType.REPLACE,
+    )
+    history = {
+        target: [
+            cast(
+                ArticleVersion,
+                {
+                    "version": 0,
+                    "content": "<p>Contenu version 0</p>",
+                    "operation_id": None,
+                },
+            ),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 1,
+                    "content": "<p>Contenu version 1</p>",
+                    "operation_id": "12",
+                },
+            ),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 2,
+                    "content": "<p>Contenu version 2</p>",
+                    "operation_id": "15",
+                },
+            ),
+        ]
+    }
+
+    html = make_permit_content(
+        history=history,
+        arrete=ap_complement,
+        operations=[op_v1, op_v2],
+    )
+
+    assert 'data-spec="section_version"' in html
+    assert 'data-date_version="2017-09-01"' in html
+    assert "Contenu version 0" in html
+    assert "Contenu version 1" in html
+    assert "Contenu version 2" in html
+    soup = BeautifulSoup(html, "html.parser")
+    history_block = soup.find(attrs={"data-spec": "section_version_history"})
+    assert isinstance(history_block, Tag)
+    details = history_block.find_all("details")
+    assert len(details) == 2
 
 
 def test_make_permit_content_inserts_new_article_after_predecessor() -> None:
@@ -434,9 +428,8 @@ def test_make_permit_content_inserts_new_article_after_predecessor() -> None:
     )
     html = make_permit_content(
         history=history,
-        arrete_files=[ap_initial],
+        arrete=ap_initial,
         operations=[op_create],
-        ap_principal_id=ap_initial.id,
     )
     assert html.index("Article 1 initial") < html.index("Article 2 inséré")
     assert html.index("Article 2 inséré") < html.index("Article 3 initial")
@@ -472,7 +465,7 @@ def test_make_section_version_places_previous_version_in_details_only() -> None:
         section=section,
         article_id="1",
         history=history,
-        ap_initial_id="2020-01-01",
+        arrete_id="2020-01-01",
         operation_by_id={"op-1": operation},
     )
     rendered_soup = BeautifulSoup(str(section), "html.parser")
@@ -537,7 +530,7 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
         section=section,
         article_id="1",
         history=history,
-        ap_initial_id="2020-01-01",
+        arrete_id="2020-01-01",
         operation_by_id={"op-1": operation},
     )
 
@@ -634,7 +627,7 @@ def test_make_section_version_displays_unresolved_message_for_subtarget_errors(
         section=section,
         article_id="1",
         history=history,
-        ap_initial_id="2020-01-01",
+        arrete_id="2020-01-01",
         operation_by_id={"op-1": operation},
     )
 
@@ -677,7 +670,7 @@ def test_make_section_version_displays_error_extracting_target_reason() -> None:
         section=section,
         article_id="1",
         history=history,
-        ap_initial_id="2020-01-01",
+        arrete_id="2020-01-01",
         operation_by_id={"op-target": operation},
     )
     rendered = str(section)
@@ -835,7 +828,7 @@ def test_make_permit_content_marks_main_ap_source_articles() -> None:
         ],
     }
 
-    result = make_permit_content(history, [arrete], [op_ok, op_err], arrete.id)
+    result = make_permit_content(history, arrete, [op_ok, op_err])
 
     soup = BeautifulSoup(result, "html.parser")
     section_1 = soup.find("section", attrs={"data-number": "1"})

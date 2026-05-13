@@ -46,43 +46,49 @@ Les arrêtés sont triés par `arrete_id` (date `YYYY-MM-DD`).
 ## Contenu principal (`make_permit_content`)
 
 [`ocapi/step_rendering/main_content.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/step_rendering/main_content.py)
-construit le corps consolidé :
+consolide un arrêté donné (le `<main>` et l'éventuel `<footer data-spec="appendix">`)
+et le réutilise pour le contenu principal comme pour chaque AP complémentaire.
+Le choix de l'AP principal est fait en amont par `_select_principal_ap`
+([`step_rendering.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/step_rendering/step_rendering.py)) :
 
-1. **Choix de l'AP initial** (`_select_initial_ap`) :
-    - si exactement un arrêté est marqué `principal=True`, c'est lui ;
-    - sinon, le dernier `AP_AUTORISATION` non abrogé (cas typique : refonte
-      la plus récente) ;
-    - sinon le premier arrêté actif, ou à défaut `arrete_files[0]`.
-2. **Filtrage des sections superflues**
+- si exactement un arrêté est marqué `principal=True`, c'est lui ;
+- sinon, le dernier `AP_AUTORISATION` non abrogé (cas typique : refonte
+  la plus récente) ;
+- sinon le premier arrêté actif, ou à défaut `arrete_files[0]`.
+
+Sur l'arrêté retenu, `make_permit_content` :
+
+1. **Filtre les sections superflues** dans le `<main>`
    ([`article_filter.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/step_rendering/article_filter.py))
    — supprime les sections dont le titre normalisé matche une liste fixe
    (frais, publication, sanctions, exécution, recours…).
-3. **Application des dernières versions** : pour chaque section restante,
-   `make_section_version` substitue le contenu issu de l'historique (s'il y
-   en a un) à la version d'origine.
-4. **Insertion des nouveaux articles** (`_insert_new_article_sections`) — pour
-   chaque clé `NEW_ARTICLE:x.y` de l'historique attachée à l'AP initial,
+2. **Applique les dernières versions** : pour chaque section restante (et
+   pour chaque section de l'appendix avec un id `APPENDIX:x.y`),
+   `make_section_version` substitue le contenu issu de l'historique de cet
+   arrêté (s'il y en a un).
+3. **Insère les nouveaux articles** (`_insert_new_article_sections`) — pour
+   chaque clé `NEW_ARTICLE:x.y` de l'historique attachée à l'arrêté traité,
    insère une nouvelle `<section>` après l'article numériquement précédent
    (ordre `article_id_sort_tuple`).
-5. **Annotation des opérations** (`build_source_operation_messages`) —
-   injecte des messages d'erreur ou d'information dans le corps quand des
-   opérations émanant de l'AP initial sont restées non résolues.
+4. **Annotation des opérations** (`build_source_operation_messages`) —
+   injecte des messages d'erreur ou d'information dans le corps pour les
+   opérations émanant de cet arrêté.
 
 ## Autres (`make_permit_other`)
 
 [`ocapi/step_rendering/other.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/step_rendering/other.py)
-gère les arrêtés autres que l'AP initial, en deux familles :
+gère les arrêtés autres que l'AP principal. Chaque arrêté restant est
+consolidé via `make_permit_content` (main + appendix avec leurs propres
+versions d'articles), puis classé en deux familles :
 
 - **Arrêtés modificatifs** (au moins une opération sortante non résolue) —
-  rendus dans `permit_modifying_arretes` avec leur corps d'origine annoté
-  via `inject_messages_into_body`. C'est ce qui permet à un opérateur
+  rendus dans `permit_modifying_arretes`. C'est ce qui permet à un opérateur
   humain de retrouver les opérations qu'OCAPI n'a pas pu appliquer.
 - **Arrêtés complémentaires** (aucune opération sortante) — rendus dans
-  `permit_complements` avec leur identification, titre et corps tels quels.
+  `permit_complements`.
 
-Les arrêtés `status=False` (abrogés) sont filtrés. L'AP initial (`i == 0`
-dans la liste chronologique) est sauté car déjà rendu par
-`make_permit_content`.
+Les arrêtés `status=False` (abrogés) sont filtrés. L'AP principal est sauté
+car déjà rendu par le contenu principal.
 
 ## Filtrage des sections superflues
 
