@@ -326,6 +326,136 @@ def test_build_graph_full_removal_on_principal_is_not_resolved() -> None:
     assert ErrorCode.ERROR_EXTRACTING_TARGET in updated_ops[0].error_codes
 
 
+def test_build_graph_full_removal_with_narrower_ops_marks_less_important() -> None:
+    """Full removal is dropped when narrower ops from the same source already
+    touch parts of the same target arrêté."""
+    html_2010 = """
+    <section data-spec="section" data-number="1">Article 1</section>
+    <section data-spec="section" data-number="2">Article 2</section>
+    """
+    html_2025 = """
+    <section data-spec="section" data-number="1">Source 1</section>
+    <section data-spec="section" data-number="30">Source 30</section>
+    """
+    arrete_files = [
+        ArreteFile(
+            id="2010-01-01",
+            aiot="aiot1",
+            filename="2010-01-01.html",
+            soup=BeautifulSoup(html_2010, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+        ArreteFile(
+            id="2025-01-01",
+            aiot="aiot1",
+            filename="2025-01-01.html",
+            soup=BeautifulSoup(html_2025, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
+    full_removal = Operation(
+        id="op-remove-all",
+        source_id=NodeId(arrete_id="2025-01-01", article_id="30"),
+        target_id=NodeId(arrete_id="2010-01-01", article_id="ALL"),
+        operation_type=OperationType.REMOVE,
+    )
+    narrower = Operation(
+        id="op-replace-1",
+        source_id=NodeId(arrete_id="2025-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="2010-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+        operand="new",
+        sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
+    )
+
+    G, updated_arrete_files, _, updated_ops = build_graph([full_removal, narrower], arrete_files)
+
+    assert next(af for af in updated_arrete_files if af.id == "2010-01-01").status is True
+    full_removal_updated = next(o for o in updated_ops if o.id == "op-remove-all")
+    assert ErrorCode.LESS_IMPORTANT in full_removal_updated.error_codes
+    # The full removal must not be added to the graph.
+    assert not G.has_edge(
+        NodeId(arrete_id="2025-01-01", article_id="30"),
+        NodeId(arrete_id="2010-01-01", article_id="ALL"),
+    )
+    # The narrower operation is still applied normally.
+    narrower_updated = next(o for o in updated_ops if o.id == "op-replace-1")
+    assert not narrower_updated.error_codes
+
+
+def test_build_graph_full_removal_ignores_other_full_removals_for_pair() -> None:
+    """Two full removals from the same source on the same target don't make each other
+    LESS_IMPORTANT — the new check only triggers on truly narrower ops."""
+    html_2010 = """
+    <section data-spec="section" data-number="1">Article 1</section>
+    """
+    arrete_files = [
+        ArreteFile(
+            id="2010-01-01",
+            aiot="aiot1",
+            filename="2010-01-01.html",
+            soup=BeautifulSoup(html_2010, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
+    op_a = Operation(
+        id="a",
+        source_id=NodeId(arrete_id="2025-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="2010-01-01", article_id="ALL"),
+        operation_type=OperationType.REMOVE,
+    )
+    op_b = Operation(
+        id="b",
+        source_id=NodeId(arrete_id="2025-01-01", article_id="2"),
+        target_id=NodeId(arrete_id="2010-01-01", article_id="ALL"),
+        operation_type=OperationType.REMOVE,
+    )
+
+    _, updated_arrete_files, _, updated_ops = build_graph([op_a, op_b], arrete_files)
+
+    assert updated_arrete_files[0].status is False
+    for op in updated_ops:
+        assert ErrorCode.LESS_IMPORTANT not in op.error_codes
+
+
+def test_build_graph_full_removal_with_narrower_ops_from_other_source_still_abrogates() -> None:
+    """The narrower ops must come from the same source arrêté to invalidate the abrogation."""
+    html_2010 = """
+    <section data-spec="section" data-number="1">Article 1</section>
+    """
+    arrete_files = [
+        ArreteFile(
+            id="2010-01-01",
+            aiot="aiot1",
+            filename="2010-01-01.html",
+            soup=BeautifulSoup(html_2010, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
+    full_removal = Operation(
+        id="op-remove-all",
+        source_id=NodeId(arrete_id="2025-01-01", article_id="30"),
+        target_id=NodeId(arrete_id="2010-01-01", article_id="ALL"),
+        operation_type=OperationType.REMOVE,
+    )
+    other_source = Operation(
+        id="op-other",
+        source_id=NodeId(arrete_id="2024-06-01", article_id="1"),
+        target_id=NodeId(arrete_id="2010-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+        operand="new",
+        sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
+    )
+
+    _, updated_arrete_files, _, updated_ops = build_graph(
+        [full_removal, other_source], arrete_files
+    )
+
+    assert updated_arrete_files[0].status is False
+    full_removal_updated = next(o for o in updated_ops if o.id == "op-remove-all")
+    assert not full_removal_updated.error_codes
+
+
 def test_build_graph_remove_all_marks_arrete_abrogated() -> None:
     """REMOVE with target_article ALL must mark the target arrêté as abrogated."""
     html_2020 = """
