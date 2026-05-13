@@ -31,7 +31,7 @@ def _section(title: str, number: str = "1") -> Tag:
         f"<p>Contenu</p></section>"
     )
     tag = BeautifulSoup(html, "html.parser").find("section")
-    assert tag is not None
+    assert isinstance(tag, Tag)
     return tag
 
 
@@ -82,7 +82,7 @@ class TestIsSuperfluous:
             "<p>Contenu</p></section>"
         )
         tag = BeautifulSoup(html, "html.parser").find("section")
-        assert tag is not None
+        assert isinstance(tag, Tag)
         assert is_superfluous_section(tag) is False
 
 

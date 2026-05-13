@@ -27,6 +27,7 @@ import unittest
 from pathlib import Path
 
 import pytest
+from bs4 import Tag
 
 from ocapi.types import (
     ArticleHistory,
@@ -602,7 +603,7 @@ class TestFilterAndDeduplicateArreteFiles:
         assert len(result) == 1
         assert result[0].filename == "2024-09-26_ap d'autorisation.html"
         appendix = result[0].soup.find("footer", attrs={"data-spec": "appendix"})
-        assert appendix is not None
+        assert isinstance(appendix, Tag)
         section_ids = [s.get("id") for s in appendix.find_all("section")]
         assert section_ids == ["orig-app", "ann1"]
 
@@ -646,7 +647,7 @@ class TestFilterAndDeduplicateArreteFiles:
         assert len(result) == 1
         assert result[0].filename == "2024-09-26_ap d'autorisation.html"
         appendix = result[0].soup.find("footer", attrs={"data-spec": "appendix"})
-        assert appendix is not None
+        assert isinstance(appendix, Tag)
         section_ids = [s.get("id") for s in appendix.find_all("section")]
         assert section_ids == ["ann2a", "ann1"]
 
@@ -697,7 +698,7 @@ class TestFilterAndDeduplicateArreteFiles:
         assert len(result) == 1
         assert result[0].filename == "2024-09-26_ap d'autorisation_Annexe 2-a.html"
         appendix = result[0].soup.find("footer", attrs={"data-spec": "appendix"})
-        assert appendix is not None
+        assert isinstance(appendix, Tag)
         section_ids = [s.get("id") for s in appendix.find_all("section")]
         assert section_ids == ["ann1"]
 
