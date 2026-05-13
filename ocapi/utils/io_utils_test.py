@@ -27,6 +27,7 @@ import unittest
 from pathlib import Path
 
 import pytest
+from bs4 import Tag
 
 from ocapi.types import (
     ArticleHistory,
@@ -42,10 +43,12 @@ from ocapi.utils.io_utils import (
     article_history_to_json_dict,
     filter_and_deduplicate_arrete_files,
     initialize_arrete_files,
+    load_document_contexts,
     load_html_files,
     load_operations,
     save_history,
     save_operations,
+    save_tagged_html_file,
 )
 from ocapi.utils.testing import make_testing_arrete, make_testing_op
 
@@ -143,6 +146,50 @@ class TestInitializeArreteFiles(unittest.TestCase):
         """An empty input list returns an empty list without error."""
         result = initialize_arrete_files([], aiot="0001234567")
         assert result == []
+
+
+class TestLoadDocumentContexts:
+    def test_loads_pairs_with_shared_soup(self, tmp_path: Path) -> None:
+        _write(tmp_path / "2021-06-15_ap prescriptions complémentaires_foo.html", _VALID_HTML)
+
+        result = load_document_contexts(tmp_path, aiot="0001234567")
+
+        assert len(result) == 1
+        arrete_file, document_context = result[0]
+        assert arrete_file.id == "2021-06-15"
+        assert arrete_file.file_type == FileType.AP_COMPLEMENTAIRE
+        assert arrete_file.soup is document_context.soup
+        assert document_context.soup.find("body") is not None
+
+    def test_skips_unsupported_arretify_version(self, tmp_path: Path) -> None:
+        _write(tmp_path / "2020-01-01.html", _HTML_UNSUPPORTED_VERSION)
+
+        result = load_document_contexts(tmp_path, aiot="0001234567")
+
+        assert result == []
+
+
+class TestSaveTaggedHtmlFile:
+    def test_writes_prettified_soup(self, tmp_path: Path) -> None:
+        _write(tmp_path / "2021-06-15_ap prescriptions complémentaires_foo.html", _VALID_HTML)
+        pairs = load_document_contexts(tmp_path, aiot="0001234567")
+        _, document_context = pairs[0]
+
+        output_path = tmp_path / "out" / "tagged.html"
+        save_tagged_html_file(document_context, output_path)
+
+        assert output_path.exists()
+        assert "<p>" in output_path.read_text(encoding="utf-8")
+
+    def test_creates_parent_directories(self, tmp_path: Path) -> None:
+        _write(tmp_path / "2021-06-15_ap prescriptions complémentaires_foo.html", _VALID_HTML)
+        pairs = load_document_contexts(tmp_path, aiot="0001234567")
+        _, document_context = pairs[0]
+
+        nested = tmp_path / "deep" / "nested" / "path" / "tagged.html"
+        save_tagged_html_file(document_context, nested)
+
+        assert nested.exists()
 
 
 class TestSaveOperations:
@@ -556,7 +603,7 @@ class TestFilterAndDeduplicateArreteFiles:
         assert len(result) == 1
         assert result[0].filename == "2024-09-26_ap d'autorisation.html"
         appendix = result[0].soup.find("footer", attrs={"data-spec": "appendix"})
-        assert appendix is not None
+        assert isinstance(appendix, Tag)
         section_ids = [s.get("id") for s in appendix.find_all("section")]
         assert section_ids == ["orig-app", "ann1"]
 
@@ -600,7 +647,7 @@ class TestFilterAndDeduplicateArreteFiles:
         assert len(result) == 1
         assert result[0].filename == "2024-09-26_ap d'autorisation.html"
         appendix = result[0].soup.find("footer", attrs={"data-spec": "appendix"})
-        assert appendix is not None
+        assert isinstance(appendix, Tag)
         section_ids = [s.get("id") for s in appendix.find_all("section")]
         assert section_ids == ["ann2a", "ann1"]
 
@@ -651,7 +698,7 @@ class TestFilterAndDeduplicateArreteFiles:
         assert len(result) == 1
         assert result[0].filename == "2024-09-26_ap d'autorisation_Annexe 2-a.html"
         appendix = result[0].soup.find("footer", attrs={"data-spec": "appendix"})
-        assert appendix is not None
+        assert isinstance(appendix, Tag)
         section_ids = [s.get("id") for s in appendix.find_all("section")]
         assert section_ids == ["ann1"]
 

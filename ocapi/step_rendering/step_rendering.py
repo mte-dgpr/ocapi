@@ -80,9 +80,14 @@ def step_rendering(
     """
     _LOGGER.info(f"Rendering: generating permit from {len(history)} modified article(s)")
     ap_principal = _select_principal_ap(arrete_files)
-    contenu_permis = make_permit_content(history, arrete_files, operations, ap_principal.id)
+    contenu_permis = make_permit_content(history, ap_principal, operations)
     header_permis = make_permit_header(arrete_files)
-    other_permis = make_permit_other(arrete_files, operations=operations, history=history)
+    other_permis = make_permit_other(
+        arrete_files,
+        operations=operations,
+        history=history,
+        ap_principal_id=ap_principal.id,
+    )
     _LOGGER.debug("Rendering: permit generated successfully")
     return Permis(header=header_permis, contenu=contenu_permis, other=other_permis)
 

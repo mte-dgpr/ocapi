@@ -44,8 +44,9 @@ from ocapi.types import Operation
 from ocapi.utils.io_utils import (
     InputOutputError,
     article_history_to_json_dict,
-    load_arrete_files,
+    load_document_contexts,
     load_operations,
+    save_tagged_html_file,
     write_json_output,
     write_permis_output,
 )
@@ -61,8 +62,10 @@ def main(
     include_ids: list[str] | None = None,
     start_date: str | None = None,
     enable_rendering: bool = True,
+    enable_tagging: bool = True,
     operations_from: Path | None = None,
     principal_id: str | None = None,
+    tagged_output_dir: Path | None = None,
 ) -> int:
     """Run the complete OCAPI pipeline end to end.
 
@@ -75,9 +78,13 @@ def main(
         include_ids: List of arrêté IDs to include (defaults to all).
         start_date: Detection start date (YYYY-MM-DD).
         enable_rendering: If True, generate the consolidated permit.
+        enable_tagging: If False, skip ``step_tagging`` and the tagged HTML output.
+            Pre-existing Arrêtify tags in the input HTML are used as-is.
         operations_from: If set, loads ``operations.json`` from that directory; skips detection.
         principal_id: Date (YYYY-MM-DD) of the arrêté to flag as principal.
             Returns an error when no loaded arrêté matches that date.
+        tagged_output_dir: Output directory for HTMLs emitted after ``step_tagging``.
+            When None the outputs are placed in ``<input_dir>/../../arretes_tagged/<aiot>/``.
 
     Returns:
         Exit code (0 = success, 1 = error).
@@ -92,27 +99,30 @@ def main(
 
     # Load arrêtés
     try:
-        arrete_files = load_arrete_files(input_dir, aiot)
+        pairs = load_document_contexts(input_dir, aiot)
     except InputOutputError as e:
         _LOGGER.error(f"Error: {e}")
         return 1
 
-    if not arrete_files:
+    if not pairs:
         _LOGGER.error("No valid arrêté found")
         return 1
 
-    _LOGGER.info(f"{len(arrete_files)} arrêté(s) loaded")
+    _LOGGER.info(f"{len(pairs)} arrêté(s) loaded")
 
     # Filter arrêtés if requested
     if include_ids:
         arrete_ids_included = set(include_ids)
         _LOGGER.info(f"Filtering on: {arrete_ids_included}")
-        arrete_files = [af for af in arrete_files if af.id in arrete_ids_included]
-        _LOGGER.info(f"{len(arrete_files)} arrêté(s) after filtering")
+        pairs = [(af, dc) for af, dc in pairs if af.id in arrete_ids_included]
+        _LOGGER.info(f"{len(pairs)} arrêté(s) after filtering")
 
-        if not arrete_files:
+        if not pairs:
             _LOGGER.error("No arrêté matches the specified IDs")
             return 1
+
+    arrete_files = [af for af, _ in pairs]
+    document_contexts = [dc for _, dc in pairs]
 
     if principal_id is not None:
         matches = [af for af in arrete_files if af.id == principal_id]
@@ -129,6 +139,11 @@ def main(
     else:
         base_dir = input_dir.parent.parent
         consolidation_dir = base_dir / "arretes_consolidation" / aiot
+
+    if tagged_output_dir:
+        tagged_dir = tagged_output_dir
+    else:
+        tagged_dir = input_dir.parent.parent / "arretes_tagged" / aiot
 
     preloaded_ops: list[Operation] | None = None
     if operations_from is not None:
@@ -148,8 +163,16 @@ def main(
             start_date=start_date,
             enable_detection=enable_detection,
             enable_rendering=enable_rendering,
+            enable_tagging=enable_tagging,
             operations=preloaded_ops,
+            document_contexts=document_contexts,
         )
+
+        # Save tagged HTMLs
+        if enable_tagging:
+            for arrete_file, document_context in zip(arrete_files, document_contexts):
+                save_tagged_html_file(document_context, tagged_dir / arrete_file.filename)
+            _LOGGER.info(f"Tagged HTML saved → {tagged_dir}")
 
         # Save operations
         operations_path = consolidation_dir / "operations.json"
@@ -252,9 +275,26 @@ Examples:
         help="Date of the arrêté to flag as principal (must match a loaded arrêté)",
     )
     parser.add_argument(
+        "--tagged-output",
+        type=Path,
+        metavar="DIR",
+        help=(
+            "Output directory for HTMLs emitted after step_tagging. "
+            "Defaults to arretes_tagged/<aiot>/ relative to <input_dir>/../../."
+        ),
+    )
+    parser.add_argument(
         "--no-rendering",
         action="store_true",
         help="Skip consolidated permit generation (step 4)",
+    )
+    parser.add_argument(
+        "--no-tagging",
+        action="store_true",
+        help=(
+            "Skip step_tagging and the tagged HTML output. Pre-existing "
+            "Arrêtify tags in the input HTML are still read as-is."
+        ),
     )
     parser.add_argument(
         "-v",
@@ -289,6 +329,7 @@ Examples:
     _LOGGER.debug(f"Logging initialised at level {log_level}")
 
     operations_from = getattr(args, "operations_from", None)
+    tagged_output = getattr(args, "tagged_output", None)
 
     exit_code = main(
         input_dir=args.input_dir,
@@ -297,8 +338,10 @@ Examples:
         include_ids=args.include,
         start_date=args.start_date,
         enable_rendering=not args.no_rendering,
+        enable_tagging=not args.no_tagging,
         operations_from=operations_from,
         principal_id=args.principal_id,
+        tagged_output_dir=tagged_output,
     )
 
     sys.exit(exit_code)

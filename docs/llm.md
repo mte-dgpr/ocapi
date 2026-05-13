@@ -1,7 +1,7 @@
 # LLM
 
-OCAPI s'appuie sur un LLM pour la **détection des opérations** (étape 1) et,
-de manière marginale, pour la résolution des **sous-cibles complexes** (étape 2).
+OCAPI s'appuie sur un LLM pour la **détection des opérations** (étape 2) et,
+de manière marginale, pour la résolution des **sous-cibles complexes** (étape 3).
 Toute la logique LLM est centralisée dans
 [`ocapi/llm_utils/`](https://github.com/mte-dgpr/ocapi/tree/main/ocapi/llm_utils).
 

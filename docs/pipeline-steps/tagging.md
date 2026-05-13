@@ -1,4 +1,4 @@
-# Étape 0 — Tagging
+# Étape 1 — Tagging
 
 Étape facultative qui enrichit le HTML Arrêtify d'**annotations sémantiques
 d'opérations** (verbes « modifier », « abroger », « insérer »…) et résout les
@@ -28,7 +28,7 @@ toute analyse manuelle ultérieure.
 
 ## Quand est-ce exécuté
 
-Dans `run_pipeline`, l'étape 0 tourne **avant la détection** dès que
+Dans `run_pipeline`, l'étape 1 tourne **avant la détection** dès que
 `enable_tagging=True` et que des `document_contexts` sont fournis. La CLI
 l'active par défaut ; la désactiver avec `--no-tagging` (les tags pré-existants
 dans le HTML d'entrée sont alors utilisés tels quels).
@@ -78,8 +78,8 @@ Défini dans
 | `data-has_operand` | si un operand a été détecté | `true` / `false` |
 | `data-operand` | operand brut | string optionnel |
 
-> Note : ces `OperationType` (étape 0, valeurs minuscules `add` / `delete` /
-> `replace`) sont **distincts** des `OperationType` de `ocapi/types.py` (étape 1,
+> Note : ces `OperationType` (étape 1, valeurs minuscules `add` / `delete` /
+> `replace`) sont **distincts** des `OperationType` de `ocapi/types.py` (étape 2,
 > `ADD` / `REMOVE` / `REPLACE`). Les deux univers se rejoignent dans la
 > détection mais ne partagent volontairement pas le même type Python.
 

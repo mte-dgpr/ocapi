@@ -147,3 +147,36 @@ def test_run_pipeline_resets_operation_id_counter(
     run_pipeline([make_testing_arrete("2009-12-08")], enable_rendering=False)
 
     assert _OPERATION_ID_COUNTER.value == 0
+
+
+@patch("ocapi.pipeline.step_tagging")
+@patch("ocapi.pipeline.step_detection", return_value=[])
+def test_step_tagging_runs_when_enabled(
+    mock_detection: MagicMock,
+    mock_tagging: MagicMock,
+) -> None:
+    arretes = [make_testing_arrete("2009-12-08"), make_testing_arrete("2014-01-09")]
+    dcs = [MagicMock(soup=a.soup) for a in arretes]
+
+    run_pipeline(arretes, enable_rendering=False, document_contexts=dcs)  # type: ignore[arg-type]
+
+    assert mock_tagging.call_count == 2
+
+
+@patch("ocapi.pipeline.step_tagging")
+@patch("ocapi.pipeline.step_detection", return_value=[])
+def test_step_tagging_skipped_when_disabled(
+    mock_detection: MagicMock,
+    mock_tagging: MagicMock,
+) -> None:
+    arretes = [make_testing_arrete("2009-12-08")]
+    dcs = [MagicMock(soup=arretes[0].soup)]
+
+    run_pipeline(
+        arretes,
+        enable_rendering=False,
+        enable_tagging=False,
+        document_contexts=dcs,  # type: ignore[arg-type]
+    )
+
+    mock_tagging.assert_not_called()

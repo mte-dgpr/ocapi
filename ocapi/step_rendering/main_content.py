@@ -42,63 +42,82 @@ from ocapi.types import (
     error_codes_reason,
     operation_type_label,
 )
-from ocapi.utils.arretify_utils import ARRETIFY_SECTION_DATA_SPEC
+from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC, ARRETIFY_SECTION_DATA_SPEC
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def make_permit_content(
     history: ArticleHistory,
-    arrete_files: list[ArreteFile],
+    arrete: ArreteFile,
     operations: list[Operation],
-    ap_principal_id: str,
 ) -> str:
-    """Generate the consolidated permit content from the modification history.
+    """Consolidate one arrêté: apply article history versions to its body.
 
-    1. Uses the principal AP (selected upstream) as the consolidation base.
-    2. For each article of that AP, applies the latest version from history
-    3. Returns the consolidated HTML (without header)
+    Walks the ``<main>`` and the appendix ``<footer>`` of *arrete*, replacing
+    each article section with its consolidated ``section_version`` (latest
+    content plus collapsed history). Messages for operations sourced from this
+    arrêté are then injected into the body. Returns the resulting HTML
+    fragment (main + appendix) without the document header.
     """
-    ap_initial = next(af for af in arrete_files if af.id == ap_principal_id)
-    ap_initial_id = ap_initial.id
-
-    # Clone the soup to avoid mutating the original
-    consolidated_soup = BeautifulSoup(str(ap_initial.soup), "html.parser")
-
-    # Extract only the main content (skip header)
+    arrete_id = arrete.id
+    consolidated_soup = BeautifulSoup(str(arrete.soup), "html.parser")
     main = consolidated_soup.find("main")
-    if not isinstance(main, Tag):
+    appendix = consolidated_soup.find("footer", attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC})
+    if not isinstance(main, Tag) and not isinstance(appendix, Tag):
         return ""
 
-    # Find all sections (articles) in the main element
-    sections = main.find_all("section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC})
-    filter_superfluous_sections(sections)
     operation_by_id = {operation.id: operation for operation in operations}
 
-    # Re-query after filtering (decomposed sections are gone from the tree)
-    sections = main.find_all("section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC})
-    for section in sections:
-        article_id = section.get("data-number")
-        if not article_id or not isinstance(article_id, str):
-            continue
+    if isinstance(main, Tag):
+        sections = main.find_all("section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC})
+        filter_superfluous_sections(sections)
+        # Re-query after filtering (decomposed sections are gone from the tree)
+        sections = main.find_all("section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC})
+        for section in sections:
+            article_id = section.get("data-number")
+            if not article_id or not isinstance(article_id, str):
+                continue
 
-        make_section_version(
-            section=section,
-            article_id=article_id,
+            make_section_version(
+                section=section,
+                article_id=article_id,
+                history=history,
+                arrete_id=arrete_id,
+                operation_by_id=operation_by_id,
+            )
+
+        _insert_new_article_sections(
+            main=main,
             history=history,
-            ap_initial_id=ap_initial_id,
+            arrete_id=arrete_id,
             operation_by_id=operation_by_id,
         )
 
-    _insert_new_article_sections(
-        main=main,
-        history=history,
-        ap_initial_id=ap_initial_id,
-        operation_by_id=operation_by_id,
-    )
+    if isinstance(appendix, Tag):
+        for section in appendix.find_all(
+            "section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC}
+        ):
+            data_number = section.get("data-number")
+            if not isinstance(data_number, str) or not data_number:
+                continue
+            make_section_version(
+                section=section,
+                article_id=f"APPENDIX:{data_number}",
+                history=history,
+                arrete_id=arrete_id,
+                operation_by_id=operation_by_id,
+            )
 
-    messages = build_source_operation_messages(ap_initial_id, operations, history)
-    return inject_messages_into_body(str(main), messages)
+    body_parts: list[str] = []
+    if isinstance(main, Tag):
+        body_parts.append(str(main))
+    if isinstance(appendix, Tag):
+        body_parts.append(str(appendix))
+    body_html = "".join(body_parts)
+
+    messages = build_source_operation_messages(arrete_id, operations, history)
+    return inject_messages_into_body(body_html, messages)
 
 
 def _top_level_sections(main: Tag) -> list[Tag]:
@@ -118,14 +137,12 @@ def _find_predecessor_display_id(new_display: str, pool: set[str]) -> str | None
 def _insert_new_article_sections(
     main: Tag,
     history: ArticleHistory,
-    ap_initial_id: str,
+    arrete_id: str,
     operation_by_id: dict[str, Operation],
 ) -> None:
     """Insert sections for ``NEW_ARTICLE:…`` keys after the numerically preceding article."""
     new_keys = [
-        k
-        for k in history
-        if k.arrete_id == ap_initial_id and k.article_id.startswith("NEW_ARTICLE")
+        k for k in history if k.arrete_id == arrete_id and k.article_id.startswith("NEW_ARTICLE")
     ]
     if not new_keys:
         return
@@ -178,7 +195,7 @@ def _insert_new_article_sections(
             section=section_el,
             article_id=node_key.article_id,
             history=history,
-            ap_initial_id=ap_initial_id,
+            arrete_id=arrete_id,
             operation_by_id=operation_by_id,
         )
 
@@ -187,7 +204,7 @@ def make_section_version(
     section: Tag,
     article_id: str,
     history: ArticleHistory,
-    ap_initial_id: str,
+    arrete_id: str,
     operation_by_id: dict[str, Operation],
 ) -> None:
     """Modify a section in-place into a SectionVersion with consolidated content.
@@ -199,20 +216,20 @@ def make_section_version(
     section["data-spec"] = "section_version"
 
     try:
-        key = NodeId(arrete_id=ap_initial_id, article_id=article_id)
+        key = NodeId(arrete_id=arrete_id, article_id=article_id)
     except (InvalidArticleIdError, ValueError):
         _LOGGER.info(
             "Skipping section with non-standard article_id=%r (arrêté %s)",
             article_id,
-            ap_initial_id,
+            arrete_id,
         )
         section["data-is_modified"] = "false"
-        section["data-date_version"] = ap_initial_id
+        section["data-date_version"] = arrete_id
         return
 
     if key not in history:
         section["data-is_modified"] = "false"
-        section["data-date_version"] = ap_initial_id
+        section["data-date_version"] = arrete_id
         return
 
     versions = history[key]
@@ -222,9 +239,7 @@ def make_section_version(
     latest_operation = (
         operation_by_id.get(str(latest_operation_id)) if latest_operation_id else None
     )
-    latest_date_version = (
-        latest_operation.source_id.arrete_id if latest_operation else ap_initial_id
-    )
+    latest_date_version = latest_operation.source_id.arrete_id if latest_operation else arrete_id
 
     section["data-is_modified"] = "true"
     section["data-date_version"] = latest_date_version

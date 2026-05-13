@@ -149,6 +149,7 @@ def test_cli_defaults(
     mock_main.assert_called_once()
     _, kwargs = mock_main.call_args
     assert kwargs.get("enable_rendering") is True
+    assert kwargs.get("enable_tagging") is True
     assert kwargs.get("output_dir") is None
     assert kwargs.get("aiot") is None
     assert kwargs.get("principal_id") is None
@@ -167,14 +168,39 @@ def test_cli_principal_id_is_forwarded(
     assert kwargs.get("principal_id") == "2024-09-27"
 
 
+@patch("ocapi.cli.initialize_root_logger")
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_no_tagging_is_forwarded(
+    mock_main: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
+    main(["run", "some/arretes_html/0005804239", "--no-tagging"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("enable_tagging") is False
+
+
+@patch("ocapi.cli.initialize_root_logger")
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_tagged_output_is_forwarded(
+    mock_main: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
+    main(["run", "some/arretes_html/0005804239", "--tagged-output", "/tmp/tagged"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("tagged_output_dir") == Path("/tmp/tagged")
+
+
+@patch("ocapi.cli.save_tagged_html_file")
 @patch("ocapi.cli.run_pipeline")
-@patch("ocapi.cli.load_arrete_files")
+@patch("ocapi.cli.load_document_contexts")
 def test_run_main_principal_id_flags_matching_arrete(
-    mock_load: MagicMock, mock_pipeline: MagicMock
+    mock_load: MagicMock, mock_pipeline: MagicMock, _mock_save: MagicMock
 ) -> None:
     """--principal-id marks the matching arrêté before the pipeline runs."""
     arretes = [make_testing_arrete("2020-01-01"), make_testing_arrete("2024-09-27")]
-    mock_load.return_value = arretes
+    mock_load.return_value = [(af, MagicMock()) for af in arretes]
     mock_pipeline.return_value = ([], {}, arretes, None)
 
     exit_code = run_main(
@@ -189,12 +215,12 @@ def test_run_main_principal_id_flags_matching_arrete(
 
 
 @patch("ocapi.cli.run_pipeline")
-@patch("ocapi.cli.load_arrete_files")
+@patch("ocapi.cli.load_document_contexts")
 def test_run_main_principal_id_missing_returns_error(
     mock_load: MagicMock, mock_pipeline: MagicMock
 ) -> None:
     """--principal-id with no matching arrêté returns exit code 1 and skips the pipeline."""
-    mock_load.return_value = [make_testing_arrete("2020-01-01")]
+    mock_load.return_value = [(make_testing_arrete("2020-01-01"), MagicMock())]
 
     exit_code = run_main(
         Path("ignored"),

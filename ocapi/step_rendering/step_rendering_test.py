@@ -43,9 +43,11 @@ def test_step_rendering_returns_permis(
 
     result = step_rendering(history, operations, arretes)
 
-    mock_content.assert_called_once_with(history, arretes, operations, arrete.id)
+    mock_content.assert_called_once_with(history, arrete, operations)
     mock_header.assert_called_once_with(arretes)
-    mock_other.assert_called_once_with(arretes, operations=operations, history=history)
+    mock_other.assert_called_once_with(
+        arretes, operations=operations, history=history, ap_principal_id=arrete.id
+    )
 
     assert isinstance(result, Permis)
     assert result.header == "<header/>"
