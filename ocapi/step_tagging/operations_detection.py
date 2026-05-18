@@ -307,17 +307,93 @@ RTL_OPERATION_NODE = regex_tree.Group(
 )
 
 
+SUBJECT_LTR = r"(?:le|les)\spr[ée]sente?s?\s(?:arr[êe]t[ée]s?|articles?|dispositions?)"
+
+
+# Operation in active voice: "Le présent arrêté annule et remplace l'arrêté X".
+# The verb sits at the start of the alinea and the references follow on the right
+# as sibling tags, so the regex must NOT consume them.
+LTR_OPERATION_NODE = regex_tree.Group(
+    regex_tree.Sequence(
+        [
+            r"^\s*",
+            SUBJECT_LTR,
+            r"\s",
+            regex_tree.Branching(
+                [
+                    # REPLACE
+                    regex_tree.Group(
+                        regex_tree.Branching(
+                            [
+                                r"annule\s(et|ou)\sremplace",
+                                r"abroge\s(et|ou)\sremplace",
+                                r"modifie\set\sremplace",
+                                r"modifie\set\scompl[èe]te",
+                                r"remplace\set\scompl[èe]te",
+                            ]
+                        ),
+                        group_name=RawOperationType.REPLACE.value,
+                    ),
+                    # REMOVE
+                    regex_tree.Group(
+                        regex_tree.Branching(
+                            [
+                                r"abroge",
+                                r"supprime",
+                                r"annule",
+                            ]
+                        ),
+                        group_name=RawOperationType.REMOVE.value,
+                    ),
+                    # ADD
+                    regex_tree.Group(
+                        regex_tree.Branching(
+                            [
+                                r"compl[èe]te",
+                                r"ajoute",
+                            ]
+                        ),
+                        group_name=RawOperationType.ADD.value,
+                    ),
+                ]
+            ),
+            # Consume the trailing connector ("les articles suivants des", "par "...)
+            # plus any leading determiner up to (but not including) the next
+            # reference tag, so the reference becomes the immediate right
+            # sibling of the operation tag.
+            regex_tree.Repeat(
+                regex_tree.Group(
+                    r"\sles\sarticles?\ssuivants?(?:\sdes?)?",
+                    group_name="__has_operand",
+                ),
+                quantifier=(0, 1),
+            ),
+            r"\s(?:l['’]|le|la|les|du|des|de\sl['’]?)\s?",
+        ]
+    ),
+    group_name="__operation",
+)
+
+
 def parse_operations(
     document_context: DocumentContext,
     contents: Sequence[ProtectedTagOrStr],
 ) -> list[ProtectedTagOrStr]:
+    splitter_rtl = make_regex_tree_splitter(RTL_OPERATION_NODE)
+    splitter_ltr = make_regex_tree_splitter(LTR_OPERATION_NODE)
     return cast(
         list[ProtectedTagOrStr],
         split_and_map_elements(
-            contents,
-            make_regex_tree_splitter(RTL_OPERATION_NODE),
-            lambda operation_match: _render_operation_match(
-                document_context.protected_soup, operation_match
+            split_and_map_elements(
+                contents,
+                splitter_ltr,
+                lambda match: _render_operation_match(
+                    document_context.protected_soup, match, direction="ltr"
+                ),
+            ),
+            splitter_rtl,
+            lambda match: _render_operation_match(
+                document_context.protected_soup, match, direction="rtl"
             ),
         ),
     )
@@ -326,6 +402,7 @@ def parse_operations(
 def _render_operation_match(
     soup: ProtectedSoup,
     operation_match: regex_tree.Match,
+    direction: str = "rtl",
 ) -> ProtectedTag:
     return make_semantic_tag(
         soup,
@@ -338,7 +415,7 @@ def _render_operation_match(
                 *OPERATION_TYPES_GROUP_NAMES,
             ],
         ),
-        data=_extract_operation_data(operation_match),
+        data=_extract_operation_data(operation_match, direction=direction),
     )
 
 
@@ -359,6 +436,7 @@ def _render_group_match(
 
 def _extract_operation_data(
     operation_match: regex_tree.Match,
+    direction: str = "rtl",
 ) -> OperationData:
     operation_type_groups = filter_regex_tree_match_children(
         operation_match,
@@ -378,6 +456,6 @@ def _extract_operation_data(
         ),
         has_operand=has_operand,
         references=None,
-        direction="rtl",
+        direction=direction,  # type: ignore[arg-type]
         operand=None,
     )
