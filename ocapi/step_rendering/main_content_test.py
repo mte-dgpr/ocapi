@@ -540,6 +540,67 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
     assert "n'a pas pu être extrait de l'arrêté modificatif" in rendered
 
 
+def test_make_section_version_skips_dropdown_for_unresolved_previous_version() -> None:
+    """Previous unresolved versions show only the message — no duplicate dropdown."""
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Article 1 initial</p></section>',
+        "html.parser",
+    ).find("section")
+    assert isinstance(section, Tag)
+
+    failed_op = Operation(
+        id="op-fail",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+        error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+    )
+    ok_op = Operation(
+        id="op-ok",
+        source_id=NodeId(arrete_id="2022-01-01", article_id="3"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+    )
+    history = {
+        NodeId(arrete_id="2020-01-01", article_id="1"): [
+            cast(
+                ArticleVersion,
+                {"version": 0, "content": "<p>v0</p>", "operation_id": None},
+            ),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 1,
+                    "content": "<p>v0</p>",
+                    "operation_id": "op-fail",
+                    "error_codes": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+                },
+            ),
+            cast(
+                ArticleVersion,
+                {"version": 2, "content": "<p>v2 modifié</p>", "operation_id": "op-ok"},
+            ),
+        ]
+    }
+
+    make_section_version(
+        section=section,
+        article_id="1",
+        history=history,
+        arrete_id="2020-01-01",
+        operation_by_id={"op-fail": failed_op, "op-ok": ok_op},
+    )
+
+    rendered_soup = BeautifulSoup(str(section), "html.parser")
+    details = rendered_soup.find_all("details")
+    # Only the v0 (initial) version keeps a dropdown; v1 (unresolved) doesn't.
+    assert len(details) == 1
+    assert "v0" in details[0].get_text(" ", strip=True)
+    history_section = rendered_soup.select_one('[data-spec="section_version_history"]')
+    assert history_section is not None
+    assert "Opération non résolue" in history_section.get_text(" ", strip=True)
+
+
 # error_codes_reason helper
 
 
