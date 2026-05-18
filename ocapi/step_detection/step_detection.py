@@ -60,6 +60,7 @@ def _parse_and_validate_raw_operations(
     raw_list = parse_llm_json_list_response(raw)
     raw_operations: list[RawOperation] = []
     for element in raw_list:
+        element["source_arrete"] = arrete_id
         try:
             raw_operations.append(RawOperation(**element))
         except Exception as exc:
@@ -212,7 +213,7 @@ def step_detection(arrete_file: ArreteFile) -> list[Operation]:
             )
 
         all_ops.extend(
-            _raw_operation_to_operation(html_block.page_content, raw_op, arrete_id, img_map)
+            _raw_operation_to_operation(html_block.page_content, raw_op, img_map)
             for raw_op in valid_operations
         )
     _LOGGER.info(f"Detection: {len(all_ops)} operation(s) detected")
@@ -222,7 +223,6 @@ def step_detection(arrete_file: ArreteFile) -> list[Operation]:
 def _raw_operation_to_operation(
     html_block: str,
     raw_operation: RawOperation,
-    source_arrete_id: ArreteId,
     img_map: ImageMap,
 ) -> Operation:
     """Extract the operand and sub-target for a raw detection and build the ``Operation``."""
@@ -248,7 +248,6 @@ def _raw_operation_to_operation(
 
     return Operation.from_raw_detection(
         raw_operation=raw_operation,
-        source_arrete_id=source_arrete_id,
         operation_id=operation_id,
         operand=operand,
         sub_target=sub_target,
