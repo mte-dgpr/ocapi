@@ -25,6 +25,7 @@ explicite (`ERROR_CODE_MESSAGES`, en français).
 | `complex_subtarget` | resolution (informatif) | non | Marqueur indiquant qu'une consolidation LLM a été nécessaire ; ne bloque rien. |
 | `disabled_llm_call` | resolution (sous-cible complexe + `enable_llm=False`) | oui | La résolution complexe par IA est désactivée (mode snapshot ou opt-out). |
 | `propagated_error` | resolution (`apply_ops`) | oui | Une opération précédente sur le même article était en erreur. |
+| `less_important` | resolution (`build_graph`) | oui | Abrogation totale écartée car d'autres opérations plus précises ciblent le même arrêté. |
 
 ## Détail par code
 
@@ -119,6 +120,19 @@ en présence d'erreur précédente).
 
 **Pistes :** corriger l'opération initiale en erreur permettra
 mécaniquement de débloquer la chaîne suivante.
+
+### `less_important`
+
+**Posé par :** `build_graph` quand une abrogation totale (REMOVE/REPLACE ALL)
+issue d'un arrêté source coexiste avec d'autres opérations du **même** arrêté
+source visant le **même** arrêté cible mais sur des sous-parties (articles
+nommés). Ces opérations narrower trahissent une fausse détection : si l'arrêté
+était réellement abrogé, il ne resterait rien à modifier en détail.
+
+**Effet :** l'abrogation est ignorée — l'arrêté cible n'est pas marqué comme
+abrogé et l'opération n'est pas ajoutée au graphe. Les opérations narrower
+sont appliquées normalement. Le permis affichera le message « L'arrêté
+présente d'autres opérations qui rendent celle-ci caduque ».
 
 ## Helpers
 

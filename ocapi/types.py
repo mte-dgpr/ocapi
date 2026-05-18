@@ -195,6 +195,10 @@ class ErrorCode(str, Enum):
     # ADD targeting an entire arrêté without a real sub-target
     # (e.g. "cet arrêté complète l'arrêté XXX"): nothing to consolidate.
     NOT_AN_OPERATION = "not_an_operation"
+    # Full removal that conflicts with other (more specific) operations from the
+    # same source towards the same target: the abrogation is most likely a
+    # detection mistake and is dropped in favor of the narrower operations.
+    LESS_IMPORTANT = "less_important"
 
 
 class ArticleVersion(TypedDict):
@@ -235,6 +239,9 @@ ERROR_CODE_MESSAGES: dict[ErrorCode, str] = {
     ),
     ErrorCode.DISABLED_LLM_CALL: ("La résolution des opérations complexes par IA est désactivée"),
     ErrorCode.NOT_AN_OPERATION: ("Il n'y a pas d'opération de consolidation à réaliser"),
+    ErrorCode.LESS_IMPORTANT: (
+        "L'arrêté présente d'autres opérations qui rendent celle-ci caduque"
+    ),
 }
 
 DEFAULT_ERROR_CODE_MESSAGE = "Opération non résolue automatiquement"

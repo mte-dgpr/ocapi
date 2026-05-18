@@ -205,6 +205,19 @@ def build_graph(
                         )
                     )
                     continue
+                if _has_more_specific_ops(op, ops):
+                    _LOGGER.warning(
+                        "Full removal of arrete %s by %s overlaps with narrower operations "
+                        "from the same source; dropping the abrogation as LESS_IMPORTANT.",
+                        op.target_id.arrete_id,
+                        op.source_id.arrete_id,
+                    )
+                    updated_ops.append(
+                        op.model_copy(
+                            update={"error_codes": op.error_codes | {ErrorCode.LESS_IMPORTANT}}
+                        )
+                    )
+                    continue
                 for arrete_file in arrete_files:
                     if arrete_file.id == op.target_id.arrete_id:
                         arrete_file.status = False
@@ -263,6 +276,27 @@ def build_graph(
         _LOGGER.warning(f"{len(skipped_ops)} operation(s) skipped while building the graph")
 
     return G, arrete_files, skipped_ops, updated_ops
+
+
+def _has_more_specific_ops(op: Operation, ops: list[Operation]) -> bool:
+    """Return True if *ops* contains other non-full-removal operations from the
+    same source arrêté and targeting the same arrêté as *op*.
+
+    A full removal is treated as suspect when narrower operations from the same
+    source already touch parts of the target: the abrogation is then most
+    likely a detection mistake.
+    """
+    for other in ops:
+        if other is op:
+            continue
+        if other.source_id.arrete_id != op.source_id.arrete_id:
+            continue
+        if other.target_id.arrete_id != op.target_id.arrete_id:
+            continue
+        if _is_full_removal_op(other):
+            continue
+        return True
+    return False
 
 
 def _is_full_removal_op(operation: Operation) -> bool:
