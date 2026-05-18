@@ -418,6 +418,40 @@ def test_build_graph_full_removal_ignores_other_full_removals_for_pair() -> None
         assert ErrorCode.LESS_IMPORTANT not in op.error_codes
 
 
+def test_build_graph_full_removal_on_missing_arrete_marks_missing_arrete() -> None:
+    """Full removal targeting an arrêté absent from the file set is flagged MISSING_ARRETE."""
+    html_2025 = """
+    <section data-spec="section" data-number="1">Source 1</section>
+    """
+    arrete_files = [
+        ArreteFile(
+            id="2025-01-01",
+            aiot="aiot1",
+            filename="2025-01-01.html",
+            soup=BeautifulSoup(html_2025, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
+    full_removal = Operation(
+        id="op-missing",
+        source_id=NodeId(arrete_id="2025-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="1995-06-15", article_id="ALL"),
+        operation_type=OperationType.REMOVE,
+    )
+
+    G, updated_arrete_files, _, updated_ops = build_graph([full_removal], arrete_files)
+
+    op_updated = next(o for o in updated_ops if o.id == "op-missing")
+    assert ErrorCode.MISSING_ARRETE in op_updated.error_codes
+    # The source arrêté must not be touched.
+    assert updated_arrete_files[0].status is True
+    # No edge added since the target isn't part of the graph.
+    assert not G.has_edge(
+        NodeId(arrete_id="2025-01-01", article_id="1"),
+        NodeId(arrete_id="1995-06-15", article_id="ALL"),
+    )
+
+
 def test_build_graph_full_removal_with_narrower_ops_from_other_source_still_abrogates() -> None:
     """The narrower ops must come from the same source arrêté to invalidate the abrogation."""
     html_2010 = """

@@ -26,6 +26,7 @@ explicite (`ERROR_CODE_MESSAGES`, en français).
 | `disabled_llm_call` | resolution (sous-cible complexe + `enable_llm=False`) | oui | La résolution complexe par IA est désactivée (mode snapshot ou opt-out). |
 | `propagated_error` | resolution (`apply_ops`) | oui | Une opération précédente sur le même article était en erreur. |
 | `less_important` | resolution (`build_graph`) | oui | Abrogation totale écartée car d'autres opérations plus précises ciblent le même arrêté. |
+| `missing_arrete` | resolution (`build_graph`) | oui | Abrogation totale visant un arrêté absent du permis (souvent un texte antérieur non inclus). |
 
 ## Détail par code
 
@@ -133,6 +134,16 @@ nommés). Ces opérations narrower trahissent une fausse détection : si l'arrê
 abrogé et l'opération n'est pas ajoutée au graphe. Les opérations narrower
 sont appliquées normalement. Le permis affichera le message « L'arrêté
 présente d'autres opérations qui rendent celle-ci caduque ».
+
+### `missing_arrete`
+
+**Posé par :** `build_graph` quand une abrogation totale (REMOVE/REPLACE ALL)
+cible un arrêté qui ne figure pas dans le permis consolidé (typiquement un
+texte antérieur non récupéré).
+
+**Effet :** l'opération n'est pas appliquée et n'ajoute aucun nœud au graphe.
+Le permis affichera « L'arrêté cible n'est pas présent dans le permis
+consolidé » pour signaler qu'il n'y a rien à abroger côté permis.
 
 ## Helpers
 

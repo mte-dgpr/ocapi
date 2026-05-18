@@ -199,6 +199,9 @@ class ErrorCode(str, Enum):
     # same source towards the same target: the abrogation is most likely a
     # detection mistake and is dropped in favor of the narrower operations.
     LESS_IMPORTANT = "less_important"
+    # Full removal targeting an arrêté that isn't part of the consolidated permit
+    # (e.g. an older arrêté missing from the file set).
+    MISSING_ARRETE = "missing_arrete"
 
 
 class ArticleVersion(TypedDict):
@@ -242,6 +245,7 @@ ERROR_CODE_MESSAGES: dict[ErrorCode, str] = {
     ErrorCode.LESS_IMPORTANT: (
         "L'arrêté présente d'autres opérations qui rendent celle-ci caduque"
     ),
+    ErrorCode.MISSING_ARRETE: ("L'arrêté cible n'est pas présent dans le permis consolidé"),
 }
 
 DEFAULT_ERROR_CODE_MESSAGE = "Opération non résolue automatiquement"
