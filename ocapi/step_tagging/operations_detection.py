@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Iterator, Sequence, cast
+from typing import Iterator, Literal, Sequence, cast
 
 from arretify.parsing_utils.numbering import COUNT_PATTERN_S
 from arretify.regex_utils import (
@@ -402,7 +402,7 @@ def parse_operations(
 def _render_operation_match(
     soup: ProtectedSoup,
     operation_match: regex_tree.Match,
-    direction: str = "rtl",
+    direction: Literal["ltr", "rtl"] = "rtl",
 ) -> ProtectedTag:
     return make_semantic_tag(
         soup,
@@ -436,7 +436,7 @@ def _render_group_match(
 
 def _extract_operation_data(
     operation_match: regex_tree.Match,
-    direction: str = "rtl",
+    direction: Literal["ltr", "rtl"] = "rtl",
 ) -> OperationData:
     operation_type_groups = filter_regex_tree_match_children(
         operation_match,
@@ -456,6 +456,6 @@ def _extract_operation_data(
         ),
         has_operand=has_operand,
         references=None,
-        direction=direction,  # type: ignore[arg-type]
+        direction=direction,
         operand=None,
     )
