@@ -310,65 +310,88 @@ RTL_OPERATION_NODE = regex_tree.Group(
 SUBJECT_LTR = r"(?:le|les)\spr[ée]sente?s?\s(?:arr[êe]t[ée]s?|articles?|dispositions?)"
 
 
-# Operation in active voice: "Le présent arrêté annule et remplace l'arrêté X".
-# The verb sits at the start of the alinea and the references follow on the right
-# as sibling tags, so the regex must NOT consume them.
+# LTR operations are recognised at the start of an alinea. Two flavours:
+#  * active voice: "Le présent arrêté annule et remplace l'arrêté X"
+#  * passive voice: "Sont insérés après le paragraphe X, les ..."
+# In both cases the references follow on the right as sibling tags, so the
+# regex must NOT consume them. The trailing determiner (le/la/les/l') is
+# consumed so the reference ends up as the immediate right sibling of the
+# operation tag.
 LTR_OPERATION_NODE = regex_tree.Group(
-    regex_tree.Sequence(
+    regex_tree.Branching(
         [
-            r"^\s*",
-            SUBJECT_LTR,
-            r"\s",
-            regex_tree.Branching(
+            # Active voice
+            regex_tree.Sequence(
                 [
-                    # REPLACE
-                    regex_tree.Group(
-                        regex_tree.Branching(
-                            [
-                                r"annule\s(et|ou)\sremplace",
-                                r"abroge\s(et|ou)\sremplace",
-                                r"modifie\set\sremplace",
-                                r"modifie\set\scompl[èe]te",
-                                r"remplace\set\scompl[èe]te",
-                            ]
-                        ),
-                        group_name=RawOperationType.REPLACE.value,
+                    r"^\s*",
+                    SUBJECT_LTR,
+                    r"\s",
+                    regex_tree.Branching(
+                        [
+                            regex_tree.Group(
+                                regex_tree.Branching(
+                                    [
+                                        r"annule\s(et|ou)\sremplace",
+                                        r"abroge\s(et|ou)\sremplace",
+                                        r"modifie\set\sremplace",
+                                        r"modifie\set\scompl[èe]te",
+                                        r"remplace\set\scompl[èe]te",
+                                    ]
+                                ),
+                                group_name=RawOperationType.REPLACE.value,
+                            ),
+                            regex_tree.Group(
+                                regex_tree.Branching(
+                                    [
+                                        r"abroge",
+                                        r"supprime",
+                                        r"annule",
+                                    ]
+                                ),
+                                group_name=RawOperationType.REMOVE.value,
+                            ),
+                            regex_tree.Group(
+                                regex_tree.Branching(
+                                    [
+                                        r"compl[èe]te",
+                                        r"ajoute",
+                                    ]
+                                ),
+                                group_name=RawOperationType.ADD.value,
+                            ),
+                        ]
                     ),
-                    # REMOVE
-                    regex_tree.Group(
-                        regex_tree.Branching(
-                            [
-                                r"abroge",
-                                r"supprime",
-                                r"annule",
-                            ]
+                    regex_tree.Repeat(
+                        regex_tree.Group(
+                            r"\sles\sarticles?\ssuivants?(?:\sdes?)?",
+                            group_name="__has_operand",
                         ),
-                        group_name=RawOperationType.REMOVE.value,
+                        quantifier=(0, 1),
                     ),
-                    # ADD
+                    r"\s(?:l['’]|le|la|les|du|des|de\sl['’]?)\s?",
+                ]
+            ),
+            # Passive voice: "Sont insérés après le paragraphe 4.23, les ..."
+            # The reference sits right after the trailing determiner; the
+            # operand (the inserted content) follows on the right.
+            regex_tree.Sequence(
+                [
+                    r"^\s*(?:est|sont)\s",
                     regex_tree.Group(
                         regex_tree.Branching(
                             [
-                                r"compl[èe]te",
-                                r"ajoute",
+                                r"insérée?s?",
+                                r"ajoutée?s?",
                             ]
                         ),
                         group_name=RawOperationType.ADD.value,
                     ),
+                    regex_tree.Group(
+                        r"\s(?:après|avant|à\sla\ssuite\sde)\s(?:l['’]|le|la|les|du|des)\s?",
+                        group_name="__has_operand",
+                    ),
                 ]
             ),
-            # Consume the trailing connector ("les articles suivants des", "par "...)
-            # plus any leading determiner up to (but not including) the next
-            # reference tag, so the reference becomes the immediate right
-            # sibling of the operation tag.
-            regex_tree.Repeat(
-                regex_tree.Group(
-                    r"\sles\sarticles?\ssuivants?(?:\sdes?)?",
-                    group_name="__has_operand",
-                ),
-                quantifier=(0, 1),
-            ),
-            r"\s(?:l['’]|le|la|les|du|des|de\sl['’]?)\s?",
         ]
     ),
     group_name="__operation",

@@ -60,7 +60,7 @@ def resolve_references_and_operands(
         find_operand = _find_right_operand
     elif operation_data.direction == "ltr":
         reference_tags = _find_right_references(document_context, operation_tag)
-        find_operand = _find_left_operand
+        find_operand = _find_right_operand
     else:
         raise ValueError(f"Unknown operation direction: {operation_data.direction!r}")
 
@@ -103,25 +103,6 @@ def _find_right_operand(
         # and look recursively for the next neighbouring element.
         elif is_semantic_tag(element, spec_in=PAGINATION_TAG_SPECS):
             return _find_right_operand(document_context, element)
-    return None
-
-
-def _find_left_operand(
-    document_context: DocumentContext, start_tag: ProtectedTag
-) -> ProtectedTag | None:
-    for element in get_contiguous_elements_left(start_tag):
-        if is_tag(
-            element,
-            tag_name_in=[
-                "blockquote",
-                "q",
-                "table",
-            ],
-        ):
-            return element
-
-        elif is_semantic_tag(element, spec_in=PAGINATION_TAG_SPECS):
-            return _find_left_operand(document_context, element)
     return None
 
 

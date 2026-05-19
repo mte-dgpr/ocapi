@@ -543,3 +543,71 @@ class TestParseOperations(BaseTestCaseHtml):
                 ],
             ),
         )
+
+    def test_ltr_passive_resolves_right_side_reference(self) -> None:
+        """Passive LTR (Sont insérés après …) resolves the right reference."""
+        self.soup_extend(
+            [
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=1),
+                    contents=[
+                        self.make_semantic_tag(
+                            OperationSpec,
+                            data=OperationData(
+                                direction="ltr",
+                                keyword="insérés",
+                                operation_type="ADD",
+                                has_operand="true",
+                            ),
+                            contents=[
+                                "Sont ",
+                                self.make_tag("b", contents=["insérés"]),
+                                " après le ",
+                            ],
+                        ),
+                        self.make_semantic_tag(
+                            SectionReferenceSpec,
+                            data=SectionReferenceData(),
+                            contents=["paragraphe 4.23"],
+                        ),
+                        " – clôture - gardiennage, les paragraphes suivants :",
+                    ],
+                )
+            ]
+        )
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
+
+        resolve_references_and_operands(self.context, operation_tag)
+
+        assert_elements_equal(
+            self.soup.contents[0],
+            self.make_semantic_tag(
+                AlineaSpec,
+                data=AlineaData(number=1),
+                contents=[
+                    self.make_semantic_tag(
+                        OperationSpec,
+                        data=OperationData(
+                            direction="ltr",
+                            keyword="insérés",
+                            operation_type="ADD",
+                            has_operand="true",
+                            references="1",
+                        ),
+                        contents=[
+                            "Sont ",
+                            self.make_tag("b", contents=["insérés"]),
+                            " après le ",
+                        ],
+                    ),
+                    self.make_semantic_tag(
+                        SectionReferenceSpec,
+                        data=SectionReferenceData(),
+                        contents=["paragraphe 4.23"],
+                        reserved_data_attrs=dict(tag_id="1"),
+                    ),
+                    " – clôture - gardiennage, les paragraphes suivants :",
+                ],
+            ),
+        )

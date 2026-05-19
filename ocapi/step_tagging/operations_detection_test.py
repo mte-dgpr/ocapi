@@ -1218,3 +1218,33 @@ class TestLeftToRightOperations(BaseTestCaseHtml):
                 ),
             ],
         )
+
+    def test_ltr_passive_sont_inseres_apres(self) -> None:
+        """Passive LTR: 'Sont insérés après le paragraphe 4.23, les paragraphes suivants :'."""
+        elements = [
+            "Sont insérés après le paragraphe 4.23 – clôture - gardiennage, "
+            "les paragraphes suivants :"
+        ]
+
+        actual = parse_operations(self.context, elements)
+
+        assert_element_lists_equal(
+            actual,
+            [
+                self.make_semantic_tag(
+                    OperationSpec,
+                    contents=[
+                        "Sont ",
+                        self.make_tag("b", contents=["insérés"]),
+                        " après le ",
+                    ],
+                    data=OperationData(
+                        operation_type="ADD",
+                        has_operand="true",
+                        keyword="insérés",
+                        direction="ltr",
+                    ),
+                ),
+                "paragraphe 4.23 – clôture - gardiennage, les paragraphes suivants :",
+            ],
+        )
