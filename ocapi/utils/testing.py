@@ -77,10 +77,15 @@ def make_testing_arrete(
 
 
 def make_testing_raw_op(
-    score: int | None, source: str = "1", target: str = "2", target_arrete: str = "2021-01-01"
+    score: int | None,
+    source: str = "1",
+    target: str = "2",
+    source_arrete: str = "1980-01-01",
+    target_arrete: str = "2021-01-01",
 ) -> RawOperation:
     return RawOperation(
         operation_type=RawOperationType.REPLACE,
+        source_arrete=source_arrete,
         source_article=source,
         target_arrete=target_arrete,
         target_article=target,

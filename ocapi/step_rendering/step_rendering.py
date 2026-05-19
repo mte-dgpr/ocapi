@@ -28,7 +28,7 @@ from ocapi.utils.logging_utils import get_logger
 _LOGGER = get_logger(__name__)
 
 
-def _select_principal_ap(arrete_files: list[ArreteFile]) -> ArreteFile:
+def _select_principal_arrete(arrete_files: list[ArreteFile]) -> ArreteFile:
     """Pick the arrêté to use as the consolidation base.
 
     Honours a user-provided ``principal`` flag when set (exactly one arrêté
@@ -79,14 +79,14 @@ def step_rendering(
         Object containing the HTML of the header, main content and complements.
     """
     _LOGGER.info(f"Rendering: generating permit from {len(history)} modified article(s)")
-    ap_principal = _select_principal_ap(arrete_files)
-    contenu_permis = make_permit_content(history, ap_principal, operations)
+    principal_arrete = _select_principal_arrete(arrete_files)
+    contenu_permis = make_permit_content(history, principal_arrete, operations)
     header_permis = make_permit_header(arrete_files)
     other_permis = make_permit_other(
         arrete_files,
         operations=operations,
         history=history,
-        ap_principal_id=ap_principal.id,
+        principal_arrete_id=principal_arrete.id,
     )
     _LOGGER.debug("Rendering: permit generated successfully")
     return Permis(header=header_permis, contenu=contenu_permis, other=other_permis)
