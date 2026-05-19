@@ -50,7 +50,6 @@ from ocapi.types import (
     OperationId,
     OperationType,
     SubTargetType,
-    _to_operation_type,
     article_display_number,
 )
 from ocapi.utils.logging_utils import get_logger
@@ -89,17 +88,15 @@ def _edge_to_operation(
 ) -> Operation:
     """Convert a graph edge into an Operation instance."""
     data = operations_graph[src][tgt][key]
-    op_type = _to_operation_type(data["operation_type"])
-    operation = Operation(
+    return Operation(
         id=data["id"],
         source_id=src,
         target_id=tgt,
-        operation_type=op_type,
+        operation_type=OperationType(data["operation_type"]),
         operand=data.get("operand", None),
         sub_target=data.get("sub_target", None),
         error_codes=data.get("error_codes") or frozenset(),
     )
-    return operation
 
 
 def _strip_duplicate_section_title(

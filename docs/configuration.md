@@ -87,6 +87,11 @@ Providers supportés : `mte-piag`, `mistral`, `openai`, `anthropic`, `google`.
 `reasoning_model: true` change le payload OpenAI (passe `reasoning_effort: high`
 + `verbosity: low` au lieu de `temperature`).
 
+`primary_model_key` et `secondary_model_key` peuvent être surchargés sans
+toucher au JSON via les variables d'environnement `LLM_PRIMARY_MODEL_KEY` et
+`LLM_SECONDARY_MODEL_KEY` (la valeur doit correspondre à une `model_key`
+déclarée dans `models`).
+
 ### `config/llm_resilience.json`
 
 ```json

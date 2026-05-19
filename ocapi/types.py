@@ -406,6 +406,7 @@ class PermitComplements(_BaseModelWithConfig):
 
 class RawOperation(_BaseModelWithConfig):
     operation_type: RawOperationType
+    source_arrete: ArreteId
     source_article: str | None = None
     target_arrete: str
     target_article: str | None = None
@@ -508,7 +509,6 @@ class Operation(_BaseModelWithConfig):
     def from_raw_detection(
         cls,
         raw_operation: RawOperation,
-        source_arrete_id: ArreteId,
         operation_id: OperationId,
         operand: str | None,
         sub_target: "SubTarget | None",
@@ -537,7 +537,7 @@ class Operation(_BaseModelWithConfig):
         return cls(
             id=operation_id,
             source_id=NodeId(
-                arrete_id=source_arrete_id,
+                arrete_id=raw_operation.source_arrete,
                 article_id=raw_operation.source_article,
             ),
             target_id=NodeId(
@@ -554,14 +554,6 @@ class Operation(_BaseModelWithConfig):
 def is_resolved_op(operation: "Operation") -> bool:
     """Return True when no error is attached to *operation*."""
     return not operation.error_codes
-
-
-def _to_operation_type(raw_type: OperationType | str) -> OperationType:
-    """Ensure we always work with an OperationType instance."""
-    if isinstance(raw_type, OperationType):
-        return raw_type
-    raw_str = getattr(raw_type, "value", raw_type)
-    return OperationType(raw_str)
 
 
 def categorize_arrete(filename: str) -> FileType:

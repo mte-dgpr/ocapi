@@ -26,7 +26,7 @@ _EMPTY_AP = '<html><body data-arretify_version="0.2.0"><main data-spec="main"></
 
 
 def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
-    ap_initial = make_testing_arrete("2020-01-01", _EMPTY_AP)
+    principal_arrete = make_testing_arrete("2020-01-01", _EMPTY_AP)
     complement_no_ops = make_testing_arrete(
         "2021-01-01",
         """
@@ -57,7 +57,7 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
         )
     ]
 
-    html = make_permit_other([ap_initial, complement_no_ops, complement_with_ops], operations)
+    html = make_permit_other([principal_arrete, complement_no_ops, complement_with_ops], operations)
 
     assert 'data-spec="permit_complements"' in html
     assert 'data-spec="permit_complement"' in html
@@ -69,7 +69,7 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
 
 def test_make_permit_other_includes_modifying_arretes_with_operation_messages() -> None:
     """Modifying arrêtés appear with operation result messages in source articles."""
-    ap_initial = make_testing_arrete("2020-01-01", _EMPTY_AP)
+    principal_arrete = make_testing_arrete("2020-01-01", _EMPTY_AP)
     modifying = make_testing_arrete(
         "2022-01-01",
         """
@@ -101,7 +101,7 @@ def test_make_permit_other_includes_modifying_arretes_with_operation_messages() 
         ],
     }
 
-    html = make_permit_other([ap_initial, modifying], [op], history=history)
+    html = make_permit_other([principal_arrete, modifying], [op], history=history)
 
     assert 'data-spec="permit_modifying"' in html
     assert "ID MOD" in html
@@ -119,7 +119,7 @@ def test_make_permit_other_includes_modifying_arretes_with_operation_messages() 
 
 def test_make_permit_other_shows_unresolved_message_for_failed_operation() -> None:
     """Unresolved operations get a reason in source article messages."""
-    ap_initial = make_testing_arrete("2020-01-01", _EMPTY_AP)
+    principal_arrete = make_testing_arrete("2020-01-01", _EMPTY_AP)
     modifying = make_testing_arrete(
         "2022-01-01",
         """
@@ -151,7 +151,7 @@ def test_make_permit_other_shows_unresolved_message_for_failed_operation() -> No
         ],
     }
 
-    html = make_permit_other([ap_initial, modifying], [op], history=history)
+    html = make_permit_other([principal_arrete, modifying], [op], history=history)
 
     assert "Opération de consolidation non résolue" in html
     assert "l'article 5 de l'arrêté 2020-01-01" in html
@@ -160,7 +160,7 @@ def test_make_permit_other_shows_unresolved_message_for_failed_operation() -> No
 
 def test_make_permit_other_skips_abrogated_modifying_arrete() -> None:
     """Abrogated modifying arrêtés are not displayed."""
-    ap_initial = make_testing_arrete("2020-01-01", _EMPTY_AP)
+    principal_arrete = make_testing_arrete("2020-01-01", _EMPTY_AP)
     abrogated = make_testing_arrete(
         "2022-01-01",
         """
@@ -179,14 +179,14 @@ def test_make_permit_other_skips_abrogated_modifying_arrete() -> None:
         operation_type=OperationType.REPLACE,
     )
 
-    html = make_permit_other([ap_initial, abrogated], [op], history={})
+    html = make_permit_other([principal_arrete, abrogated], [op], history={})
 
     assert html == ""
 
 
 def test_target_all_shows_arrete_only() -> None:
     """Target article_id=ALL displays only the arrêté reference, no article number."""
-    ap_initial = make_testing_arrete("2020-01-01", _EMPTY_AP)
+    principal_arrete = make_testing_arrete("2020-01-01", _EMPTY_AP)
     modifying = make_testing_arrete(
         "2022-01-01",
         """
@@ -218,7 +218,7 @@ def test_target_all_shows_arrete_only() -> None:
         ],
     }
 
-    html = make_permit_other([ap_initial, modifying], [op], history=history)
+    html = make_permit_other([principal_arrete, modifying], [op], history=history)
 
     assert "l'arrêté 2020-01-01" in html
     assert "l'article ALL" not in html
@@ -226,7 +226,7 @@ def test_target_all_shows_arrete_only() -> None:
 
 def test_make_permit_other_includes_appendix_with_operation_messages() -> None:
     """Operations sourced from an appendix article get a message inside the appendix."""
-    ap_initial = make_testing_arrete("2020-01-01", _EMPTY_AP)
+    principal_arrete = make_testing_arrete("2020-01-01", _EMPTY_AP)
     modifying = make_testing_arrete(
         "2022-01-01",
         """
@@ -261,7 +261,7 @@ def test_make_permit_other_includes_appendix_with_operation_messages() -> None:
         ],
     }
 
-    html = make_permit_other([ap_initial, modifying], [op], history=history)
+    html = make_permit_other([principal_arrete, modifying], [op], history=history)
 
     assert 'data-spec="permit_modifying"' in html
     assert 'data-spec="appendix"' in html
@@ -277,7 +277,7 @@ def test_make_permit_other_includes_appendix_with_operation_messages() -> None:
 
 def test_target_new_article_strips_prefix() -> None:
     """Target article_id=NEW_ARTICLE:4.1 renders as 'l'article 4.1'."""
-    ap_initial = make_testing_arrete("2020-01-01", _EMPTY_AP)
+    principal_arrete = make_testing_arrete("2020-01-01", _EMPTY_AP)
     modifying = make_testing_arrete(
         "2022-01-01",
         """
@@ -308,7 +308,7 @@ def test_target_new_article_strips_prefix() -> None:
         ],
     }
 
-    html = make_permit_other([ap_initial, modifying], [op], history=history)
+    html = make_permit_other([principal_arrete, modifying], [op], history=history)
 
     assert "l'article 4.1" in html
     assert "NEW_ARTICLE" not in html

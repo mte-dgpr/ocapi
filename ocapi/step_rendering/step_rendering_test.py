@@ -22,7 +22,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ocapi.exceptions import OcapiError
-from ocapi.step_rendering.step_rendering import _select_principal_ap, permis_to_html, step_rendering
+from ocapi.step_rendering.step_rendering import (
+    _select_principal_arrete,
+    permis_to_html,
+    step_rendering,
+)
 from ocapi.types import ArreteFile, ArticleHistory, FileType, Operation, Permis
 from ocapi.utils.testing import make_testing_arrete
 
@@ -46,7 +50,7 @@ def test_step_rendering_returns_permis(
     mock_content.assert_called_once_with(history, arrete, operations)
     mock_header.assert_called_once_with(arretes)
     mock_other.assert_called_once_with(
-        arretes, operations=operations, history=history, ap_principal_id=arrete.id
+        arretes, operations=operations, history=history, principal_arrete_id=arrete.id
     )
 
     assert isinstance(result, Permis)
@@ -55,15 +59,15 @@ def test_step_rendering_returns_permis(
     assert result.other == "<other/>"
 
 
-class TestSelectPrincipalAp:
-    """Cover the principal AP selection and flag marking."""
+class TestSelectPrincipalArrete:
+    """Cover the principal arrêté selection and flag marking."""
 
     def test_principal_flag_overrides_heuristic(self) -> None:
         older = make_testing_arrete("2018-01-01", file_type=FileType.AP_AUTORISATION)
         refonte = make_testing_arrete("2022-01-01", file_type=FileType.AP_AUTORISATION)
         older.principal = True
 
-        assert _select_principal_ap([older, refonte]) is older
+        assert _select_principal_arrete([older, refonte]) is older
 
     def test_multiple_principals_raise(self) -> None:
         first = make_testing_arrete("2018-01-01")
@@ -72,13 +76,13 @@ class TestSelectPrincipalAp:
         second.principal = True
 
         with pytest.raises(OcapiError):
-            _select_principal_ap([first, second])
+            _select_principal_arrete([first, second])
 
     def test_inferred_principal_is_marked(self) -> None:
         older = make_testing_arrete("2018-01-01", file_type=FileType.AP_AUTORISATION)
         refonte = make_testing_arrete("2022-01-01", file_type=FileType.AP_AUTORISATION)
 
-        chosen = _select_principal_ap([older, refonte])
+        chosen = _select_principal_arrete([older, refonte])
 
         assert chosen is refonte
         assert refonte.principal is True
