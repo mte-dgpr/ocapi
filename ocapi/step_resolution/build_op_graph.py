@@ -220,8 +220,8 @@ def build_graph(
                     continue
                 if op.target_id.arrete_id not in soups:
                     _LOGGER.warning(
-                        "Full removal of arrete %s by %s targets an arrêté absent from "
-                        "the permit; marking MISSING_ARRETE.",
+                        "Full removal of arrete %s by %s targets an arrete missing "
+                        "from the permit; marking MISSING_ARRETE.",
                         op.target_id.arrete_id,
                         op.source_id.arrete_id,
                     )
