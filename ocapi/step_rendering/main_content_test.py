@@ -16,6 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import re
 from typing import cast
 
 import pytest
@@ -599,6 +600,9 @@ def test_make_section_version_skips_dropdown_for_unresolved_previous_version() -
     history_section = rendered_soup.select_one('[data-spec="section_version_history"]')
     assert history_section is not None
     assert "Opération non résolue" in history_section.get_text(" ", strip=True)
+    unresolved_p = history_section.find("p", string=re.compile(r"Opération non résolue"))
+    assert isinstance(unresolved_p, Tag)
+    assert "font-weight: bold" in str(unresolved_p.get("style", ""))
 
 
 # error_codes_reason helper

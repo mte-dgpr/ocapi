@@ -329,7 +329,7 @@ def _build_section_history_html(
             # Unresolved op: previous content was just recopied, so the dropdown
             # would only duplicate the surrounding version. Keep the message only.
             history_parts.append(
-                f'<p style="margin-left: 1rem; margin-top: 0.5rem;">'
+                f'<p style="margin-left: 1rem; margin-top: 0.5rem; font-weight: bold;">'
                 f"Opération non résolue "
                 f"{operation_type_label(operation.operation_type)} de l'article "
                 f"{operation.source_id.article_id} de l'arrêté "
