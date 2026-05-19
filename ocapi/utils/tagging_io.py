@@ -133,6 +133,7 @@ def _operation_tag_to_raw_operations(
     return [
         RawOperation(
             operation_type=operation_type,
+            source_arrete=arrete_id,
             source_article=source_article,
             target_arrete=target_arrete,
             target_article=target_article,

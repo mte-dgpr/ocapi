@@ -187,6 +187,8 @@ def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
         "GPT5": "openai_gpt5",
         "GPT5mini": "openai_gpt5mini",
         "mte-api-piag-mistral-medium-latest": "piag_mistral_medium",
+        "mistral-medium-latest": "mistral_medium",
+        "mistral-large-latest": "mistral_large",
     }
     if model in legacy_aliases and legacy_aliases[model] in models:
         return legacy_aliases[model]

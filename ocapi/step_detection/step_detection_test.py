@@ -58,11 +58,11 @@ def test_convert_raw_operation_to_operation(
     mock_parse_subtarget.return_value = SubTarget(type=SubTargetType.TABLEAU, position=1)
 
     html_block = Document(page_content="<section>Test content</section>", metadata={})
-    source_arrete_id = "1980-01-01"
 
     raw_operations = [
         RawOperation(
             operation_type=RawOperationType.REPLACE,
+            source_arrete="1980-01-01",
             source_article="1",
             target_arrete="1981-01-01",
             target_article="2",
@@ -72,13 +72,14 @@ def test_convert_raw_operation_to_operation(
         ),
         RawOperation(
             operation_type=RawOperationType.REMOVE,
+            source_arrete="1980-01-01",
             source_article="2",
             target_arrete="1981-01-01",
             target_article="3",
         ),
     ]
     operations = [
-        _raw_operation_to_operation(html_block.page_content, raw_op, source_arrete_id, {})
+        _raw_operation_to_operation(html_block.page_content, raw_op, {})
         for raw_op in raw_operations
     ]
 
@@ -109,6 +110,7 @@ def test_convert_raw_operation_replace_all_refonte() -> None:
     html_block = Document(page_content="<section>Refonte complète</section>", metadata={})
     raw_op = RawOperation(
         operation_type=RawOperationType.REPLACE,
+        source_arrete="2021-09-24",
         source_article="1.1.2",
         target_arrete="2020-04-20",
         target_article="ALL",
@@ -117,7 +119,7 @@ def test_convert_raw_operation_replace_all_refonte() -> None:
         new_content_end_marker=None,
     )
 
-    operation = _raw_operation_to_operation(html_block.page_content, raw_op, "2021-09-24", {})
+    operation = _raw_operation_to_operation(html_block.page_content, raw_op, {})
 
     assert operation.operation_type == OperationType.REMOVE
     assert operation.source_id == NodeId(arrete_id="2021-09-24", article_id="1.1.2")
@@ -136,13 +138,14 @@ def test_all_with_non_full_section_subtarget_sets_error(
     )
     raw_op = RawOperation(
         operation_type=RawOperationType.REPLACE,
+        source_arrete="2025-02-10",
         source_article="5",
         target_arrete="2006-12-14",
         target_article="ALL",
         sub_target="annexe 1",
     )
     with caplog.at_level("WARNING"):
-        op = _raw_operation_to_operation("<section/>", raw_op, "2025-02-10", {})
+        op = _raw_operation_to_operation("<section/>", raw_op, {})
 
     assert ErrorCode.ERROR_EXTRACTING_OPERAND in op.error_codes
     assert any("not fully defined" in msg for msg in caplog.messages)
@@ -152,12 +155,13 @@ def test_all_with_full_section_subtarget_converts_to_remove() -> None:
     """target_article=ALL with FULL_SECTION sub-target is valid → REMOVE."""
     raw_op = RawOperation(
         operation_type=RawOperationType.REPLACE,
+        source_arrete="2021-09-24",
         source_article="1",
         target_arrete="2020-04-20",
         target_article="ALL",
         sub_target=None,
     )
-    op = _raw_operation_to_operation("<section/>", raw_op, "2021-09-24", {})
+    op = _raw_operation_to_operation("<section/>", raw_op, {})
 
     assert op.operation_type == OperationType.REMOVE
     assert op.error_codes == frozenset()
@@ -167,35 +171,38 @@ def test_all_with_full_section_subtarget_converts_to_remove() -> None:
 def test_raw_operation_to_operation_requires_source_article() -> None:
     raw = RawOperation(
         operation_type=RawOperationType.REMOVE,
+        source_arrete="2022-01-01",
         target_arrete="2021-01-01",
         source_article=None,
         target_article="1",
     )
     with pytest.raises(OperationError, match="source_article"):
-        _raw_operation_to_operation("<p/>", raw, "2022-01-01", {})
+        _raw_operation_to_operation("<p/>", raw, {})
 
 
 def test_raw_operation_to_operation_requires_target_article() -> None:
     raw = RawOperation(
         operation_type=RawOperationType.REMOVE,
+        source_arrete="2022-01-01",
         target_arrete="2021-01-01",
         source_article="1",
         target_article=None,
     )
     with pytest.raises(OperationError, match="target_article"):
-        _raw_operation_to_operation("<p/>", raw, "2022-01-01", {})
+        _raw_operation_to_operation("<p/>", raw, {})
 
 
 def test_add_all_without_subtarget_flagged_as_not_an_operation() -> None:
     """ADD + target_article=ALL without sub_target is not a consolidation op."""
     raw_op = RawOperation(
         operation_type=RawOperationType.ADD,
+        source_arrete="2010-12-24",
         source_article="1",
         target_arrete="2008-12-10",
         target_article="ALL",
         sub_target=None,
     )
-    op = _raw_operation_to_operation("<section/>", raw_op, "2010-12-24", {})
+    op = _raw_operation_to_operation("<section/>", raw_op, {})
 
     assert op.operation_type == OperationType.ADD
     assert ErrorCode.NOT_AN_OPERATION in op.error_codes
@@ -209,12 +216,13 @@ def test_add_all_with_full_section_subtarget_flagged_as_not_an_operation(
     mock_parse_subtarget.return_value = SubTarget(type=SubTargetType.FULL_SECTION)
     raw_op = RawOperation(
         operation_type=RawOperationType.ADD,
+        source_arrete="2010-12-24",
         source_article="1",
         target_arrete="2008-12-10",
         target_article="ALL",
         sub_target="ALL",
     )
-    op = _raw_operation_to_operation("<section/>", raw_op, "2010-12-24", {})
+    op = _raw_operation_to_operation("<section/>", raw_op, {})
 
     assert ErrorCode.NOT_AN_OPERATION in op.error_codes
 
@@ -229,12 +237,13 @@ def test_add_all_with_partial_subtarget_is_an_operation(
     )
     raw_op = RawOperation(
         operation_type=RawOperationType.ADD,
+        source_arrete="2010-12-24",
         source_article="1",
         target_arrete="2008-12-10",
         target_article="ALL",
         sub_target="annexe 1",
     )
-    op = _raw_operation_to_operation("<section/>", raw_op, "2010-12-24", {})
+    op = _raw_operation_to_operation("<section/>", raw_op, {})
 
     assert ErrorCode.ERROR_EXTRACTING_OPERAND in op.error_codes
     assert ErrorCode.NOT_AN_OPERATION not in op.error_codes
@@ -266,12 +275,13 @@ def test_convert_raw_operation_propagates_confidence_score(
     mock_extract.return_value = None
     raw_op = RawOperation(
         operation_type=RawOperationType.REMOVE,
+        source_arrete="2022-01-01",
         source_article="1",
         target_arrete="2021-01-01",
         target_article="2",
         confidence_score=85,
     )
-    op = _raw_operation_to_operation("<section/>", raw_op, "2022-01-01", {})
+    op = _raw_operation_to_operation("<section/>", raw_op, {})
     assert op.confidence_score == 85
 
 
@@ -282,11 +292,12 @@ def test_convert_raw_operation_confidence_score_none_when_absent(
     mock_extract.return_value = None
     raw_op = RawOperation(
         operation_type=RawOperationType.REMOVE,
+        source_arrete="2022-01-01",
         source_article="1",
         target_arrete="2021-01-01",
         target_article="2",
     )
-    op = _raw_operation_to_operation("<section/>", raw_op, "2022-01-01", {})
+    op = _raw_operation_to_operation("<section/>", raw_op, {})
     assert op.confidence_score is None
 
 
