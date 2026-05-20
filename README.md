@@ -125,7 +125,9 @@ log_level = settings.logging.level
 La sélection de modèle, le retry, le timeout et le rate limiting sont centralisés
 dans des fichiers JSON sous `config/` :
 
-- `config/llm_models.json` (`primary_model_key`, `secondary_model_key`, `models`)
+- `config/llm_models.json` (`primary_model_key`, `secondary_model_key`, `models`) ;
+  surchargeable sans toucher au JSON via `LLM_PRIMARY_MODEL_KEY` et
+  `LLM_SECONDARY_MODEL_KEY` dans le `.env`
 - `config/llm_resilience.json` (`timeout_seconds`, stratégie de retry/fallback)
 - `config/llm_rate_limit.json` (throttling optionnel)
 

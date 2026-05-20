@@ -49,7 +49,7 @@ def make_permit_other(
     arrete_files: list[ArreteFile],
     operations: list[Operation],
     history: ArticleHistory | None = None,
-    ap_principal_id: str | None = None,
+    principal_arrete_id: str | None = None,
 ) -> str:
     """Generate the HTML sections for complementary and modifying arrêtés.
 
@@ -68,15 +68,15 @@ def make_permit_other(
     history : ArticleHistory | None
         Article version history, used to determine operation resolution status
         and to consolidate per-arrêté article versions.
-    ap_principal_id : str | None
-        Id of the principal AP, which is excluded from this section. Falls
+    principal_arrete_id : str | None
+        Id of the principal arrêté, which is excluded from this section. Falls
         back to ``arrete_files[0].id`` when not provided.
     """
     complement_sections: list[str] = []
     modifying_sections: list[str] = []
     skip_id = (
-        ap_principal_id
-        if ap_principal_id is not None
+        principal_arrete_id
+        if principal_arrete_id is not None
         else (arrete_files[0].id if arrete_files else None)
     )
 
