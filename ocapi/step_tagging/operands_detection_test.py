@@ -544,8 +544,8 @@ class TestParseOperations(BaseTestCaseHtml):
             ),
         )
 
-    def test_ltr_passive_resolves_right_side_reference(self) -> None:
-        """Passive LTR (Sont insérés après …) resolves the right reference."""
+    def test_ltr_passive_resolves_right_side_reference_and_operand(self) -> None:
+        """Passive LTR (Sont insérés après …) resolves the right reference and operand."""
         self.soup_extend(
             [
                 self.make_semantic_tag(
@@ -572,6 +572,12 @@ class TestParseOperations(BaseTestCaseHtml):
                             contents=["paragraphe 4.23"],
                         ),
                         " – clôture - gardiennage, les paragraphes suivants :",
+                        self.make_tag(
+                            "q",
+                            contents=[
+                                "L'exploitant doit établir un Plan d'Opération Interne (POI)."
+                            ],
+                        ),
                     ],
                 )
             ]
@@ -594,6 +600,7 @@ class TestParseOperations(BaseTestCaseHtml):
                             operation_type="ADD",
                             has_operand="true",
                             references="1",
+                            operand="2",
                         ),
                         contents=[
                             "Sont ",
@@ -608,6 +615,11 @@ class TestParseOperations(BaseTestCaseHtml):
                         reserved_data_attrs=dict(tag_id="1"),
                     ),
                     " – clôture - gardiennage, les paragraphes suivants :",
+                    self.make_tag(
+                        "q",
+                        contents=["L'exploitant doit établir un Plan d'Opération Interne (POI)."],
+                        reserved_data_attrs=dict(tag_id="2"),
+                    ),
                 ],
             ),
         )

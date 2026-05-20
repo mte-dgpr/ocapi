@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 import logging
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from arretify.semantic_tag_specs import (
     DocumentReferenceSpec,
@@ -26,7 +26,7 @@ from arretify.semantic_tag_specs import (
     PageSeparatorSpec,
     SectionReferenceSpec,
 )
-from arretify.types import DocumentContext, ProtectedTag
+from arretify.types import DocumentContext, ProtectedTag, ProtectedTagOrStr
 from arretify.utils.html import ensure_tag_id, is_tag
 from arretify.utils.html_element_ranges import (
     get_contiguous_elements_left,
@@ -39,6 +39,7 @@ from arretify.utils.html_semantic import (
     update_semantic_tag_data,
 )
 from arretify.utils.references import build_reference_tree
+from bs4 import Tag
 
 from ocapi.semantic_tag_specs import OperationSpec
 
@@ -57,10 +58,8 @@ def resolve_references_and_operands(
     operation_data = get_semantic_tag_data(OperationSpec, operation_tag)
     if operation_data.direction == "rtl":
         reference_tags = _find_left_references(document_context, operation_tag)
-        find_operand = _find_right_operand
     elif operation_data.direction == "ltr":
         reference_tags = _find_right_references(document_context, operation_tag)
-        find_operand = _find_right_operand
     else:
         raise ValueError(f"Unknown operation direction: {operation_data.direction!r}")
 
@@ -74,7 +73,7 @@ def resolve_references_and_operands(
     )
 
     if operation_data.has_operand:
-        operand_tag: ProtectedTag | None = find_operand(document_context, operation_tag)
+        operand_tag: ProtectedTag | None = _find_right_operand(document_context, operation_tag)
         if operand_tag is None:
             _LOGGER.warning("No operand found for operation")
             return
@@ -88,21 +87,21 @@ def resolve_references_and_operands(
 def _find_right_operand(
     document_context: DocumentContext, start_tag: ProtectedTag
 ) -> ProtectedTag | None:
-    for element in get_contiguous_elements_right(start_tag):
+    for element in cast(Tag, start_tag).next_siblings:
+        sibling = cast(ProtectedTagOrStr, element)
         if is_tag(
-            element,
+            sibling,
             tag_name_in=[
                 "blockquote",
                 "q",
                 "table",
             ],
         ):
-            return element
+            return sibling
 
-        # We ignore inline tags like page separators and footers
-        # and look recursively for the next neighbouring element.
-        elif is_semantic_tag(element, spec_in=PAGINATION_TAG_SPECS):
-            return _find_right_operand(document_context, element)
+        # Walk into page separators/footers and keep scanning their context.
+        if is_semantic_tag(sibling, spec_in=PAGINATION_TAG_SPECS):
+            return _find_right_operand(document_context, sibling)
     return None
 
 
