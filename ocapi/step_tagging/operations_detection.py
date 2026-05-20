@@ -376,7 +376,7 @@ LTR_OPERATION_NODE = regex_tree.Group(
             # operand (the inserted content) follows on the right.
             regex_tree.Sequence(
                 [
-                    r"^\s*(?:est|sont)\s",
+                    r"^\s*(?:est|sont)\s+",
                     regex_tree.Group(
                         regex_tree.Branching(
                             [
@@ -387,7 +387,7 @@ LTR_OPERATION_NODE = regex_tree.Group(
                         group_name=RawOperationType.ADD.value,
                     ),
                     regex_tree.Group(
-                        r"\s(?:après|avant|à\sla\ssuite\sde)\s(?:l['’]|le|la|les|du|des)\s?",
+                        r"\s+(?:après|avant|à\sla\ssuite\sde)\s+(?:l['’]|le|la|les|du|des)\s+",
                         group_name="__has_operand",
                     ),
                 ]
