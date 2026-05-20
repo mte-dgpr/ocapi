@@ -36,6 +36,7 @@ Tu dois me fournir une liste des opérations juridiques de cet arrêté par rapp
 IMPORTANT : Détecte UNIQUEMENT les modifications, ajouts ou abrogations d'arrêtés EXISTANTS.
 Ne pas générer d'opération pour un arrêté initial ou une simple référence ("conformément à...").
 Générer une opération seulement si le texte contient explicitement un verbe d'opération sur un arrêté antérieur.
+IMPORTANT : Ne détecte AUCUNE opération portant sur un arrêté ministériel ou interministériel (ex. « l'arrêté ministériel du… », « l'arrêté du ministre de… », « arrêté interministériel du… »). Seuls les arrêtés préfectoraux sont des cibles valides.
 
 Voici une liste non exhaustive des formulations courantes et l'operation_type à utiliser :
 - REMOVE : "abroger", "supprimer", "annuler" (UNIQUEMENT quand le verbe est seul, sans verbe de remplacement)
@@ -141,6 +142,9 @@ Notes CRITIQUES :
   * EXCLURE le contexte introductif : "sont remplacées par", "comme suit", etc.
   * Le contenu entre start_marker et end_marker doit être extractible tel quel pour insertion dans l'arrêté cible.
 - Liste vide [] si aucune opération detectée.
+
+RAPPEL FINAL :
+- Ne génère JAMAIS d'opération ciblant un arrêté ministériel ou interministériel. Seuls les arrêtés préfectoraux sont des cibles valides.
 """
 
 
