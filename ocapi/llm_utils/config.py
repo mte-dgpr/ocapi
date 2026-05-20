@@ -17,6 +17,7 @@
 # limitations under the License.
 #
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -140,6 +141,29 @@ def _primary_secondary_keys(models_cfg: dict[str, Any]) -> tuple[str, str | None
         primary = next(iter(models.keys()))
     if not isinstance(secondary, str) or secondary not in models:
         secondary = None
+
+    env_primary = os.environ.get("LLM_PRIMARY_MODEL_KEY", "").strip()
+    if env_primary:
+        if env_primary in models:
+            primary = env_primary
+        else:
+            _LOGGER.warning(
+                "LLM_PRIMARY_MODEL_KEY=%r not found in llm_models.json; keeping %r.",
+                env_primary,
+                primary,
+            )
+
+    env_secondary = os.environ.get("LLM_SECONDARY_MODEL_KEY", "").strip()
+    if env_secondary:
+        if env_secondary in models:
+            secondary = env_secondary
+        else:
+            _LOGGER.warning(
+                "LLM_SECONDARY_MODEL_KEY=%r not found in llm_models.json; keeping %r.",
+                env_secondary,
+                secondary,
+            )
+
     return primary, secondary
 
 
@@ -163,6 +187,8 @@ def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
         "GPT5": "openai_gpt5",
         "GPT5mini": "openai_gpt5mini",
         "mte-api-piag-mistral-medium-latest": "piag_mistral_medium",
+        "mistral-medium-latest": "mistral_medium",
+        "mistral-large-latest": "mistral_large",
     }
     if model in legacy_aliases and legacy_aliases[model] in models:
         return legacy_aliases[model]
