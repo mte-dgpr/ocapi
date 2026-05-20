@@ -23,6 +23,7 @@ Used by both ``make_other`` (modifying arrêtés) and ``make_main_content``
 source arrêté is rendered.
 """
 
+import logging
 from collections import defaultdict
 
 from bs4 import BeautifulSoup, Tag
@@ -36,6 +37,8 @@ from ocapi.types import (
     operation_type_label,
 )
 from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC
+
+_LOGGER = logging.getLogger(__name__)
 
 _WHOLE_ARRETE_ARTICLE_IDS = frozenset({"ALL", "END", "APPENDIX"})
 
@@ -116,10 +119,19 @@ def inject_messages_into_body(body_html: str, messages: dict[str, list[str]]) ->
     if not messages:
         return body_html
     soup = BeautifulSoup(body_html, "html.parser")
+    injected: set[str] = set()
     for section in soup.find_all("section"):
         article_id = _section_logical_id(section)
         if article_id is None or article_id not in messages:
             continue
+        if article_id in injected:
+            _LOGGER.warning(
+                "Duplicate article_id encountered in arrete while injecting operation messages; "
+                "skipping duplicate (article_id=%s)",
+                article_id,
+            )
+            continue
+        injected.add(article_id)
         title_el = section.find(["h1", "h2", "h3", "h4", "h5", "h6"])
         for msg in reversed(messages[article_id]):
             div = soup.new_tag(
