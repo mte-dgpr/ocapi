@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 import logging
-from typing import Any, Callable, cast
+from typing import Any, Callable
 
 from arretify.semantic_tag_specs import (
     DocumentReferenceSpec,
@@ -26,7 +26,7 @@ from arretify.semantic_tag_specs import (
     PageSeparatorSpec,
     SectionReferenceSpec,
 )
-from arretify.types import DocumentContext, ProtectedTag, ProtectedTagOrStr
+from arretify.types import DocumentContext, ProtectedTag
 from arretify.utils.html import ensure_tag_id, is_tag
 from arretify.utils.html_element_ranges import (
     get_contiguous_elements_left,
@@ -39,7 +39,6 @@ from arretify.utils.html_semantic import (
     update_semantic_tag_data,
 )
 from arretify.utils.references import build_reference_tree
-from bs4 import Tag
 
 from ocapi.semantic_tag_specs import OperationSpec
 
@@ -87,21 +86,21 @@ def resolve_references_and_operands(
 def _find_right_operand(
     document_context: DocumentContext, start_tag: ProtectedTag
 ) -> ProtectedTag | None:
-    for element in cast(Tag, start_tag).next_siblings:
-        sibling = cast(ProtectedTagOrStr, element)
+    for element in get_contiguous_elements_right(start_tag):
         if is_tag(
-            sibling,
+            element,
             tag_name_in=[
                 "blockquote",
                 "q",
                 "table",
             ],
         ):
-            return sibling
+            return element
 
-        # Walk into page separators/footers and keep scanning their context.
-        if is_semantic_tag(sibling, spec_in=PAGINATION_TAG_SPECS):
-            return _find_right_operand(document_context, sibling)
+        # We ignore inline tags like page separators and footers
+        # and look recursively for the next neighbouring element.
+        elif is_semantic_tag(element, spec_in=PAGINATION_TAG_SPECS):
+            return _find_right_operand(document_context, element)
     return None
 
 
