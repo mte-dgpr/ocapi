@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Iterator, Sequence, cast
+from typing import Iterator, Literal, Sequence, cast
 
 from arretify.parsing_utils.numbering import COUNT_PATTERN_S
 from arretify.regex_utils import (
@@ -307,17 +307,116 @@ RTL_OPERATION_NODE = regex_tree.Group(
 )
 
 
+SUBJECT_LTR = r"(?:le|les)\spr[ée]sente?s?\s(?:arr[êe]t[ée]s?|articles?|dispositions?)"
+
+
+# LTR operations are recognised at the start of an alinea. Two flavours:
+#  * active voice: "Le présent arrêté annule et remplace l'arrêté X"
+#  * passive voice: "Sont insérés après le paragraphe X, les ..."
+# In both cases the references follow on the right as sibling tags, so the
+# regex must NOT consume them. The trailing determiner (le/la/les/l') is
+# consumed so the reference ends up as the immediate right sibling of the
+# operation tag.
+LTR_OPERATION_NODE = regex_tree.Group(
+    regex_tree.Branching(
+        [
+            # Active voice
+            regex_tree.Sequence(
+                [
+                    r"^\s*",
+                    SUBJECT_LTR,
+                    r"\s",
+                    regex_tree.Branching(
+                        [
+                            regex_tree.Group(
+                                regex_tree.Branching(
+                                    [
+                                        r"annule\s(et|ou)\sremplace",
+                                        r"abroge\s(et|ou)\sremplace",
+                                        r"modifie\set\sremplace",
+                                        r"modifie\set\scompl[èe]te",
+                                        r"remplace\set\scompl[èe]te",
+                                    ]
+                                ),
+                                group_name=RawOperationType.REPLACE.value,
+                            ),
+                            regex_tree.Group(
+                                regex_tree.Branching(
+                                    [
+                                        r"abroge",
+                                        r"supprime",
+                                        r"annule",
+                                    ]
+                                ),
+                                group_name=RawOperationType.REMOVE.value,
+                            ),
+                            regex_tree.Group(
+                                regex_tree.Branching(
+                                    [
+                                        r"compl[èe]te",
+                                        r"ajoute",
+                                    ]
+                                ),
+                                group_name=RawOperationType.ADD.value,
+                            ),
+                        ]
+                    ),
+                    regex_tree.Repeat(
+                        regex_tree.Group(
+                            r"\sles\sarticles?\ssuivants?(?:\sdes?)?",
+                            group_name="__has_operand",
+                        ),
+                        quantifier=(0, 1),
+                    ),
+                    r"\s(?:l['’]|le|la|les|du|des|de\sl['’]?)\s?",
+                ]
+            ),
+            # Passive voice: "Sont insérés après le paragraphe 4.23, les ..."
+            # The reference sits right after the trailing determiner; the
+            # operand (the inserted content) follows on the right.
+            regex_tree.Sequence(
+                [
+                    r"^\s*(?:est|sont)\s+",
+                    regex_tree.Group(
+                        regex_tree.Branching(
+                            [
+                                r"insérée?s?",
+                                r"ajoutée?s?",
+                            ]
+                        ),
+                        group_name=RawOperationType.ADD.value,
+                    ),
+                    regex_tree.Group(
+                        r"\s+(?:après|avant|à\sla\ssuite\sde)\s+(?:l['’]|le|la|les|du|des)\s+",
+                        group_name="__has_operand",
+                    ),
+                ]
+            ),
+        ]
+    ),
+    group_name="__operation",
+)
+
+
 def parse_operations(
     document_context: DocumentContext,
     contents: Sequence[ProtectedTagOrStr],
 ) -> list[ProtectedTagOrStr]:
+    splitter_rtl = make_regex_tree_splitter(RTL_OPERATION_NODE)
+    splitter_ltr = make_regex_tree_splitter(LTR_OPERATION_NODE)
     return cast(
         list[ProtectedTagOrStr],
         split_and_map_elements(
-            contents,
-            make_regex_tree_splitter(RTL_OPERATION_NODE),
-            lambda operation_match: _render_operation_match(
-                document_context.protected_soup, operation_match
+            split_and_map_elements(
+                contents,
+                splitter_ltr,
+                lambda match: _render_operation_match(
+                    document_context.protected_soup, match, direction="ltr"
+                ),
+            ),
+            splitter_rtl,
+            lambda match: _render_operation_match(
+                document_context.protected_soup, match, direction="rtl"
             ),
         ),
     )
@@ -326,6 +425,7 @@ def parse_operations(
 def _render_operation_match(
     soup: ProtectedSoup,
     operation_match: regex_tree.Match,
+    direction: Literal["ltr", "rtl"] = "rtl",
 ) -> ProtectedTag:
     return make_semantic_tag(
         soup,
@@ -338,7 +438,7 @@ def _render_operation_match(
                 *OPERATION_TYPES_GROUP_NAMES,
             ],
         ),
-        data=_extract_operation_data(operation_match),
+        data=_extract_operation_data(operation_match, direction=direction),
     )
 
 
@@ -359,6 +459,7 @@ def _render_group_match(
 
 def _extract_operation_data(
     operation_match: regex_tree.Match,
+    direction: Literal["ltr", "rtl"] = "rtl",
 ) -> OperationData:
     operation_type_groups = filter_regex_tree_match_children(
         operation_match,
@@ -378,6 +479,6 @@ def _extract_operation_data(
         ),
         has_operand=has_operand,
         references=None,
-        direction="rtl",
+        direction=direction,
         operand=None,
     )
