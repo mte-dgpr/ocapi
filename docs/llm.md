@@ -9,14 +9,14 @@ Toute la logique LLM est centralisée dans
 
 ```mermaid
 flowchart LR
-  caller[step_detection / apply_ops] --> call[call_llm_api]
-  cfg1[config/llm_models.json] --> resolve[config_model_llm]
+  caller["step_detection / apply_ops"] --> call["call_llm_api"]
+  cfg1["config/llm_models.json"] --> resolve["config_model_llm"]
   resolve --> call
-  cfg2[config/llm_resilience.json] --> call
-  cfg3[config/llm_rate_limit.json] --> call
+  cfg2["config/llm_resilience.json"] --> call
+  cfg3["config/llm_rate_limit.json"] --> call
   call --> primary["Modèle primaire<br/>retry + jitter"]
-  primary -- échec final + fallback --> secondary[Modèle secondaire]
-  primary --> resp[Réponse texte]
+  primary -- "échec final, fallback" --> secondary["Modèle secondaire"]
+  primary --> resp["Réponse texte"]
   secondary --> resp
 ```
 
