@@ -325,15 +325,21 @@ def _build_section_history_html(
         operation_id = version.get("operation_id")
         operation = operation_by_id.get(str(operation_id)) if operation_id else None
         reason = error_codes_reason(error_codes)
-        if index == 0 and not operation:
-            text = "Version de l'arrêté initial"
-        elif operation and reason is not None:
-            text = (
+        if operation and reason is not None:
+            # Unresolved op: previous content was just recopied, so the dropdown
+            # would only duplicate the surrounding version. Keep the message only.
+            history_parts.append(
+                f'<p style="margin-left: 1rem; margin-top: 0.5rem; font-weight: bold;">'
                 f"Opération non résolue "
                 f"{operation_type_label(operation.operation_type)} de l'article "
-                f"{operation.source_id.article_id} de l'arrêté {operation.source_id.arrete_id}"
-                f" (raison : {reason})"
+                f"{operation.source_id.article_id} de l'arrêté "
+                f"{operation.source_id.arrete_id}"
+                f" (raison : {reason})</p>"
             )
+            continue
+
+        if index == 0 and not operation:
+            text = "Version de l'arrêté initial"
         elif operation:
             text = (
                 f"Version après {operation_type_label(operation.operation_type)} "
