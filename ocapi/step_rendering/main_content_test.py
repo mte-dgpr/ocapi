@@ -255,7 +255,7 @@ def test_make_section_version_full_remove_marks_abrogated() -> None:
 
 def test_make_permit_content_renders_full_main_with_section_versions() -> None:
     """Layout / section_version behaviour; kept for future refonte of permit HTML."""
-    ap_initial = make_testing_arrete(
+    principal_arrete = make_testing_arrete(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="ap_initial",
@@ -295,7 +295,7 @@ def test_make_permit_content_renders_full_main_with_section_versions() -> None:
 
     html = make_permit_content(
         history=history,
-        arrete=ap_initial,
+        arrete=principal_arrete,
         operations=[op_replace],
     )
 
@@ -390,7 +390,7 @@ def test_make_permit_content_renders_all_versions_for_complementary_arrete() -> 
 
 def test_make_permit_content_inserts_new_article_after_predecessor() -> None:
     """NEW_ARTICLE sections are inserted after the greatest existing article id below them."""
-    ap_initial = make_testing_arrete(
+    principal_arrete = make_testing_arrete(
         arrete_id="2020-01-01",
         aiot="0001",
         filename="ap_initial",
@@ -428,7 +428,7 @@ def test_make_permit_content_inserts_new_article_after_predecessor() -> None:
     )
     html = make_permit_content(
         history=history,
-        arrete=ap_initial,
+        arrete=principal_arrete,
         operations=[op_create],
     )
     assert html.index("Article 1 initial") < html.index("Article 2 inséré")

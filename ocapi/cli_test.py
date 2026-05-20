@@ -196,7 +196,10 @@ def test_cli_tagged_output_is_forwarded(
 @patch("ocapi.cli.run_pipeline")
 @patch("ocapi.cli.load_document_contexts")
 def test_run_main_principal_id_flags_matching_arrete(
-    mock_load: MagicMock, mock_pipeline: MagicMock, _mock_save: MagicMock
+    mock_load: MagicMock,
+    mock_pipeline: MagicMock,
+    _mock_save: MagicMock,
+    tmp_path: Path,
 ) -> None:
     """--principal-id marks the matching arrêté before the pipeline runs."""
     arretes = [make_testing_arrete("2020-01-01"), make_testing_arrete("2024-09-27")]
@@ -204,7 +207,7 @@ def test_run_main_principal_id_flags_matching_arrete(
     mock_pipeline.return_value = ([], {}, arretes, None)
 
     exit_code = run_main(
-        Path("ignored"),
+        tmp_path,
         enable_rendering=False,
         principal_id="2024-09-27",
     )
@@ -217,13 +220,15 @@ def test_run_main_principal_id_flags_matching_arrete(
 @patch("ocapi.cli.run_pipeline")
 @patch("ocapi.cli.load_document_contexts")
 def test_run_main_principal_id_missing_returns_error(
-    mock_load: MagicMock, mock_pipeline: MagicMock
+    mock_load: MagicMock,
+    mock_pipeline: MagicMock,
+    tmp_path: Path,
 ) -> None:
     """--principal-id with no matching arrêté returns exit code 1 and skips the pipeline."""
     mock_load.return_value = [(make_testing_arrete("2020-01-01"), MagicMock())]
 
     exit_code = run_main(
-        Path("ignored"),
+        tmp_path,
         enable_rendering=False,
         principal_id="2030-01-01",
     )
