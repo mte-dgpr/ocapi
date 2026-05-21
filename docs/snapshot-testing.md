@@ -7,10 +7,31 @@ dépendance, modification d'une règle) casse une sortie consolidée pré-valid�
 Pour le « pourquoi », voir
 [ADR 0003](decision-records/0003-snapshot-testing.md).
 
-## Comment ça marche
+## Utilité
 
-Chaque cas snapshot est défini comme un couple `(arretes_dir, consolidation_dir)`
-dans
+Trois usages au quotidien :
+
+- **Garde-fou de non-régression** : à chaque PR la CI rejoue le pipeline
+  complet (sans LLM) sur 4 AIOT réels et compare les sorties bit-à-bit. Un
+  refactor qui casserait silencieusement le rendering ou la résolution est
+  attrapé immédiatement.
+- **Référentiel reproductible** : les `operations.json` figés font office de
+  vérité terrain pour la partie déterministe du pipeline (resolution +
+  rendering). Ça évite de redépendre du LLM pour rejouer un cas.
+- **Cas d'étude** : quand on debugge un comportement précis, on peut isoler
+  un AIOT (`pytest -m snapshot -k <aiot>`) et observer le diff `permis.html`
+  ou `history.json` pour comprendre l'effet d'un changement.
+
+## Structure des snapshots
+
+Deux répertoires versionnés par cas, un AIOT par couple :
+
+| Répertoire | Contenu | Rôle |
+| --- | --- | --- |
+| `snapshots/arretes_html/<AIOT>/` | HTMLs **d'entrée** (sortie Arrêtify + step_tagging déjà appliqué) | input du pipeline en mode snapshot |
+| `snapshots/arretes_consolidation/<AIOT>/` | `operations.json`, `history.json`, `permis.html` | sortie attendue à comparer |
+
+Le couple est référencé dans
 [`ocapi/snapshot.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/snapshot.py) :
 
 ```python
@@ -22,9 +43,10 @@ SNAPSHOT_CASES: list[tuple[Path, Path]] = [
 ]
 ```
 
-`arretes_dir` contient les HTMLs Arrêtify d'entrée. `consolidation_dir` contient
-les sorties attendues : `operations.json` (chargé en pre-load),
-`history.json` et `permis.html`.
+Dans `arretes_consolidation/<AIOT>/`, `operations.json` est l'**entrée**
+préchargée (résultat figé de la détection LLM, validé manuellement) ;
+`history.json` et `permis.html` sont les **sorties attendues** comparées
+à chaque run.
 
 Le test
 [`snapshot_test.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/snapshot_test.py)
@@ -75,8 +97,23 @@ Les unit tests classiques (`pytest -m "not snapshot"`) tournent sur chaque push.
 
 ## Mettre à jour les snapshots
 
-Quand un changement **intentionnel** modifie une sortie, il faut régénérer les
-fichiers attendus :
+### Quand régénérer ?
+
+| Situation | Quel snapshot | Pourquoi |
+| --- | --- | --- |
+| Refactor du resolution ou du rendering qui change la sortie | `history.json` et/ou `permis.html` | sorties calculées, à reflasher |
+| Nouvelle règle (filtrage, error_code, etc.) qui modifie le résultat consolidé | `history.json`, `permis.html`, parfois `operations.json` | la règle peut altérer la résolution ou ajouter des codes |
+| Bump d'Arrêtify (HTML d'entrée tagué différemment) | `arretes_html/` puis tout le reste | l'input change, tout le pipeline dérive |
+| Nouvelle détection LLM (pattern de `step_tagging`, prompt amélioré) | `operations.json` après re-run **avec LLM**, puis le reste | la détection produit de nouvelles ops |
+| Ajout d'un nouveau cas AIOT | tout | voir [Ajouter un cas snapshot](#ajouter-un-cas-snapshot) |
+
+Toujours réviser **manuellement** le diff Git avant de committer : un snapshot
+qui change sans qu'on s'y attende = bug à investiguer, pas juste à entériner.
+
+### Régénérer les sorties attendues (`history.json`, `permis.html`)
+
+C'est le cas le plus fréquent : on a touché au code, `operations.json` reste
+valide, on veut juste rafraîchir les sorties calculées.
 
 ```bash
 # Option 1 : commande dédiée
@@ -95,8 +132,58 @@ Effets :
   `UPDATE_SNAPSHOTS=1` to verify. ») — relancer sans la variable pour
   confirmer.
 
-Réviser ensuite **manuellement** le diff git pour s'assurer que la nouvelle
-sortie est bien celle attendue avant de committer.
+`operations.json` est aussi réécrit, mais avec les mêmes ops préchargées —
+donc le diff sur ce fichier doit rester nul (juste un re-formatage éventuel).
+Un vrai diff sur `operations.json` signifie qu'on a modifié le contenu
+préchargé à la main, ou qu'une étape intermédiaire mute les opérations.
+
+### Régénérer `operations.json` (avec LLM)
+
+Quand on a changé la détection (prompt LLM, regex de `step_tagging`, parsing
+des réponses), il faut rejouer le pipeline **avec LLM** pour produire de
+nouveaux `operations.json` :
+
+```bash
+ocapi run snapshots/arretes_html/<AIOT>/ \
+    --output snapshots/arretes_consolidation/<AIOT>/
+```
+
+Puis :
+
+1. **Inspecter** manuellement le diff sur `operations.json` (nouvelles ops,
+   changements de type, error_codes ajoutés).
+2. **Corriger à la main** ce qui n'est pas conforme à la vérité terrain — le
+   LLM est faillible et `operations.json` est la **source de vérité** pour les
+   runs sans LLM.
+3. Régénérer les sorties dérivées :
+
+   ```bash
+   UPDATE_SNAPSHOTS=1 pytest -m snapshot -v -k <AIOT>
+   ```
+
+4. Vérifier :
+
+   ```bash
+   pytest -m snapshot -v -k <AIOT>
+   ```
+
+### Régénérer les HTMLs d'entrée (`arretes_html/`)
+
+À ne faire que lors d'un **bump d'Arrêtify** ou si on veut récupérer un
+re-tagging de `step_tagging` après changement des règles de tagging.
+
+Workflow :
+
+1. Récupérer les sorties Arrêtify mises à jour pour chaque AIOT (Arrêtify
+   produit du HTML déjà tagué, voir [ADR 0004](decision-records/0004-arretify-version-pin.md)).
+2. Les déposer dans `snapshots/arretes_html/<AIOT>/`.
+3. Re-jouer une **détection complète avec LLM** comme ci-dessus, car les
+   `operations.json` figés ne sont plus alignés avec la nouvelle structure HTML.
+4. Régénérer les sorties dérivées et committer.
+
+> Note : `step_tagging` n'est pas idempotent sur du HTML déjà tagué. Pour
+> retagger un cas sans repasser par Arrêtify, voir l'issue de suivi
+> [#132](https://github.com/mte-dgpr/ocapi/issues/132).
 
 ## Ajouter un cas snapshot
 

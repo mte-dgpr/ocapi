@@ -471,3 +471,154 @@ class TestParseOperations(BaseTestCaseHtml):
                 ],
             ),
         )
+
+    def test_ltr_resolves_right_side_reference(self) -> None:
+        """LTR operations pick up references that sit on the right."""
+        self.soup_extend(
+            [
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=1),
+                    contents=[
+                        self.make_semantic_tag(
+                            OperationSpec,
+                            data=OperationData(
+                                direction="ltr",
+                                keyword="annule et remplace",
+                                operation_type="REPLACE",
+                            ),
+                            contents=[
+                                "Le présent arrêté ",
+                                self.make_tag("b", contents=["annule et remplace"]),
+                                " l'",
+                            ],
+                        ),
+                        self.make_semantic_tag(
+                            DocumentReferenceSpec,
+                            data=DocumentReferenceData(
+                                type=DocumentType.arrete_prefectoral,
+                                date="2011-12-20",
+                            ),
+                            contents=["arrêté préfectoral complémentaire du 20 décembre 2011"],
+                        ),
+                        " .",
+                    ],
+                )
+            ]
+        )
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
+
+        resolve_references_and_operands(self.context, operation_tag)
+
+        assert_elements_equal(
+            self.soup.contents[0],
+            self.make_semantic_tag(
+                AlineaSpec,
+                data=AlineaData(number=1),
+                contents=[
+                    self.make_semantic_tag(
+                        OperationSpec,
+                        data=OperationData(
+                            direction="ltr",
+                            keyword="annule et remplace",
+                            operation_type="REPLACE",
+                            references="1",
+                        ),
+                        contents=[
+                            "Le présent arrêté ",
+                            self.make_tag("b", contents=["annule et remplace"]),
+                            " l'",
+                        ],
+                    ),
+                    self.make_semantic_tag(
+                        DocumentReferenceSpec,
+                        data=DocumentReferenceData(
+                            type=DocumentType.arrete_prefectoral,
+                            date="2011-12-20",
+                        ),
+                        contents=["arrêté préfectoral complémentaire du 20 décembre 2011"],
+                        reserved_data_attrs=dict(tag_id="1"),
+                    ),
+                    " .",
+                ],
+            ),
+        )
+
+    def test_ltr_passive_resolves_right_side_reference(self) -> None:
+        """Passive LTR (Sont insérés après …) resolves the right reference."""
+        # TODO: fix operand detection for LTR operations
+        self.soup_extend(
+            [
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=1),
+                    contents=[
+                        self.make_semantic_tag(
+                            OperationSpec,
+                            data=OperationData(
+                                direction="ltr",
+                                keyword="insérés",
+                                operation_type="ADD",
+                                has_operand="true",
+                            ),
+                            contents=[
+                                "Sont ",
+                                self.make_tag("b", contents=["insérés"]),
+                                " après le ",
+                            ],
+                        ),
+                        self.make_semantic_tag(
+                            SectionReferenceSpec,
+                            data=SectionReferenceData(),
+                            contents=["paragraphe 4.23"],
+                        ),
+                        " – clôture - gardiennage, les paragraphes suivants :",
+                        self.make_tag(
+                            "q",
+                            contents=[
+                                "L'exploitant doit établir un Plan d'Opération Interne (POI)."
+                            ],
+                        ),
+                    ],
+                )
+            ]
+        )
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
+
+        resolve_references_and_operands(self.context, operation_tag)
+
+        assert_elements_equal(
+            self.soup.contents[0],
+            self.make_semantic_tag(
+                AlineaSpec,
+                data=AlineaData(number=1),
+                contents=[
+                    self.make_semantic_tag(
+                        OperationSpec,
+                        data=OperationData(
+                            direction="ltr",
+                            keyword="insérés",
+                            operation_type="ADD",
+                            has_operand="true",
+                            references="1",
+                        ),
+                        contents=[
+                            "Sont ",
+                            self.make_tag("b", contents=["insérés"]),
+                            " après le ",
+                        ],
+                    ),
+                    self.make_semantic_tag(
+                        SectionReferenceSpec,
+                        data=SectionReferenceData(),
+                        contents=["paragraphe 4.23"],
+                        reserved_data_attrs=dict(tag_id="1"),
+                    ),
+                    " – clôture - gardiennage, les paragraphes suivants :",
+                    self.make_tag(
+                        "q",
+                        contents=["L'exploitant doit établir un Plan d'Opération Interne (POI)."],
+                    ),
+                ],
+            ),
+        )
