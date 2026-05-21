@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 import logging
-from typing import Any
+from typing import Any, Callable
 
 from arretify.semantic_tag_specs import (
     DocumentReferenceSpec,
@@ -55,10 +55,13 @@ def resolve_references_and_operands(
     document_context: DocumentContext, operation_tag: ProtectedTag
 ) -> None:
     operation_data = get_semantic_tag_data(OperationSpec, operation_tag)
-    if operation_data.direction != "rtl":
-        raise ValueError("Only right-to-left is supported so far")
+    if operation_data.direction == "rtl":
+        reference_tags = _find_left_references(document_context, operation_tag)
+    elif operation_data.direction == "ltr":
+        reference_tags = _find_right_references(document_context, operation_tag)
+    else:
+        raise ValueError(f"Unknown operation direction: {operation_data.direction!r}")
 
-    reference_tags: list[ProtectedTag] = _find_left_references(document_context, operation_tag)
     if len(reference_tags) == 0:
         _LOGGER.warning("No references found in operation")
         return
@@ -71,7 +74,7 @@ def resolve_references_and_operands(
     if operation_data.has_operand:
         operand_tag: ProtectedTag | None = _find_right_operand(document_context, operation_tag)
         if operand_tag is None:
-            _LOGGER.warning("No right operand found for operation")
+            _LOGGER.warning("No operand found for operation")
             return
         operation_data = update_semantic_tag_data(
             OperationSpec,
@@ -104,10 +107,35 @@ def _find_right_operand(
 def _find_left_references(
     document_context: DocumentContext, start_tag: ProtectedTag
 ) -> list[ProtectedTag]:
-    contiguous_elements_left = get_contiguous_elements_left(start_tag)
+    return _find_references(
+        document_context,
+        start_tag,
+        get_contiguous_elements_left,
+        _find_left_references,
+    )
+
+
+def _find_right_references(
+    document_context: DocumentContext, start_tag: ProtectedTag
+) -> list[ProtectedTag]:
+    return _find_references(
+        document_context,
+        start_tag,
+        get_contiguous_elements_right,
+        _find_right_references,
+    )
+
+
+def _find_references(
+    document_context: DocumentContext,
+    start_tag: ProtectedTag,
+    get_contiguous_elements: Callable[[ProtectedTag], list[Any]],
+    recurse: Callable[[DocumentContext, ProtectedTag], list[ProtectedTag]],
+) -> list[ProtectedTag]:
+    contiguous_elements = get_contiguous_elements(start_tag)
     reference_tags: list[ProtectedTag] = []
 
-    for element in contiguous_elements_left:
+    for element in contiguous_elements:
         if is_semantic_tag(
             element,
             spec_in=[
@@ -128,10 +156,10 @@ def _find_left_references(
         # We ignore inline tags like page separators and footers
         # and look recursively for the next neighbouring element.
         elif is_semantic_tag(element, spec_in=PAGINATION_TAG_SPECS):
-            return _find_left_references(document_context, element)
+            return recurse(document_context, element)
 
     if len(reference_tags) == 0:
-        for element in contiguous_elements_left:
+        for element in contiguous_elements:
             if is_semantic_tag(element, spec_in=[DocumentReferenceSpec]):
                 reference_tags = [element]
                 break

@@ -1121,3 +1121,130 @@ class TestDeleteOperations(BaseTestCaseHtml):
                 ".",
             ],
         )
+
+
+class TestLeftToRightOperations(BaseTestCaseHtml):
+    """Active-voice operations where the verb comes before the references."""
+
+    def test_ltr_annule_et_remplace(self) -> None:
+        elements = [
+            "Le présent arrêté annule et remplace l'arrêté préfectoral complémentaire "
+            "du 20 décembre 2011 ."
+        ]
+
+        actual = parse_operations(self.context, elements)
+
+        assert_element_lists_equal(
+            actual,
+            [
+                self.make_semantic_tag(
+                    OperationSpec,
+                    contents=[
+                        "Le présent arrêté ",
+                        self.make_tag("b", contents=["annule et remplace"]),
+                        " l'",
+                    ],
+                    data=OperationData(
+                        operation_type="REPLACE",
+                        keyword="annule et remplace",
+                        direction="ltr",
+                    ),
+                ),
+                "arrêté préfectoral complémentaire du 20 décembre 2011 .",
+            ],
+        )
+
+    def test_ltr_modifie_et_complete(self) -> None:
+        elements = [
+            "Le présent arrêté modifie et complète l'arrêté préfectoral "
+            "d'autorisation du 23 décembre 2008 et l'arrêté préfectoral "
+            "complémentaire du 4 juin 2013."
+        ]
+
+        actual = parse_operations(self.context, elements)
+
+        assert_element_lists_equal(
+            actual,
+            [
+                self.make_semantic_tag(
+                    OperationSpec,
+                    contents=[
+                        "Le présent arrêté ",
+                        self.make_tag("b", contents=["modifie et complète"]),
+                        " l'",
+                    ],
+                    data=OperationData(
+                        operation_type="REPLACE",
+                        keyword="modifie et complète",
+                        direction="ltr",
+                    ),
+                ),
+                (
+                    "arrêté préfectoral d'autorisation du 23 décembre 2008 et "
+                    "l'arrêté préfectoral complémentaire du 4 juin 2013."
+                ),
+            ],
+        )
+
+    def test_ltr_abroge_et_remplace_with_par(self) -> None:
+        elements = [
+            "Le présent article abroge et remplace les articles suivants des "
+            "chapitres 4.4 et 9.2 de l'arrêté préfectoral complémentaire du "
+            "10 septembre 2007 par les articles suivants ."
+        ]
+
+        actual = parse_operations(self.context, elements)
+
+        assert_element_lists_equal(
+            actual,
+            [
+                self.make_semantic_tag(
+                    OperationSpec,
+                    contents=[
+                        "Le présent article ",
+                        self.make_tag("b", contents=["abroge et remplace"]),
+                        " les articles suivants des ",
+                    ],
+                    data=OperationData(
+                        operation_type="REPLACE",
+                        has_operand="true",
+                        keyword="abroge et remplace",
+                        direction="ltr",
+                    ),
+                ),
+                (
+                    "chapitres 4.4 et 9.2 de l'arrêté préfectoral complémentaire "
+                    "du 10 septembre 2007 par les articles suivants ."
+                ),
+            ],
+        )
+
+    def test_ltr_passive_sont_inseres_apres(self) -> None:
+        """Passive LTR: 'Sont insérés après le paragraphe 4.23, les paragraphes suivants :'."""
+        elements = [
+            "Sont insérés après le paragraphe 4.23 – clôture - gardiennage, "
+            "les paragraphes suivants :"
+        ]
+
+        actual = parse_operations(self.context, elements)
+
+        assert_element_lists_equal(
+            actual,
+            [
+                self.make_semantic_tag(
+                    OperationSpec,
+                    contents=[
+                        "Sont ",
+                        self.make_tag("b", contents=["insérés"]),
+                        " après le ",
+                    ],
+                    data=OperationData(
+                        operation_type="ADD",
+                        has_operand="true",
+                        keyword="insérés",
+                        direction="ltr",
+                    ),
+                ),
+                "paragraphe 4.23 – clôture - gardiennage, les paragraphes suivants :",
+            ],
+        )

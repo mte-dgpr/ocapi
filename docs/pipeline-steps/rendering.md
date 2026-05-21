@@ -74,6 +74,37 @@ Sur l'arrêté retenu, `make_permit_content` :
    injecte des messages d'erreur ou d'information dans le corps pour les
    opérations émanant de cet arrêté.
 
+### Tag `section_version`
+
+Chaque `<section data-spec="article">` retenue est transformée en place par
+`make_section_version` en un tag `section_version`, qui matérialise la
+**dernière version consolidée** d'un article (ou son abrogation). Modèle
+[`SectionVersionSpec`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/types.py)
+côté Python.
+
+| Attribut HTML | Champ Pydantic | Contenu |
+|---|---|---|
+| `data-spec="section_version"` | — | Marqueur du tag, ajouté systématiquement. |
+| `data-is_modified` | `is_modified` | `"true"` si l'article apparaît dans `ArticleHistory`, sinon `"false"`. |
+| `data-date_version` | `date_version` | `arrete_id` de l'arrêté à l'origine de la dernière version. Pour un article non modifié, c'est l'`arrete_id` rendu ; sinon celui pointé par `source_id.arrete_id` de la dernière opération. |
+| `article_id` | `article_id` | Identifiant de l'article (`x.y.z` ou `APPENDIX:x.y`), validé par `parse_article_id`. |
+| `content` (corps de la section) | `content` | HTML consolidé : titre (override de l'historique sinon `data-spec="section_title"` existant) + bloc `<div data-spec="section_version_history">` + contenu final (`<p><em>Article abrogé</em></p>` si la dernière opération abroge l'article). |
+
+Pipeline de transformation (`make_section_version`) :
+
+1. `key = NodeId(arrete_id, article_id)`. Si l'`article_id` est non standard
+   (parsing en échec), la section est marquée `data-is_modified="false"` et
+   `data-date_version=arrete_id` sans toucher au contenu.
+2. Si la clé n'apparaît pas dans `ArticleHistory`, idem (article non
+   modifié par cet arrêté).
+3. Sinon, `_build_section_history_html` produit le bloc historique : version
+   actuelle en gras (ou message « Opération non résolue … » si la dernière
+   version porte des `error_codes`) puis versions précédentes empilées dans
+   des `<details>` repliables.
+4. Le contenu de la section est remplacé par
+   `title_html + history_html + latest_content`, ou par un placeholder
+   « Article abrogé » si `_is_abrogated` détecte un `FULL_REMOVE` final.
+
 ## Autres (`make_permit_other`)
 
 [`ocapi/step_rendering/other.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/step_rendering/other.py)
