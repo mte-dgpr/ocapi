@@ -28,7 +28,12 @@ import pytest
 from ocapi.pipeline import run_pipeline
 from ocapi.snapshot import SNAPSHOT_CASES
 from ocapi.step_rendering.step_rendering import permis_to_html
-from ocapi.utils.io_utils import article_history_to_json_dict, load_arrete_files, load_operations
+from ocapi.utils.io_utils import (
+    article_history_to_json_dict,
+    load_arrete_files,
+    load_operations,
+    write_json_output,
+)
 from ocapi.utils.testing import normalize_html
 from ocapi.utils.utils import strip_none_values
 
@@ -79,11 +84,7 @@ def test_snapshot_pipeline_output(
     if UPDATE_SNAPSHOTS:
         snapshot_dir.mkdir(parents=True, exist_ok=True)
         for filename, data in [("operations.json", ops_json), ("history.json", history_json)]:
-            (snapshot_dir / filename).write_text(
-                json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-                newline="\n",
-            )
+            write_json_output(data, snapshot_dir / filename, sort_keys=True)
         if permis_html:
             (snapshot_dir / "permis.html").write_text(
                 normalize_html(permis_html), encoding="utf-8", newline="\n"

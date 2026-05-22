@@ -75,6 +75,8 @@ _COST_PER_1M_TOKENS: dict[str, tuple[float, float]] = {
     "claude-sonnet-4-20250514": (3.00, 15.00),
     "claude-haiku-4-20250414": (0.80, 4.00),
     "claude-opus-4-6": (5.00, 25.00),
+    "gemini-2.5-pro": (2.50, 10.00),
+    "gemini-3-flash-preview": (0.50, 3.00),
     "gemini-3.1-flash-lite-preview": (0.25, 1.50),
     "gemini-3.1-pro-preview": (4.00, 18.00),
 }

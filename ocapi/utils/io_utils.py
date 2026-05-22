@@ -411,7 +411,7 @@ def write_permis_output(permis_html: str, output_path: Path) -> None:
         raise InputOutputError(f"Cannot write to output file: {e}") from e
 
 
-def write_json_output(data: Any, output_path: Path) -> None:
+def write_json_output(data: Any, output_path: Path, *, sort_keys: bool = False) -> None:
     """Write data to a JSON file.
 
     Parameters
@@ -420,6 +420,8 @@ def write_json_output(data: Any, output_path: Path) -> None:
         Data to save (dict, list, or any JSON-serialisable object).
     output_path : Path
         Output file path.
+    sort_keys : bool
+        If ``True``, sort object keys alphabetically (default: ``False``).
 
     Raises
     ------
@@ -430,9 +432,10 @@ def write_json_output(data: Any, output_path: Path) -> None:
         # Create parent directory if needed
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Save as JSON
+        # Save as JSON (trailing newline follows POSIX text-file convention)
         with output_path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump(data, f, ensure_ascii=False, indent=2, sort_keys=sort_keys)
+            f.write("\n")
 
     except OSError as e:
         raise InputOutputError(f"Cannot write JSON file: {e}") from e
