@@ -16,6 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import logging
 from typing import cast
 
 import pytest
@@ -910,3 +911,52 @@ def test_make_permit_content_marks_main_ap_source_articles() -> None:
     assert isinstance(msg_2, Tag)
     assert "Opération de consolidation non résolue" in msg_2.get_text()
     assert "sous-cible" in msg_2.get_text()
+
+
+def test_make_permit_content_skips_history_for_duplicate_article_ids(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Duplicate sections keep consolidated content but avoid repeating history blocks."""
+    caplog.set_level(logging.WARNING, logger="ocapi.step_rendering.main_content")
+    arrete = make_testing_arrete(
+        "2020-01-01",
+        """
+<html><body data-arretify_version="0.2.0">
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><h3>Art 1</h3><p>First</p></section>
+  <section data-spec="section" data-number="1"><h3>Art 1 bis</h3><p>Second</p></section>
+ </main>
+</body></html>
+""",
+    )
+    history: ArticleHistory = {
+        NodeId(arrete_id="2020-01-01", article_id="1"): [
+            cast(ArticleVersion, {"version": 0, "content": "<p>Initial</p>", "operation_id": None}),
+            cast(
+                ArticleVersion, {"version": 1, "content": "<p>Updated</p>", "operation_id": "op-1"}
+            ),
+        ]
+    }
+    operations = [
+        Operation(
+            id="op-1",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            operation_type=OperationType.REPLACE,
+        )
+    ]
+
+    html = make_permit_content(history, arrete, operations)
+
+    soup = BeautifulSoup(html, "html.parser")
+    sections = soup.find_all("section", attrs={"data-number": "1"})
+    assert len(sections) == 2
+    assert sections[0].find(attrs={"data-spec": "section_version_history"}) is not None
+    assert sections[1].find(attrs={"data-spec": "section_version_history"}) is None
+    assert "Updated" in sections[0].get_text()
+    assert "Updated" in sections[1].get_text()
+    assert any(
+        "Duplicate article_id encountered while building section versions" in record.message
+        and "article_id=1" in record.message
+        for record in caplog.records
+    )

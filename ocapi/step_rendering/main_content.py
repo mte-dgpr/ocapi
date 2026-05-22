@@ -68,6 +68,7 @@ def make_permit_content(
         return ""
 
     operation_by_id = {operation.id: operation for operation in operations}
+    visited_article_ids: set[str] = set()
 
     if isinstance(main, Tag):
         sections = main.find_all("section", attrs={"data-spec": ARRETIFY_SECTION_DATA_SPEC})
@@ -79,12 +80,25 @@ def make_permit_content(
             if not article_id or not isinstance(article_id, str):
                 continue
 
+            include_history = True
+            if article_id in visited_article_ids:
+                include_history = False
+                _LOGGER.warning(
+                    "Duplicate article_id encountered while building section versions; "
+                    "skipping history for duplicate (arrete_id=%s, article_id=%s)",
+                    arrete_id,
+                    article_id,
+                )
+            else:
+                visited_article_ids.add(article_id)
+
             make_section_version(
                 section=section,
                 article_id=article_id,
                 history=history,
                 arrete_id=arrete_id,
                 operation_by_id=operation_by_id,
+                include_history=include_history,
             )
 
         _insert_new_article_sections(
@@ -101,12 +115,25 @@ def make_permit_content(
             data_number = section.get("data-number")
             if not isinstance(data_number, str) or not data_number:
                 continue
+            article_id = f"APPENDIX:{data_number}"
+            include_history = True
+            if article_id in visited_article_ids:
+                include_history = False
+                _LOGGER.warning(
+                    "Duplicate article_id encountered while building section versions; "
+                    "skipping history for duplicate (arrete_id=%s, article_id=%s)",
+                    arrete_id,
+                    article_id,
+                )
+            else:
+                visited_article_ids.add(article_id)
             make_section_version(
                 section=section,
-                article_id=f"APPENDIX:{data_number}",
+                article_id=article_id,
                 history=history,
                 arrete_id=arrete_id,
                 operation_by_id=operation_by_id,
+                include_history=include_history,
             )
 
     body_parts: list[str] = []
@@ -206,6 +233,7 @@ def make_section_version(
     history: ArticleHistory,
     arrete_id: str,
     operation_by_id: dict[str, Operation],
+    include_history: bool = True,
 ) -> None:
     """Modify a section in-place into a SectionVersion with consolidated content.
 
@@ -233,7 +261,11 @@ def make_section_version(
         return
 
     versions = history[key]
-    history_html = _build_section_history_html(versions=versions, operation_by_id=operation_by_id)
+    history_html = (
+        _build_section_history_html(versions=versions, operation_by_id=operation_by_id)
+        if include_history
+        else ""
+    )
     latest_version = versions[-1]
     latest_operation_id = latest_version.get("operation_id")
     latest_operation = (

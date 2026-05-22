@@ -16,6 +16,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import logging
+
+import pytest
 from bs4 import BeautifulSoup, Tag
 
 from ocapi.step_rendering.other import has_no_ops, has_unresolved_ops, make_permit_other
@@ -427,3 +430,52 @@ def test_has_unresolved_ops_returns_false_without_outgoing_ops() -> None:
         )
     ]
     assert has_unresolved_ops(arrete, ops) is False
+
+
+def test_injects_message_only_in_first_duplicate_section(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """When a modifying arrêté has duplicate data-number sections, messages appear only once."""
+    caplog.set_level(logging.WARNING, logger="ocapi.step_rendering.operation_messages")
+    principal_arrete = make_testing_arrete("2020-01-01", _EMPTY_AP)
+    modifying = make_testing_arrete(
+        "2022-01-01",
+        """
+<html><body data-arretify_version="0.2.0">
+ <div data-spec="identification">ID MOD</div>
+ <div data-spec="arrete_title">TITLE MOD</div>
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><h3>Art 1</h3><p>First</p></section>
+  <section data-spec="section" data-number="1"><h3>Art 1</h3><p>Second</p></section>
+ </main>
+</body></html>
+""",
+    )
+    op = Operation(
+        id="op-1",
+        source_id=NodeId(arrete_id="2022-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
+        operation_type=OperationType.REPLACE,
+    )
+    history: ArticleHistory = {
+        NodeId(arrete_id="2020-01-01", article_id="3"): [
+            {"version": 0, "title": "", "content": "old", "operation_id": None},
+            {
+                "version": 1,
+                "title": "",
+                "content": "old",
+                "operation_id": "op-1",
+                "error_codes": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
+            },
+        ],
+    }
+
+    html = make_permit_other([principal_arrete, modifying], [op], history=history)
+
+    assert html.count("Opération de consolidation non résolue") == 1
+    assert any(
+        "Duplicate article_id encountered in arrete while injecting operation messages"
+        in rec.message
+        and "article_id=1" in rec.message
+        for rec in caplog.records
+    )
