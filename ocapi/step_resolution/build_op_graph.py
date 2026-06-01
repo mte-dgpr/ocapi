@@ -171,15 +171,24 @@ def build_graph(
 ) -> Tuple[nx.MultiDiGraph, list[ArreteFile], list[tuple[Operation, str]], list[Operation]]:
     """Build the operations graph.
 
-    Returns the graph, the list of arrêtés, the list of failed operations,
-    and the operations list with their ``error_codes`` updated for the ones
-    resolved at graph-building time (full removals marked ``RESOLVED``,
-    missing target sections marked ``ERROR_EXTRACTING_TARGET``).
+    Returns the graph, the list of arrêtés, the list of skipped operations
+    (as ``(operation, reason)`` pairs), and the full operations list with
+    their ``error_codes`` updated for the cases handled at graph-building
+    time:
 
-    A full removal (REMOVE/REPLACE ALL) targeting an arrêté flagged as
-    ``principal`` is not applied: the operation is marked
-    ``ERROR_EXTRACTING_TARGET`` because such a removal most likely reflects
-    a detection mistake.
+    * Full removals (REMOVE/REPLACE ALL) that are successfully applied keep
+      ``error_codes`` empty.
+    * Full removals whose target arrêté is absent from the permit are marked
+      ``MISSING_ARRETE``.
+    * Full removals whose target arrêté is ``principal`` are marked
+      ``ERROR_EXTRACTING_TARGET`` (likely a detection mistake).
+    * Full removals that overlap with narrower operations from the same
+      source are marked ``LESS_IMPORTANT``.
+    * Non-full-removal operations whose target arrêté is missing are marked
+      ``MISSING_ARRETE`` and added to ``skipped_ops``.
+    * Operations whose target section is not found receive
+      ``ERROR_EXTRACTING_TARGET``; missing source sections receive
+      ``ERROR_EXTRACTING_SOURCE``.
     """
     G = nx.MultiDiGraph()
     soups: dict[ArreteId, BeautifulSoup] = {
@@ -284,7 +293,7 @@ def build_graph(
         except Exception as e:
             error_msg = f"Operation {op.id} skipped: {str(e)}"
             _LOGGER.warning(error_msg)
-            skipped_ops.append((op, str(e)))
+            skipped_ops.append((op, error_msg))
             updated_ops.append(op)
             continue
 
