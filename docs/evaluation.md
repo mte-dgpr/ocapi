@@ -23,6 +23,7 @@ flowchart LR
   models[config/llm_models.json] --> det[step_detection]
   html[snapshots/arretes_html/AIOT] --> det
   det --> dops[Detected ops]
+  det --> opsfile["&lt;ops-dir&gt;/AIOT/operations.json\n(optionnel)"]
   gt[snapshots/ground-truth/AIOT/operations.json] --> cmp[compare_operations]
   dops --> cmp
   cmp --> tp[(TP/FP/FN)]
@@ -50,10 +51,58 @@ python scripts/evaluate_detection.py --model mistral_medium -v
 # Export XLSX
 python scripts/evaluate_detection.py --model openai_gpt5 --xlsx
 python scripts/evaluate_detection.py --model openai_gpt5 --xlsx ./mon_eval.xlsx
+
+# Détection + sauvegarde des opérations détectées
+python scripts/evaluate_detection.py --model openai_gpt5mini \
+    --ops-dir eval_gpt5mini_20260601/
+
+# Recalculer les métriques sans LLM à partir d'ops existantes
+python scripts/evaluate_detection.py --model openai_gpt5mini \
+    --score --ops-dir eval_gpt5mini_20260601/
 ```
 
 `--model` accepte n'importe quelle `model_key` déclarée dans
 [`config/llm_models.json`](https://github.com/mte-dgpr/ocapi/blob/main/config/llm_models.json).
+
+## Sauvegarde des opérations détectées (`--ops-dir`)
+
+En passant `--ops-dir DIR`, le script sauvegarde après chaque AIOT les
+opérations détectées dans `DIR/<aiot>/operations.json`.
+
+Le format est identique au ground-truth (`snapshots/ground-truth/<aiot>/operations.json`) :
+
+```json
+[
+  {
+    "id": "...",
+    "operation_type": "REPLACE",
+    "source_id": { "arrete_id": "...", "article_id": "..." },
+    "target_id": { "arrete_id": "...", "article_id": "..." }
+  }
+]
+```
+
+Les clés JSON sont triées alphabétiquement (`sort_keys=True`) pour produire
+des diffs stables sous git.
+
+> **Convention de nommage** : inclure le modèle et la date dans le nom du
+> dossier, par exemple `eval_gpt5mini_20260601_120000/`. Le script ne stocke
+> pas ces métadonnées dans le fichier lui-même.
+
+## Mode score (`--score`)
+
+Relit un dossier d'`operations.json` existants et recalcule les métriques
+**sans aucun appel LLM**.
+
+```bash
+python scripts/evaluate_detection.py --model openai_gpt5mini \
+    --score --ops-dir eval_gpt5mini_20260601/
+```
+
+- `--model` reste obligatoire (utilisé pour nommer le fichier XLSX éventuel).
+- `--aiot` est optionnel : par défaut, tous les sous-dossiers contenant un
+  `operations.json` sont traités.
+- Compatible avec `--xlsx`.
 
 ## Critère de matching
 

@@ -453,19 +453,13 @@ def save_operations(operations: list[Operation], output_dir: Path) -> None:
     InputOutputError
         If writing fails.
     """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "operations.json"
-    try:
-        serialized = []
-        for op in operations:
-            data = op.model_dump(mode="json", exclude_defaults=True)
-            if not data.get("error_codes"):
-                data.pop("error_codes", None)
-            serialized.append(data)
-        with output_path.open("w", encoding="utf-8") as f:
-            json.dump(serialized, f, ensure_ascii=False, indent=2)
-    except OSError as e:
-        raise InputOutputError(f"Cannot write operations file: {e}") from e
+    serialized = []
+    for op in operations:
+        data = op.model_dump(mode="json", exclude_defaults=True)
+        if not data.get("error_codes"):
+            data.pop("error_codes", None)
+        serialized.append(data)
+    write_json_output(serialized, output_dir / "operations.json", sort_keys=True)
 
 
 def load_operations(input_dir: Path) -> list[Operation]:
