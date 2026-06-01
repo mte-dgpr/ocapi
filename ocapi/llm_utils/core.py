@@ -56,12 +56,41 @@ _accumulated_usage = TokenUsage()
 
 
 def reset_accumulated_usage() -> None:
-    global _accumulated_usage
-    _accumulated_usage = TokenUsage()
+    _accumulated_usage.prompt_tokens = 0
+    _accumulated_usage.completion_tokens = 0
 
 
 def get_accumulated_usage() -> TokenUsage:
     return _accumulated_usage
+
+
+def _extract_content(model_provider: str, data: Any) -> str:
+    """Extract the text content from a raw LLM API response dict.
+
+    Raises LLMResponseError if the expected fields are missing.
+    """
+    try:
+        if model_provider == "anthropic":
+            return str(data["content"][0]["text"])
+        return str(data["choices"][0]["message"]["content"])
+    except (TypeError, KeyError, IndexError) as exc:
+        raise LLMResponseError("Invalid LLM response format") from exc
+
+
+def _accumulate_usage(model_provider: str, data: Any) -> None:
+    """Add token counts from a successful API response to the global accumulator."""
+    try:
+        usage = data.get("usage") or {}
+        if model_provider == "anthropic":
+            prompt = int(usage.get("input_tokens") or 0)
+            completion = int(usage.get("output_tokens") or 0)
+        else:
+            prompt = int(usage.get("prompt_tokens") or 0)
+            completion = int(usage.get("completion_tokens") or 0)
+        _accumulated_usage.prompt_tokens += prompt
+        _accumulated_usage.completion_tokens += completion
+    except (TypeError, ValueError, AttributeError):
+        _LOGGER.debug("Could not extract token usage from LLM response.")
 
 
 def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
@@ -210,15 +239,15 @@ def _execute_model_call(
             response.raise_for_status()
             data: Any = response.json()
             try:
-                if model.provider == "anthropic":
-                    return str(data["content"][0]["text"])
-                return str(data["choices"][0]["message"]["content"])
-            except (TypeError, KeyError, IndexError) as exc:
+                content = _extract_content(model.provider, data)
+            except LLMResponseError:
                 _LOGGER.error(
                     f"Invalid LLM API response ({model.model_name}): "
                     f"unexpected response format. Raw response: {data}"
                 )
-                raise LLMResponseError("Invalid LLM response format") from exc
+                raise
+            _accumulate_usage(model.provider, data)
+            return content
         except requests.exceptions.RequestException as exc:
             retryable = _is_retryable_http_error(exc)
             is_last_attempt = attempt >= max_attempts
