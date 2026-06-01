@@ -242,6 +242,9 @@ def build_graph(
             if target_soup is None:
                 error_msg = f"Operation {op.id}: arrêté {op.target_id.arrete_id} not found in files"
                 _LOGGER.warning(error_msg)
+                op = op.model_copy(
+                    update={"error_codes": op.error_codes | {ErrorCode.MISSING_ARRETE}}
+                )
                 skipped_ops.append((op, error_msg))
                 updated_ops.append(op)
                 continue
