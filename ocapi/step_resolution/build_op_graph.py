@@ -178,12 +178,10 @@ def build_graph(
 
     * Full removals (REMOVE/REPLACE ALL) that are successfully applied keep
       ``error_codes`` empty.
-    * Full removals whose target arrêté is absent from the permit are marked
-      ``MISSING_ARRETE``.
-    * Full removals whose target arrêté is ``principal`` are marked
-      ``ERROR_EXTRACTING_TARGET`` (likely a detection mistake).
-    * Full removals that overlap with narrower operations from the same
-      source are marked ``LESS_IMPORTANT``.
+    * Full removals whose target arrêté is ``principal``, overlaps with
+      narrower operations, or is absent from the permit are **not** applied;
+      they are marked ``ERROR_EXTRACTING_TARGET``, ``LESS_IMPORTANT``, or
+      ``MISSING_ARRETE`` respectively, and added to ``skipped_ops``.
     * Non-full-removal operations whose target arrêté is missing are marked
       ``MISSING_ARRETE`` and added to ``skipped_ops``.
     * Operations whose target section is not found receive
@@ -202,43 +200,42 @@ def build_graph(
         try:
             if _is_full_removal_op(op):
                 if op.target_id.arrete_id in principal_ids:
-                    _LOGGER.warning(
-                        "A full removal of the principal arrete has been detected. "
-                        "This operation was not resolved."
+                    reason = (
+                        f"Operation {op.id}: full removal of principal arrete "
+                        f"{op.target_id.arrete_id} was not applied"
                     )
-                    updated_ops.append(
-                        op.model_copy(
-                            update={
-                                "error_codes": op.error_codes | {ErrorCode.ERROR_EXTRACTING_TARGET}
-                            }
-                        )
+                    _LOGGER.warning(reason)
+                    updated_op = op.model_copy(
+                        update={"error_codes": op.error_codes | {ErrorCode.ERROR_EXTRACTING_TARGET}}
                     )
+                    skipped_ops.append((updated_op, reason))
+                    updated_ops.append(updated_op)
                     continue
                 if _has_more_specific_ops(op, ops):
-                    _LOGGER.warning(
-                        "Full removal of arrete %s by %s overlaps with narrower operations "
-                        "from the same source; dropping the abrogation as LESS_IMPORTANT.",
-                        op.target_id.arrete_id,
-                        op.source_id.arrete_id,
+                    reason = (
+                        f"Operation {op.id}: full removal of arrete "
+                        f"{op.target_id.arrete_id} by {op.source_id.arrete_id} overlaps "
+                        f"with narrower operations from the same source (LESS_IMPORTANT)"
                     )
-                    updated_ops.append(
-                        op.model_copy(
-                            update={"error_codes": op.error_codes | {ErrorCode.LESS_IMPORTANT}}
-                        )
+                    _LOGGER.warning(reason)
+                    updated_op = op.model_copy(
+                        update={"error_codes": op.error_codes | {ErrorCode.LESS_IMPORTANT}}
                     )
+                    skipped_ops.append((updated_op, reason))
+                    updated_ops.append(updated_op)
                     continue
                 if op.target_id.arrete_id not in soups:
-                    _LOGGER.warning(
-                        "Full removal of arrete %s by %s targets an arrete missing "
-                        "from the permit; marking MISSING_ARRETE.",
-                        op.target_id.arrete_id,
-                        op.source_id.arrete_id,
+                    reason = (
+                        f"Operation {op.id}: full removal targets arrete "
+                        f"{op.target_id.arrete_id} which is missing from the permit "
+                        f"(MISSING_ARRETE)"
                     )
-                    updated_ops.append(
-                        op.model_copy(
-                            update={"error_codes": op.error_codes | {ErrorCode.MISSING_ARRETE}}
-                        )
+                    _LOGGER.warning(reason)
+                    updated_op = op.model_copy(
+                        update={"error_codes": op.error_codes | {ErrorCode.MISSING_ARRETE}}
                     )
+                    skipped_ops.append((updated_op, reason))
+                    updated_ops.append(updated_op)
                     continue
                 for arrete_file in arrete_files:
                     if arrete_file.id == op.target_id.arrete_id:

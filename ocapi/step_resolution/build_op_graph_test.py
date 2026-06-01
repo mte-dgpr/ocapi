@@ -318,12 +318,15 @@ def test_build_graph_full_removal_on_principal_is_not_resolved() -> None:
         )
     ]
 
-    G, updated_arrete_files, _, updated_ops = build_graph(ops, [principal, later])
+    G, updated_arrete_files, skipped_ops, updated_ops = build_graph(ops, [principal, later])
 
     assert len(G.nodes) == 0
     assert len(G.edges) == 0
     assert next(af for af in updated_arrete_files if af.id == "2020-04-20").status is True
     assert ErrorCode.ERROR_EXTRACTING_TARGET in updated_ops[0].error_codes
+    assert len(skipped_ops) == 1
+    assert skipped_ops[0][0].id == "1"
+    assert "principal" in skipped_ops[0][1]
 
 
 def test_build_graph_full_removal_with_narrower_ops_marks_less_important() -> None:
@@ -368,11 +371,16 @@ def test_build_graph_full_removal_with_narrower_ops_marks_less_important() -> No
         sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
     )
 
-    G, updated_arrete_files, _, updated_ops = build_graph([full_removal, narrower], arrete_files)
+    G, updated_arrete_files, skipped_ops, updated_ops = build_graph(
+        [full_removal, narrower], arrete_files
+    )
 
     assert next(af for af in updated_arrete_files if af.id == "2010-01-01").status is True
     full_removal_updated = next(o for o in updated_ops if o.id == "op-remove-all")
     assert ErrorCode.LESS_IMPORTANT in full_removal_updated.error_codes
+    assert len(skipped_ops) == 1
+    assert skipped_ops[0][0].id == "op-remove-all"
+    assert "LESS_IMPORTANT" in skipped_ops[0][1]
     # The full removal must not be added to the graph.
     assert not G.has_edge(
         NodeId(arrete_id="2025-01-01", article_id="30"),
@@ -439,11 +447,13 @@ def test_build_graph_full_removal_on_missing_arrete() -> None:
         operation_type=OperationType.REMOVE,
     )
 
-    G, _, _, updated_ops = build_graph([full_removal], arrete_files)
+    G, _, skipped_ops, updated_ops = build_graph([full_removal], arrete_files)
 
     op_updated = next(o for o in updated_ops if o.id == "op-missing")
     assert ErrorCode.MISSING_ARRETE in op_updated.error_codes
-    # No edge added since the target isn't part of the graph.
+    assert len(skipped_ops) == 1
+    assert skipped_ops[0][0].id == "op-missing"
+    assert "MISSING_ARRETE" in skipped_ops[0][1]
     assert not G.has_edge(
         NodeId(arrete_id="2025-01-01", article_id="1"),
         NodeId(arrete_id="1995-06-15", article_id="ALL"),
@@ -451,7 +461,7 @@ def test_build_graph_full_removal_on_missing_arrete() -> None:
 
 
 def test_build_graph_non_full_removal_on_missing_arrete() -> None:
-    """Any operation targeting a missing arrete is flagged MISSING_ARRETE."""
+    """Any operation targeting a missing arrêté is flagged MISSING_ARRETE."""
     html_2025 = """
     <section data-spec="section" data-number="1">Source 1</section>
     """
