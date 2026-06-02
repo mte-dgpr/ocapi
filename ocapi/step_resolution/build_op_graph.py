@@ -171,15 +171,22 @@ def build_graph(
 ) -> Tuple[nx.MultiDiGraph, list[ArreteFile], list[tuple[Operation, str]], list[Operation]]:
     """Build the operations graph.
 
-    Returns the graph, the list of arrêtés, the list of failed operations,
-    and the operations list with their ``error_codes`` updated for the ones
-    resolved at graph-building time (full removals marked ``RESOLVED``,
-    missing target sections marked ``ERROR_EXTRACTING_TARGET``).
+    Returns the graph, the list of arrêtés, the list of skipped operations
+    (as ``(operation, reason)`` pairs), and the full operations list with
+    their ``error_codes`` updated for the cases handled at graph-building
+    time:
 
-    A full removal (REMOVE/REPLACE ALL) targeting an arrêté flagged as
-    ``principal`` is not applied: the operation is marked
-    ``ERROR_EXTRACTING_TARGET`` because such a removal most likely reflects
-    a detection mistake.
+    * Full removals (REMOVE/REPLACE ALL) that are successfully applied keep
+      ``error_codes`` empty.
+    * Full removals whose target arrêté is ``principal``, overlaps with
+      narrower operations, or is absent from the permit are **not** applied;
+      they are marked ``ERROR_EXTRACTING_TARGET``, ``LESS_IMPORTANT``, or
+      ``MISSING_ARRETE`` respectively, and added to ``skipped_ops``.
+    * Non-full-removal operations whose target arrêté is missing are marked
+      ``MISSING_ARRETE`` and added to ``skipped_ops``.
+    * Operations whose target section is not found receive
+      ``ERROR_EXTRACTING_TARGET``; missing source sections receive
+      ``ERROR_EXTRACTING_SOURCE``.
     """
     G = nx.MultiDiGraph()
     soups: dict[ArreteId, BeautifulSoup] = {
@@ -193,43 +200,42 @@ def build_graph(
         try:
             if _is_full_removal_op(op):
                 if op.target_id.arrete_id in principal_ids:
-                    _LOGGER.warning(
-                        "A full removal of the principal arrete has been detected. "
-                        "This operation was not resolved."
+                    reason = (
+                        f"Operation {op.id}: full removal of principal arrete "
+                        f"{op.target_id.arrete_id} was not applied"
                     )
-                    updated_ops.append(
-                        op.model_copy(
-                            update={
-                                "error_codes": op.error_codes | {ErrorCode.ERROR_EXTRACTING_TARGET}
-                            }
-                        )
+                    _LOGGER.warning(reason)
+                    updated_op = op.model_copy(
+                        update={"error_codes": op.error_codes | {ErrorCode.ERROR_EXTRACTING_TARGET}}
                     )
+                    skipped_ops.append((updated_op, reason))
+                    updated_ops.append(updated_op)
                     continue
                 if _has_more_specific_ops(op, ops):
-                    _LOGGER.warning(
-                        "Full removal of arrete %s by %s overlaps with narrower operations "
-                        "from the same source; dropping the abrogation as LESS_IMPORTANT.",
-                        op.target_id.arrete_id,
-                        op.source_id.arrete_id,
+                    reason = (
+                        f"Operation {op.id}: full removal of arrete "
+                        f"{op.target_id.arrete_id} by {op.source_id.arrete_id} overlaps "
+                        f"with narrower operations from the same source (LESS_IMPORTANT)"
                     )
-                    updated_ops.append(
-                        op.model_copy(
-                            update={"error_codes": op.error_codes | {ErrorCode.LESS_IMPORTANT}}
-                        )
+                    _LOGGER.warning(reason)
+                    updated_op = op.model_copy(
+                        update={"error_codes": op.error_codes | {ErrorCode.LESS_IMPORTANT}}
                     )
+                    skipped_ops.append((updated_op, reason))
+                    updated_ops.append(updated_op)
                     continue
                 if op.target_id.arrete_id not in soups:
-                    _LOGGER.warning(
-                        "Full removal of arrete %s by %s targets an arrete missing "
-                        "from the permit; marking MISSING_ARRETE.",
-                        op.target_id.arrete_id,
-                        op.source_id.arrete_id,
+                    reason = (
+                        f"Operation {op.id}: full removal targets arrete "
+                        f"{op.target_id.arrete_id} which is missing from the permit "
+                        f"(MISSING_ARRETE)"
                     )
-                    updated_ops.append(
-                        op.model_copy(
-                            update={"error_codes": op.error_codes | {ErrorCode.MISSING_ARRETE}}
-                        )
+                    _LOGGER.warning(reason)
+                    updated_op = op.model_copy(
+                        update={"error_codes": op.error_codes | {ErrorCode.MISSING_ARRETE}}
                     )
+                    skipped_ops.append((updated_op, reason))
+                    updated_ops.append(updated_op)
                     continue
                 for arrete_file in arrete_files:
                     if arrete_file.id == op.target_id.arrete_id:
@@ -242,10 +248,14 @@ def build_graph(
             if target_soup is None:
                 error_msg = f"Operation {op.id}: arrêté {op.target_id.arrete_id} not found in files"
                 _LOGGER.warning(error_msg)
-                skipped_ops.append((op, error_msg))
-                updated_ops.append(op)
+                updated_op = op.model_copy(
+                    update={"error_codes": op.error_codes | {ErrorCode.MISSING_ARRETE}}
+                )
+                skipped_ops.append((updated_op, error_msg))
+                updated_ops.append(updated_op)
                 continue
 
+            updated_op = op
             try:
                 target_title, target_content = get_node_content(op.target_id, target_soup)
             except SectionNotFoundError:
@@ -256,7 +266,7 @@ def build_graph(
                     op.target_id,
                 )
                 target_title, target_content = "", ""
-                op = op.model_copy(
+                updated_op = op.model_copy(
                     update={"error_codes": op.error_codes | {ErrorCode.ERROR_EXTRACTING_TARGET}}
                 )
 
@@ -271,17 +281,19 @@ def build_graph(
                     op.source_id,
                 )
                 source_title, source_content = "", ""
-                op = op.model_copy(
-                    update={"error_codes": op.error_codes | {ErrorCode.ERROR_EXTRACTING_SOURCE}}
+                updated_op = updated_op.model_copy(
+                    update={
+                        "error_codes": updated_op.error_codes | {ErrorCode.ERROR_EXTRACTING_SOURCE}
+                    }
                 )
             add_node(G, op.source_id, node_content=source_content, node_title=source_title)
             add_node(G, op.target_id, node_content=target_content, node_title=target_title)
-            add_edge(G, op)
-            updated_ops.append(op)
+            add_edge(G, updated_op)
+            updated_ops.append(updated_op)
         except Exception as e:
             error_msg = f"Operation {op.id} skipped: {str(e)}"
             _LOGGER.warning(error_msg)
-            skipped_ops.append((op, str(e)))
+            skipped_ops.append((op, error_msg))
             updated_ops.append(op)
             continue
 

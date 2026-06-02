@@ -36,13 +36,18 @@ flowchart LR
 [`build_graph`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/step_resolution/build_op_graph.py)
 parcourt les opérations dans l'ordre fourni (chronologique par `arrete_id`) :
 
-- **Abrogation totale** (`REMOVE` ou `REPLACE` avec `target_article = "ALL"`
-  et `sub_target = FULL_SECTION`, sans `error_codes`) → l'arrêté cible passe
-  à `status = False`. Cas spécial : si la cible est l'arrêté `principal`,
-  l'opération est rejetée avec `ERROR_EXTRACTING_TARGET` (vraisemblablement
-  une fausse détection).
-- **Cible introuvable** (arrêté `target` non chargé) → l'opération est
-  ignorée et trackée dans `skipped_ops`.
+- **Abrogation totale réussie** (`REMOVE` ou `REPLACE` avec
+  `target_article = "ALL"`, `sub_target = FULL_SECTION`, sans `error_codes`)
+  → l'arrêté cible passe à `status = False`.
+- **Abrogation totale rejetée** — trois sous-cas, tous trackés dans
+  `skipped_ops` avec la raison :
+    - cible = arrêté `principal` → `ERROR_EXTRACTING_TARGET`
+      (vraisemblablement une fausse détection) ;
+    - même source cible déjà le même arrêté avec des opérations plus précises
+      → `LESS_IMPORTANT` (abrogation écartée) ;
+    - arrêté cible absent du permis → `MISSING_ARRETE`.
+- **Cible introuvable sur une opération article-par-article** (arrêté `target`
+  non chargé) → marqué `MISSING_ARRETE` et tracké dans `skipped_ops`.
 - **Section cible/source introuvable** dans le HTML → un nœud vide est
   créé et l'opération est marquée `ERROR_EXTRACTING_TARGET` /
   `ERROR_EXTRACTING_SOURCE` ; elle restera dans le graphe pour traçabilité

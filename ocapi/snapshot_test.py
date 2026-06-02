@@ -80,10 +80,14 @@ def test_snapshot_pipeline_output(
         snapshot_dir.mkdir(parents=True, exist_ok=True)
         for filename, data in [("operations.json", ops_json), ("history.json", history_json)]:
             (snapshot_dir / filename).write_text(
-                json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8"
+                json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+                newline="\n",
             )
         if permis_html:
-            (snapshot_dir / "permis.html").write_text(normalize_html(permis_html), encoding="utf-8")
+            (snapshot_dir / "permis.html").write_text(
+                normalize_html(permis_html), encoding="utf-8", newline="\n"
+            )
         pytest.skip("Snapshots updated. Run without UPDATE_SNAPSHOTS=1 to verify.")
 
     if not snapshot_dir.exists():
