@@ -248,13 +248,14 @@ def build_graph(
             if target_soup is None:
                 error_msg = f"Operation {op.id}: arrêté {op.target_id.arrete_id} not found in files"
                 _LOGGER.warning(error_msg)
-                op = op.model_copy(
+                updated_op = op.model_copy(
                     update={"error_codes": op.error_codes | {ErrorCode.MISSING_ARRETE}}
                 )
-                skipped_ops.append((op, error_msg))
-                updated_ops.append(op)
+                skipped_ops.append((updated_op, error_msg))
+                updated_ops.append(updated_op)
                 continue
 
+            updated_op = op
             try:
                 target_title, target_content = get_node_content(op.target_id, target_soup)
             except SectionNotFoundError:
@@ -265,7 +266,7 @@ def build_graph(
                     op.target_id,
                 )
                 target_title, target_content = "", ""
-                op = op.model_copy(
+                updated_op = op.model_copy(
                     update={"error_codes": op.error_codes | {ErrorCode.ERROR_EXTRACTING_TARGET}}
                 )
 
@@ -280,13 +281,15 @@ def build_graph(
                     op.source_id,
                 )
                 source_title, source_content = "", ""
-                op = op.model_copy(
-                    update={"error_codes": op.error_codes | {ErrorCode.ERROR_EXTRACTING_SOURCE}}
+                updated_op = updated_op.model_copy(
+                    update={
+                        "error_codes": updated_op.error_codes | {ErrorCode.ERROR_EXTRACTING_SOURCE}
+                    }
                 )
             add_node(G, op.source_id, node_content=source_content, node_title=source_title)
             add_node(G, op.target_id, node_content=target_content, node_title=target_title)
-            add_edge(G, op)
-            updated_ops.append(op)
+            add_edge(G, updated_op)
+            updated_ops.append(updated_op)
         except Exception as e:
             error_msg = f"Operation {op.id} skipped: {str(e)}"
             _LOGGER.warning(error_msg)
