@@ -296,6 +296,14 @@ def _run_score_mode(args: argparse.Namespace) -> int:
 
     # Determine which AIOTs to score: either from --aiot or all subdirs with ops.json
     if args.aiot:
+        missing = [aiot for aiot in args.aiot if not (ops_dir / aiot / "operations.json").exists()]
+        if missing:
+            for aiot in missing:
+                print(
+                    f"operations.json not found for AIOT {aiot!r} in {ops_dir}",
+                    file=sys.stderr,
+                )
+            return 1
         aiots = list(args.aiot)
     else:
         if not ops_dir.exists():
@@ -401,10 +409,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     initialize_root_logger(level="DEBUG" if args.verbose else "INFO", console_output=True)
-
-    if args.model is None:
-        print("--model is required.", file=sys.stderr)
-        return 1
 
     # --- score mode ---
     if args.score:
