@@ -397,7 +397,7 @@ def save_tagged_html_file(document_context: DocumentContext, output_path: Path) 
     # ``arretify.step_segmentation`` (and its spaCy model) at import time.
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(document_context.soup.prettify(), encoding="utf-8")
+        output_path.write_text(document_context.soup.prettify(), encoding="utf-8", newline="\n")
     except OSError as e:
         raise InputOutputError(f"Cannot write tagged HTML file: {e}") from e
 
@@ -406,7 +406,7 @@ def write_permis_output(permis_html: str, output_path: Path) -> None:
     """Write the rendered consolidated permit HTML to *output_path*."""
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(permis_html, encoding="utf-8")
+        output_path.write_text(permis_html, encoding="utf-8", newline="\n")
     except OSError as e:
         raise InputOutputError(f"Cannot write to output file: {e}") from e
 
@@ -433,7 +433,7 @@ def write_json_output(data: Any, output_path: Path, *, sort_keys: bool = False) 
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Save as JSON (trailing newline follows POSIX text-file convention)
-        with output_path.open("w", encoding="utf-8") as f:
+        with output_path.open("w", encoding="utf-8", newline="\n") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, sort_keys=sort_keys)
             f.write("\n")
 
@@ -554,7 +554,7 @@ def save_history(history: ArticleHistory, output_dir: Path) -> None:
     output_path = output_dir / "history.json"
     try:
         serialized = article_history_to_json_dict(history)
-        with output_path.open("w", encoding="utf-8") as f:
+        with output_path.open("w", encoding="utf-8", newline="\n") as f:
             json.dump(serialized, f, ensure_ascii=False, indent=2)
     except OSError as e:
         raise InputOutputError(f"Cannot write history file: {e}") from e

@@ -309,6 +309,9 @@ def _run_score_mode(args: argparse.Namespace) -> int:
         if not ops_dir.exists():
             print(f"--ops-dir not found: {ops_dir}", file=sys.stderr)
             return 1
+        if not ops_dir.is_dir():
+            print(f"--ops-dir is not a directory: {ops_dir}", file=sys.stderr)
+            return 1
         aiots = sorted(
             d.name for d in ops_dir.iterdir() if d.is_dir() and (d / "operations.json").exists()
         )
@@ -380,8 +383,8 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         metavar="DIR",
         help=(
-            "In detection mode: directory where ops.json files are saved after each LLM run. "
-            "In score mode (--score): directory from which ops.json files are read."
+            "In detection mode: directory where operations.json files are saved after each LLM run."
+            " In score mode (--score): directory from which operations.json files are read."
         ),
     )
     parser.add_argument(

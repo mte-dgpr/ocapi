@@ -161,6 +161,22 @@ class TestRunScoreMode:
     def _make_gt_file(self, path: Path) -> None:
         self._make_ops_file(path)
 
+    def test_ops_dir_is_a_file_returns_error(self, tmp_path: Path, capsys: pytest.CaptureFixture):
+        ops_dir = tmp_path / "ops.json"
+        ops_dir.write_text("not a directory")
+
+        args = mod.argparse.Namespace(
+            aiot=None,
+            ops_dir=ops_dir,
+            model="some_model",
+            xlsx=False,
+        )
+        result = mod._run_score_mode(args)
+
+        assert result == 1
+        captured = capsys.readouterr()
+        assert "not a directory" in captured.err
+
     def test_explicit_aiot_missing_operations_json_returns_error(
         self, tmp_path: Path, capsys: pytest.CaptureFixture
     ):
