@@ -19,6 +19,7 @@
 import json
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -27,6 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import evaluate_detection as mod  # noqa: E402
 from evaluate_detection import compare_operations, compute_scores, load_ground_truth  # noqa: E402
+
+from ocapi.llm_utils import TokenUsage  # noqa: E402
 
 
 class TestCompareOperations:
@@ -145,6 +148,65 @@ class TestLoadGroundTruth:
         assert keys[0] == ("2023-01-01", "1", "2022-01-01", "2", "REPLACE")
 
 
+class TestAiotResultUsageSnapshot:
+    def test_usage_is_copied_to_avoid_mutation(self) -> None:
+        usage = TokenUsage(prompt_tokens=11, completion_tokens=5)
+
+        result = mod.AiotResult(
+            aiot="0001234567",
+            gt_count=1,
+            detected_count=2,
+            validated_count=2,
+            tp=1,
+            fp=0,
+            fn=0,
+            scores=mod.Scores(precision=1.0, recall=1.0, f1=1.0),
+            usage=usage,
+        )
+
+        usage.prompt_tokens = 99
+        usage.completion_tokens = 77
+
+        assert result.usage.prompt_tokens == 11
+        assert result.usage.completion_tokens == 5
+
+
+class TestValidatedOperationKeys:
+    def test_validated_keys_keep_only_non_low_severity_ops(self):
+        low_severity_op = {
+            "source_id": {"arrete_id": "2023-01-01", "article_id": "1"},
+            "target_id": {"arrete_id": "2022-01-01", "article_id": "2"},
+            "operation_type": "REMOVE",
+        }
+        valid_op = {
+            "source_id": {"arrete_id": "2023-02-01", "article_id": "3"},
+            "target_id": {"arrete_id": "2022-02-01", "article_id": "4"},
+            "operation_type": "REPLACE",
+        }
+        detected_ops = [low_severity_op, valid_op]
+        arrete_files = [object()]
+
+        with (
+            patch.object(
+                mod,
+                "build_graph",
+                return_value=(None, None, None, detected_ops),
+            ) as build_graph_mock,
+            patch.object(
+                mod,
+                "is_low_severity_op",
+                side_effect=lambda op: op == low_severity_op,
+            ),
+        ):
+            validated_keys, validated_ops = mod._validated_operation_keys(
+                detected_ops, arrete_files
+            )
+
+        assert build_graph_mock.call_args.args == (detected_ops, arrete_files)
+        assert validated_ops == [valid_op]
+        assert validated_keys == [("2023-02-01", "3", "2022-02-01", "4", "REPLACE")]
+
+
 class TestRunScoreMode:
     def _make_ops_file(self, path: Path) -> None:
         ops = [
@@ -161,40 +223,40 @@ class TestRunScoreMode:
     def _make_gt_file(self, path: Path) -> None:
         self._make_ops_file(path)
 
-    def test_ops_dir_is_a_file_returns_error(self, tmp_path: Path, capsys: pytest.CaptureFixture):
+    def test_ops_dir_is_a_file_returns_error(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ):
         ops_dir = tmp_path / "ops.json"
         ops_dir.write_text("not a directory")
 
         args = mod.argparse.Namespace(
             aiot=None,
-            ops_dir=ops_dir,
             model="some_model",
-            xlsx=False,
+            save_score=False,
         )
-        result = mod._run_score_mode(args)
+        with caplog.at_level("ERROR"):
+            result = mod._run_score_mode(args, ops_dir)
 
         assert result == 1
-        captured = capsys.readouterr()
-        assert "not a directory" in captured.err
+        assert "not a directory" in caplog.text
 
     def test_explicit_aiot_missing_operations_json_returns_error(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ):
         ops_dir = tmp_path / "ops"
         ops_dir.mkdir()
 
         args = mod.argparse.Namespace(
             aiot=["missing_aiot"],
-            ops_dir=ops_dir,
             model="some_model",
-            xlsx=False,
+            save_score=False,
         )
-        result = mod._run_score_mode(args)
+        with caplog.at_level("ERROR"):
+            result = mod._run_score_mode(args, ops_dir)
 
         assert result == 1
-        captured = capsys.readouterr()
-        assert "missing_aiot" in captured.err
-        assert "operations.json" in captured.err
+        assert "missing_aiot" in caplog.text
+        assert "operations.json" in caplog.text
 
     def test_explicit_aiot_with_existing_operations_json_succeeds(self, tmp_path: Path):
         ops_dir = tmp_path / "ops"
@@ -206,16 +268,18 @@ class TestRunScoreMode:
 
         args = mod.argparse.Namespace(
             aiot=[aiot],
-            ops_dir=ops_dir,
             model="some_model",
-            xlsx=False,
+            save_score=False,
         )
 
         original_gt = mod._GROUND_TRUTH_DIR
+        original_arretes = mod._ARRETES_HTML_DIR
         mod._GROUND_TRUTH_DIR = gt_dir
+        mod._ARRETES_HTML_DIR = tmp_path / "arretes_html_nonexistent"
         try:
-            result = mod._run_score_mode(args)
+            result = mod._run_score_mode(args, ops_dir)
         finally:
             mod._GROUND_TRUTH_DIR = original_gt
+            mod._ARRETES_HTML_DIR = original_arretes
 
         assert result == 0

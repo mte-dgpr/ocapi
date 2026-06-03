@@ -22,8 +22,11 @@ from pydantic import ValidationError
 
 from .exceptions import InvalidArreteIdError, InvalidArticleIdError, InvalidFileFormatError
 from .types import (
+    ERROR_CODE_SEVERITY,
+    ErrorCode,
     FileType,
     NodeId,
+    OperationType,
     PermitMotifEntry,
     PermitSourceSpec,
     PermitTitleSpec,
@@ -31,11 +34,13 @@ from .types import (
     _BaseModelWithConfig,
     article_display_number,
     article_id_sort_tuple,
+    is_low_severity_op,
     parse_arrete_id,
     parse_article_id,
     parse_filename,
     validate_arretify_version,
 )
+from .utils.testing import make_testing_op
 
 
 class TestParseArticleId:
@@ -446,6 +451,40 @@ class TestValidateArretifyVersion:
         soup = BeautifulSoup("<html><p>Contenu sans body</p></html>", "html.parser")
         with pytest.raises(InvalidFileFormatError, match="Invalid HTML document"):
             validate_arretify_version(soup, "test.html")
+
+
+class TestErrorCodeSeverity:
+
+    def test_all_error_codes_have_severity(self) -> None:
+        for code in ErrorCode:
+            assert code in ERROR_CODE_SEVERITY, f"{code} has no severity entry"
+
+
+class TestIsLowSeverityOp:
+
+    def test_no_error_codes_returns_false(self) -> None:
+        assert not is_low_severity_op(make_testing_op(OperationType.REPLACE))
+
+    def test_single_low_code_returns_true(self) -> None:
+        op = make_testing_op(
+            OperationType.REPLACE, error_codes=frozenset({ErrorCode.MISSING_ARRETE})
+        )
+        assert is_low_severity_op(op)
+
+    def test_single_high_code_returns_false(self) -> None:
+        op = make_testing_op(
+            OperationType.REPLACE,
+            error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+        )
+        assert not is_low_severity_op(op)
+
+    def test_all_low_codes_returns_true(self) -> None:
+        codes = frozenset({ErrorCode.NOT_AN_OPERATION, ErrorCode.LESS_IMPORTANT})
+        assert is_low_severity_op(make_testing_op(OperationType.REPLACE, error_codes=codes))
+
+    def test_mixed_low_and_high_returns_false(self) -> None:
+        codes = frozenset({ErrorCode.MISSING_ARRETE, ErrorCode.ERROR_EXTRACTING_TARGET})
+        assert not is_low_severity_op(make_testing_op(OperationType.REPLACE, error_codes=codes))
 
 
 def test_permit_title_aiot_code_is_stored() -> None:

@@ -141,6 +141,15 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
         if model.temperature is not None:
             payload["temperature"] = model.temperature
         return payload
+
+    if model.provider == "deepseek":
+        return {
+            "model": model.model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+            "n": 1,
+        }
+
     raise LLMConfigError(f"Unsupported LLM provider: {model.provider}")
 
 

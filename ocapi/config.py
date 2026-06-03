@@ -141,8 +141,23 @@ class LLMConfig(BaseSettings):
         description="Google Gemini endpoint URL (OpenAI-compatible)",
     )
 
+    # Deepseek API (optional)
+    deepseek_api_key: str | None = Field(
+        default=None,
+        description="API key for Deepseek",
+    )
+    deepseek_api_url: str = Field(
+        default="https://api.deepseek.com/chat/completions",
+        description="Deepseek endpoint URL",
+    )
+
     @field_validator(
-        "piag_api_key", "mistral_api_key", "openai_api_key", "anthropic_api_key", "google_api_key"
+        "piag_api_key",
+        "mistral_api_key",
+        "openai_api_key",
+        "anthropic_api_key",
+        "google_api_key",
+        "deepseek_api_key",
     )
     @classmethod
     def validate_api_key(cls, v: str | None) -> str | None:
@@ -353,6 +368,8 @@ class AppConfig(BaseSettings):
             data["llm"]["anthropic_api_key"] = "***MASKED***"
         if data.get("llm", {}).get("google_api_key"):
             data["llm"]["google_api_key"] = "***MASKED***"
+        if data.get("llm", {}).get("deepseek_api_key"):
+            data["llm"]["deepseek_api_key"] = "***MASKED***"
         return data
 
 

@@ -219,6 +219,8 @@ def _provider_api_config(provider: str) -> tuple[str | None, str]:
         return settings.llm.anthropic_api_key, str(settings.llm.anthropic_api_url)
     if provider == "google":
         return settings.llm.google_api_key, str(settings.llm.google_api_url)
+    if provider == "deepseek":
+        return settings.llm.deepseek_api_key, str(settings.llm.deepseek_api_url)
     raise LLMConfigError(f"Unsupported LLM provider: {provider}")
 
 

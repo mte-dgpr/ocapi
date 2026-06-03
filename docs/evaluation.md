@@ -23,13 +23,13 @@ flowchart LR
   models[config/llm_models.json] --> det[step_detection]
   html[snapshots/arretes_html/AIOT] --> det
   det --> dops[Detected ops]
-  det --> opsfile["&lt;ops-dir&gt;/AIOT/operations.json\n(optionnel)"]
+  det --> opsfile["eval/&lt;date&gt;_eval_&lt;model&gt;/AIOT/operations.json\n(--save-ops)"]
   gt[snapshots/ground-truth/AIOT/operations.json] --> cmp[compare_operations]
   dops --> cmp
   cmp --> tp[(TP/FP/FN)]
   tp --> scores[precision / recall / F1]
   scores --> stdout[Console]
-  scores --> xlsx[eval_MODEL_TIMESTAMP.xlsx]
+  scores --> xlsx["eval/&lt;date&gt;_eval_&lt;model&gt;/scores.xlsx\n(--save-score)"]
 ```
 
 ## Utilisation
@@ -48,26 +48,28 @@ python scripts/evaluate_detection.py --model openai_gpt5nano \
 # Mode verbose (DEBUG)
 python scripts/evaluate_detection.py --model mistral_medium -v
 
-# Export XLSX
-python scripts/evaluate_detection.py --model openai_gpt5 --xlsx
-python scripts/evaluate_detection.py --model openai_gpt5 --xlsx ./mon_eval.xlsx
+# Détection + sauvegarde des opérations détectées (JSON) dans eval/<date>_eval_<model>/
+python scripts/evaluate_detection.py --model openai_gpt5mini --save-ops
 
-# Détection + sauvegarde des opérations détectées
-python scripts/evaluate_detection.py --model openai_gpt5mini \
-    --ops-dir eval_gpt5mini_20260601/
+# Détection + export XLSX dans eval/<date>_eval_<model>/scores.xlsx
+python scripts/evaluate_detection.py --model openai_gpt5 --save-score
+
+# Détection + tout sauvegarder
+python scripts/evaluate_detection.py --model openai_gpt5mini --save-ops --save-score
 
 # Recalculer les métriques sans LLM à partir d'ops existantes
 python scripts/evaluate_detection.py --model openai_gpt5mini \
-    --score --ops-dir eval_gpt5mini_20260601/
+    --score-only eval/2026-06-05_10-00_eval_openai_gpt5mini/
 ```
 
 `--model` accepte n'importe quelle `model_key` déclarée dans
 [`config/llm_models.json`](https://github.com/mte-dgpr/ocapi/blob/main/config/llm_models.json).
 
-## Sauvegarde des opérations détectées (`--ops-dir`)
+## Sauvegarde des opérations détectées (`--save-ops`)
 
-En passant `--ops-dir DIR`, le script sauvegarde après chaque AIOT les
-opérations détectées dans `DIR/<aiot>/operations.json`.
+En passant `--save-ops`, le script crée automatiquement un sous-dossier
+`eval/<yyyy-mm-dd_hh-mm>_eval_<model>/` à la racine du projet et y sauvegarde
+après chaque AIOT les opérations détectées dans `<subdir>/<aiot>/operations.json`.
 
 Le format est identique au ground-truth (`snapshots/ground-truth/<aiot>/operations.json`) :
 
@@ -85,24 +87,24 @@ Le format est identique au ground-truth (`snapshots/ground-truth/<aiot>/operatio
 Les clés JSON sont triées alphabétiquement (`sort_keys=True`) pour produire
 des diffs stables sous git.
 
-> **Convention de nommage** : inclure le modèle et la date dans le nom du
-> dossier, par exemple `eval_gpt5mini_20260601_120000/`. Le script ne stocke
-> pas ces métadonnées dans le fichier lui-même.
+> **Convention de nommage** : le sous-dossier est nommé automatiquement
+> `eval/<yyyy-mm-dd_hh-mm>_eval_<model>/`. Le script ne stocke pas ces
+> métadonnées dans les fichiers JSON eux-mêmes.
 
-## Mode score (`--score`)
+## Mode score-only (`--score-only`)
 
 Relit un dossier d'`operations.json` existants et recalcule les métriques
 **sans aucun appel LLM**.
 
 ```bash
 python scripts/evaluate_detection.py --model openai_gpt5mini \
-    --score --ops-dir eval_gpt5mini_20260601/
+    --score-only eval/2026-06-05_10-00_eval_openai_gpt5mini/
 ```
 
-- `--model` reste obligatoire (utilisé pour nommer le fichier XLSX éventuel).
+- `--model` reste obligatoire (utilisé pour l'affichage et `--save-score`).
 - `--aiot` est optionnel : par défaut, tous les sous-dossiers contenant un
   `operations.json` sont traités.
-- Compatible avec `--xlsx`.
+- Compatible avec `--save-score`.
 
 ## Critère de matching
 
@@ -151,8 +153,8 @@ OVERALL (openai_gpt5mini)
 
 ## Sortie XLSX
 
-Avec `--xlsx`, le script génère un classeur (`eval_<model>_<timestamp>.xlsx`)
-avec une ligne par AIOT et une ligne **TOTAL** :
+Avec `--save-score`, le script génère un classeur `scores.xlsx` dans le
+sous-dossier `eval/<date>_eval_<model>/` :
 
 | Colonne | Sens |
 |---|---|
