@@ -57,7 +57,7 @@ demande au modèle une **liste JSON** d'opérations. Le prompt couvre :
 - un `confidence_score` (0–100) que le LLM auto-évalue.
 
 Le détail de la résilience (retries, timeout, fallback, rate limit) est dans
-[LLM](../llm.md#résilience).
+[LLM](../llm.md#resilience).
 
 ## Validation et filtrage
 
@@ -97,7 +97,7 @@ ne sera pas appliquée par la résolution.
 
 ## Sortie
 
-Une `list[Operation]` typée (cf. [Architecture / Modèle de données](../architecture.md#modèle-de-données)),
+Une `list[Operation]` typée (cf. [Architecture / Modèle de données](../architecture.md#modele-de-donnees)),
 sérialisable en `operations.json`. Chaque opération a :
 
 - un `id` interne (compteur process),
@@ -113,4 +113,4 @@ est converti en `REMOVE` lors de la construction (cf.
 
 ## Évaluation
 
-Voir [LLM § Évaluation](../llm.md#évaluation).
+Voir [LLM § Évaluation](../llm.md#evaluation).
