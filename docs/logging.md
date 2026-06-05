@@ -38,7 +38,7 @@ exploitable pour filtrer / silencer un sous-module.
 | `LOG_USE_TIMED_ROTATION` | `true` | Active la rotation quotidienne en plus de la rotation par taille. |
 | `LOG_CONSOLE_OUTPUT` | `true` | Affiche aussi dans la console. |
 
-Voir [Configuration](configuration.md#logging-loggingconfig-préfixe-log_)
+Voir [Configuration](configuration.md#logging-loggingconfig-prefixe-log_)
 pour le détail des bornes / validations Pydantic.
 
 ## Flags CLI

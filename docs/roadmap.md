@@ -28,7 +28,7 @@ des décisions.
   reconnaissance de tableau). Réduire le taux d'appel LLM en résolution
   améliorerait coût et déterminisme.
 - **Cycles dans le graphe** — actuellement non détectés explicitement
-  (cf. [Resolution § Cas limites](pipeline-steps/resolution.md#cas-limites)).
+  (cf. [Resolution § Cas limites](pipeline-steps/resolution.md#cas-limites-connus)).
   Ajouter un check `nx.find_cycle` + diagnostic.
 
 ### Rendering
