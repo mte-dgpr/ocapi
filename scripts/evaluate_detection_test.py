@@ -143,3 +143,79 @@ class TestLoadGroundTruth:
 
         assert len(keys) == 1
         assert keys[0] == ("2023-01-01", "1", "2022-01-01", "2", "REPLACE")
+
+
+class TestRunScoreMode:
+    def _make_ops_file(self, path: Path) -> None:
+        ops = [
+            {
+                "id": "op-1",
+                "source_id": {"arrete_id": "2023-01-01", "article_id": "1"},
+                "target_id": {"arrete_id": "2022-01-01", "article_id": "2"},
+                "operation_type": "REPLACE",
+            }
+        ]
+        path.mkdir(parents=True, exist_ok=True)
+        (path / "operations.json").write_text(json.dumps(ops))
+
+    def _make_gt_file(self, path: Path) -> None:
+        self._make_ops_file(path)
+
+    def test_ops_dir_is_a_file_returns_error(self, tmp_path: Path, capsys: pytest.CaptureFixture):
+        ops_dir = tmp_path / "ops.json"
+        ops_dir.write_text("not a directory")
+
+        args = mod.argparse.Namespace(
+            aiot=None,
+            ops_dir=ops_dir,
+            model="some_model",
+            xlsx=False,
+        )
+        result = mod._run_score_mode(args)
+
+        assert result == 1
+        captured = capsys.readouterr()
+        assert "not a directory" in captured.err
+
+    def test_explicit_aiot_missing_operations_json_returns_error(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ):
+        ops_dir = tmp_path / "ops"
+        ops_dir.mkdir()
+
+        args = mod.argparse.Namespace(
+            aiot=["missing_aiot"],
+            ops_dir=ops_dir,
+            model="some_model",
+            xlsx=False,
+        )
+        result = mod._run_score_mode(args)
+
+        assert result == 1
+        captured = capsys.readouterr()
+        assert "missing_aiot" in captured.err
+        assert "operations.json" in captured.err
+
+    def test_explicit_aiot_with_existing_operations_json_succeeds(self, tmp_path: Path):
+        ops_dir = tmp_path / "ops"
+        gt_dir = tmp_path / "gt"
+        aiot = "0001234567"
+
+        self._make_ops_file(ops_dir / aiot)
+        self._make_gt_file(gt_dir / aiot)
+
+        args = mod.argparse.Namespace(
+            aiot=[aiot],
+            ops_dir=ops_dir,
+            model="some_model",
+            xlsx=False,
+        )
+
+        original_gt = mod._GROUND_TRUTH_DIR
+        mod._GROUND_TRUTH_DIR = gt_dir
+        try:
+            result = mod._run_score_mode(args)
+        finally:
+            mod._GROUND_TRUTH_DIR = original_gt
+
+        assert result == 0

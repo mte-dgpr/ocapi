@@ -189,6 +189,10 @@ def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
         "mte-api-piag-mistral-medium-latest": "piag_mistral_medium",
         "mistral-medium-latest": "mistral_medium",
         "mistral-large-latest": "mistral_large",
+        "anthropic_sonnet": "anthropic_sonnet4",
+        "anthropic_haiku": "anthropic_haiku4",
+        "anthropic_opus": "anthropic_opus46",
+        "gemini_pro": "gemini_pro25",
     }
     if model in legacy_aliases and legacy_aliases[model] in models:
         return legacy_aliases[model]

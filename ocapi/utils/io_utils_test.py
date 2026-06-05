@@ -229,6 +229,24 @@ class TestSaveOperations:
         assert len(data) == 3
         assert [d["id"] for d in data] == ["op1", "op2", "op3"]
 
+    def test_keys_are_sorted_for_stable_diffs(self, tmp_path: Path) -> None:
+        """Keys of each serialized operation must be alphabetically sorted.
+
+        Without sort_keys, Pydantic emits keys in definition order
+        (id, source_id, target_id, operation_type, operand), which differs
+        from alphabetical order and produces noisy git diffs.
+        """
+        ops = [
+            make_testing_op(OperationType.REPLACE, operation_id="op1", operand="<p>a</p>"),
+            make_testing_op(OperationType.ADD, operation_id="op2", operand="<p>b</p>"),
+        ]
+        save_operations(ops, tmp_path)
+        data = json.loads((tmp_path / "operations.json").read_text(encoding="utf-8"))
+        assert len(data) == 2
+        for entry in data:
+            keys = list(entry.keys())
+            assert keys == sorted(keys), f"Keys not sorted in entry {entry.get('id')}: {keys}"
+
 
 class TestLoadOperations:
     def test_loads_previously_saved_operations(self, tmp_path: Path) -> None:

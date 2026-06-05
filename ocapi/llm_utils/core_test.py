@@ -16,6 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -24,12 +25,31 @@ import requests
 import ocapi.llm_utils.core as llm_utils_module
 from ocapi.exceptions import LLMNetworkError, LLMResponseError
 from ocapi.llm_utils import ResolvedLLMModel, call_llm_api
+from ocapi.llm_utils.config import _DEFAULT_LLM_MODELS_CONFIG, _DEFAULT_LLM_RESILIENCE_CONFIG
+from ocapi.llm_utils.core import get_accumulated_usage, reset_accumulated_usage
 
 
-def _make_success_response(content: str) -> Mock:
+def _make_success_response(
+    content: str, prompt_tokens: int = 0, completion_tokens: int = 0
+) -> Mock:
     response = Mock()
     response.raise_for_status.return_value = None
-    response.json.return_value = {"choices": [{"message": {"content": content}}]}
+    response.json.return_value = {
+        "choices": [{"message": {"content": content}}],
+        "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
+    }
+    return response
+
+
+def _make_anthropic_success_response(
+    content: str, input_tokens: int = 0, output_tokens: int = 0
+) -> Mock:
+    response = Mock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = {
+        "content": [{"text": content}],
+        "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
+    }
     return response
 
 
@@ -294,3 +314,135 @@ def test_call_llm_api_rate_limit_disabled_does_not_sleep() -> None:
     assert mocked_post.call_count == 1
     assert mocked_sleep.call_count == 0
     llm_utils_module._RATE_LIMIT_LAST_CALL_MONOTONIC = None
+
+
+# ---------------------------------------------------------------------------
+# Token usage accumulation
+# ---------------------------------------------------------------------------
+
+
+def _make_base_cfg() -> ResolvedLLMModel:
+    """Return a ResolvedLLMModel built from the default primary model config."""
+    primary_key = str(_DEFAULT_LLM_MODELS_CONFIG["primary_model_key"])
+    spec = _DEFAULT_LLM_MODELS_CONFIG["models"][primary_key]
+    return ResolvedLLMModel(
+        model_key=primary_key,
+        provider=spec["provider"],
+        model_name=spec["model_id"],
+        api_key="test-key",
+        api_url="https://piag.example",
+    )
+
+
+def _make_base_resilience() -> dict[str, Any]:
+    """Return the default resilience config with retries capped to 1 for fast tests."""
+    return {
+        **_DEFAULT_LLM_RESILIENCE_CONFIG,
+        "retry": {"primary": {"max_attempts": 1}},
+    }
+
+
+def test_token_usage_accumulated_after_successful_call() -> None:
+    """prompt_tokens and completion_tokens are recorded after a successful call."""
+    reset_accumulated_usage()
+
+    with patch(
+        "ocapi.llm_utils.core._load_llm_resilience_config", return_value=_make_base_resilience()
+    ):
+        with patch(
+            "ocapi.llm_utils.core.requests.post",
+            return_value=_make_success_response("ok", prompt_tokens=100, completion_tokens=50),
+        ):
+            call_llm_api(_make_base_cfg(), "prompt")
+
+    usage = get_accumulated_usage()
+    assert usage.prompt_tokens == 100
+    assert usage.completion_tokens == 50
+
+
+def test_token_usage_accumulated_over_multiple_calls() -> None:
+    """The accumulator sums tokens across successive calls."""
+    reset_accumulated_usage()
+    cfg = _make_base_cfg()
+
+    with patch(
+        "ocapi.llm_utils.core._load_llm_resilience_config", return_value=_make_base_resilience()
+    ):
+        with patch(
+            "ocapi.llm_utils.core.requests.post",
+            side_effect=[
+                _make_success_response("r1", prompt_tokens=200, completion_tokens=40),
+                _make_success_response("r2", prompt_tokens=300, completion_tokens=60),
+            ],
+        ):
+            call_llm_api(cfg, "prompt-1")
+            call_llm_api(cfg, "prompt-2")
+
+    usage = get_accumulated_usage()
+    assert usage.prompt_tokens == 500
+    assert usage.completion_tokens == 100
+
+
+def test_reset_accumulated_usage_clears_counts() -> None:
+    """reset_accumulated_usage zeroes the counters in-place (same object reference)."""
+    reset_accumulated_usage()
+
+    with patch(
+        "ocapi.llm_utils.core._load_llm_resilience_config", return_value=_make_base_resilience()
+    ):
+        with patch(
+            "ocapi.llm_utils.core.requests.post",
+            return_value=_make_success_response("ok", prompt_tokens=100, completion_tokens=50),
+        ):
+            call_llm_api(_make_base_cfg(), "prompt")
+
+    # The object returned before reset must reflect the reset because it is the same instance.
+    usage_ref = get_accumulated_usage()
+    reset_accumulated_usage()
+    assert usage_ref.prompt_tokens == 0
+    assert usage_ref.completion_tokens == 0
+
+
+def test_token_usage_anthropic_provider() -> None:
+    """For Anthropic, input_tokens/output_tokens fields are correctly mapped."""
+    reset_accumulated_usage()
+    anthropic_cfg = ResolvedLLMModel(
+        model_key="anthropic_claude",
+        provider="anthropic",
+        model_name="claude-sonnet-4-20250514",
+        api_key="ant-key",
+        api_url="https://api.anthropic.com/v1/messages",
+    )
+
+    with patch(
+        "ocapi.llm_utils.core._load_llm_resilience_config", return_value=_make_base_resilience()
+    ):
+        with patch(
+            "ocapi.llm_utils.core.requests.post",
+            return_value=_make_anthropic_success_response("ok", input_tokens=80, output_tokens=20),
+        ):
+            call_llm_api(anthropic_cfg, "prompt")
+
+    usage = get_accumulated_usage()
+    assert usage.prompt_tokens == 80
+    assert usage.completion_tokens == 20
+
+
+def test_token_usage_missing_usage_field_does_not_raise() -> None:
+    """If 'usage' is absent from the response, the call succeeds and counters remain at zero."""
+    reset_accumulated_usage()
+
+    response_without_usage = Mock()
+    response_without_usage.raise_for_status.return_value = None
+    response_without_usage.json.return_value = {"choices": [{"message": {"content": "ok"}}]}
+
+    with patch(
+        "ocapi.llm_utils.core._load_llm_resilience_config", return_value=_make_base_resilience()
+    ):
+        with patch("ocapi.llm_utils.core.requests.post", return_value=response_without_usage):
+            result = call_llm_api(_make_base_cfg(), "prompt")
+
+    assert result == "ok"
+    usage = get_accumulated_usage()
+    assert usage.prompt_tokens == 0
+    assert usage.completion_tokens == 0

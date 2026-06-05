@@ -49,7 +49,7 @@ from ocapi.llm_utils import (  # noqa: E402
 from ocapi.step_detection import step_detection as step_detection_module  # noqa: E402
 from ocapi.step_detection.step_detection import step_detection  # noqa: E402
 from ocapi.types import Operation  # noqa: E402
-from ocapi.utils.io_utils import load_arrete_files  # noqa: E402
+from ocapi.utils.io_utils import load_arrete_files, load_operations, save_operations  # noqa: E402
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger  # noqa: E402
 
 _LOGGER = get_logger(__name__)
@@ -61,9 +61,6 @@ _VALID_OP_TYPES = {"ADD", "REPLACE", "REMOVE"}
 
 # Cost per 1M tokens (USD): {model_id: (input_cost, output_cost)}
 _COST_PER_1M_TOKENS: dict[str, tuple[float, float]] = {
-    "mistral-medium-2508": (0.40, 2.00),
-    "mistral-medium-3.5": (1.50, 7.50),
-    "mistral-large-2512": (0.50, 1.50),
     "gpt-4o": (2.50, 10.00),
     "gpt-5": (1.25, 10.00),
     "gpt-5-mini": (0.25, 2.00),
@@ -71,9 +68,15 @@ _COST_PER_1M_TOKENS: dict[str, tuple[float, float]] = {
     "gpt-5.4": (2.50, 15.00),
     "gpt-5.4-mini": (0.75, 4.50),
     "gpt-5.4-nano": (0.20, 1.25),
+    "mte-api-piag-mistral-medium-latest": (2.00, 6.00),
+    "mistral-medium-2508": (0.40, 2.00),
+    "mistral-medium-3-5": (1.50, 7.50),
+    "mistral-large-2512": (0.50, 1.50),
     "claude-sonnet-4-20250514": (3.00, 15.00),
     "claude-haiku-4-20250414": (0.80, 4.00),
     "claude-opus-4-6": (5.00, 25.00),
+    "gemini-2.5-pro": (2.50, 10.00),
+    "gemini-3-flash-preview": (0.50, 3.00),
     "gemini-3.1-flash-lite-preview": (0.25, 1.50),
     "gemini-3.1-pro-preview": (4.00, 18.00),
 }
@@ -272,6 +275,94 @@ def _write_xlsx(
     wb.save(output_path)
 
 
+def _print_and_accumulate(
+    r: AiotResult,
+    total_tp: int,
+    total_fp: int,
+    total_fn: int,
+) -> tuple[int, int, int]:
+    print(f"\n--- {r.aiot} ---")
+    print(f"  Ground-truth: {r.gt_count}  |  Detected: {r.detected_count}")
+    print(f"  TP={r.tp}  FP={r.fp}  FN={r.fn}")
+    print(f"  Precision: {r.scores.precision:.3f}")
+    print(f"  Recall:    {r.scores.recall:.3f}")
+    print(f"  F1:        {r.scores.f1:.3f}")
+    return total_tp + r.tp, total_fp + r.fp, total_fn + r.fn
+
+
+def _run_score_mode(args: argparse.Namespace) -> int:
+    """Recompute metrics from existing ops.json files without any LLM call."""
+    ops_dir: Path = args.ops_dir
+
+    # Determine which AIOTs to score: either from --aiot or all subdirs with ops.json
+    if args.aiot:
+        missing = [aiot for aiot in args.aiot if not (ops_dir / aiot / "operations.json").exists()]
+        if missing:
+            for aiot in missing:
+                print(
+                    f"operations.json not found for AIOT {aiot!r} in {ops_dir}",
+                    file=sys.stderr,
+                )
+            return 1
+        aiots = list(args.aiot)
+    else:
+        if not ops_dir.exists():
+            print(f"--ops-dir not found: {ops_dir}", file=sys.stderr)
+            return 1
+        if not ops_dir.is_dir():
+            print(f"--ops-dir is not a directory: {ops_dir}", file=sys.stderr)
+            return 1
+        aiots = sorted(
+            d.name for d in ops_dir.iterdir() if d.is_dir() and (d / "operations.json").exists()
+        )
+
+    if not aiots:
+        print(f"No operations.json found in {ops_dir}", file=sys.stderr)
+        return 1
+
+    _LOGGER.info(f"Score mode — ops-dir: {ops_dir}")
+    _LOGGER.info(f"AIOTs: {', '.join(aiots)}")
+
+    total_tp, total_fp, total_fn = 0, 0, 0
+    results: list[AiotResult] = []
+
+    for aiot in aiots:
+        _LOGGER.info(f"\n{'=' * 50}")
+        _LOGGER.info(f"AIOT: {aiot}")
+        _LOGGER.info(f"{'=' * 50}")
+
+        gt_keys = load_ground_truth(aiot)
+        detected_ops = load_operations(ops_dir / aiot)
+        detected_keys = [_operation_key(op) for op in detected_ops]
+        _LOGGER.info(f"Ground-truth: {len(gt_keys)}  |  Loaded ops: {len(detected_keys)}")
+
+        tp, fp, fn = compare_operations(detected_keys, gt_keys)
+        scores = compute_scores(tp, fp, fn)
+
+        r = AiotResult(aiot, len(gt_keys), len(detected_keys), tp, fp, fn, scores)
+        results.append(r)
+        total_tp, total_fp, total_fn = _print_and_accumulate(r, total_tp, total_fp, total_fn)
+
+    overall = compute_scores(total_tp, total_fp, total_fn)
+    print(f"\n{'=' * 50}")
+    print(f"OVERALL (score mode — {args.model})")
+    print(f"{'=' * 50}")
+    print(f"  TP={total_tp}  FP={total_fp}  FN={total_fn}")
+    print(f"  Precision: {overall.precision:.3f}")
+    print(f"  Recall:    {overall.recall:.3f}")
+    print(f"  F1:        {overall.f1:.3f}")
+
+    if args.xlsx is not False:
+        xlsx_path = args.xlsx
+        if xlsx_path is None:
+            ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+            xlsx_path = _PROJECT_ROOT / f"eval_{args.model}_score_{ts}.xlsx"
+        _write_xlsx(results, overall, total_tp, total_fp, total_fn, args.model, xlsx_path)
+        print(f"\nResults exported to {xlsx_path}")
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Evaluate LLM operation detection against ground-truth.",
@@ -285,6 +376,24 @@ def main(argv: list[str] | None = None) -> int:
         "--aiot",
         nargs="*",
         help="AIOT(s) to evaluate (default: all available ground-truth AIOTs)",
+    )
+    parser.add_argument(
+        "--ops-dir",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help=(
+            "In detection mode: directory where operations.json files are saved after each LLM run."
+            " In score mode (--score): directory from which operations.json files are read."
+        ),
+    )
+    parser.add_argument(
+        "--score",
+        action="store_true",
+        help=(
+            "Score mode: recompute metrics from existing ops.json files (no LLM call). "
+            "Requires --ops-dir."
+        ),
     )
     parser.add_argument(
         "--xlsx",
@@ -303,6 +412,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     initialize_root_logger(level="DEBUG" if args.verbose else "INFO", console_output=True)
+
+    # --- score mode ---
+    if args.score:
+        if args.ops_dir is None:
+            print("--score requires --ops-dir.", file=sys.stderr)
+            return 1
+        return _run_score_mode(args)
+
+    # --- detection mode ---
 
     aiots = args.aiot or _available_aiots()
     if not aiots:
@@ -334,38 +452,33 @@ def main(argv: list[str] | None = None) -> int:
         usage = get_accumulated_usage()
         cost = _compute_cost(model_id, usage)
 
+        if args.ops_dir is not None:
+            out_dir = args.ops_dir / aiot
+            save_operations(detected_ops, out_dir)
+            _LOGGER.info(f"Ops saved to {out_dir / 'operations.json'}")
+
         detected_keys = [_operation_key(op) for op in detected_ops]
         _LOGGER.info(f"Detected: {len(detected_keys)} operations")
 
         tp, fp, fn = compare_operations(detected_keys, gt_keys)
         scores = compute_scores(tp, fp, fn)
 
-        results.append(
-            AiotResult(
-                aiot,
-                len(gt_keys),
-                len(detected_keys),
-                tp,
-                fp,
-                fn,
-                scores,
-                elapsed_seconds=elapsed,
-                usage=usage,
-                cost_usd=cost,
-            )
+        r = AiotResult(
+            aiot,
+            len(gt_keys),
+            len(detected_keys),
+            tp,
+            fp,
+            fn,
+            scores,
+            elapsed_seconds=elapsed,
+            usage=usage,
+            cost_usd=cost,
         )
+        results.append(r)
 
-        print(f"\n--- {aiot} ---")
-        print(f"  Ground-truth: {len(gt_keys)}  |  Detected: {len(detected_keys)}")
-        print(f"  TP={tp}  FP={fp}  FN={fn}")
-        print(f"  Precision: {scores.precision:.3f}")
-        print(f"  Recall:    {scores.recall:.3f}")
-        print(f"  F1:        {scores.f1:.3f}")
+        total_tp, total_fp, total_fn = _print_and_accumulate(r, total_tp, total_fp, total_fn)
         print(f"  Time: {elapsed:.1f}s  |  Tokens: {usage.total_tokens}  |  Cost: ${cost:.4f}")
-
-        total_tp += tp
-        total_fp += fp
-        total_fn += fn
 
     overall = compute_scores(total_tp, total_fp, total_fn)
     print(f"\n{'=' * 50}")

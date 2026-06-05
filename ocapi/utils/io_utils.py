@@ -397,7 +397,7 @@ def save_tagged_html_file(document_context: DocumentContext, output_path: Path) 
     # ``arretify.step_segmentation`` (and its spaCy model) at import time.
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(document_context.soup.prettify(), encoding="utf-8")
+        output_path.write_text(document_context.soup.prettify(), encoding="utf-8", newline="\n")
     except OSError as e:
         raise InputOutputError(f"Cannot write tagged HTML file: {e}") from e
 
@@ -406,12 +406,12 @@ def write_permis_output(permis_html: str, output_path: Path) -> None:
     """Write the rendered consolidated permit HTML to *output_path*."""
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(permis_html, encoding="utf-8")
+        output_path.write_text(permis_html, encoding="utf-8", newline="\n")
     except OSError as e:
         raise InputOutputError(f"Cannot write to output file: {e}") from e
 
 
-def write_json_output(data: Any, output_path: Path) -> None:
+def write_json_output(data: Any, output_path: Path, *, sort_keys: bool = False) -> None:
     """Write data to a JSON file.
 
     Parameters
@@ -420,6 +420,8 @@ def write_json_output(data: Any, output_path: Path) -> None:
         Data to save (dict, list, or any JSON-serialisable object).
     output_path : Path
         Output file path.
+    sort_keys : bool
+        If ``True``, sort object keys alphabetically (default: ``False``).
 
     Raises
     ------
@@ -430,9 +432,10 @@ def write_json_output(data: Any, output_path: Path) -> None:
         # Create parent directory if needed
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Save as JSON
-        with output_path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        # Save as JSON (trailing newline follows POSIX text-file convention)
+        with output_path.open("w", encoding="utf-8", newline="\n") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2, sort_keys=sort_keys)
+            f.write("\n")
 
     except OSError as e:
         raise InputOutputError(f"Cannot write JSON file: {e}") from e
@@ -453,19 +456,13 @@ def save_operations(operations: list[Operation], output_dir: Path) -> None:
     InputOutputError
         If writing fails.
     """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "operations.json"
-    try:
-        serialized = []
-        for op in operations:
-            data = op.model_dump(mode="json", exclude_defaults=True)
-            if not data.get("error_codes"):
-                data.pop("error_codes", None)
-            serialized.append(data)
-        with output_path.open("w", encoding="utf-8") as f:
-            json.dump(serialized, f, ensure_ascii=False, indent=2)
-    except OSError as e:
-        raise InputOutputError(f"Cannot write operations file: {e}") from e
+    serialized = []
+    for op in operations:
+        data = op.model_dump(mode="json", exclude_defaults=True)
+        if not data.get("error_codes"):
+            data.pop("error_codes", None)
+        serialized.append(data)
+    write_json_output(serialized, output_dir / "operations.json", sort_keys=True)
 
 
 def load_operations(input_dir: Path) -> list[Operation]:
@@ -557,7 +554,7 @@ def save_history(history: ArticleHistory, output_dir: Path) -> None:
     output_path = output_dir / "history.json"
     try:
         serialized = article_history_to_json_dict(history)
-        with output_path.open("w", encoding="utf-8") as f:
+        with output_path.open("w", encoding="utf-8", newline="\n") as f:
             json.dump(serialized, f, ensure_ascii=False, indent=2)
     except OSError as e:
         raise InputOutputError(f"Cannot write history file: {e}") from e
