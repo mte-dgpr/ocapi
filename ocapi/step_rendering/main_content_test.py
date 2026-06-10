@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 import logging
-from typing import Any, cast
+from typing import cast
 
 import pytest
 from bs4 import BeautifulSoup, Tag
@@ -383,8 +383,7 @@ def test_make_permit_content_renders_all_versions_for_complementary_arrete() -> 
     assert "Contenu version 1" in html
     assert "Contenu version 2" in html
     soup = BeautifulSoup(html, "html.parser")
-    attrs = cast(dict[str, Any], {"data-spec": "section_version_history"})
-    history_block = soup.find(attrs=attrs)
+    history_block = soup.select_one('[data-spec="section_version_history"]')
     assert isinstance(history_block, Tag)
     details = history_block.find_all("details")
     assert len(details) == 2
@@ -952,9 +951,8 @@ def test_make_permit_content_skips_history_for_duplicate_article_ids(
     soup = BeautifulSoup(html, "html.parser")
     sections = soup.find_all("section", attrs={"data-number": "1"})
     assert len(sections) == 2
-    attrs = cast(dict[str, Any], {"data-spec": "section_version_history"})
-    assert sections[0].find(attrs=attrs) is not None
-    assert sections[1].find(attrs=attrs) is None
+    assert sections[0].select_one('[data-spec="section_version_history"]') is not None
+    assert sections[1].select_one('[data-spec="section_version_history"]') is None
     assert "Updated" in sections[0].get_text()
     assert "Updated" in sections[1].get_text()
     assert any(
