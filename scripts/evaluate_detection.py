@@ -52,7 +52,7 @@ from ocapi.llm_utils import (  # noqa: E402
 from ocapi.step_detection import step_detection as step_detection_module  # noqa: E402
 from ocapi.step_detection.step_detection import step_detection  # noqa: E402
 from ocapi.step_resolution.build_op_graph import build_graph  # noqa: E402
-from ocapi.types import Operation, is_low_severity_op  # noqa: E402
+from ocapi.types import Operation, is_low_severity_op, numbering_fragment_for_sort  # noqa: E402
 from ocapi.utils.io_utils import load_arrete_files, load_operations, save_operations  # noqa: E402
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger  # noqa: E402
 
@@ -100,16 +100,20 @@ OperationKey = tuple[str, str, str, str, str]
 
 
 def _operation_key_from_dict(op: dict) -> OperationKey:
+    """Convert operation dict from JSON to OperationKey tuple, applying numbering fragment
+    extraction."""
     return (
         op["source_id"]["arrete_id"],
-        op["source_id"]["article_id"],
+        numbering_fragment_for_sort(op["source_id"]["article_id"]),
         op["target_id"]["arrete_id"],
-        op["target_id"]["article_id"],
+        numbering_fragment_for_sort(op["target_id"]["article_id"]),
         op["operation_type"],
     )
 
 
 def _operation_key(op: Operation | dict) -> OperationKey:
+    """Convert an Operation (or dict) to an OperationKey tuple, applying numbering fragment
+    extraction."""
     if isinstance(op, dict):
         return _operation_key_from_dict(op)
 
@@ -121,9 +125,9 @@ def _operation_key(op: Operation | dict) -> OperationKey:
 
     return (
         op.source_id.arrete_id,
-        op.source_id.article_id,
+        numbering_fragment_for_sort(op.source_id.article_id),
         op.target_id.arrete_id,
-        op.target_id.article_id,
+        numbering_fragment_for_sort(op.target_id.article_id),
         operation_type_value,
     )
 
@@ -188,22 +192,22 @@ def run_detection_for_aiot(aiot: str, model_key: str) -> tuple[list[Operation], 
     step_detection_module.LLM_CFG = config_model_llm(model_key)
 
     start_date = arrete_files[0].id
-    raw_ops: list[Operation] = []
+    detected_ops: list[Operation] = []
     for arrete_file in arrete_files:
         if arrete_file.id <= start_date:
             continue
         detected_ops = step_detection(arrete_file)
-        raw_ops.extend(detected_ops)
+        detected_ops.extend(detected_ops)
         _LOGGER.info(f"  {arrete_file.id}: {len(detected_ops)} operations detected")
 
-    _LOGGER.info(f"Running build_graph on {len(raw_ops)} operations to assign context errors…")
-    _, _, _, updated_ops = build_graph(raw_ops, arrete_files)
+    _LOGGER.info(f"Running build_graph on {len(detected_ops)} operations to assign context errors…")
+    _, _, _, updated_ops = build_graph(detected_ops, arrete_files)
     validated_ops = [op for op in updated_ops if not is_low_severity_op(op)]
     _LOGGER.info(
-        f"  {len(raw_ops)} raw → {len(updated_ops)} updated → "
+        f"  {len(detected_ops)} raw → {len(updated_ops)} updated → "
         f"{len(validated_ops)} after LOW-severity filter"
     )
-    return raw_ops, validated_ops
+    return detected_ops, validated_ops
 
 
 def _available_aiots() -> list[str]:

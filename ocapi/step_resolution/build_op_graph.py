@@ -187,6 +187,8 @@ def build_graph(
     * Operations whose target section is not found receive
       ``ERROR_EXTRACTING_TARGET``; missing source sections receive
       ``ERROR_EXTRACTING_SOURCE``.
+    * Operations already carrying ``NOT_AN_OPERATION`` are skipped entirely
+      (they are passed through to ``updated_ops`` unchanged).
     """
     G = nx.MultiDiGraph()
     soups: dict[ArreteId, BeautifulSoup] = {
@@ -198,6 +200,15 @@ def build_graph(
 
     for op in ops:
         try:
+            if ErrorCode.NOT_AN_OPERATION in op.error_codes:
+                reason = (
+                    f"Operation {op.id}: skipped (NOT_AN_OPERATION — not a consolidation operation)"
+                )
+                _LOGGER.info(reason)
+                skipped_ops.append((op, reason))
+                updated_ops.append(op)
+                continue
+
             if _is_full_removal_op(op):
                 if op.target_id.arrete_id in principal_ids:
                     reason = (
