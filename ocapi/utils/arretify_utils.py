@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Tuple, cast
+from typing import Any, Tuple, cast
 
 from arretify.semantic_tag_specs import AppendixSpec, SectionSpec
 from bs4 import BeautifulSoup, Tag
@@ -39,7 +39,8 @@ def list_top_sections(soup: BeautifulSoup | Tag) -> list[Tag]:
 
 def extract_specs(soup: BeautifulSoup, spec: str) -> list[Tag]:
     """Extract all HTML elements matching an Arrêtify spec."""
-    return [tag for tag in soup.find_all(attrs={"data-spec": spec}) if isinstance(tag, Tag)]
+    attrs = cast(dict[str, Any], {"data-spec": spec})
+    return [tag for tag in soup.find_all(attrs=attrs) if isinstance(tag, Tag)]
 
 
 def extract_first_spec_html(soup: BeautifulSoup, spec: str) -> str:

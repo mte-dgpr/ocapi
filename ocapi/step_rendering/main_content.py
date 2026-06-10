@@ -18,6 +18,7 @@
 #
 
 import logging
+from typing import Any, cast
 
 from bs4 import BeautifulSoup, Tag
 
@@ -63,7 +64,8 @@ def make_permit_content(
     arrete_id = arrete.id
     consolidated_soup = BeautifulSoup(str(arrete.soup), "html.parser")
     main = consolidated_soup.find("main")
-    appendix = consolidated_soup.find("footer", attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC})
+    attrs = cast(dict[str, Any], {"data-spec": ARRETIFY_APPENDIX_DATA_SPEC})
+    appendix = consolidated_soup.find("footer", attrs=attrs)
     if not isinstance(main, Tag) and not isinstance(appendix, Tag):
         return ""
 
@@ -280,7 +282,8 @@ def make_section_version(
     if latest_title:
         title_html = latest_title
     else:
-        section_title = section.find(attrs={"data-spec": "section_title"})
+        attrs = cast(dict[str, Any], {"data-spec": "section_title"})
+        section_title = section.find(attrs=attrs)
         title_html = str(section_title) if section_title else ""
 
     section.clear()
