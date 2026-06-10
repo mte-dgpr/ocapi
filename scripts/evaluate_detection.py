@@ -531,28 +531,29 @@ def main(argv: list[str] | None = None) -> int:
 
         reset_accumulated_usage()
         t0 = time.monotonic()
-        raw_ops, validated_ops = run_detection_for_aiot(aiot, model_key)
+        detected_ops, validated_ops = run_detection_for_aiot(aiot, model_key)
         elapsed = time.monotonic() - t0
         usage = get_accumulated_usage()
         cost = _compute_cost(model_id, usage)
 
         if args.save_ops and eval_subdir is not None:
             out_dir = eval_subdir / aiot
-            save_operations(raw_ops, out_dir)
+            save_operations(detected_ops, out_dir)
             _LOGGER.info(f"Ops saved to {out_dir / 'operations.json'}")
 
         validated_keys = [_operation_key(op) for op in validated_ops]
-        _LOGGER.info(f"Raw detected: {len(raw_ops)}  |  Validated: {len(validated_ops)} operations")
+        _LOGGER.info(
+            f"Raw detected: {len(detected_ops)}  |  Validated: {len(validated_ops)} operations"
+        )
 
         tp, fp, fn = compare_operations(validated_keys, gt_keys)
         scores = compute_scores(tp, fp, fn)
 
-        scored_count = len(validated_ops)
         r = AiotResult(
             aiot,
             len(gt_keys),
-            scored_count,
-            scored_count,
+            len(detected_ops),
+            len(validated_ops),
             tp,
             fp,
             fn,
