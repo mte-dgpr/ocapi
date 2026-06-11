@@ -29,6 +29,8 @@ from ocapi.utils.utils import to_bool_or_default, to_int_or_default
 
 _LOGGER = get_logger(__name__)
 
+SUPPORTED_LLM_PROVIDERS = ["mte-piag", "mistral", "openai", "anthropic", "google", "deepseek"]
+
 _MODELS_CONFIG_PATH = settings.paths.project_root / "config" / "llm_models.json"
 _RESILIENCE_CONFIG_PATH = settings.paths.project_root / "config" / "llm_resilience.json"
 _RATE_LIMIT_CONFIG_PATH = settings.paths.project_root / "config" / "llm_rate_limit.json"
@@ -50,7 +52,7 @@ _DEFAULT_LLM_MODELS_CONFIG: dict[str, Any] = {
             "model_id": "gpt-5",
             "reasoning_model": True,
         },
-        "openai_gpt5mini": {
+        "openai_gpt5-mini": {
             "provider": "openai",
             "model_id": "gpt-5-mini",
             "reasoning_model": True,
@@ -187,11 +189,12 @@ def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
         "GPT5": "openai_gpt5",
         "GPT5mini": "openai_gpt5-mini",
         "mte-api-piag-mistral-medium-latest": "piag_mistral_medium",
-        "mistral-medium-latest": "mistral_medium",
+        "mistral-medium-latest": "mistral_medium-3-5",
         "anthropic_sonnet": "anthropic_sonnet-4-6",
         "anthropic_haiku": "anthropic_haiku-4-5",
         "anthropic_opus": "anthropic_opus-4-8",
         "gemini_pro": "gemini_2-5-pro",
+        "mistral_medium": "mistral_medium-3-1",
     }
     if model in legacy_aliases and legacy_aliases[model] in models:
         return legacy_aliases[model]
