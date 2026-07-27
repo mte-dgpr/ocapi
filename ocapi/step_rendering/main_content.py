@@ -280,7 +280,7 @@ def make_section_version(
     if latest_title:
         title_html = latest_title
     else:
-        section_title = section.find(attrs={"data-spec": "section_title"})
+        section_title = section.select_one('[data-spec="section_title"]')
         title_html = str(section_title) if section_title else ""
 
     section.clear()
