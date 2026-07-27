@@ -30,8 +30,27 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Project root (computed once)
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# Package and project roots (computed once)
+_PACKAGE_ROOT = Path(__file__).resolve().parent
+_REPOSITORY_ROOT = _PACKAGE_ROOT.parent
+
+
+def _default_project_root() -> Path:
+    """Return the most suitable default root for bundled assets.
+
+    In editable/source installs assets live at repository root (``config/``, ``templates/``).
+    In wheel installs assets are bundled under the package directory.
+    """
+
+    expected_template = Path("templates/permis_consolide.html")
+    if (_REPOSITORY_ROOT / expected_template).exists():
+        return _REPOSITORY_ROOT
+    if (_PACKAGE_ROOT / expected_template).exists():
+        return _PACKAGE_ROOT
+    return _REPOSITORY_ROOT
+
+
+_PROJECT_ROOT = _default_project_root()
 
 # Type alias for logging levels
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
