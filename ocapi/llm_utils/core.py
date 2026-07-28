@@ -26,6 +26,7 @@ import requests
 
 from ocapi.exceptions import LLMConfigError, LLMNetworkError, LLMResponseError
 from ocapi.llm_utils.config import (
+    SUPPORTED_LLM_PROVIDERS,
     ResolvedLLMModel,
     _load_llm_models_config,
     _load_llm_rate_limit_config,
@@ -64,14 +65,24 @@ def get_accumulated_usage() -> TokenUsage:
     return _accumulated_usage
 
 
-def _extract_content(model_provider: str, data: Any) -> str:
+def _extract_content(model: ResolvedLLMModel, data: Any) -> str:
     """Extract the text content from a raw LLM API response dict.
 
     Raises LLMResponseError if the expected fields are missing.
     """
     try:
-        if model_provider == "anthropic":
+        if model.provider == "anthropic":
             return str(data["content"][0]["text"])
+        if model.provider == "mistral":
+            content = data["choices"][0]["message"]["content"]
+            if isinstance(content, str):
+                return content
+            else:
+                text_content = []
+                for chunk in content:
+                    if chunk.get("type") == "text" and isinstance(chunk.get("text"), str):
+                        text_content.append(chunk.get("text"))
+                return "".join(text_content)
         return str(data["choices"][0]["message"]["content"])
     except (TypeError, KeyError, IndexError) as exc:
         raise LLMResponseError("Invalid LLM response format") from exc
@@ -94,54 +105,35 @@ def _accumulate_usage(model_provider: str, data: Any) -> None:
 
 
 def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
-    if model.provider == "mte-piag":
-        return {
-            "model": model.model_name,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0,
-            "n": 1,
-        }
+    if model.provider not in SUPPORTED_LLM_PROVIDERS:
+        raise LLMConfigError(f"Unsupported LLM provider: {model.provider}")
 
-    if model.provider == "mistral":
-        return {
-            "model": model.model_name,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0,
-            "n": 1,
-        }
+    # Default payload
+    payload: dict[str, Any] = {
+        "model": model.model_name,
+        "messages": [{"role": "user", "content": prompt}],
+    }
 
-    if model.provider == "openai":
-        payload: dict[str, Any] = {
-            "model": model.model_name,
-            "messages": [{"role": "user", "content": prompt}],
-            "n": 1,
-        }
-        if model.reasoning_model:
-            payload["reasoning_effort"] = "high"
-            payload["verbosity"] = "low"
-        elif model.temperature is not None:
-            payload["temperature"] = model.temperature
-        return payload
-
+    # Length settings
+    if model.provider in ["mte-piag", "mistral", "openai", "google", "deepseek"]:
+        payload["n"] = 1
     if model.provider == "anthropic":
-        return {
-            "model": model.model_name,
-            "max_tokens": 4096,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": model.temperature if model.temperature is not None else 0,
-        }
+        payload["max_tokens"] = 4096
 
-    if model.provider == "google":
-        payload = {
-            "model": model.model_name,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0,
-            "n": 1,
-        }
-        if model.temperature is not None:
-            payload["temperature"] = model.temperature
-        return payload
-    raise LLMConfigError(f"Unsupported LLM provider: {model.provider}")
+    # Reasoning effort (Anthropic and DeepSeek enable reasoning at high level by default)
+    if model.provider == "mistral" and model.reasoning_model:
+        payload["reasoning_effort"] = "high"
+    if model.provider == "openai" and model.reasoning_model:
+        payload["reasoning_effort"] = "high"
+        payload["verbosity"] = "low"
+    if model.provider == "google" and model.reasoning_model:
+        payload["reasoning_effort"] = "medium"
+
+    # Temperature (for non-reasoning models)
+    if not model.reasoning_model:
+        payload["temperature"] = model.temperature if model.temperature else 0
+
+    return payload
 
 
 def _make_headers(api_key: str | None, provider: str = "") -> dict[str, str]:
@@ -241,7 +233,7 @@ def _execute_model_call(
             response.raise_for_status()
             data: Any = response.json()
             try:
-                content = _extract_content(model.provider, data)
+                content = _extract_content(model, data)
             except LLMResponseError:
                 _LOGGER.error(
                     f"Invalid LLM API response ({model.model_name}): "

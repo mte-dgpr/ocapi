@@ -35,6 +35,8 @@ dans [`ocapi/config.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/confi
 | `LLM__ANTHROPIC_API_URL` | `str` | `https://api.anthropic.com/v1/messages` | |
 | `LLM__GOOGLE_API_KEY` | `str \| None` | `None` | |
 | `LLM__GOOGLE_API_URL` | `str` | `…/v1beta/openai/chat/completions` | Endpoint compatible OpenAI. |
+| `LLM__DEEPSEEK_API_KEY` | `str \| None` | `None` | |
+| `LLM__DEEPSEEK_API_URL` | `str` | `https://api.deepseek.com/v1/chat/completions` | |
 
 Aucune clé n'est requise au démarrage. Les vérifications se font au moment de
 l'appel pour le provider sélectionné dans `config/llm_models.json`.
@@ -78,12 +80,13 @@ déclarés. Exemple courant :
     "openai_gpt5mini": { "provider": "openai", "model_id": "gpt-5-mini", "reasoning_model": true },
     "openai_gpt5nano": { "provider": "openai", "model_id": "gpt-5-nano", "reasoning_model": true },
     "mistral_medium": { "provider": "mistral", "model_id": "mistral-medium-latest" },
-    "piag_mistral_medium": { "provider": "mte-piag", "model_id": "mte-api-piag-mistral-medium-latest" }
+    "piag_mistral_medium": { "provider": "mte-piag", "model_id": "mte-api-piag-mistral-medium-latest" },
+    "deepseek_4-pro": { "provider": "deepseek", "model_id": "deepseek-v4-pro" }
   }
 }
 ```
 
-Providers supportés : `mte-piag`, `mistral`, `openai`, `anthropic`, `google`.
+Providers supportés : `mte-piag`, `mistral`, `openai`, `anthropic`, `google`, `deepseek`.
 `reasoning_model: true` change le payload OpenAI (passe `reasoning_effort: high`
 + `verbosity: low` au lieu de `temperature`).
 

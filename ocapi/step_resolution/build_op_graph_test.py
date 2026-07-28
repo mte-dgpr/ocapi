@@ -709,9 +709,12 @@ def test_build_graph_missing_source_section_creates_empty_node_with_error() -> N
     assert edge_data["error_codes"] == [ErrorCode.ERROR_EXTRACTING_SOURCE.value]
 
 
-def test_build_graph_preserves_not_an_operation_status_when_target_missing() -> None:
-    """A NOT_AN_OPERATION error code set at detection must survive the target lookup
-    failure caused by ``article_id=ALL``."""
+def test_build_graph_not_an_operation_is_skipped() -> None:
+    """An operation already carrying NOT_AN_OPERATION must be skipped by build_graph.
+
+    It should not be added to the graph, should appear in skipped_ops,
+    and should be passed through to updated_ops unchanged.
+    """
     html_1980 = """
     <section data-spec="section" data-number="1">Article 1</section>
     """
@@ -743,11 +746,11 @@ def test_build_graph_preserves_not_an_operation_status_when_target_missing() -> 
             error_codes=frozenset({ErrorCode.NOT_AN_OPERATION}),
         ),
     ]
-    G, _, skipped_ops, _ = build_graph(operations, arrete_files)
+    G, _, skipped_ops, updated_ops = build_graph(operations, arrete_files)
 
-    assert len(skipped_ops) == 0
-    target = NodeId(arrete_id="1980-01-01", article_id="ALL")
-    assert G.has_node(target)
-    edge_data = G.get_edge_data(NodeId(arrete_id="1981-01-01", article_id="1"), target, 0)
-    assert edge_data is not None
-    assert ErrorCode.NOT_AN_OPERATION.value in edge_data["error_codes"]
+    assert len(G.nodes) == 0
+    assert len(G.edges) == 0
+    assert len(skipped_ops) == 1
+    assert skipped_ops[0][0].id == "op-complement"
+    assert len(updated_ops) == 1
+    assert ErrorCode.NOT_AN_OPERATION in updated_ops[0].error_codes

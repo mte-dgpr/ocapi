@@ -25,6 +25,7 @@ from bs4 import BeautifulSoup
 from ocapi.types import (
     ArreteFile,
     ArticleVersion,
+    ErrorCode,
     FileType,
     NodeId,
     Operation,
@@ -103,6 +104,7 @@ def make_testing_op(
     source_article: str = "2",
     target_arrete: str = "1980-01-01",
     target_article: str = "1",
+    error_codes: frozenset[ErrorCode] = frozenset(),
 ) -> Operation:
     return Operation(
         id=operation_id,
@@ -111,6 +113,7 @@ def make_testing_op(
         operation_type=op_type,
         operand=operand,
         sub_target=sub_target,
+        error_codes=error_codes,
     )
 
 

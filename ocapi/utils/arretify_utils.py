@@ -39,7 +39,7 @@ def list_top_sections(soup: BeautifulSoup | Tag) -> list[Tag]:
 
 def extract_specs(soup: BeautifulSoup, spec: str) -> list[Tag]:
     """Extract all HTML elements matching an Arrêtify spec."""
-    return [tag for tag in soup.find_all(attrs={"data-spec": spec}) if isinstance(tag, Tag)]
+    return [tag for tag in soup.select(f'[data-spec="{spec}"]') if isinstance(tag, Tag)]
 
 
 def extract_first_spec_html(soup: BeautifulSoup, spec: str) -> str:
@@ -155,7 +155,7 @@ def extract_main_and_appendix(soup: BeautifulSoup) -> str:
     when present.
     """
     main_html = extract_main(soup)
-    footer = soup.find("footer", attrs={"data-spec": ARRETIFY_APPENDIX_DATA_SPEC})
+    footer = soup.select_one(f'footer[data-spec="{ARRETIFY_APPENDIX_DATA_SPEC}"]')
     if footer is None:
         return main_html
     return main_html + str(footer)

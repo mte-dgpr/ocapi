@@ -85,7 +85,17 @@ def article_display_number(article_id: str) -> str:
     return article_id
 
 
-def _numbering_fragment_for_sort(article_id: str) -> str:
+def numbering_fragment_for_sort(article_id: str) -> str:
+    """Extract the numerical fragment from an article_id for comparison.
+
+    Removes both NEW_ARTICLE: and APPENDIX: prefixes to get just the number.
+    Examples:
+        "1.2" -> "1.2"
+        "APPENDIX:1.2" -> "1.2"
+        "NEW_ARTICLE:1.2" -> "1.2"
+        "APPENDIX" -> "APPENDIX"
+        "END" -> "END"
+    """
     s = article_display_number(article_id)
     if s.startswith("APPENDIX:"):
         return s[len("APPENDIX:") :]
@@ -94,7 +104,7 @@ def _numbering_fragment_for_sort(article_id: str) -> str:
 
 def article_id_sort_tuple(article_id: str) -> tuple[int, ...]:
     """Lexicographic order key for dotted article ids (e.g. ``4.1`` < ``4.2`` < ``10``)."""
-    fragment = _numbering_fragment_for_sort(article_id).strip()
+    fragment = numbering_fragment_for_sort(article_id).strip()
     if not fragment:
         return (999_999,)
     try:
@@ -202,6 +212,34 @@ class ErrorCode(str, Enum):
     # Full removal targeting an arrêté that isn't part of the consolidated permit
     # (e.g. an older arrêté missing from the file set).
     MISSING_ARRETE = "missing_arrete"
+
+
+class ErrorSeverity(Enum):
+    """Severity level for operation error codes.
+
+    HIGH errors indicate structurally invalid operations that cannot be resolved
+    and should be counted as genuine failures.
+    LOW errors indicate operations that are structurally plausible but irrelevant
+    in the current corpus context (e.g. targeting a missing arrêté); these can be
+    excluded before computing detection metrics to avoid inflating false positives.
+    """
+
+    HIGH = "high"
+    LOW = "low"
+
+
+ERROR_CODE_SEVERITY: dict[ErrorCode, ErrorSeverity] = {
+    ErrorCode.ERROR_EXTRACTING_OPERAND: ErrorSeverity.HIGH,
+    ErrorCode.ERROR_EXTRACTING_TARGET: ErrorSeverity.HIGH,
+    ErrorCode.ERROR_EXTRACTING_SOURCE: ErrorSeverity.HIGH,
+    ErrorCode.ERROR_FINDING_SUBTARGET: ErrorSeverity.HIGH,
+    ErrorCode.COMPLEX_SUBTARGET: ErrorSeverity.HIGH,
+    ErrorCode.PROPAGATED_ERROR: ErrorSeverity.HIGH,
+    ErrorCode.DISABLED_LLM_CALL: ErrorSeverity.HIGH,
+    ErrorCode.NOT_AN_OPERATION: ErrorSeverity.LOW,
+    ErrorCode.LESS_IMPORTANT: ErrorSeverity.LOW,
+    ErrorCode.MISSING_ARRETE: ErrorSeverity.LOW,
+}
 
 
 class ArticleVersion(TypedDict):
@@ -558,6 +596,16 @@ class Operation(_BaseModelWithConfig):
 def is_resolved_op(operation: "Operation") -> bool:
     """Return True when no error is attached to *operation*."""
     return not operation.error_codes
+
+
+def is_low_severity_op(operation: "Operation") -> bool:
+    """Return True when *operation* carries only LOW-severity error codes."""
+    if not operation.error_codes:
+        return False
+    return all(
+        ERROR_CODE_SEVERITY.get(code, ErrorSeverity.HIGH) == ErrorSeverity.LOW
+        for code in operation.error_codes
+    )
 
 
 def categorize_arrete(filename: str) -> FileType:
