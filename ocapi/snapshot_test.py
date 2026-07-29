@@ -83,8 +83,8 @@ def test_snapshot_pipeline_output(
 
     if UPDATE_SNAPSHOTS:
         snapshot_dir.mkdir(parents=True, exist_ok=True)
-        for filename, data in [("operations.json", ops_json), ("history.json", history_json)]:
-            write_json_output(data, snapshot_dir / filename, sort_keys=True)
+        write_json_output(ops_json, snapshot_dir / "operations.json", sort_keys=True)
+        write_json_output(history_json, snapshot_dir / "history.json")
         if permis_html:
             (snapshot_dir / "permis.html").write_text(
                 normalize_html(permis_html), encoding="utf-8", newline="\n"

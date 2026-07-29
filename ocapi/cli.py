@@ -246,7 +246,7 @@ def cmd_update_snapshots(args: argparse.Namespace) -> int:
         ops_dict = strip_none_values([op.model_dump(mode="json") for op in ops])
         history_dict = strip_none_values(article_history_to_json_dict(history))
         write_json_output(ops_dict, consolidation_dir / "operations.json", sort_keys=True)
-        write_json_output(history_dict, consolidation_dir / "history.json", sort_keys=True)
+        write_json_output(history_dict, consolidation_dir / "history.json")
         if permis:
             write_permis_output(permis_to_html(permis), consolidation_dir / "permis.html")
         _LOGGER.info(f"Updated snapshots → {consolidation_dir}")

@@ -35,6 +35,7 @@ from ocapi.types import (
     FileType,
     NodeId,
     Operation,
+    article_id_sort_tuple,
     parse_filename,
     validate_arretify_version,
 )
@@ -521,6 +522,15 @@ def _article_version_to_json_dict(version: ArticleVersion) -> dict[str, Any]:
     return out
 
 
+def _article_history_sort_key(node_id: NodeId) -> tuple[str, tuple[int, ...], str]:
+    """Return the business ordering key for history.json article entries."""
+    return (
+        node_id.arrete_id,
+        article_id_sort_tuple(node_id.article_id),
+        node_id.article_id,
+    )
+
+
 def article_history_to_json_dict(history: ArticleHistory) -> dict[str, list[dict[str, Any]]]:
     """Serialize :class:`ArticleHistory` to nested dicts suitable for ``json.dump``.
 
@@ -529,7 +539,9 @@ def article_history_to_json_dict(history: ArticleHistory) -> dict[str, list[dict
     """
     return {
         str(node_id): [_article_version_to_json_dict(v) for v in versions]
-        for node_id, versions in history.items()
+        for node_id, versions in sorted(
+            history.items(), key=lambda item: _article_history_sort_key(item[0])
+        )
     }
 
 
