@@ -25,6 +25,39 @@ from .operations_detection import parse_operations
 
 
 class TestReplaceOperations(BaseTestCaseHtml):
+    def test_rtl_whitespace_tolerates_prettified_text(self) -> None:
+        elements = [
+            (
+                "La dernière phrase de l'article 8.1.1.2 de l'arrêté préfectoral du "
+                "10 décembre 2008 est\n\n   remplacée   par la disposition suivante :"
+            )
+        ]
+
+        actual = parse_operations(self.context, elements)
+
+        assert_element_lists_equal(
+            actual,
+            [
+                self.make_semantic_tag(
+                    OperationSpec,
+                    contents=[
+                        (
+                            "La dernière phrase de l'article 8.1.1.2 de l'arrêté "
+                            "préfectoral du 10 décembre 2008 est\n\n   "
+                        ),
+                        self.make_tag("b", contents=["remplacée"]),
+                        "   par la disposition suivante :",
+                    ],
+                    data=OperationData(
+                        operation_type="REPLACE",
+                        has_operand="true",
+                        keyword="remplacée",
+                        direction="rtl",
+                    ),
+                ),
+            ],
+        )
+
     def test_has_operand(self) -> None:
         # Arrange
         elements = ["sont remplacées comme suit :"]

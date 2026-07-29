@@ -230,10 +230,12 @@ def cmd_update_snapshots(args: argparse.Namespace) -> int:
             _LOGGER.warning(f"Skipping {arretes_dir.name}: fixtures not found")
             continue
         aiot = arretes_dir.name
-        arrete_files = load_arrete_files(arretes_dir, aiot)
-        if not arrete_files:
+        pairs = load_document_contexts(arretes_dir, aiot)
+        if not pairs:
             _LOGGER.warning(f"Skipping {aiot}: no arrêtés loaded (incompatible Arrêtify version?)")
             continue
+        arrete_files = [arrete_file for arrete_file, _ in pairs]
+        document_contexts = [document_context for _, document_context in pairs]
         operations = load_operations(consolidation_dir)
         ops, history, _arretes, permis = run_pipeline(
             arrete_files,
@@ -241,6 +243,7 @@ def cmd_update_snapshots(args: argparse.Namespace) -> int:
             enable_rendering=True,
             enable_llm=False,
             operations=operations,
+            document_contexts=document_contexts,
         )
         consolidation_dir.mkdir(parents=True, exist_ok=True)
         ops_dict = strip_none_values([op.model_dump(mode="json") for op in ops])
@@ -249,6 +252,9 @@ def cmd_update_snapshots(args: argparse.Namespace) -> int:
         write_json_output(history_dict, consolidation_dir / "history.json")
         if permis:
             write_permis_output(permis_to_html(permis), consolidation_dir / "permis.html")
+        tagged_dir = arretes_dir.parent.parent / "arretes_tagged" / aiot
+        for arrete_file, document_context in zip(arrete_files, document_contexts):
+            save_tagged_html_file(document_context, tagged_dir / arrete_file.filename)
         _LOGGER.info(f"Updated snapshots → {consolidation_dir}")
     return 0
 
