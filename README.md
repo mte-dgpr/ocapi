@@ -55,13 +55,14 @@ cd ocapi
 # Windows
 py -3.12 -m venv venv
 .\venv\Scripts\Activate.ps1
+.\venv\Scripts\python.exe -m pip install --upgrade pip
 
 # Linux
 python3.12 -m venv venv
 source venv/bin/activate
+pip install --upgrade pip
 
 # Installer OCAPI
-pip install --upgrade pip
 pip install -e .
 ```
 

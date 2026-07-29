@@ -381,6 +381,70 @@ class TestSaveHistory:
         ]
 
 
+class TestArticleHistoryToJsonDict:
+    def test_sorts_keys_by_arrete_then_business_article_order(self) -> None:
+        history: ArticleHistory = {
+            NodeId(arrete_id="2021-01-01", article_id="APPENDIX"): [
+                ArticleVersion(version=0, title="", content="appendix", operation_id=None)
+            ],
+            NodeId(arrete_id="2020-01-01", article_id="1.10"): [
+                ArticleVersion(version=0, title="", content="1.10", operation_id=None)
+            ],
+            NodeId(arrete_id="2020-01-01", article_id="NEW_ARTICLE:2"): [
+                ArticleVersion(version=0, title="", content="new-2", operation_id=None)
+            ],
+            NodeId(arrete_id="2020-01-01", article_id="APPENDIX:2.1"): [
+                ArticleVersion(version=0, title="", content="appendix-2.1", operation_id=None)
+            ],
+            NodeId(arrete_id="2020-01-01", article_id="1.2"): [
+                ArticleVersion(version=0, title="", content="1.2", operation_id=None)
+            ],
+            NodeId(arrete_id="2019-12-31", article_id="3"): [
+                ArticleVersion(version=0, title="", content="older", operation_id=None)
+            ],
+        }
+
+        data = article_history_to_json_dict(history)
+
+        assert list(data.keys()) == [
+            "2019-12-31#3",
+            "2020-01-01#1.2",
+            "2020-01-01#1.10",
+            "2020-01-01#NEW_ARTICLE:2",
+            "2020-01-01#APPENDIX:2.1",
+            "2021-01-01#APPENDIX",
+        ]
+
+    def test_preserves_version_order_within_each_article(self) -> None:
+        history: ArticleHistory = {
+            NodeId(arrete_id="2020-01-01", article_id="1.2"): [
+                ArticleVersion(version=2, title="", content="second", operation_id="op-2"),
+                ArticleVersion(version=1, title="", content="first", operation_id="op-1"),
+            ]
+        }
+
+        data = article_history_to_json_dict(history)
+
+        assert [version["version"] for version in data["2020-01-01#1.2"]] == [2, 1]
+
+    def test_uses_lexical_fallback_for_equal_article_sort_tuples(self) -> None:
+        history: ArticleHistory = {
+            NodeId(arrete_id="2020-01-01", article_id="APPENDIX:2"): [
+                ArticleVersion(version=0, title="", content="appendix", operation_id=None)
+            ],
+            NodeId(arrete_id="2020-01-01", article_id="NEW_ARTICLE:2"): [
+                ArticleVersion(version=0, title="", content="new", operation_id=None)
+            ],
+        }
+
+        data = article_history_to_json_dict(history)
+
+        assert list(data.keys()) == [
+            "2020-01-01#APPENDIX:2",
+            "2020-01-01#NEW_ARTICLE:2",
+        ]
+
+
 class TestFilterAndDeduplicateArreteFiles:
     """Tests for filter_and_deduplicate_arrete_files."""
 
