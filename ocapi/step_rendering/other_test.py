@@ -28,7 +28,7 @@ from ocapi.utils.testing import make_testing_arrete
 _EMPTY_AP = '<html><body data-arretify_version="0.2.0"><main data-spec="main"></main></body></html>'
 
 
-def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
+def test_make_permit_other_splits_complements_and_modifying() -> None:
     principal_arrete = make_testing_arrete("2020-01-01", _EMPTY_AP)
     complement_no_ops = make_testing_arrete(
         "2021-01-01",
@@ -67,7 +67,52 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
     assert "ID COMPLEMENT A" in html
     assert "TITLE COMPLEMENT A" in html
     assert "MAIN A" in html
-    assert "MAIN B" not in html
+    assert 'data-spec="permit_modifying"' in html
+    assert "ID COMPLEMENT B" in html
+    assert "TITLE COMPLEMENT B" in html
+    assert "MAIN B" in html
+
+
+def test_make_permit_other_includes_modifying_with_resolved_ops_only() -> None:
+    """Active non-principal arrêtés with outgoing ops are modifying, even if all resolved."""
+    principal_arrete = make_testing_arrete("2020-01-01", _EMPTY_AP)
+    modifying = make_testing_arrete(
+        "2022-01-01",
+        """
+<html><body data-arretify_version="0.2.0">
+ <div data-spec="identification">ID MOD RESOLVED</div>
+ <div data-spec="arrete_title">TITLE MOD RESOLVED</div>
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><h3>Art 1</h3><p>Source article</p></section>
+ </main>
+</body></html>
+""",
+    )
+    op = Operation(
+        id="op-ok",
+        source_id=NodeId(arrete_id="2022-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
+        operation_type=OperationType.REPLACE,
+    )
+    history: ArticleHistory = {
+        NodeId(arrete_id="2020-01-01", article_id="3"): [
+            {"version": 0, "title": "", "content": "old", "operation_id": None},
+            {
+                "version": 1,
+                "title": "",
+                "content": "new",
+                "operation_id": "op-ok",
+                "error_codes": frozenset(),
+            },
+        ],
+    }
+
+    html = make_permit_other([principal_arrete, modifying], [op], history=history)
+
+    assert 'data-spec="permit_modifying"' in html
+    assert "ID MOD RESOLVED" in html
+    assert "TITLE MOD RESOLVED" in html
+    assert "Opération de consolidation résolue" in html
 
 
 def test_make_permit_other_includes_modifying_arretes_with_operation_messages() -> None:

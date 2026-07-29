@@ -28,6 +28,11 @@ def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
     return not any(op.source_id.arrete_id == arrete_file.id for op in operations)
 
 
+def has_outgoing_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
+    """Return True when the arrêté has at least one outgoing operation."""
+    return any(op.source_id.arrete_id == arrete_file.id for op in operations)
+
+
 def has_unresolved_ops(
     arrete_file: ArreteFile,
     operations: list[Operation],
@@ -66,8 +71,8 @@ def make_permit_other(
     operations : list[Operation]
         All detected operations.
     history : ArticleHistory | None
-        Article version history, used to determine operation resolution status
-        and to consolidate per-arrêté article versions.
+        Article version history used to consolidate per-arrêté article
+        versions and resolve operation-result messages.
     principal_arrete_id : str | None
         Id of the principal arrêté, which is excluded from this section. Falls
         back to ``arrete_files[0].id`` when not provided.
@@ -103,7 +108,7 @@ def make_permit_other(
 """
             )
 
-        if history is not None and has_unresolved_ops(arrete_file, operations, history):
+        if has_outgoing_ops(arrete_file, operations):
             modifying_sections.append(
                 f"""
    <article data-spec="permit_modifying" data-date="{arrete_file.id}">
