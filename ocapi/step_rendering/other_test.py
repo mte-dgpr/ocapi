@@ -21,7 +21,7 @@ import logging
 import pytest
 from bs4 import BeautifulSoup, Tag
 
-from ocapi.step_rendering.other import has_no_ops, has_unresolved_ops, make_permit_other
+from ocapi.step_rendering.other import has_no_ops, make_permit_other
 from ocapi.types import ArticleHistory, ErrorCode, NodeId, Operation, OperationType
 from ocapi.utils.testing import make_testing_arrete
 
@@ -403,78 +403,7 @@ def test_has_no_ops_returns_false_with_outgoing_ops() -> None:
 
 
 # ---------------------------------------------------------------------------
-# has_unresolved_ops
 # ---------------------------------------------------------------------------
-
-
-def test_has_unresolved_ops_returns_true_with_unresolved_outgoing_ops() -> None:
-    arrete = make_testing_arrete("2021-01-01", _EMPTY_AP)
-    ops = [
-        Operation(
-            id="op-1",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
-            operation_type=OperationType.ADD,
-            error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
-        ),
-    ]
-    assert has_unresolved_ops(arrete, ops) is True
-
-
-def test_has_unresolved_ops_returns_false_when_all_outgoing_ops_resolved() -> None:
-    arrete = make_testing_arrete("2021-01-01", _EMPTY_AP)
-    ops = [
-        Operation(
-            id="op-1",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
-            operation_type=OperationType.REPLACE,
-            operand="<section>op-1 body</section>",
-            error_codes=frozenset(),
-        ),
-        Operation(
-            id="op-2",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
-            operation_type=OperationType.REMOVE,
-            error_codes=frozenset(),
-        ),
-    ]
-    assert has_unresolved_ops(arrete, ops) is False
-
-
-def test_has_unresolved_ops_returns_true_when_some_ops_have_errors() -> None:
-    arrete = make_testing_arrete("2021-01-01", _EMPTY_AP)
-    ops = [
-        Operation(
-            id="op-1",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
-            operation_type=OperationType.REPLACE,
-            error_codes=frozenset(),
-        ),
-        Operation(
-            id="op-2",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
-            operation_type=OperationType.ADD,
-            error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
-        ),
-    ]
-    assert has_unresolved_ops(arrete, ops) is True
-
-
-def test_has_unresolved_ops_returns_false_without_outgoing_ops() -> None:
-    arrete = make_testing_arrete("2021-01-01", _EMPTY_AP)
-    ops = [
-        Operation(
-            id="op-1",
-            source_id=NodeId(arrete_id="2020-01-01", article_id="1"),
-            target_id=NodeId(arrete_id="2021-01-01", article_id="1"),
-            operation_type=OperationType.REPLACE,
-        )
-    ]
-    assert has_unresolved_ops(arrete, ops) is False
 
 
 def test_injects_message_only_in_first_duplicate_section(
