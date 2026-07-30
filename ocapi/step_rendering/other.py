@@ -18,7 +18,6 @@
 #
 
 from ocapi.step_rendering.main_content import make_permit_content
-from ocapi.step_rendering.operation_messages import resolve_operation_error_codes
 from ocapi.types import ArreteFile, ArticleHistory, Operation
 from ocapi.utils.arretify_utils import extract_first_spec_html
 
@@ -28,21 +27,9 @@ def has_no_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
     return not any(op.source_id.arrete_id == arrete_file.id for op in operations)
 
 
-def has_unresolved_ops(
-    arrete_file: ArreteFile,
-    operations: list[Operation],
-    history: ArticleHistory | None = None,
-) -> bool:
-    """Return True when at least one outgoing operation has unresolved errors.
-
-    When *history* is provided, the final per-version error codes are used so
-    failures recorded during application (e.g. ``ERROR_FINDING_SUBTARGET``) are
-    detected even when the operation itself was emitted without errors.
-    """
-    outgoing = [op for op in operations if op.source_id.arrete_id == arrete_file.id]
-    if history is None:
-        return any(op.error_codes for op in outgoing)
-    return any(resolve_operation_error_codes(op, history) for op in outgoing)
+def has_outgoing_ops(arrete_file: ArreteFile, operations: list[Operation]) -> bool:
+    """Return True when the arrêté has at least one outgoing operation."""
+    return any(op.source_id.arrete_id == arrete_file.id for op in operations)
 
 
 def make_permit_other(
@@ -66,8 +53,8 @@ def make_permit_other(
     operations : list[Operation]
         All detected operations.
     history : ArticleHistory | None
-        Article version history, used to determine operation resolution status
-        and to consolidate per-arrêté article versions.
+        Article version history used to consolidate per-arrêté article
+        versions and resolve operation-result messages.
     principal_arrete_id : str | None
         Id of the principal arrêté, which is excluded from this section. Falls
         back to ``arrete_files[0].id`` when not provided.
@@ -103,7 +90,7 @@ def make_permit_other(
 """
             )
 
-        if history is not None and has_unresolved_ops(arrete_file, operations, history):
+        if has_outgoing_ops(arrete_file, operations):
             modifying_sections.append(
                 f"""
    <article data-spec="permit_modifying" data-date="{arrete_file.id}">

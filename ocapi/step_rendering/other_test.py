@@ -21,14 +21,14 @@ import logging
 import pytest
 from bs4 import BeautifulSoup, Tag
 
-from ocapi.step_rendering.other import has_no_ops, has_unresolved_ops, make_permit_other
+from ocapi.step_rendering.other import has_no_ops, make_permit_other
 from ocapi.types import ArticleHistory, ErrorCode, NodeId, Operation, OperationType
 from ocapi.utils.testing import make_testing_arrete
 
 _EMPTY_AP = '<html><body data-arretify_version="0.2.0"><main data-spec="main"></main></body></html>'
 
 
-def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
+def test_make_permit_other_splits_complements_and_modifying() -> None:
     principal_arrete = make_testing_arrete("2020-01-01", _EMPTY_AP)
     complement_no_ops = make_testing_arrete(
         "2021-01-01",
@@ -67,7 +67,52 @@ def test_make_permit_other_contains_only_non_consolidated_complements() -> None:
     assert "ID COMPLEMENT A" in html
     assert "TITLE COMPLEMENT A" in html
     assert "MAIN A" in html
-    assert "MAIN B" not in html
+    assert 'data-spec="permit_modifying"' in html
+    assert "ID COMPLEMENT B" in html
+    assert "TITLE COMPLEMENT B" in html
+    assert "MAIN B" in html
+
+
+def test_make_permit_other_includes_modifying_with_resolved_ops_only() -> None:
+    """Active non-principal arrêtés with outgoing ops are modifying, even if all resolved."""
+    principal_arrete = make_testing_arrete("2020-01-01", _EMPTY_AP)
+    modifying = make_testing_arrete(
+        "2022-01-01",
+        """
+<html><body data-arretify_version="0.2.0">
+ <div data-spec="identification">ID MOD RESOLVED</div>
+ <div data-spec="arrete_title">TITLE MOD RESOLVED</div>
+ <main data-spec="main">
+  <section data-spec="section" data-number="1"><h3>Art 1</h3><p>Source article</p></section>
+ </main>
+</body></html>
+""",
+    )
+    op = Operation(
+        id="op-ok",
+        source_id=NodeId(arrete_id="2022-01-01", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
+        operation_type=OperationType.REPLACE,
+    )
+    history: ArticleHistory = {
+        NodeId(arrete_id="2020-01-01", article_id="3"): [
+            {"version": 0, "title": "", "content": "old", "operation_id": None},
+            {
+                "version": 1,
+                "title": "",
+                "content": "new",
+                "operation_id": "op-ok",
+                "error_codes": frozenset(),
+            },
+        ],
+    }
+
+    html = make_permit_other([principal_arrete, modifying], [op], history=history)
+
+    assert 'data-spec="permit_modifying"' in html
+    assert "ID MOD RESOLVED" in html
+    assert "TITLE MOD RESOLVED" in html
+    assert "Opération de consolidation résolue" in html
 
 
 def test_make_permit_other_includes_modifying_arretes_with_operation_messages() -> None:
@@ -358,78 +403,7 @@ def test_has_no_ops_returns_false_with_outgoing_ops() -> None:
 
 
 # ---------------------------------------------------------------------------
-# has_unresolved_ops
 # ---------------------------------------------------------------------------
-
-
-def test_has_unresolved_ops_returns_true_with_unresolved_outgoing_ops() -> None:
-    arrete = make_testing_arrete("2021-01-01", _EMPTY_AP)
-    ops = [
-        Operation(
-            id="op-1",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
-            operation_type=OperationType.ADD,
-            error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
-        ),
-    ]
-    assert has_unresolved_ops(arrete, ops) is True
-
-
-def test_has_unresolved_ops_returns_false_when_all_outgoing_ops_resolved() -> None:
-    arrete = make_testing_arrete("2021-01-01", _EMPTY_AP)
-    ops = [
-        Operation(
-            id="op-1",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
-            operation_type=OperationType.REPLACE,
-            operand="<section>op-1 body</section>",
-            error_codes=frozenset(),
-        ),
-        Operation(
-            id="op-2",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
-            operation_type=OperationType.REMOVE,
-            error_codes=frozenset(),
-        ),
-    ]
-    assert has_unresolved_ops(arrete, ops) is False
-
-
-def test_has_unresolved_ops_returns_true_when_some_ops_have_errors() -> None:
-    arrete = make_testing_arrete("2021-01-01", _EMPTY_AP)
-    ops = [
-        Operation(
-            id="op-1",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
-            operation_type=OperationType.REPLACE,
-            error_codes=frozenset(),
-        ),
-        Operation(
-            id="op-2",
-            source_id=NodeId(arrete_id="2021-01-01", article_id="3"),
-            target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
-            operation_type=OperationType.ADD,
-            error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
-        ),
-    ]
-    assert has_unresolved_ops(arrete, ops) is True
-
-
-def test_has_unresolved_ops_returns_false_without_outgoing_ops() -> None:
-    arrete = make_testing_arrete("2021-01-01", _EMPTY_AP)
-    ops = [
-        Operation(
-            id="op-1",
-            source_id=NodeId(arrete_id="2020-01-01", article_id="1"),
-            target_id=NodeId(arrete_id="2021-01-01", article_id="1"),
-            operation_type=OperationType.REPLACE,
-        )
-    ]
-    assert has_unresolved_ops(arrete, ops) is False
 
 
 def test_injects_message_only_in_first_duplicate_section(
