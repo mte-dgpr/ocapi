@@ -9,7 +9,7 @@ lint:
 	$(FLAKE8) ocapi
 
 typecheck:
-	$(MYPY) .
+	ENV=development LC_ALL=C $(MYPY)
 
 test:
 	$(PYTEST)
