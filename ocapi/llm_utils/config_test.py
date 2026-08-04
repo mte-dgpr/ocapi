@@ -110,3 +110,132 @@ def test_unknown_env_model_key_is_ignored_with_warning(
 
     assert primary.model_key == "openai_primary"
     assert any("does_not_exist" in msg for msg in caplog.messages)
+
+
+def _fake_models_cfg_with_reasoning() -> dict[str, object]:
+    return {
+        "primary_model_key": "openai_reasoning",
+        "secondary_model_key": None,
+        "models": {
+            "openai_reasoning": {
+                "provider": "openai",
+                "model_id": "gpt-5",
+                "reasoning_model": True,
+            },
+        },
+    }
+
+
+def test_disable_reasoning_env_overrides_json_true(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LLM_DISABLE_REASONING=true forces reasoning_model to False even when JSON has True."""
+    monkeypatch.setenv("LLM_DISABLE_REASONING", "true")
+    with patch(
+        "ocapi.llm_utils.config._load_llm_models_config",
+        return_value=_fake_models_cfg_with_reasoning(),
+    ):
+        with patch(
+            "ocapi.llm_utils.config._provider_api_config",
+            return_value=("openai-key", "https://openai.example"),
+        ):
+            model = config_model_llm()
+
+    assert model.reasoning_model is False
+
+
+def test_disable_reasoning_env_not_set_uses_json_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without LLM_DISABLE_REASONING, reasoning_model reflects the JSON config."""
+    monkeypatch.delenv("LLM_DISABLE_REASONING", raising=False)
+    with patch(
+        "ocapi.llm_utils.config._load_llm_models_config",
+        return_value=_fake_models_cfg_with_reasoning(),
+    ):
+        with patch(
+            "ocapi.llm_utils.config._provider_api_config",
+            return_value=("openai-key", "https://openai.example"),
+        ):
+            model = config_model_llm()
+
+    assert model.reasoning_model is True
+
+
+def test_disable_reasoning_env_false_uses_json_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LLM_DISABLE_REASONING=false must NOT force reasoning_model to True."""
+    monkeypatch.setenv("LLM_DISABLE_REASONING", "false")
+    with patch(
+        "ocapi.llm_utils.config._load_llm_models_config",
+        return_value=_fake_models_cfg_with_reasoning(),
+    ):
+        with patch(
+            "ocapi.llm_utils.config._provider_api_config",
+            return_value=("openai-key", "https://openai.example"),
+        ):
+            model = config_model_llm()
+
+    assert model.reasoning_model is True
+
+
+def test_disable_reasoning_no_effect_on_non_reasoning_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LLM_DISABLE_REASONING=true must leave reasoning_model as None for models without it."""
+    monkeypatch.setenv("LLM_DISABLE_REASONING", "true")
+    with patch(
+        "ocapi.llm_utils.config._load_llm_models_config",
+        return_value=_fake_models_cfg_without_reasoning(),
+    ):
+        with patch(
+            "ocapi.llm_utils.config._provider_api_config",
+            return_value=("piag-key", "https://piag.example"),
+        ):
+            model = config_model_llm()
+
+    assert model.reasoning_model is None
+
+
+def _fake_models_cfg_without_reasoning() -> dict[str, object]:
+    return {
+        "primary_model_key": "piag_model",
+        "secondary_model_key": None,
+        "models": {
+            "piag_model": {
+                "provider": "mte-piag",
+                "model_id": "mte-api-piag-mistral-medium-latest",
+            },
+        },
+    }
+
+
+def test_disable_reasoning_no_effect_on_non_reasoning_model_env_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """reasoning_model stays None for a non-reasoning model when LLM_DISABLE_REASONING is unset."""
+    monkeypatch.delenv("LLM_DISABLE_REASONING", raising=False)
+    with patch(
+        "ocapi.llm_utils.config._load_llm_models_config",
+        return_value=_fake_models_cfg_without_reasoning(),
+    ):
+        with patch(
+            "ocapi.llm_utils.config._provider_api_config",
+            return_value=("piag-key", "https://piag.example"),
+        ):
+            model = config_model_llm()
+
+    assert model.reasoning_model is None
+
+
+def test_disable_reasoning_no_effect_on_non_reasoning_model_env_false(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """reasoning_model stays None for a non-reasoning model when LLM_DISABLE_REASONING=false."""
+    monkeypatch.setenv("LLM_DISABLE_REASONING", "false")
+    with patch(
+        "ocapi.llm_utils.config._load_llm_models_config",
+        return_value=_fake_models_cfg_without_reasoning(),
+    ):
+        with patch(
+            "ocapi.llm_utils.config._provider_api_config",
+            return_value=("piag-key", "https://piag.example"),
+        ):
+            model = config_model_llm()
+
+    assert model.reasoning_model is None

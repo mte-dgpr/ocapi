@@ -250,6 +250,9 @@ def config_model_llm(model: str | None = None) -> ResolvedLLMModel:
         raise LLMConfigError(f"Invalid configuration for model: {model_key}")
 
     reasoning_model = model_cfg.get("reasoning_model")
+    env_disable_reasoning = os.environ.get("LLM_DISABLE_REASONING", "").strip().lower()
+    if reasoning_model is True and env_disable_reasoning in ("1", "true", "yes"):
+        reasoning_model = False
     raw_temperature = model_cfg.get("temperature", 0.0)
     temperature = float(raw_temperature) if raw_temperature is not None else None
 
