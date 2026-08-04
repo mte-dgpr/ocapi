@@ -95,7 +95,10 @@ def main(
     if aiot is None:
         aiot = input_dir.name
     _LOGGER.info(f"AIOT: {aiot}")
-    _LOGGER.info(f"LLM model: {config_model_llm().model_name}")
+    _resolved_model = config_model_llm()
+    _LOGGER.info(
+        f"LLM model: {_resolved_model.model_name} (reasoning={_resolved_model.reasoning_model})"
+    )
 
     # Load arrêtés
     try:

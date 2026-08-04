@@ -97,7 +97,10 @@ def run_main(
     """
     resolved_aiot = aiot or input_dir.name
     _LOGGER.info(f"AIOT: {resolved_aiot}")
-    _LOGGER.info(f"LLM model: {config_model_llm().model_name}")
+    _resolved_model = config_model_llm()
+    _LOGGER.info(
+        f"LLM model: {_resolved_model.model_name} (reasoning={_resolved_model.reasoning_model})"
+    )
 
     try:
         pairs = load_document_contexts(input_dir, resolved_aiot)
