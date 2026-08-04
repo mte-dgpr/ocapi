@@ -34,7 +34,7 @@ Chaque entrée a au minimum `provider` + `model_id` ; `reasoning_model` et
 |---|---|---|
 | `mte-piag` | `LLM__PIAG_API_URL` | OpenAI-compatible, `temperature: 0`. |
 | `mistral` | `LLM__MISTRAL_API_URL` | OpenAI-compatible, `temperature: 0`. |
-| `openai` | `LLM__OPENAI_API_URL` | Si `reasoning_model: true` → `reasoning_effort: high` + `verbosity: low` au lieu de `temperature`. |
+| `openai` | `LLM__OPENAI_API_URL` | Si `reasoning_model: true` → `reasoning_effort: high` + `verbosity: low` au lieu de `temperature`. Désactivable via `LLM_DISABLE_REASONING=true`. |
 | `anthropic` | `LLM__ANTHROPIC_API_URL` | API Messages, `max_tokens: 4096`, header `anthropic-version: 2023-06-01`. |
 | `google` | `LLM__GOOGLE_API_URL` | Endpoint Gemini compatible OpenAI. |
 | `deepseek` | `LLM__DEEPSEEK_API_URL` | OpenAI-compatible, `temperature: 0`. |
