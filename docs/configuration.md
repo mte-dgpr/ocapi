@@ -95,6 +95,11 @@ toucher au JSON via les variables d'environnement `LLM_PRIMARY_MODEL_KEY` et
 `LLM_SECONDARY_MODEL_KEY` (la valeur doit correspondre à une `model_key`
 déclarée dans `models`).
 
+`LLM_DISABLE_REASONING=true` (ou `1` / `yes`) force `reasoning_model` à
+`false` pour le modèle résolu, même si le JSON déclare `"reasoning_model": true`.
+Sans cette variable (ou avec `false` / `0`), c'est la valeur du JSON qui
+s'applique. L'état effectif est affiché au démarrage : `LLM model: <id> (reasoning=True/False/None)`.
+
 ### `config/llm_resilience.json`
 
 ```json
