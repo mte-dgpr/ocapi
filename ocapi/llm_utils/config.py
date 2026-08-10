@@ -36,9 +36,14 @@ _RESILIENCE_CONFIG_PATH = settings.paths.project_root / "config" / "llm_resilien
 _RATE_LIMIT_CONFIG_PATH = settings.paths.project_root / "config" / "llm_rate_limit.json"
 
 _DEFAULT_LLM_MODELS_CONFIG: dict[str, Any] = {
-    "primary_model_key": "piag_mistral_medium",
+    "primary_model_key": "mistral_medium-3-5",
     "secondary_model_key": None,
     "models": {
+        "mistral_medium-3-5": {
+            "provider": "mistral",
+            "model_id": "mistral-medium-3-5",
+            "reasoning_model": True,
+        },
         "piag_mistral_medium": {
             "provider": "mte-piag",
             "model_id": "mte-api-piag-mistral-medium-latest",
@@ -190,11 +195,11 @@ def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
         "GPT5mini": "openai_gpt5-mini",
         "mte-api-piag-mistral-medium-latest": "piag_mistral_medium",
         "mistral-medium-latest": "mistral_medium-3-5",
+        "mistral_medium": "mistral_medium-3-5",
         "anthropic_sonnet": "anthropic_sonnet-4-6",
         "anthropic_haiku": "anthropic_haiku-4-5",
         "anthropic_opus": "anthropic_opus-4-8",
         "gemini_pro": "gemini_2-5-pro",
-        "mistral_medium": "mistral_medium-3-1",
     }
     if model in legacy_aliases and legacy_aliases[model] in models:
         return legacy_aliases[model]

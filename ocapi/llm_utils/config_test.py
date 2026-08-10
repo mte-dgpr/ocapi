@@ -53,6 +53,31 @@ def test_config_model_llm_uses_primary_and_secondary_keys() -> None:
     assert secondary.model_name == "mte-api-piag-mistral-medium-latest"
 
 
+def test_default_models_config_uses_mistral_medium_3_5() -> None:
+    default_models_cfg = {
+        "primary_model_key": "mistral_medium-3-5",
+        "secondary_model_key": None,
+        "models": {
+            "mistral_medium-3-5": {
+                "provider": "mistral",
+                "model_id": "mistral-medium-3-5",
+                "reasoning_model": True,
+            }
+        },
+    }
+
+    with patch("ocapi.llm_utils.config._load_llm_models_config", return_value=default_models_cfg):
+        with patch(
+            "ocapi.llm_utils.config._provider_api_config",
+            return_value=("mistral-key", "https://mistral.example"),
+        ):
+            primary = config_model_llm()
+
+    assert primary.model_key == "mistral_medium-3-5"
+    assert primary.provider == "mistral"
+    assert primary.model_name == "mistral-medium-3-5"
+
+
 def _fake_models_cfg() -> dict[str, object]:
     return {
         "primary_model_key": "openai_primary",
