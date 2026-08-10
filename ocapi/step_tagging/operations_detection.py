@@ -42,34 +42,34 @@ OPERATION_TYPES_GROUP_NAMES = [
 ]
 
 
-SECTION_AFTER_OPERATION_L = r"(le|la|les|l')\s"
-SECTION_AFTER_OPERATION_D = r"(de|du|des|d')\s"
-SECTION_AFTER_OPERATION_A = r"(à|au|à l'|aux)\s"
-SECTION_POSITION_EXPR = r"(au\sdébut|à\sla\sfin|à\sla\ssuite|au\sniveau)"
+SECTION_AFTER_OPERATION_L = r"(le|la|les|l')\s+"
+SECTION_AFTER_OPERATION_D = r"(de|du|des|d')\s+"
+SECTION_AFTER_OPERATION_A = r"(à|au|à l'|aux)\s+"
+SECTION_POSITION_EXPR = r"(au\s+début|à\s+la\s+fin|à\s+la\s+suite|au\s+niveau)"
 
 TERMS_VARIANTS_LIST = [
     r"termes?",
     r"phrases?",
     r"mots?",
-    r"dispositions?(\ssuivantes?)?",
+    r"dispositions?(\s+suivantes?)?",
 ]
 TERMS_VARIANTS = rf"{SECTION_AFTER_OPERATION_L}({join_with_or(TERMS_VARIANTS_LIST)})"
 
 DISPOSITION_PATTERN_S = r"les dispositions suivantes"
 EXPR_CONTINUATION_LIST = [
-    r"suivant\sles\sdispositions",
-    r"par\sles\s(suivantes|dispositions|prescriptions)",
-    r"par\sce\squi\ssuit",
-    r"comme\sprécisé",
-    r"celles\sdéfinies\spar",
-    r"par\scelles\s(inscrites|répertoriées)",
-    r"ainsi\squ'il\ssuit",
-    r"dans\sles\sconditions\s(suivantes|ci-après)",
+    r"suivant\s+les\s+dispositions",
+    r"par\s+les\s+(suivantes|dispositions|prescriptions)",
+    r"par\s+ce\s+qui\s+suit",
+    r"comme\s+précisé",
+    r"celles\s+définies\s+par",
+    r"par\s+celles\s+(inscrites|répertoriées)",
+    r"ainsi\s+qu'il\s+suit",
+    r"dans\s+les\s+conditions\s+(suivantes|ci-après)",
     r"ainsi",
-    r"par\sle\ssuivant",
-    r"de\sla\s(façon|manière)\ssuivante",
-    r"comme\ssui(t|vant)",
-    r"comme\s(indiqué|précisé|ci-après)",
+    r"par\s+le\s+suivant",
+    r"de\s+la\s+(façon|manière)\s+suivante",
+    r"comme\s+sui(t|vant)",
+    r"comme\s+(indiqué|précisé|ci-après)",
     rf"selon\s{SECTION_AFTER_OPERATION_L}",
 ]
 
@@ -87,16 +87,16 @@ EXPR_CONTINUATION = join_with_or(EXPR_CONTINUATION_LIST)
 RTL_OPERATION_NODE = regex_tree.Group(
     regex_tree.Sequence(
         [
-            r"^.*",
+            r"^[\s\S]*",
             regex_tree.Branching(
                 [
-                    r"est\sainsi",
-                    r"sont\sainsi",
+                    r"est\s+ainsi",
+                    r"sont\s+ainsi",
                     r"est",
                     r"sont",
                 ]
             ),
-            r"\s",
+            r"\s+",
             regex_tree.Branching(
                 [
                     # ADD OPERATIONS
@@ -106,12 +106,12 @@ RTL_OPERATION_NODE = regex_tree.Group(
                                 r"créée?s?",
                                 group_name=RawOperationType.ADD.value,
                             ),
-                            r"\s",
+                            r"\s+",
                             regex_tree.Branching(
                                 [
-                                    r"un\s(nouve(l|au)\s)?",
-                                    rf"{COUNT_PATTERN_S}\s(nouveaux\s)?",
-                                    rf"en fin\s{SECTION_AFTER_OPERATION_D}",
+                                    r"un\s+(nouve(l|au)\s+)?",
+                                    rf"{COUNT_PATTERN_S}\s+(nouveaux\s+)?",
+                                    rf"en fin\s+{SECTION_AFTER_OPERATION_D}",
                                     SECTION_AFTER_OPERATION_A,
                                     DISPOSITION_PATTERN_S,
                                 ]
@@ -124,28 +124,28 @@ RTL_OPERATION_NODE = regex_tree.Group(
                                 r"insérée?s?",
                                 group_name=RawOperationType.ADD.value,
                             ),
-                            r"(?!\saux?\srecueils?\sdes\sactes\sadministratifs)",
-                            r"\s",
+                            r"(?!\s+aux?\s+recueils?\s+des\s+actes\s+administratifs)",
+                            r"\s+",
                             regex_tree.Branching(
                                 [
                                     regex_tree.Sequence(
                                         [
                                             regex_tree.Branching([r"après", r"dans"]),
-                                            r"\s",
+                                            r"\s+",
                                             SECTION_AFTER_OPERATION_L,
                                         ]
                                     ),
                                     regex_tree.Sequence(
                                         [
                                             SECTION_POSITION_EXPR,
-                                            r"\s",
+                                            r"\s+",
                                             SECTION_AFTER_OPERATION_D,
                                         ]
                                     ),
-                                    r"et\s(est|sont)\sainsi\srédigés?",
+                                    r"et\s+(est|sont)\s+ainsi\s+rédigés?",
                                     r"le nouve(l|au)",
-                                    rf"les\s{COUNT_PATTERN_S}",
-                                    rf"{COUNT_PATTERN_S}\spoints?",
+                                    rf"les\s+{COUNT_PATTERN_S}",
+                                    rf"{COUNT_PATTERN_S}\s+points?",
                                     rf"{SECTION_AFTER_OPERATION_A}",
                                     DISPOSITION_PATTERN_S,
                                 ]
@@ -161,10 +161,10 @@ RTL_OPERATION_NODE = regex_tree.Group(
                             r"[,\s]+",
                             regex_tree.Branching(
                                 [
-                                    r"à\s(sa|la)\sfin",
-                                    r"comme\ssuit",
+                                    r"à\s+(sa|la)\s+fin",
+                                    r"comme\s+suit",
                                     r"ainsi",
-                                    r"par\s",
+                                    r"par\s+",
                                     r"d'",
                                 ]
                             ),
@@ -173,7 +173,7 @@ RTL_OPERATION_NODE = regex_tree.Group(
                     regex_tree.Group(
                         regex_tree.Branching(
                             [
-                                r"modifiée?s?\spar\sl'ajout",
+                                r"modifiée?s?\s+par\s+l'ajout",
                                 r"ajoutée?s?",
                             ]
                         ),
@@ -184,10 +184,10 @@ RTL_OPERATION_NODE = regex_tree.Group(
                         regex_tree.Branching(
                             [
                                 # Table regex
-                                r"modifiée?s?\sou\ssupprimée?s?\set\sremplacée?s?",
-                                r"supprimée?s?,\smodifiée?s?\sou\sajoutée?s?",
-                                r"modifiée?s?,\ssupprimée?s?\sou\scomplétée?s?",
-                                r"modifiée?s?,\scomplétée?s?,?\sou\sannulée?s?",
+                                r"modifiée?s?\s+ou\s+supprimée?s?\s+et\s+remplacée?s?",
+                                r"supprimée?s?,\s+modifiée?s?\s+ou\s+ajoutée?s?",
+                                r"modifiée?s?,\s+supprimée?s?\s+ou\s+complétée?s?",
+                                r"modifiée?s?,\s+complétée?s?,?\s+ou\s+annulée?s?",
                             ],
                         ),
                         group_name=RawOperationType.REPLACE.value,
@@ -196,14 +196,14 @@ RTL_OPERATION_NODE = regex_tree.Group(
                         regex_tree.Branching(
                             [
                                 # Simple regex
-                                r"abrogée?s?\set\ssubstituée?s?",
-                                r"supprimée?s?\set(\sest|\ssont)?\sremplacée?s?",
-                                r"annulée?s?\set\sremplacée?s?",
-                                r"abrogée?s?\s(et|ou)\sremplacée?s?",
-                                r"modifiée?s?\set\s(remplacée?|complétée?)s?",
-                                r"remplacée?s?\set\scomplétée?s?",
-                                r"modifiée?s?\set\srédigée?s?",
-                                r"modifiée?s?\s(et|ou)\ssupprimée?s?",
+                                r"abrogée?s?\s+et\s+substituée?s?",
+                                r"supprimée?s?\s+et(\s+est|\s+sont)?\s+remplacée?s?",
+                                r"annulée?s?\s+et\s+remplacée?s?",
+                                r"abrogée?s?\s+(et|ou)\s+remplacée?s?",
+                                r"modifiée?s?\s+et\s+(remplacée?|complétée?)s?",
+                                r"remplacée?s?\s+et\s+complétée?s?",
+                                r"modifiée?s?\s+et\s+rédigée?s?",
+                                r"modifiée?s?\s+(et|ou)\s+supprimée?s?",
                             ],
                         ),
                         group_name=RawOperationType.REPLACE.value,
@@ -214,7 +214,7 @@ RTL_OPERATION_NODE = regex_tree.Group(
                                 r"substituée?s?",
                                 group_name=RawOperationType.REPLACE.value,
                             ),
-                            r"\s",
+                            r"\s+",
                             r"par",
                         ]
                     ),
@@ -224,16 +224,16 @@ RTL_OPERATION_NODE = regex_tree.Group(
                                 r"remplacée?s?",
                                 group_name=RawOperationType.REPLACE.value,
                             ),
-                            r"\s",
+                            r"\s+",
                             regex_tree.Branching(
                                 [
                                     regex_tree.Group(
-                                        r":$",
+                                        r":\s*$",
                                         group_name="__has_operand",
                                     ),
                                     EXPR_CONTINUATION,
-                                    rf"par\s{TERMS_VARIANTS}",
-                                    rf"par\s{SECTION_AFTER_OPERATION_L}?",
+                                    rf"par\s+{TERMS_VARIANTS}",
+                                    rf"par\s+{SECTION_AFTER_OPERATION_L}?",
                                 ]
                             ),
                         ]
@@ -244,23 +244,23 @@ RTL_OPERATION_NODE = regex_tree.Group(
                                 r"modifiée?s?",
                                 group_name=RawOperationType.REPLACE.value,
                             ),
-                            r"\s",
+                            r"\s+",
                             regex_tree.Branching(
                                 [
                                     regex_tree.Group(
-                                        r":$",
+                                        r":\s*$",
                                         group_name="__has_operand",
                                     ),
                                     EXPR_CONTINUATION,
-                                    rf"pour\s{SECTION_AFTER_OPERATION_L}",
-                                    r"pour\s(ce\s)?qui\sconcerne",
+                                    rf"pour\s+{SECTION_AFTER_OPERATION_L}",
+                                    r"pour\s+(ce\s+)?qui\s+concerne",
                                     (
-                                        rf"par\s:?celles?\s{SECTION_AFTER_OPERATION_D}?"
+                                        rf"par\s+:?celles?\s+{SECTION_AFTER_OPERATION_D}?"
                                         rf"{SECTION_AFTER_OPERATION_L}?"
                                     ),
-                                    rf"conformément\s{SECTION_AFTER_OPERATION_A}",
-                                    rf"au\sniveau\s{SECTION_AFTER_OPERATION_D}",
-                                    r"de\smanière\stemporaire",
+                                    rf"conformément\s+{SECTION_AFTER_OPERATION_A}",
+                                    rf"au\s+niveau\s+{SECTION_AFTER_OPERATION_D}",
+                                    r"de\s+manière\s+temporaire",
                                 ]
                             ),
                         ]
@@ -271,10 +271,10 @@ RTL_OPERATION_NODE = regex_tree.Group(
                                 r"mis(e|es)? a jour",
                                 group_name=RawOperationType.REPLACE.value,
                             ),
-                            r"\s",
+                            r"\s+",
                             regex_tree.Branching(
                                 [
-                                    r"de\sla\sfaçon\ssuivante",
+                                    r"de\s+la\s+façon\s+suivante",
                                 ]
                             ),
                         ]

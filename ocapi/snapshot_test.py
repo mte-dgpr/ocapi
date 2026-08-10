@@ -30,7 +30,7 @@ from ocapi.snapshot import SNAPSHOT_CASES
 from ocapi.step_rendering.step_rendering import permis_to_html
 from ocapi.utils.io_utils import (
     article_history_to_json_dict,
-    load_arrete_files,
+    load_document_contexts,
     load_operations,
     write_json_output,
 )
@@ -43,10 +43,12 @@ UPDATE_SNAPSHOTS = os.environ.get("UPDATE_SNAPSHOTS", "").strip() in ("1", "true
 
 def _run_snapshot_pipeline(
     arretes_dir: Path, consolidation_dir: Path
-) -> tuple[list[dict[str, Any]], dict[str, Any], str]:
-    """Run the pipeline and return (ops_json, history_json, permis_html)."""
+) -> tuple[list[dict[str, Any]], dict[str, Any], str, dict[str, str]]:
+    """Run pipeline and return ops/history/permis plus tagged HTML by filename."""
     aiot = arretes_dir.name
-    arrete_files = load_arrete_files(arretes_dir, aiot)
+    pairs = load_document_contexts(arretes_dir, aiot)
+    arrete_files = [arrete_file for arrete_file, _ in pairs]
+    document_contexts = [document_context for _, document_context in pairs]
     operations = load_operations(consolidation_dir)
 
     ops, history, _arretes, permis = run_pipeline(
@@ -55,12 +57,17 @@ def _run_snapshot_pipeline(
         enable_rendering=True,
         enable_llm=False,
         operations=operations,
+        document_contexts=document_contexts,
     )
 
     ops_json = strip_none_values([op.model_dump(mode="json") for op in ops])
     history_json = strip_none_values(article_history_to_json_dict(history))
     permis_html = permis_to_html(permis) if permis else ""
-    return ops_json, history_json, permis_html
+    tagged_html = {
+        arrete_file.filename: normalize_html(document_context.soup.prettify())
+        for arrete_file, document_context in zip(arrete_files, document_contexts)
+    }
+    return ops_json, history_json, permis_html, tagged_html
 
 
 @pytest.mark.snapshot
@@ -73,13 +80,16 @@ def test_snapshot_pipeline_output(
         pytest.skip(f"Snapshot fixtures not found: {arretes_dir} or {consolidation_dir}")
 
     aiot = arretes_dir.name
-    arrete_files = load_arrete_files(arretes_dir, aiot)
-    if not arrete_files:
+    pairs = load_document_contexts(arretes_dir, aiot)
+    if not pairs:
         pytest.skip(f"No arrêtés loaded for {aiot} (incompatible Arrêtify version)")
 
-    ops_json, history_json, permis_html = _run_snapshot_pipeline(arretes_dir, consolidation_dir)
+    ops_json, history_json, permis_html, tagged_html = _run_snapshot_pipeline(
+        arretes_dir, consolidation_dir
+    )
 
     snapshot_dir = consolidation_dir
+    tagged_snapshot_dir = arretes_dir.parent.parent / "arretes_tagged" / aiot
 
     if UPDATE_SNAPSHOTS:
         snapshot_dir.mkdir(parents=True, exist_ok=True)
@@ -89,6 +99,9 @@ def test_snapshot_pipeline_output(
             (snapshot_dir / "permis.html").write_text(
                 normalize_html(permis_html), encoding="utf-8", newline="\n"
             )
+        tagged_snapshot_dir.mkdir(parents=True, exist_ok=True)
+        for filename, html in tagged_html.items():
+            (tagged_snapshot_dir / filename).write_text(html, encoding="utf-8", newline="\n")
         pytest.skip("Snapshots updated. Run without UPDATE_SNAPSHOTS=1 to verify.")
 
     if not snapshot_dir.exists():
@@ -110,6 +123,19 @@ def test_snapshot_pipeline_output(
             expected_html
         ), "Snapshot mismatch: permis.html"
 
+    assert tagged_snapshot_dir.exists(), (
+        f"Expected tagged snapshots not found: {tagged_snapshot_dir}. "
+        "Run with UPDATE_SNAPSHOTS=1 to generate."
+    )
+
+    for filename, actual_tagged_html in tagged_html.items():
+        expected_tagged_path = tagged_snapshot_dir / filename
+        assert expected_tagged_path.exists(), f"Missing tagged snapshot: {expected_tagged_path}"
+        expected_tagged_html = expected_tagged_path.read_text(encoding="utf-8")
+        assert normalize_html(actual_tagged_html) == normalize_html(
+            expected_tagged_html
+        ), f"Snapshot mismatch: arretes_tagged/{aiot}/{filename}"
+
 
 @pytest.mark.snapshot
 @pytest.mark.parametrize("arretes_dir,consolidation_dir", SNAPSHOT_CASES)
@@ -119,13 +145,14 @@ def test_snapshot_pipeline_is_deterministic(arretes_dir: Path, consolidation_dir
         pytest.skip(f"Snapshot fixtures not found: {arretes_dir} or {consolidation_dir}")
 
     aiot = arretes_dir.name
-    arrete_files = load_arrete_files(arretes_dir, aiot)
-    if not arrete_files:
+    pairs = load_document_contexts(arretes_dir, aiot)
+    if not pairs:
         pytest.skip(f"No arrêtés loaded for {aiot} (incompatible Arrêtify version)")
 
-    ops_1, history_1, html_1 = _run_snapshot_pipeline(arretes_dir, consolidation_dir)
-    ops_2, history_2, html_2 = _run_snapshot_pipeline(arretes_dir, consolidation_dir)
+    ops_1, history_1, html_1, tagged_1 = _run_snapshot_pipeline(arretes_dir, consolidation_dir)
+    ops_2, history_2, html_2, tagged_2 = _run_snapshot_pipeline(arretes_dir, consolidation_dir)
 
     assert ops_1 == ops_2, "operations.json differs between runs"
     assert history_1 == history_2, "history.json differs between runs"
     assert normalize_html(html_1) == normalize_html(html_2), "permis.html differs between runs"
+    assert tagged_1 == tagged_2, "arretes_tagged HTML differs between runs"

@@ -24,11 +24,12 @@ Trois usages au quotidien :
 
 ## Structure des snapshots
 
-Deux répertoires versionnés par cas, un AIOT par couple :
+Trois répertoires versionnés par cas, un AIOT par couple :
 
 | Répertoire | Contenu | Rôle |
 | --- | --- | --- |
-| `snapshots/arretes_html/<AIOT>/` | HTMLs **d'entrée** (sortie Arrêtify + step_tagging déjà appliqué) | input du pipeline en mode snapshot |
+| `snapshots/arretes_html/<AIOT>/` | HTMLs **d'entrée** (sortie Arrêtify) | input du pipeline en mode snapshot |
+| `snapshots/arretes_tagged/<AIOT>/` | HTMLs après `step_tagging` | baseline de non-régression du tagging |
 | `snapshots/arretes_consolidation/<AIOT>/` | `operations.json`, `history.json`, `permis.html` | sortie attendue à comparer |
 
 Le couple est référencé dans
@@ -55,23 +56,30 @@ rejoue `run_pipeline` avec :
 - `enable_detection=False` — pas d'appel LLM en détection ;
 - `enable_llm=False` — pas d'appel LLM en résolution non plus (les sous-cibles
   complexes sortent en `DISABLED_LLM_CALL`) ;
+- `document_contexts=load_document_contexts(...)` — exécute explicitement
+   `step_tagging` avant la détection ;
 - `operations=load_operations(consolidation_dir)` — opérations pré-chargées
   depuis `operations.json` figé.
 
-Puis il compare les trois sorties à celles déjà sur disque
-(`operations.json`, `history.json`, `permis.html`). Comparaison exacte après
-normalisation (`strip_none_values` pour le JSON, `normalize_html` pour le
-permis).
+Puis il compare les sorties à celles déjà sur disque :
+
+- `operations.json`, `history.json`, `permis.html` dans `arretes_consolidation` ;
+- chaque HTML taggé dans `arretes_tagged`.
+
+Comparaison exacte après normalisation (`strip_none_values` pour le JSON,
+`normalize_html` pour le HTML consolidé et les HTML taggés).
 
 Un second test (`test_snapshot_pipeline_is_deterministic`) rejoue le pipeline
 deux fois et vérifie que les sorties sont identiques d'un run à l'autre.
 
 ```mermaid
 flowchart LR
-  fixt["arretes_html/AIOT/<br/>+ operations.json"] --> pipe["run_pipeline<br/>enable_detection=False<br/>enable_llm=False"]
+   fixt["arretes_html/AIOT/<br/>+ operations.json"] --> pipe["run_pipeline<br/>enable_detection=False<br/>enable_llm=False<br/>document_contexts loaded"]
+   pipe --> tagged[arretes_tagged/*.html gen]
   pipe --> ops[operations.json gen]
   pipe --> hist[history.json gen]
   pipe --> permis[permis.html gen]
+   tagged -.compare.-> exp_tagged[snapshots/arretes_tagged/*.html]
   ops -.compare.-> exp_ops[snapshots/.../operations.json]
   hist -.compare.-> exp_hist[snapshots/.../history.json]
   permis -.compare.-> exp_html[snapshots/.../permis.html]
@@ -128,6 +136,8 @@ Effets :
 - chaque fichier attendu (`operations.json`, `history.json`, `permis.html`)
   est réécrit avec la sortie courante (JSON sérialisé `indent=2 sort_keys=True`,
   HTML normalisé) ;
+- chaque HTML de `snapshots/arretes_tagged/<AIOT>/` est aussi réécrit avec
+   la sortie courante de `step_tagging` ;
 - le test est marqué `skipped` (« Snapshots updated. Run without
   `UPDATE_SNAPSHOTS=1` to verify. ») — relancer sans la variable pour
   confirmer.
@@ -181,9 +191,10 @@ Workflow :
    `operations.json` figés ne sont plus alignés avec la nouvelle structure HTML.
 4. Régénérer les sorties dérivées et committer.
 
-> Note : `step_tagging` n'est pas idempotent sur du HTML déjà tagué. Pour
-> retagger un cas sans repasser par Arrêtify, voir l'issue de suivi
-> [#132](https://github.com/mte-dgpr/ocapi/issues/132).
+> Note : `step_tagging` est idempotent sur du HTML déjà tagué pour les balises
+> `operation` : le pipeline strip d'abord les anciens
+> `<span data-spec="operation">` (en conservant le contenu), puis retague.
+> Les snapshots `arretes_tagged` protègent ce comportement.
 
 ## Ajouter un cas snapshot
 

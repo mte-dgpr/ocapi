@@ -21,12 +21,14 @@ from arretify.semantic_tag_specs import (
     AlineaSpec,
     DocumentReferenceData,
     DocumentReferenceSpec,
+    PageFooterSpec,
+    PageHeaderSpec,
     PageSeparatorData,
     PageSeparatorSpec,
     SectionReferenceData,
     SectionReferenceSpec,
 )
-from arretify.types import DocumentType
+from arretify.types import DocumentType, SectionType
 from arretify.utils.html_semantic import css_selector
 from arretify.utils.testing import BaseTestCaseHtml, assert_elements_equal
 
@@ -546,7 +548,6 @@ class TestParseOperations(BaseTestCaseHtml):
 
     def test_ltr_passive_resolves_right_side_reference(self) -> None:
         """Passive LTR (Sont insérés après …) resolves the right reference."""
-        # TODO: fix operand detection for LTR operations
         self.soup_extend(
             [
                 self.make_semantic_tag(
@@ -600,6 +601,7 @@ class TestParseOperations(BaseTestCaseHtml):
                             keyword="insérés",
                             operation_type="ADD",
                             has_operand="true",
+                            operand="2",
                             references="1",
                         ),
                         contents=[
@@ -618,7 +620,448 @@ class TestParseOperations(BaseTestCaseHtml):
                     self.make_tag(
                         "q",
                         contents=["L'exploitant doit établir un Plan d'Opération Interne (POI)."],
+                        reserved_data_attrs=dict(tag_id="2"),
                     ),
                 ],
             ),
         )
+
+    def test_ltr_keeps_table_reference_when_it_has_parents(self) -> None:
+        """A table reference with parents is a valid operation target."""
+        table_reference_tag = self.make_semantic_tag(
+            SectionReferenceSpec,
+            data=SectionReferenceData(parent_reference="10"),
+            contents=["tableau"],
+            reserved_data_attrs=dict(tag_id="11"),
+        )
+        table_type = getattr(SectionType, "TABLEAU", None)
+        if table_type is not None:
+            table_reference_tag.attrs["data-type"] = str(getattr(table_type, "value", table_type))
+        else:
+            table_reference_tag.attrs["data-type"] = "tableau"
+
+        self.soup_extend(
+            [
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=1),
+                    contents=[
+                        self.make_semantic_tag(
+                            OperationSpec,
+                            data=OperationData(
+                                direction="ltr",
+                                keyword="insérés",
+                                operation_type="ADD",
+                                has_operand="true",
+                            ),
+                            contents=[
+                                "Sont ",
+                                self.make_tag("b", contents=["insérés"]),
+                                " après le ",
+                            ],
+                        ),
+                        table_reference_tag,
+                        " de l'",
+                        self.make_semantic_tag(
+                            SectionReferenceSpec,
+                            data=SectionReferenceData(
+                                parent_reference="20",
+                            ),
+                            contents=["article 4.23"],
+                            reserved_data_attrs=dict(tag_id="10"),
+                        ),
+                        " de l'",
+                        self.make_semantic_tag(
+                            DocumentReferenceSpec,
+                            data=DocumentReferenceData(
+                                type=DocumentType.arrete_prefectoral,
+                                date="2011-12-20",
+                            ),
+                            contents=["arrêté préfectoral du 20 décembre 2011"],
+                            reserved_data_attrs=dict(tag_id="20"),
+                        ),
+                        ", les paragraphes suivants :",
+                        self.make_tag("q", contents=["Contenu inséré."]),
+                    ],
+                )
+            ]
+        )
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
+
+        resolve_references_and_operands(self.context, operation_tag)
+
+        updated_data = operation_tag.attrs
+        assert updated_data.get("data-references") == "11"
+        assert updated_data.get("data-operand") is not None
+
+    def test_ltr_ignores_table_reference_when_it_is_alone(self) -> None:
+        """A standalone table reference should not drive target resolution."""
+        table_reference_tag = self.make_semantic_tag(
+            SectionReferenceSpec,
+            data=SectionReferenceData(),
+            contents=["tableau"],
+            reserved_data_attrs=dict(tag_id="11"),
+        )
+        table_type = getattr(SectionType, "TABLEAU", None)
+        if table_type is not None:
+            table_reference_tag.attrs["data-type"] = str(getattr(table_type, "value", table_type))
+        else:
+            table_reference_tag.attrs["data-type"] = "tableau"
+
+        self.soup_extend(
+            [
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=1),
+                    contents=[
+                        self.make_semantic_tag(
+                            OperationSpec,
+                            data=OperationData(
+                                direction="ltr",
+                                keyword="insérés",
+                                operation_type="ADD",
+                                has_operand="true",
+                            ),
+                            contents=[
+                                "Sont ",
+                                self.make_tag("b", contents=["insérés"]),
+                                " après le ",
+                            ],
+                        ),
+                        table_reference_tag,
+                        ", les paragraphes suivants :",
+                        self.make_tag("q", contents=["Contenu inséré."]),
+                    ],
+                )
+            ]
+        )
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
+
+        resolve_references_and_operands(self.context, operation_tag)
+
+        updated_data = operation_tag.attrs
+        assert updated_data.get("data-references") is None
+        assert updated_data.get("data-operand") is None
+
+    def test_no_operand_tag_keeps_operand_empty(self) -> None:
+        self.soup_extend(
+            [
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=1),
+                    contents=[
+                        "Le présent arrêté ",
+                        self.make_semantic_tag(
+                            OperationSpec,
+                            data=OperationData(
+                                direction="ltr",
+                                keyword="abroge",
+                                operation_type="REMOVE",
+                                has_operand="true",
+                            ),
+                            contents=[
+                                self.make_tag("b", contents=["abroge"]),
+                                " l'",
+                            ],
+                        ),
+                        self.make_semantic_tag(
+                            DocumentReferenceSpec,
+                            data=DocumentReferenceData(
+                                type=DocumentType.arrete_prefectoral,
+                                date="2011-12-20",
+                            ),
+                            contents=["arrêté préfectoral du 20 décembre 2011"],
+                        ),
+                        ".",
+                    ],
+                )
+            ]
+        )
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
+
+        resolve_references_and_operands(self.context, operation_tag)
+
+        data = operation_tag.attrs
+        assert data.get("data-references") == "1"
+        assert data.get("data-operand") is None
+
+    def test_ltr_does_not_pick_far_operand_beyond_next_alinea(self) -> None:
+        self.soup_extend(
+            [
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=1),
+                    contents=[
+                        self.make_semantic_tag(
+                            OperationSpec,
+                            data=OperationData(
+                                direction="ltr",
+                                keyword="insérés",
+                                operation_type="ADD",
+                                has_operand="true",
+                            ),
+                            contents=[
+                                "Sont ",
+                                self.make_tag("b", contents=["insérés"]),
+                                " après le ",
+                            ],
+                        ),
+                        self.make_semantic_tag(
+                            SectionReferenceSpec,
+                            data=SectionReferenceData(),
+                            contents=["paragraphe 4.23"],
+                        ),
+                        ".",
+                    ],
+                ),
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=2),
+                    contents=["Texte libre sans balise opérande."],
+                ),
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=3),
+                    contents=[
+                        self.make_tag(
+                            "q",
+                            contents=["Cet alinéa est trop loin pour être l'opérande."],
+                        )
+                    ],
+                ),
+            ]
+        )
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
+
+        resolve_references_and_operands(self.context, operation_tag)
+
+        data = operation_tag.attrs
+        assert data.get("data-references") == "1"
+        assert data.get("data-operand") is None
+
+    def test_rtl_does_not_pick_far_operand_beyond_next_alinea(self) -> None:
+        self.soup_extend(
+            [
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=1),
+                    contents=[
+                        "Les dispositions de l' ",
+                        self.make_semantic_tag(
+                            SectionReferenceSpec,
+                            data=SectionReferenceData(parent_reference="10"),
+                            contents=["article 4.3.12"],
+                        ),
+                        " de l' ",
+                        self.make_semantic_tag(
+                            DocumentReferenceSpec,
+                            data=DocumentReferenceData(
+                                type=DocumentType.arrete_prefectoral,
+                                date="2008-12-10",
+                            ),
+                            contents=["arrêté du 10 décembre 2008"],
+                            reserved_data_attrs=dict(tag_id="10"),
+                        ),
+                        self.make_semantic_tag(
+                            OperationSpec,
+                            data=OperationData(
+                                direction="rtl",
+                                keyword="remplacées",
+                                operation_type="REPLACE",
+                                has_operand="true",
+                            ),
+                            contents=[
+                                "sont ",
+                                self.make_tag("b", contents=["remplacées"]),
+                                " par les dispositions suivantes :",
+                            ],
+                        ),
+                    ],
+                ),
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=2),
+                    contents=["Texte de transition sans blockquote/q/table."],
+                ),
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=3),
+                    contents=[self.make_tag("blockquote", contents=["Trop loin."])],
+                ),
+            ]
+        )
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
+
+        resolve_references_and_operands(self.context, operation_tag)
+
+        data = operation_tag.attrs
+        assert data.get("data-references") == "1"
+        assert data.get("data-operand") is None
+
+    def test_rtl_resolves_operand_in_next_alinea_after_pagination(self) -> None:
+        self.soup_extend(
+            [
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=1),
+                    contents=[
+                        "Les dispositions de l' ",
+                        self.make_semantic_tag(
+                            SectionReferenceSpec,
+                            data=SectionReferenceData(parent_reference="10"),
+                            contents=["article 3"],
+                        ),
+                        " de l' ",
+                        self.make_semantic_tag(
+                            DocumentReferenceSpec,
+                            data=DocumentReferenceData(
+                                type=DocumentType.arrete_prefectoral,
+                                date="2012-09-03",
+                            ),
+                            contents=["arrêté complémentaire du 03 septembre 2012"],
+                            reserved_data_attrs=dict(tag_id="10"),
+                        ),
+                        self.make_semantic_tag(
+                            OperationSpec,
+                            data=OperationData(
+                                direction="rtl",
+                                keyword="remplacées",
+                                operation_type="REPLACE",
+                                has_operand="true",
+                            ),
+                            contents=[
+                                "sont ",
+                                self.make_tag("b", contents=["remplacées"]),
+                                " par les dispositions suivantes :",
+                            ],
+                        ),
+                    ],
+                ),
+                self.make_semantic_tag(
+                    PageFooterSpec,
+                    contents=[self.make_tag("div", contents=["Pied de page"])],
+                ),
+                self.make_semantic_tag(
+                    PageSeparatorSpec,
+                    data=PageSeparatorData(page_index=2),
+                ),
+                self.make_semantic_tag(
+                    PageHeaderSpec,
+                    contents=[self.make_tag("div", contents=["En-tête de page"])],
+                ),
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=2),
+                    contents=[self.make_tag("table", contents=[self.make_tag("tr")])],
+                ),
+            ]
+        )
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
+
+        resolve_references_and_operands(self.context, operation_tag)
+
+        assert_elements_equal(
+            self.soup.contents[0],
+            self.make_semantic_tag(
+                AlineaSpec,
+                data=AlineaData(number=1),
+                contents=[
+                    "Les dispositions de l' ",
+                    self.make_semantic_tag(
+                        SectionReferenceSpec,
+                        data=SectionReferenceData(parent_reference="10"),
+                        contents=["article 3"],
+                        reserved_data_attrs=dict(tag_id="1"),
+                    ),
+                    " de l' ",
+                    self.make_semantic_tag(
+                        DocumentReferenceSpec,
+                        data=DocumentReferenceData(
+                            type=DocumentType.arrete_prefectoral,
+                            date="2012-09-03",
+                        ),
+                        contents=["arrêté complémentaire du 03 septembre 2012"],
+                        reserved_data_attrs=dict(tag_id="10"),
+                    ),
+                    self.make_semantic_tag(
+                        OperationSpec,
+                        data=OperationData(
+                            direction="rtl",
+                            keyword="remplacées",
+                            operation_type="REPLACE",
+                            has_operand="true",
+                            references="1",
+                            operand="2",
+                        ),
+                        contents=[
+                            "sont ",
+                            self.make_tag("b", contents=["remplacées"]),
+                            " par les dispositions suivantes :",
+                        ],
+                    ),
+                ],
+            ),
+        )
+
+    def test_rtl_does_not_pick_q_in_next_alinea_as_operand(self) -> None:
+        self.soup_extend(
+            [
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=1),
+                    contents=[
+                        "L' ",
+                        self.make_semantic_tag(
+                            SectionReferenceSpec,
+                            data=SectionReferenceData(parent_reference="10"),
+                            contents=["article 9.2.3.1"],
+                        ),
+                        " de l' ",
+                        self.make_semantic_tag(
+                            DocumentReferenceSpec,
+                            data=DocumentReferenceData(
+                                type=DocumentType.arrete_prefectoral,
+                                date="2008-12-10",
+                            ),
+                            contents=["arrêté préfectoral du 10 décembre 2008"],
+                            reserved_data_attrs=dict(tag_id="10"),
+                        ),
+                        self.make_semantic_tag(
+                            OperationSpec,
+                            data=OperationData(
+                                direction="rtl",
+                                keyword="modifié",
+                                operation_type="REPLACE",
+                                has_operand="true",
+                            ),
+                            contents=[
+                                "est ",
+                                self.make_tag("b", contents=["modifié"]),
+                                " dans les conditions suivantes :",
+                            ],
+                        ),
+                    ],
+                ),
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=2),
+                    contents=[
+                        "Le tableau présenté dans la section ",
+                        self.make_tag("q", contents=["eaux résiduaires après détoxication"]),
+                        " est remplacé par le tableau suivant :",
+                    ],
+                ),
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=3),
+                    contents=[self.make_tag("table", contents=[self.make_tag("tr")])],
+                ),
+            ]
+        )
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
+
+        resolve_references_and_operands(self.context, operation_tag)
+
+        data = operation_tag.attrs
+        assert data.get("data-references") == "1"
+        assert data.get("data-operand") is None
