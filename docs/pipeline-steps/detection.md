@@ -25,7 +25,7 @@ Point d'entrée : [`step_detection(arrete_file)`](https://github.com/mte-dgpr/oc
 Une étape **1** facultative (`step_tagging`, [`ocapi/step_tagging/`](https://github.com/mte-dgpr/ocapi/tree/main/ocapi/step_tagging))
 enrichit le HTML Arrêtify avec des spans sémantiques utilisés en aval (verbes
 d'opération, références d'articles, sous-cibles…). Sortie écrite sous
-`arretes_tagged/<aiot>/`. Désactivable via `--no-tagging` ; dans ce cas, les
+`arretes_tagged/<aiot>/`. Activable via `--enable-tagging` ; sinon, les
 tags pré-existants dans le HTML d'entrée sont utilisés tels quels.
 
 ## Chunking

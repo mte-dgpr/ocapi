@@ -30,8 +30,16 @@ toute analyse manuelle ultérieure.
 
 Dans `run_pipeline`, l'étape 1 tourne **avant la détection** dès que
 `enable_tagging=True` et que des `document_contexts` sont fournis. La CLI
-l'active par défaut ; la désactiver avec `--no-tagging` (les tags pré-existants
-dans le HTML d'entrée sont alors utilisés tels quels).
+la laisse désactivée par défaut ; l'activer explicitement avec
+`--enable-tagging` (les tags pré-existants dans le HTML d'entrée sont sinon
+utilisés tels quels).
+
+Cas usuels d'activation explicite :
+
+- comparer la valeur ajoutée du tagging Regex par rapport à la détection seule,
+- régénérer un tagged HTML (`arretes_tagged/<aiot>/`) pour inspection,
+- diagnostiquer un écart entre opérations Regex et opérations candidates
+  (LLM ou préchargées).
 
 ## Pipeline interne
 
@@ -91,14 +99,21 @@ juste après. La CLI écrit ensuite l'HTML annoté dans
 `arretes_tagged/<aiot>/<filename>.html` via
 [`save_tagged_html_file`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/utils/io_utils.py).
 
-## Désactivation
+## Fusion avec les opérations candidates
 
-- `run_pipeline(..., enable_tagging=False)` — saute l'étape (les éventuels
-  tags déjà présents dans le HTML d'entrée sont utilisés tels quels).
-- CLI : `ocapi run ... --no-tagging` ou `python -m ocapi.main ... --no-tagging`.
+Après extraction des opérations `Regex`, le pipeline les fusionne avec les
+opérations candidates (`LLM` ou préchargées en mode snapshot) avant la
+résolution :
 
-Utile pour rejouer un pipeline sur un HTML déjà taggué (ex. fixture, snapshot,
-sortie sauvegardée), ou pour isoler un bug entre tagging et détection.
+- les doublons stricts sont supprimés,
+- entre une version `FULL_SECTION` et une version plus précise sur la même
+  source/cible, la version la plus précise est conservée,
+- les collisions d'IDs sont résolues par renumérotation des opérations retenues.
+
+Cette étape se fait dans
+[`ocapi/step_tagging/operations_filtering.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/step_tagging/operations_filtering.py)
+et est appelée depuis
+[`ocapi/pipeline.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/pipeline.py).
 
 ## Origine
 

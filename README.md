@@ -31,6 +31,11 @@ Le pipeline OCAPI se décompose en 4 étapes principales :
 3. **Resolution** : Résout les conflits et construit l'historique des versions
 4. **Rendering** : Génère le permis consolidé HTML final
 
+### Fusion des opérations (tagging + candidates)
+
+OCAPI fusionne d'abord les opérations extraites par le tagging (Regex) avec celles trouvées par la détection (LLM ou préchargées).
+Ensuite, il supprime les doublons et garde la version la plus précise d'une même modification.
+
 ### Filtrage des articles superflus
 
 Lors du rendering, les articles dont le titre correspond exactement (comparaison insensible à la casse et aux accents) à un titre qui n'intéresse pas la consolidation (e.g. frais, publication, sanctions…) sont automatiquement exclus du permis consolidé.
@@ -164,6 +169,7 @@ ocapi --verbose run snapshots/arretes_html/0005804239/
 **Options disponibles :**
 - `--aiot AIOT` : Identifiant AIOT (défaut : déduit du chemin)
 - `--include ID [ID...]` : Filtrer sur des arrêtés spécifiques
+- `--enable-tagging` : Active `step_tagging` et la fusion des opérations Regex + LLM (désactivé par défaut)
 - `-o, --output FILE` : Fichier de sortie JSON
 - `-v, --verbose` : Mode verbose (DEBUG)
 - `-q, --quiet` : Mode silencieux (WARNING+)
@@ -200,6 +206,7 @@ python -m ocapi.main snapshots/arretes_html/0005804239/ \
 **Options supplémentaires :**
 - `--no-detection` : Désactiver la détection (utiliser les opérations préchargées)
 - `--no-rendering` : Désactiver la génération du permis consolidé
+- `--enable-tagging` : Active `step_tagging` (désactivé par défaut)
 
 ## 📁 Structure du projet
 
@@ -411,11 +418,16 @@ Le script `scripts/evaluate_detection.py` mesure la qualité de la détection de
 
 Une opération est considérée comme correctement détectée si et seulement si le source (arrêté + article), le target (arrêté + article) et le type d'opération (ADD / REPLACE / REMOVE) correspondent exactement au ground-truth.
 
+Avec `--enable-tagging`, le script exécute aussi `step_tagging` avant la détection, puis fusionne les opérations Regex et LLM avec la même logique que le pipeline principal pour évaluer le flux combiné.
+
 Le script produit trois métriques par AIOT et au global : **précision**, **rappel** et **F1-score**.
 
 ```bash
 # Évaluer sur tous les AIOT avec un modèle donné
 python scripts/evaluate_detection.py --model openai_gpt5mini
+
+# Évaluer tagging + détection avant scoring
+python scripts/evaluate_detection.py --model openai_gpt5mini --enable-tagging
 
 # Évaluer avec Mistral medium
 python scripts/evaluate_detection.py --model mistral_medium

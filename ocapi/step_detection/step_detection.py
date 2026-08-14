@@ -37,6 +37,7 @@ from ocapi.types import (
     ArreteId,
     ImageMap,
     Operation,
+    OperationOrigin,
     RawOperation,
     RawOperationType,
     parse_arrete_id,
@@ -61,6 +62,7 @@ def _parse_and_validate_raw_operations(
     raw_operations: list[RawOperation] = []
     for element in raw_list:
         element["source_arrete"] = arrete_id
+        element.setdefault("origin", OperationOrigin.LLM.value)
         try:
             raw_operations.append(RawOperation(**element))
         except Exception as exc:

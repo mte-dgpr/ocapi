@@ -28,12 +28,14 @@ from ocapi.llm_utils import ConfidenceScoreConfig, prompt_detection
 from ocapi.step_detection.step_detection import (
     _OPERATION_ID_COUNTER,
     _filter_low_confidence_operations,
+    _parse_and_validate_raw_operations,
     _raw_operation_to_operation,
     step_detection,
 )
 from ocapi.types import (
     ErrorCode,
     NodeId,
+    OperationOrigin,
     OperationType,
     RawOperation,
     RawOperationType,
@@ -62,6 +64,7 @@ def test_convert_raw_operation_to_operation(
     raw_operations = [
         RawOperation(
             operation_type=RawOperationType.REPLACE,
+            origin=OperationOrigin.LLM,
             source_arrete="1980-01-01",
             source_article="1",
             target_arrete="1981-01-01",
@@ -72,6 +75,7 @@ def test_convert_raw_operation_to_operation(
         ),
         RawOperation(
             operation_type=RawOperationType.REMOVE,
+            origin=OperationOrigin.LLM,
             source_arrete="1980-01-01",
             source_article="2",
             target_arrete="1981-01-01",
@@ -90,6 +94,7 @@ def test_convert_raw_operation_to_operation(
     assert op1.source_id == NodeId(arrete_id="1980-01-01", article_id="1")
     assert op1.target_id == NodeId(arrete_id="1981-01-01", article_id="2")
     assert op1.operation_type == OperationType.REPLACE
+    assert op1.origin == OperationOrigin.LLM
     assert op1.sub_target.type == SubTargetType.TABLEAU
     assert op1.error_codes == frozenset()
     mock_extract_operand_with_images.assert_called_once()
@@ -99,6 +104,7 @@ def test_convert_raw_operation_to_operation(
     assert op2.source_id == NodeId(arrete_id="1980-01-01", article_id="2")
     assert op2.target_id == NodeId(arrete_id="1981-01-01", article_id="3")
     assert op2.operation_type == OperationType.REMOVE
+    assert op2.origin == OperationOrigin.LLM
     assert op2.sub_target is None
     assert op2.operand is None
     assert op2.error_codes == frozenset()
@@ -464,3 +470,26 @@ def test_step_detection_disabled_keeps_all_ops_regardless_of_score(
 
     assert len(ops) == 2
     mock_llm.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# step_detection – origin
+# ---------------------------------------------------------------------------
+
+
+def test_parse_and_validate_sets_llm_origin_when_missing() -> None:
+    raw = json.dumps(
+        [
+            {
+                "operation_type": "REMOVE",
+                "source_article": "1",
+                "target_arrete": "2020-01-01",
+                "target_article": "2",
+            }
+        ]
+    )
+
+    parsed = _parse_and_validate_raw_operations(raw, "2022-01-01")
+
+    assert len(parsed) == 1
+    assert parsed[0].origin == OperationOrigin.LLM

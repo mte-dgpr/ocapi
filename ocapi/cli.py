@@ -55,7 +55,7 @@ def run_main(
     input_dir: Path,
     *,
     enable_rendering: bool = True,
-    enable_tagging: bool = True,
+    enable_tagging: bool = False,
     include_ids: list[str] | None = None,
     aiot: str | None = None,
     output_dir: Path | None = None,
@@ -266,7 +266,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     return run_main(
         input_dir=Path(args.input_dir),
         enable_rendering=not args.no_rendering,
-        enable_tagging=not args.no_tagging,
+        enable_tagging=args.enable_tagging,
         include_ids=args.include or None,
         aiot=args.aiot or None,
         output_dir=Path(args.output) if args.output else None,
@@ -392,12 +392,9 @@ Examples:
         help="Skip the rendering step (step 4).",
     )
     run_parser.add_argument(
-        "--no-tagging",
+        "--enable-tagging",
         action="store_true",
-        help=(
-            "Skip step_tagging and the tagged HTML output. Pre-existing "
-            "Arrêtify tags in the input HTML are still read as-is."
-        ),
+        help=("Enable step_tagging and tagged HTML output. Disabled by default."),
     )
     run_parser.add_argument(
         "--operations-from",

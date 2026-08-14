@@ -140,8 +140,12 @@ mesure précision / rappel / F1 d'un modèle contre un ground-truth annoté
 (dossier `examples/ground-truth/`). Une opération est correcte si **source**,
 **target** et **operation_type** correspondent exactement.
 
+Avec `--enable-tagging`, le script peut aussi évaluer le flux combiné
+tagging + détection avant le scoring.
+
 ```bash
 python scripts/evaluate_detection.py --model openai_gpt5mini
+python scripts/evaluate_detection.py --model openai_gpt5mini --enable-tagging
 python scripts/evaluate_detection.py --model mistral_medium --aiot 0003013459
 ```
 

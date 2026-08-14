@@ -62,7 +62,7 @@ def main(
     include_ids: list[str] | None = None,
     start_date: str | None = None,
     enable_rendering: bool = True,
-    enable_tagging: bool = True,
+    enable_tagging: bool = False,
     operations_from: Path | None = None,
     principal_id: str | None = None,
     tagged_output_dir: Path | None = None,
@@ -289,12 +289,9 @@ Examples:
         help="Skip consolidated permit generation (step 4)",
     )
     parser.add_argument(
-        "--no-tagging",
+        "--enable-tagging",
         action="store_true",
-        help=(
-            "Skip step_tagging and the tagged HTML output. Pre-existing "
-            "Arrêtify tags in the input HTML are still read as-is."
-        ),
+        help="Enable step_tagging and tagged HTML output (disabled by default)",
     )
     parser.add_argument(
         "-v",
@@ -338,7 +335,7 @@ Examples:
         include_ids=args.include,
         start_date=args.start_date,
         enable_rendering=not args.no_rendering,
-        enable_tagging=not args.no_tagging,
+        enable_tagging=args.enable_tagging,
         operations_from=operations_from,
         principal_id=args.principal_id,
         tagged_output_dir=tagged_output,

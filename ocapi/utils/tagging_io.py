@@ -19,11 +19,11 @@
 """
 Convert tagged HTML (after ``step_tagging``) into ocapi domain objects.
 
-This module is not wired into the pipeline yet; it lives alongside the LLM-based
-``step_detection`` so downstream code can progressively consume Arrêtify tags.
+This module bridges Arrêtify tagging outputs with OCAPI operation models.
 """
+import re
 from dataclasses import replace
-from typing import cast
+from typing import Callable, cast
 
 from arretify.semantic_tag_specs import DocumentReferenceSpec, SectionReferenceSpec
 from arretify.types import DocumentContext, ProtectedSoup, ProtectedTag
@@ -33,18 +33,31 @@ from arretify.utils.references import build_reference_tree
 from bs4 import Tag
 
 from ocapi.semantic_tag_specs import OperationSpec
-from ocapi.types import ArreteFile, RawOperation
+from ocapi.types import (
+    ArreteFile,
+    Operation,
+    OperationOrigin,
+    OperationType,
+    RawOperation,
+    RawOperationType,
+    SubTarget,
+    SubTargetType,
+    canonicalize_article_id_candidate,
+)
 from ocapi.utils.arretify_utils import ARRETIFY_SECTION_DATA_SPEC
 from ocapi.utils.logging_utils import get_logger
+from ocapi.utils.subtarget_utils import parse_subtarget
 
 __all__ = [
     "document_context_to_arrete_file",
+    "extract_raw_operations_from_tagged_soup",
     "extract_operations_from_tagged_soup",
 ]
 
 _LOGGER = get_logger(__name__)
 
 _PARENT_REF_ATTR = "data-parent_reference"
+_NUMERIC_DOTTED_ARTICLE_PATTERN = re.compile(r"^\d+(?:\.\d+)*$")
 
 
 def document_context_to_arrete_file(
@@ -59,7 +72,9 @@ def document_context_to_arrete_file(
     return replace(base, soup=document_context.soup)
 
 
-def extract_operations_from_tagged_soup(soup: ProtectedSoup, arrete_id: str) -> list[RawOperation]:
+def extract_raw_operations_from_tagged_soup(
+    soup: ProtectedSoup, arrete_id: str
+) -> list[RawOperation]:
     """Extract ``RawOperation`` objects from a tagged soup.
 
     Parameters
@@ -72,6 +87,53 @@ def extract_operations_from_tagged_soup(soup: ProtectedSoup, arrete_id: str) -> 
     operations: list[RawOperation] = []
     for operation_tag in soup.select(css_selector(OperationSpec)):
         operations.extend(_operation_tag_to_raw_operations(soup, operation_tag, arrete_id))
+    return operations
+
+
+def extract_operations_from_tagged_soup(
+    soup: ProtectedSoup,
+    arrete_id: str,
+    next_operation_id: Callable[[], str],
+) -> list[Operation]:
+    """Extract deterministic operations from tagging when they are reliable enough.
+
+    An operation is considered reliable when:
+    - its target article is precise and parsable, or it is a full abrogation;
+    - ADD/REPLACE operations have an operand extracted from tagging.
+    """
+    operations: list[Operation] = []
+    for operation_tag in soup.select(css_selector(OperationSpec)):
+        operation_data = get_semantic_tag_data(OperationSpec, operation_tag)
+        operand_html = _extract_operand_html(soup, operation_data.operand)
+        raw_operations = _operation_tag_to_raw_operations(soup, operation_tag, arrete_id)
+        for raw_op in raw_operations:
+            normalized_raw = _normalize_tagged_raw_operation(raw_op)
+            if normalized_raw is None:
+                continue
+
+            sub_target = (
+                parse_subtarget(normalized_raw.sub_target) if normalized_raw.sub_target else None
+            )
+            if sub_target is None and normalized_raw.target_article != "ALL":
+                sub_target = SubTarget(type=SubTargetType.FULL_SECTION, description="ALL")
+
+            try:
+                operation = Operation.from_raw_detection(
+                    raw_operation=normalized_raw,
+                    operation_id=next_operation_id(),
+                    operand=operand_html,
+                    sub_target=sub_target,
+                )
+            except Exception as exc:
+                _LOGGER.warning(
+                    f"Skipping tagged operation in arrêté {arrete_id} (conversion error): {exc}"
+                )
+                continue
+
+            if not _is_well_characterized(operation, operand_html):
+                continue
+            operations.append(operation)
+
     return operations
 
 
@@ -121,7 +183,7 @@ def _operation_tag_to_raw_operations(
     targets = _extract_targets(tree, leaf_tags, fallback_arrete)
     if not targets:
         failure_parts.append("could not resolve target arrete date")
-        targets = [("", None, None)]
+        targets = [("", None, None, False, -1)]
 
     source_article = _infer_source_article(operation_tag)
     failure_message = "; ".join(failure_parts) if failure_parts else None
@@ -130,18 +192,66 @@ def _operation_tag_to_raw_operations(
             f"Tagged operation in arrête {arrete_id} partially resolved: {failure_message}"
         )
 
-    return [
-        RawOperation(
-            operation_type=operation_type,
-            source_arrete=arrete_id,
-            source_article=source_article,
-            target_arrete=target_arrete,
-            target_article=target_article,
-            sub_target=sub_target,
-            failure_message=failure_message,
+    range_group_first_seen: set[int] = set()
+    operations: list[RawOperation] = []
+    for target_arrete, target_article, sub_target, from_range, range_group_id in targets:
+        effective_op_type = operation_type
+        if operation_type == RawOperationType.REPLACE and from_range:
+            if range_group_id in range_group_first_seen:
+                effective_op_type = RawOperationType.REMOVE
+            else:
+                range_group_first_seen.add(range_group_id)
+
+        operations.append(
+            RawOperation(
+                operation_type=effective_op_type,
+                origin=OperationOrigin.REGEX,
+                source_arrete=arrete_id,
+                source_article=source_article,
+                target_arrete=target_arrete,
+                target_article=target_article,
+                sub_target=sub_target,
+                failure_message=failure_message,
+            )
         )
-        for target_arrete, target_article, sub_target in targets
-    ]
+
+    return operations
+
+
+def _extract_operand_html(soup: ProtectedSoup, operand_tag_id: str | None) -> str | None:
+    if not operand_tag_id:
+        return None
+    operand_tag = _find_by_tag_id(soup, operand_tag_id)
+    if operand_tag is None:
+        return None
+    return str(operand_tag)
+
+
+def _normalize_tagged_raw_operation(raw_op: RawOperation) -> RawOperation | None:
+    source_article = canonicalize_article_id_candidate(raw_op.source_article)
+    if source_article is None:
+        return None
+
+    target_article = canonicalize_article_id_candidate(raw_op.target_article)
+    if target_article is None and raw_op.operation_type == RawOperationType.REMOVE:
+        target_article = "ALL"
+    if target_article is None:
+        return None
+
+    return raw_op.model_copy(
+        update={
+            "source_article": source_article,
+            "target_article": target_article,
+        }
+    )
+
+
+def _is_well_characterized(operation: Operation, operand_html: str | None) -> bool:
+    if operation.target_id.article_id == "ALL" and operation.operation_type != OperationType.REMOVE:
+        return False
+    if operation.operation_type in {OperationType.ADD, OperationType.REPLACE} and not operand_html:
+        return False
+    return True
 
 
 def _extract_arrete_date(tree: list[list[ProtectedTag]]) -> str:
@@ -160,7 +270,7 @@ def _extract_targets(
     tree: list[list[ProtectedTag]],
     leaf_tags: list[ProtectedTag],
     fallback_arrete: str,
-) -> list[tuple[str, str | None, str | None]]:
+) -> list[tuple[str, str | None, str | None, bool, int]]:
     """Return one (target_arrete, target_article, sub_target) tuple per article referenced.
 
     When several articles are referenced (e.g. "les articles 5 et 6 sont supprimés"),
@@ -186,21 +296,66 @@ def _extract_targets(
     if not article_order:
         if not tree_arrete:
             return []
-        return [(tree_arrete, None, None)]
+        return [(tree_arrete, None, None, False, -1)]
 
     leaf_set = {id(t) for t in leaf_tags}
-    results: list[tuple[str, str | None, str | None]] = []
+    results: list[tuple[str, str | None, str | None, bool, int]] = []
     for article_tag in article_order:
         branches = article_groups[id(article_tag)]
-        target_article = _strip_text(" ".join(article_tag.stripped_strings))
+        target_articles, from_range = _extract_target_article_numbers(article_tag)
         deeper_tags = [b[2] for b in branches if len(b) >= 3]
         sub_target: str | None = None
         if deeper_tags:
             selected = [t for t in deeper_tags if id(t) in leaf_set] or deeper_tags
             texts = [_strip_text(" ".join(t.stripped_strings)) for t in selected]
             sub_target = " et ".join(t for t in texts if t) or None
-        results.append((tree_arrete, target_article, sub_target))
+        if not target_articles:
+            results.append((tree_arrete, None, sub_target, False, id(article_tag)))
+            continue
+
+        for target_article in target_articles:
+            results.append((tree_arrete, target_article, sub_target, from_range, id(article_tag)))
     return results
+
+
+def _extract_target_article_numbers(article_tag: ProtectedTag) -> tuple[list[str], bool]:
+    if is_semantic_tag(article_tag, spec_in=[SectionReferenceSpec]):
+        section_data = get_semantic_tag_data(SectionReferenceSpec, article_tag)
+        start_num = canonicalize_article_id_candidate(section_data.start_num)
+        end_num = canonicalize_article_id_candidate(section_data.end_num)
+        if start_num and end_num:
+            expanded = _expand_article_range(start_num, end_num)
+            if expanded:
+                return expanded, True
+            return [start_num], False
+        if start_num:
+            return [start_num], False
+
+    text_candidate = _strip_text(" ".join(article_tag.stripped_strings))
+    text_article = canonicalize_article_id_candidate(text_candidate)
+    return ([text_article], False) if text_article else ([], False)
+
+
+def _expand_article_range(start_article: str, end_article: str) -> list[str] | None:
+    if not _NUMERIC_DOTTED_ARTICLE_PATTERN.match(start_article):
+        return None
+    if not _NUMERIC_DOTTED_ARTICLE_PATTERN.match(end_article):
+        return None
+
+    start_levels = [int(level) for level in start_article.split(".")]
+    end_levels = [int(level) for level in end_article.split(".")]
+    if len(start_levels) != len(end_levels):
+        return None
+    if start_levels[:-1] != end_levels[:-1]:
+        return None
+    if end_levels[-1] < start_levels[-1]:
+        return None
+
+    prefix = start_levels[:-1]
+    return [
+        ".".join([*(str(level) for level in prefix), str(i)])
+        for i in range(start_levels[-1], end_levels[-1] + 1)
+    ]
 
 
 def _infer_source_article(operation_tag: ProtectedTag) -> str | None:
