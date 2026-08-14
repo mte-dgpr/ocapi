@@ -28,10 +28,17 @@ toute analyse manuelle ultérieure.
 
 ## Quand est-ce exécuté
 
-Dans `run_pipeline`, l'étape 1 tourne **avant la détection** dès que
-`enable_tagging=True` et que des `document_contexts` sont fournis. La CLI
-l'active par défaut ; la désactiver avec `--no-tagging` (les tags pré-existants
-dans le HTML d'entrée sont alors utilisés tels quels).
+Dans `run_pipeline`, l'étape 1 tourne **avant la détection** par défaut
+(`enable_tagging=True`) dès que des `document_contexts` sont fournis. La CLI
+la désactive uniquement via `--no-tagging` (les tags pré-existants dans le
+HTML d'entrée sont sinon utilisés tels quels).
+
+Cas usuels d'usage :
+
+- régénérer un tagged HTML (`arretes_tagged/<aiot>/`) pour inspection,
+- diagnostiquer un écart de tagging sémantique dans les HTML source,
+- comparer la valeur ajoutée de la fusion Regex + candidates (LLM ou
+  préchargées) en activant `enable_tagging_ops` (CLI: `--tagging-ops`).
 
 ## Pipeline interne
 
@@ -91,14 +98,21 @@ juste après. La CLI écrit ensuite l'HTML annoté dans
 `arretes_tagged/<aiot>/<filename>.html` via
 [`save_tagged_html_file`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/utils/io_utils.py).
 
-## Désactivation
+## Fusion avec les opérations candidates
 
-- `run_pipeline(..., enable_tagging=False)` — saute l'étape (les éventuels
-  tags déjà présents dans le HTML d'entrée sont utilisés tels quels).
-- CLI : `ocapi run ... --no-tagging` ou `python -m ocapi.main ... --no-tagging`.
+Après extraction des opérations `Regex`, le pipeline les fusionne avec les
+opérations candidates (`LLM` ou préchargées en mode snapshot) avant la
+résolution :
 
-Utile pour rejouer un pipeline sur un HTML déjà taggué (ex. fixture, snapshot,
-sortie sauvegardée), ou pour isoler un bug entre tagging et détection.
+- les doublons stricts sont supprimés,
+- entre une version `FULL_SECTION` et une version plus précise sur la même
+  source/cible, la version la plus précise est conservée,
+- les collisions d'IDs sont résolues par renumérotation des opérations retenues.
+
+Cette étape se fait dans
+[`ocapi/step_tagging/operations_filtering.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/step_tagging/operations_filtering.py)
+et est appelée depuis
+[`ocapi/pipeline.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/pipeline.py).
 
 ## Origine
 

@@ -50,11 +50,20 @@ from ocapi.llm_utils import (  # noqa: E402
     reset_accumulated_usage,
 )
 from ocapi.step_detection import step_detection as step_detection_module  # noqa: E402
-from ocapi.step_detection.step_detection import step_detection  # noqa: E402
+from ocapi.step_detection.step_detection import _OPERATION_ID_COUNTER, step_detection  # noqa: E402
 from ocapi.step_resolution.build_op_graph import build_graph  # noqa: E402
+from ocapi.step_tagging import step_tagging  # noqa: E402
+from ocapi.step_tagging.operations_filtering import filter_redundant_operations  # noqa: E402
 from ocapi.types import Operation, is_low_severity_op, numbering_fragment_for_sort  # noqa: E402
-from ocapi.utils.io_utils import load_arrete_files, load_operations, save_operations  # noqa: E402
+from ocapi.utils.io_utils import (  # noqa: E402
+    load_arrete_files,
+    load_document_contexts,
+    load_operations,
+    save_operations,
+)
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger  # noqa: E402
+from ocapi.utils.tagging_io import extract_operations_from_tagged_soup  # noqa: E402
+from ocapi.utils.utils import make_id  # noqa: E402
 
 _LOGGER = get_logger(__name__)
 
@@ -171,8 +180,21 @@ def compute_scores(tp: int, fp: int, fn: int) -> Scores:
     return Scores(precision=precision, recall=recall, f1=f1)
 
 
-def run_detection_for_aiot(aiot: str, model_key: str) -> tuple[list[Operation], list[Operation]]:
-    """Run chunking + detection on all arrêtés of an AIOT.
+def run_detection_for_aiot(
+    aiot: str,
+    model_key: str,
+    *,
+    enable_tagging: bool = True,
+    enable_tagging_ops: bool = False,
+) -> tuple[list[Operation], list[Operation]]:
+    """Run optional tagging + detection on all arrêtés of an AIOT.
+
+    When ``enable_tagging`` is true, the script first runs :func:`step_tagging`
+    on each loaded document context. When ``enable_tagging_ops`` is also true,
+    it extracts the regex-tagged operations, then runs LLM detection and merges
+    both sources with the same policy as the main pipeline. This makes it
+    possible to evaluate the detection-only baseline or the combined tagging +
+    detection flow on the same AIOT.
 
     Returns
     -------
@@ -184,21 +206,50 @@ def run_detection_for_aiot(aiot: str, model_key: str) -> tuple[list[Operation], 
         out operations that carry only LOW-severity error codes.
     """
     arretes_dir = _ARRETES_HTML_DIR / aiot
-    arrete_files = load_arrete_files(arretes_dir, aiot)
+    pairs = load_document_contexts(arretes_dir, aiot)
+    arrete_files = [arrete_file for arrete_file, _ in pairs]
+    document_contexts = [document_context for _, document_context in pairs]
     if not arrete_files:
         _LOGGER.warning(f"No arrêtés loaded for {aiot}")
         return [], []
 
     step_detection_module.LLM_CFG = config_model_llm(model_key)
+    # Keep IDs deterministic per AIOT, same behavior as run_pipeline.
+    _OPERATION_ID_COUNTER.value = 0
+
+    tagged_ops: list[Operation] = []
+    if enable_tagging:
+        for arrete_file, document_context in zip(arrete_files, document_contexts):
+            step_tagging(document_context)
+            arrete_file.soup = document_context.soup
+    if enable_tagging_ops:
+        for arrete_file in arrete_files:
+            tagged_ops.extend(
+                extract_operations_from_tagged_soup(
+                    arrete_file.soup,
+                    arrete_file.id,
+                    next_operation_id=lambda: make_id(_OPERATION_ID_COUNTER),
+                )
+            )
 
     start_date = arrete_files[0].id
     detected_ops: list[Operation] = []
     for arrete_file in arrete_files:
         if arrete_file.id <= start_date:
             continue
-        detected_ops = step_detection(arrete_file)
-        detected_ops.extend(detected_ops)
-        _LOGGER.info(f"  {arrete_file.id}: {len(detected_ops)} operations detected")
+        file_ops = step_detection(arrete_file)
+        detected_ops.extend(file_ops)
+        _LOGGER.info(f"  {arrete_file.id}: {len(file_ops)} operations detected")
+
+    if enable_tagging_ops:
+        # Same merge policy as pipeline: keep the most precise sub-target when
+        # tagging and LLM disagree on granularity; renumber collisions on kept ops.
+        detected_ops = filter_redundant_operations(
+            reference_ops=tagged_ops,
+            candidate_ops=detected_ops,
+            context_id=f"evaluate_detection:{aiot}",
+            next_operation_id=lambda: make_id(_OPERATION_ID_COUNTER),
+        )
 
     _LOGGER.info(f"Running build_graph on {len(detected_ops)} operations to assign context errors…")
     _, _, _, updated_ops = build_graph(detected_ops, arrete_files)
@@ -489,6 +540,19 @@ def main(argv: list[str] | None = None) -> int:
         help="Export results to XLSX in eval/<date>_eval_<model>/scores.xlsx.",
     )
     parser.add_argument(
+        "--no-tagging",
+        action="store_true",
+        help="Disable tagging before LLM detection (enabled by default).",
+    )
+    parser.add_argument(
+        "--tagging-ops",
+        action="store_true",
+        help=(
+            "Also extract regex-tagged operations and merge them with candidate ops "
+            "(disabled by default)."
+        ),
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -535,7 +599,12 @@ def main(argv: list[str] | None = None) -> int:
 
         reset_accumulated_usage()
         t0 = time.monotonic()
-        detected_ops, validated_ops = run_detection_for_aiot(aiot, model_key)
+        detected_ops, validated_ops = run_detection_for_aiot(
+            aiot,
+            model_key,
+            enable_tagging=not args.no_tagging,
+            enable_tagging_ops=args.tagging_ops,
+        )
         elapsed = time.monotonic() - t0
         usage = get_accumulated_usage()
         cost = _compute_cost(model_id, usage)

@@ -29,6 +29,7 @@ from ocapi.types import (
     FileType,
     NodeId,
     Operation,
+    OperationOrigin,
     OperationType,
     RawOperation,
     RawOperationType,
@@ -83,9 +84,11 @@ def make_testing_raw_op(
     target: str = "2",
     source_arrete: str = "1980-01-01",
     target_arrete: str = "2021-01-01",
+    origin: OperationOrigin | None = None,
 ) -> RawOperation:
     return RawOperation(
         operation_type=RawOperationType.REPLACE,
+        origin=origin,
         source_arrete=source_arrete,
         source_article=source,
         target_arrete=target_arrete,
@@ -105,9 +108,11 @@ def make_testing_op(
     target_arrete: str = "1980-01-01",
     target_article: str = "1",
     error_codes: frozenset[ErrorCode] = frozenset(),
+    origin: OperationOrigin | None = None,
 ) -> Operation:
     return Operation(
         id=operation_id,
+        origin=origin,
         source_id=NodeId(arrete_id=source_arrete, article_id=source_article),
         target_id=NodeId(arrete_id=target_arrete, article_id=target_article),
         operation_type=op_type,

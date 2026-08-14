@@ -143,9 +143,15 @@ Effets :
   confirmer.
 
 `operations.json` est aussi réécrit, mais avec les mêmes ops préchargées —
-donc le diff sur ce fichier doit rester nul (juste un re-formatage éventuel).
-Un vrai diff sur `operations.json` signifie qu'on a modifié le contenu
-préchargé à la main, ou qu'une étape intermédiaire mute les opérations.
+le diff sur ce fichier est souvent nul (ou limité à du reformatage), mais un
+diff peut aussi être légitime si les règles de fusion d'opérations ont changé
+(déduplication, priorité aux sous-cibles les plus précises, renumérotation en
+cas de collision d'IDs).
+
+Un diff sur `operations.json` doit donc être revu au fond :
+
+- **attendu** si une règle de fusion/normalisation a été modifiée,
+- **suspect** s'il n'y a pas eu de changement de logique de pipeline.
 
 ### Régénérer `operations.json` (avec LLM)
 

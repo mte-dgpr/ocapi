@@ -144,12 +144,13 @@ def test_cli_defaults(
     mock_main: MagicMock,
     mock_logger: MagicMock,
 ) -> None:
-    """Without flags, rendering is enabled (detection runs unless --operations-from)."""
+    """Without flags, rendering is enabled and tagging is enabled by default."""
     main(["run", "some/arretes_html/0005804239"])
     mock_main.assert_called_once()
     _, kwargs = mock_main.call_args
     assert kwargs.get("enable_rendering") is True
     assert kwargs.get("enable_tagging") is True
+    assert kwargs.get("enable_tagging_ops") is False
     assert kwargs.get("output_dir") is None
     assert kwargs.get("aiot") is None
     assert kwargs.get("principal_id") is None
@@ -178,6 +179,18 @@ def test_cli_no_tagging_is_forwarded(
     mock_main.assert_called_once()
     _, kwargs = mock_main.call_args
     assert kwargs.get("enable_tagging") is False
+
+
+@patch("ocapi.cli.initialize_root_logger")
+@patch("ocapi.cli.run_main", return_value=0)
+def test_cli_tagging_ops_is_forwarded(
+    mock_main: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
+    main(["run", "some/arretes_html/0005804239", "--tagging-ops"])
+    mock_main.assert_called_once()
+    _, kwargs = mock_main.call_args
+    assert kwargs.get("enable_tagging_ops") is True
 
 
 @patch("ocapi.cli.initialize_root_logger")
