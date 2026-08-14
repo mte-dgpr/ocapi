@@ -153,6 +153,7 @@ def test_pipeline_renumbers_conflicting_preloaded_operation_ids(
         [arrete],
         enable_detection=False,
         enable_tagging=True,
+        enable_tagging_ops=True,
         enable_rendering=False,
         operations=[preloaded_duplicate],
     )
@@ -194,6 +195,7 @@ def test_pipeline_prefers_precise_candidate_over_full_tagged_operation(
         [arrete],
         enable_detection=False,
         enable_tagging=True,
+        enable_tagging_ops=True,
         enable_rendering=False,
         operations=[precise_candidate],
     )
@@ -233,6 +235,7 @@ def test_pipeline_filters_preloaded_ops_with_tagging_when_detection_disabled(
         [arrete],
         enable_detection=False,
         enable_tagging=True,
+        enable_tagging_ops=True,
         enable_rendering=False,
         operations=[preloaded_duplicate],
     )
@@ -290,7 +293,7 @@ def test_step_tagging_runs_when_enabled(
 
 @patch("ocapi.pipeline.step_tagging")
 @patch("ocapi.pipeline.step_detection", return_value=[])
-def test_step_tagging_disabled_by_default(
+def test_step_tagging_enabled_by_default(
     mock_detection: MagicMock,
     mock_tagging: MagicMock,
 ) -> None:
@@ -299,7 +302,7 @@ def test_step_tagging_disabled_by_default(
 
     run_pipeline(arretes, enable_rendering=False, document_contexts=dcs)  # type: ignore[arg-type]
 
-    mock_tagging.assert_not_called()
+    mock_tagging.assert_called_once()
 
 
 @patch("ocapi.pipeline.step_tagging")
@@ -352,6 +355,7 @@ def test_pipeline_filters_llm_ops_with_tagging_when_enabled(
         [arrete],
         start_date="2023-01-01",
         enable_tagging=True,
+        enable_tagging_ops=True,
         enable_rendering=False,
     )
 

@@ -39,7 +39,8 @@ def run_pipeline(
     enable_llm: bool = True,
     operations: list[Operation] | None = None,
     document_contexts: list[DocumentContext] | None = None,
-    enable_tagging: bool = False,
+    enable_tagging: bool = True,
+    enable_tagging_ops: bool = False,
 ) -> tuple[list[Operation], ArticleHistory, list[ArreteFile], Permis | None]:
     """Run the full OCAPI pipeline.
 
@@ -65,6 +66,9 @@ def run_pipeline(
     enable_tagging : bool
         If True, run :func:`ocapi.step_tagging.step_tagging` on each document
         context before detection. No-op when ``document_contexts`` is None.
+    enable_tagging_ops : bool
+        If True, extract regex-tagged operations from the tagged HTML and merge
+        them with detected operations before resolution.
 
     Returns
     -------
@@ -96,7 +100,7 @@ def run_pipeline(
             step_tagging(document_context)
             arrete_file.soup = document_context.soup
 
-    if enable_tagging:
+    if enable_tagging_ops:
         _LOGGER.info("=" * 60)
         _LOGGER.info("STEP 1B: TAGGING EXTRACTION")
         _LOGGER.info("=" * 60)
@@ -140,7 +144,7 @@ def run_pipeline(
             "(snapshot mode, no LLM)"
         )
 
-    if enable_tagging:
+    if enable_tagging_ops:
         # Merge regex-tagged operations with candidate operations in a single pass.
         # Design choice: if two operations point to the same source/target but one
         # sub-target is more precise than the other, keep the more precise one.

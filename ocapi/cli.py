@@ -55,7 +55,8 @@ def run_main(
     input_dir: Path,
     *,
     enable_rendering: bool = True,
-    enable_tagging: bool = False,
+    enable_tagging: bool = True,
+    enable_tagging_ops: bool = False,
     include_ids: list[str] | None = None,
     aiot: str | None = None,
     output_dir: Path | None = None,
@@ -73,8 +74,10 @@ def run_main(
     enable_rendering : bool
         If False, skip the rendering step (step 4).
     enable_tagging : bool
-        If False, skip ``step_tagging`` and do not write tagged HTML outputs.
-        Pre-existing Arrêtify tags in the input HTML are used as-is.
+        If True, run ``step_tagging`` and write tagged HTML outputs. Enabled by default.
+    enable_tagging_ops : bool
+        If True, also extract regex-tagged operations and merge them with candidate
+        operations before resolution. Disabled by default.
     include_ids : list[str] | None
         Arrêté IDs to include; all arrêtés are included when None.
     aiot : str | None
@@ -146,6 +149,7 @@ def run_main(
             enable_detection=enable_detection,
             enable_rendering=enable_rendering,
             enable_tagging=enable_tagging,
+            enable_tagging_ops=enable_tagging_ops,
             operations=preloaded_ops,
             document_contexts=document_contexts,
         )
@@ -266,7 +270,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     return run_main(
         input_dir=Path(args.input_dir),
         enable_rendering=not args.no_rendering,
-        enable_tagging=args.enable_tagging,
+        enable_tagging=not args.no_tagging,
+        enable_tagging_ops=args.tagging_ops,
         include_ids=args.include or None,
         aiot=args.aiot or None,
         output_dir=Path(args.output) if args.output else None,
@@ -392,9 +397,17 @@ Examples:
         help="Skip the rendering step (step 4).",
     )
     run_parser.add_argument(
-        "--enable-tagging",
+        "--no-tagging",
         action="store_true",
-        help=("Enable step_tagging and tagged HTML output. Disabled by default."),
+        help="Disable step_tagging and tagged HTML output (enabled by default).",
+    )
+    run_parser.add_argument(
+        "--tagging-ops",
+        action="store_true",
+        help=(
+            "Also extract regex-tagged operations and merge them with candidate ops "
+            "(disabled by default)."
+        ),
     )
     run_parser.add_argument(
         "--operations-from",

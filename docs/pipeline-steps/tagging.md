@@ -28,18 +28,17 @@ toute analyse manuelle ultérieure.
 
 ## Quand est-ce exécuté
 
-Dans `run_pipeline`, l'étape 1 tourne **avant la détection** dès que
-`enable_tagging=True` et que des `document_contexts` sont fournis. La CLI
-la laisse désactivée par défaut ; l'activer explicitement avec
-`--enable-tagging` (les tags pré-existants dans le HTML d'entrée sont sinon
-utilisés tels quels).
+Dans `run_pipeline`, l'étape 1 tourne **avant la détection** par défaut
+(`enable_tagging=True`) dès que des `document_contexts` sont fournis. La CLI
+la désactive uniquement via `--no-tagging` (les tags pré-existants dans le
+HTML d'entrée sont sinon utilisés tels quels).
 
-Cas usuels d'activation explicite :
+Cas usuels d'usage :
 
-- comparer la valeur ajoutée du tagging Regex par rapport à la détection seule,
 - régénérer un tagged HTML (`arretes_tagged/<aiot>/`) pour inspection,
-- diagnostiquer un écart entre opérations Regex et opérations candidates
-  (LLM ou préchargées).
+- diagnostiquer un écart de tagging sémantique dans les HTML source,
+- comparer la valeur ajoutée de la fusion Regex + candidates (LLM ou
+  préchargées) en activant `enable_tagging_ops` (CLI: `--tagging-ops`).
 
 ## Pipeline interne
 

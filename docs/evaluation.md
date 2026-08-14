@@ -4,9 +4,9 @@ Mesure de la qualité de l'**étape 2 (détection)** par comparaison à un
 ground-truth annoté manuellement. Outil :
 [`scripts/evaluate_detection.py`](https://github.com/mte-dgpr/ocapi/blob/main/scripts/evaluate_detection.py).
 
-Le script peut aussi activer le tagging amont avec `--enable-tagging` pour
-évaluer le flux combiné `tagging + détection` avec la même logique de fusion
-que le pipeline principal.
+Le script fait le tagging amont par défaut. Pour évaluer aussi les opérations
+Regex extraites du tagging et leur fusion avec la détection LLM, ajoutez
+`--tagging-ops`.
 
 ## Principe
 
@@ -16,14 +16,14 @@ Pour un AIOT donné :
 2. Lancer `step_detection` sur chaque arrêté avec un modèle LLM choisi
    (`--model`). Comme dans le pipeline réel, le premier arrêté est traité
    comme initial : la détection démarre à `arretes[1]`.
-3. Si `--enable-tagging` est passé, exécuter `step_tagging` sur les HTMLs,
-  extraire les opérations Regex taguées, puis fusionner ces opérations avec
-  celles de la détection LLM avant le scoring.
-4. Charger le ground-truth (`snapshots/ground-truth/<aiot>/operations.json`),
+3. `step_tagging` est exécuté par défaut pour préparer les HTMLs.
+4. Si `--tagging-ops` est passé, extraire les opérations Regex taguées, puis
+  fusionner ces opérations avec celles de la détection LLM avant le scoring.
+5. Charger le ground-truth (`snapshots/ground-truth/<aiot>/operations.json`),
   annoté à la main par un humain.
-5. Comparer les deux ensembles d'opérations sur la clé
+6. Comparer les deux ensembles d'opérations sur la clé
    `(source_arrete, source_article, target_arrete, target_article, operation_type)`.
-6. Calculer **précision / rappel / F1** par AIOT et global.
+7. Calculer **précision / rappel / F1** par AIOT et global.
 
 ```mermaid
 flowchart LR
@@ -46,7 +46,7 @@ flowchart LR
 python scripts/evaluate_detection.py --model openai_gpt5mini
 
 # Tous les AIOT avec tagging + détection fusionnés avant scoring
-python scripts/evaluate_detection.py --model openai_gpt5mini --enable-tagging
+python scripts/evaluate_detection.py --model openai_gpt5mini --tagging-ops
 
 # Un AIOT précis
 python scripts/evaluate_detection.py --model mistral_medium --aiot 0003013459
@@ -115,7 +115,8 @@ python scripts/evaluate_detection.py --model openai_gpt5mini \
 - `--aiot` est optionnel : par défaut, tous les sous-dossiers contenant un
   `operations.json` sont traités.
 - Compatible avec `--save-score`.
-- `--enable-tagging` ajoute les opérations Regex extraites avant la fusion et
+- `--no-tagging` désactive le tagging amont.
+- `--tagging-ops` ajoute les opérations Regex extraites avant la fusion et
   le scoring.
 
 ## Critère de matching
@@ -128,8 +129,8 @@ sont filtrées (le pipeline ne les produit pas non plus).
 
 > Le matching ne regarde **ni l'operand, ni la sub_target, ni le score de
 > confiance**. C'est volontaire : on mesure la capacité du LLM à identifier
-> *quoi* est modifié, et éventuellement l'effet du tagging amont quand
-> `--enable-tagging` est activé.
+> *quoi* est modifié, et éventuellement l’effet des opérations Regex quand
+> `--tagging-ops` est activé.
 
 ## Métriques
 

@@ -184,15 +184,17 @@ def run_detection_for_aiot(
     aiot: str,
     model_key: str,
     *,
-    enable_tagging: bool = False,
+    enable_tagging: bool = True,
+    enable_tagging_ops: bool = False,
 ) -> tuple[list[Operation], list[Operation]]:
     """Run optional tagging + detection on all arrêtés of an AIOT.
 
     When ``enable_tagging`` is true, the script first runs :func:`step_tagging`
-    on each loaded document context, extracts the regex-tagged operations, then
-    runs LLM detection and merges both sources with the same policy as the main
-    pipeline. This makes it possible to evaluate the detection-only baseline or
-    the combined tagging + detection flow on the same AIOT.
+    on each loaded document context. When ``enable_tagging_ops`` is also true,
+    it extracts the regex-tagged operations, then runs LLM detection and merges
+    both sources with the same policy as the main pipeline. This makes it
+    possible to evaluate the detection-only baseline or the combined tagging +
+    detection flow on the same AIOT.
 
     Returns
     -------
@@ -220,6 +222,7 @@ def run_detection_for_aiot(
         for arrete_file, document_context in zip(arrete_files, document_contexts):
             step_tagging(document_context)
             arrete_file.soup = document_context.soup
+    if enable_tagging_ops:
         for arrete_file in arrete_files:
             tagged_ops.extend(
                 extract_operations_from_tagged_soup(
@@ -238,7 +241,7 @@ def run_detection_for_aiot(
         detected_ops.extend(file_ops)
         _LOGGER.info(f"  {arrete_file.id}: {len(file_ops)} operations detected")
 
-    if enable_tagging:
+    if enable_tagging_ops:
         # Same merge policy as pipeline: keep the most precise sub-target when
         # tagging and LLM disagree on granularity; renumber collisions on kept ops.
         detected_ops = filter_redundant_operations(
@@ -537,11 +540,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Export results to XLSX in eval/<date>_eval_<model>/scores.xlsx.",
     )
     parser.add_argument(
-        "--enable-tagging",
+        "--no-tagging",
+        action="store_true",
+        help="Disable tagging before LLM detection (enabled by default).",
+    )
+    parser.add_argument(
+        "--tagging-ops",
         action="store_true",
         help=(
-            "Enable tagging extraction before LLM detection and merge Regex + LLM operations "
-            "with the pipeline dedup logic."
+            "Also extract regex-tagged operations and merge them with candidate ops "
+            "(disabled by default)."
         ),
     )
     parser.add_argument(
@@ -594,7 +602,8 @@ def main(argv: list[str] | None = None) -> int:
         detected_ops, validated_ops = run_detection_for_aiot(
             aiot,
             model_key,
-            enable_tagging=args.enable_tagging,
+            enable_tagging=not args.no_tagging,
+            enable_tagging_ops=args.tagging_ops,
         )
         elapsed = time.monotonic() - t0
         usage = get_accumulated_usage()
