@@ -281,7 +281,7 @@ def test_step_tagging_runs_when_enabled(
     arretes = [make_testing_arrete("2009-12-08"), make_testing_arrete("2014-01-09")]
     dcs = cast(list[DocumentContext], [MagicMock(soup=a.soup) for a in arretes])
 
-    run_pipeline(  # type: ignore[arg-type]
+    run_pipeline(
         arretes,
         enable_rendering=False,
         enable_tagging=True,
@@ -300,7 +300,7 @@ def test_step_tagging_enabled_by_default(
     arretes = [make_testing_arrete("2009-12-08")]
     dcs = cast(list[DocumentContext], [MagicMock(soup=arretes[0].soup)])
 
-    run_pipeline(arretes, enable_rendering=False, document_contexts=dcs)  # type: ignore[arg-type]
+    run_pipeline(arretes, enable_rendering=False, document_contexts=dcs)
 
     mock_tagging.assert_called_once()
 
