@@ -567,7 +567,7 @@ def save_history(history: ArticleHistory, output_dir: Path) -> None:
     try:
         serialized = article_history_to_json_dict(history)
         with output_path.open("w", encoding="utf-8", newline="\n") as f:
-            json.dump(serialized, f, ensure_ascii=False, indent=2)
+            json.dump(serialized, f, ensure_ascii=False, indent=2, sort_keys=True)
     except OSError as e:
         raise InputOutputError(f"Cannot write history file: {e}") from e
 

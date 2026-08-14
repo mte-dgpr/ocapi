@@ -172,7 +172,7 @@ def run_main(
         _LOGGER.info(f"Operations saved → {operations_path}")
 
         history_path = consolidation_dir / "history.json"
-        write_json_output(article_history_to_json_dict(history), history_path)
+        write_json_output(article_history_to_json_dict(history), history_path, sort_keys=True)
         _LOGGER.info(f"History saved → {history_path}")
 
         if permis:
