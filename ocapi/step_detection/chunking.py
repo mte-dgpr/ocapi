@@ -117,8 +117,8 @@ def chunk_arrete(arrete_file: ArreteFile) -> Tuple[list[Document], ImageMap]:
     minified, img_map = extract_and_strip_images(minified)
     soup_without_images = BeautifulSoup(minified, "html.parser")
 
-    number_of_blocks = min(math.ceil(len(soup_without_images) / 70000), 5)
-    target_per_block = math.ceil(len(soup_without_images) / number_of_blocks)
+    number_of_blocks = min(math.ceil(len(minified) / 70000), 5)
+    target_per_block = math.ceil(len(minified) / number_of_blocks)
 
     blocks = list(
         split_blocks(

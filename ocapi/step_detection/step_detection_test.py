@@ -263,6 +263,24 @@ def test_prompt_detection_includes_confidence_score_field() -> None:
     assert "confidence_score" in prompt
 
 
+def test_prompt_detection_warns_against_full_removal_false_positive() -> None:
+    """Regression test for AIOT 0005800425 (RECTICEL, AP 2005-11-08 / AP 2012-09-03).
+
+    An announcement sentence such as "sont modifiées comme suit" or "se substituent aux
+    prescriptions des articles nommés", followed by a list of explicitly named articles,
+    must not be treated as a full removal ("ALL"). The prompt must warn the LLM about this
+    specific false positive and instruct it to emit per-article operations instead.
+    """
+    prompt = prompt_detection("<html>test</html>")
+
+    assert "sont modifiées comme suit" in prompt
+    assert "se substituent aux prescriptions des articles nommés" in prompt
+    assert "sont remplacées par les" in prompt
+
+    all_bullet_index = prompt.index('"ALL" UNIQUEMENT pour')
+    assert 'ne suffit PAS à justifier "ALL"' in prompt[all_bullet_index:]
+
+
 # ---------------------------------------------------------------------------
 # confidence_score propagation through convert_raw_operation_to_operation
 # ---------------------------------------------------------------------------
