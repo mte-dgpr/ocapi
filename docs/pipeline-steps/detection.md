@@ -37,8 +37,12 @@ tags pré-existants dans le HTML d'entrée sont utilisés tels quels.
    d'envoyer du base64 au LLM.
 3. Sélectionne les sections **feuilles** (sans sous-section) au sens
    `ARRETIFY_SECTION_SELECTOR`.
-4. Les regroupe en blocs ≤ ~70 000 caractères. Le nombre de blocs est borné
-   à 5 ; la cible par bloc est calculée en conséquence.
+4. Les regroupe en blocs ≤ ~70 000 caractères (cible qualité, validée
+   empiriquement — cf. `scripts/evaluate_detection.py`), dans la limite d'une
+   fenêtre de contexte globale conservatrice (128 000 tokens, appliquée à
+   tous les modèles, en tenant compte du texte fixe du prompt et d'une
+   réserve pour la réponse du LLM). Le nombre de blocs n'est plus plafonné :
+   il s'adapte à la taille de l'arrêté.
 
 Chaque bloc est un `langchain_core.documents.Document` annoté avec l'`arrete_id`
 parent.

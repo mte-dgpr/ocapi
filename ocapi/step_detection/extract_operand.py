@@ -144,7 +144,7 @@ def extract_operand_with_images(
             _LOGGER.warning("Start marker not found%s", op_info)
             return None
 
-    end_idx = find_marker(working_html, end_marker)
+    end_idx = find_marker(working_html, end_marker, start=start_idx)
     if end_idx != -1:
         html_fragment = working_html[start_idx : end_idx + len(end_marker)]
         return rehydrate_images(html_fragment, img_map)

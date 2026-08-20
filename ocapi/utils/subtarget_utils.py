@@ -39,9 +39,7 @@ from ocapi.config import FullSectionName
 from ocapi.exceptions import SubtargetNotFoundError
 from ocapi.types import SubTarget, SubTargetType
 
-_FULL_SECTION_NAMES_LOWER: frozenset[str] = frozenset(
-    name.value.lower() for name in FullSectionName
-)
+FULL_SECTION_NAMES_LOWER: frozenset[str] = frozenset(name.value.lower() for name in FullSectionName)
 
 # Ordinal patterns (masculine/feminine)
 ORDINAUX = {
@@ -113,7 +111,7 @@ def parse_subtarget(text: str) -> SubTarget:
 
     text_lower = text.lower().strip()
 
-    if text_lower in _FULL_SECTION_NAMES_LOWER:
+    if text_lower in FULL_SECTION_NAMES_LOWER:
         return SubTarget(type=SubTargetType.FULL_SECTION, description=text)
 
     # Try simple patterns first

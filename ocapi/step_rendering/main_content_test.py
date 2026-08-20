@@ -843,6 +843,35 @@ class TestIsAbrogated:
         )
         assert _is_abrogated(make_testing_article_version("op-cx"), {"op-cx": op}) is False
 
+    def test_remove_full_section_all_lowercase_returns_true(self) -> None:
+        """Regression: the LLM is instructed to emit "ALL" but may not respect the exact
+        casing; parse_subtarget already classifies this case-insensitively as FULL_SECTION,
+        so _is_abrogated must not re-introduce a case-sensitive mismatch."""
+        op = Operation(
+            id="op-all-lower",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            operation_type=OperationType.REMOVE,
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="all"),
+        )
+        assert (
+            _is_abrogated(make_testing_article_version("op-all-lower"), {"op-all-lower": op})
+            is True
+        )
+
+    def test_remove_full_section_tout_mixed_case_returns_true(self) -> None:
+        op = Operation(
+            id="op-tout-mixed",
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+            operation_type=OperationType.REMOVE,
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="Tout"),
+        )
+        assert (
+            _is_abrogated(make_testing_article_version("op-tout-mixed"), {"op-tout-mixed": op})
+            is True
+        )
+
     def test_remove_full_section_other_description_returns_false(self) -> None:
         op = Operation(
             id="op-other",
