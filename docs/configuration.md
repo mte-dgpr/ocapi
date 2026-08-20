@@ -74,12 +74,12 @@ déclarés. Exemple courant :
 
 ```json
 {
-  "primary_model_key": "openai_gpt5nano",
+  "primary_model_key": "mistral_medium-3-5",
   "secondary_model_key": null,
   "models": {
     "openai_gpt5mini": { "provider": "openai", "model_id": "gpt-5-mini", "reasoning_model": true },
     "openai_gpt5nano": { "provider": "openai", "model_id": "gpt-5-nano", "reasoning_model": true },
-    "mistral_medium": { "provider": "mistral", "model_id": "mistral-medium-latest" },
+    "mistral_medium-3-5": { "provider": "mistral", "model_id": "mistral-medium-3-5", "reasoning_model": true },
     "piag_mistral_medium": { "provider": "mte-piag", "model_id": "mte-api-piag-mistral-medium-latest" },
     "deepseek_4-pro": { "provider": "deepseek", "model_id": "deepseek-v4-pro" }
   }

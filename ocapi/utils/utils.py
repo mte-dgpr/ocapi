@@ -82,16 +82,16 @@ def html_checksum(soup: BeautifulSoup) -> str:
     return hashlib.md5(str(soup).encode("utf-8")).hexdigest()
 
 
-def find_marker(haystack: str, marker: str) -> int:
-    """Return the start index of marker in haystack, or -1 if not found."""
+def find_marker(haystack: str, marker: str, start: int = 0) -> int:
+    """Return the start index of marker in haystack at or after `start`, or -1 if not found."""
     if not marker:
         return -1
-    i = haystack.find(marker)
+    i = haystack.find(marker, start)
     if i != -1:
         return i
     n = html.unescape(marker)
     pattern = re.sub(r"\s+", r"\\s+", re.escape(n))
-    m = re.search(pattern, haystack, flags=re.IGNORECASE | re.DOTALL)
+    m = re.compile(pattern, flags=re.IGNORECASE | re.DOTALL).search(haystack, start)
     return m.start() if m else -1
 
 

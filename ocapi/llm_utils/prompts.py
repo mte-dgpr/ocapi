@@ -68,9 +68,19 @@ MODIFICATION :
   "confidence_score": integer (0-100)
 }}
 
-REMPLACEMENT TOTAL (arrêté refonte) : Quand un arrêté remplace ENTIÈREMENT un arrêté antérieur
-(« remplace l'arrêté du... », « abroge et remplace... »), utiliser target_article: "ALL".
+REMPLACEMENT TOTAL (arrêté refonte) : Quand un arrêté remplace ENTIÈREMENT un arrêté antérieur,
+SANS RÉSERVE ni liste d'articles (« remplace l'arrêté du... », « abroge et remplace... »,
+« se substitue intégralement à l'arrêté du... »), utiliser target_article: "ALL".
 Dans ce cas, new_content_start_marker et new_content_end_marker peuvent être null.
+
+ATTENTION AUX FAUX POSITIFS DE REMPLACEMENT TOTAL : une phrase qui ANNONCE une modification à
+venir d'un arrêté antérieur (« sont modifiées comme suit », « sont remplacées par les
+dispositions suivantes », « se substituent aux prescriptions des articles nommés de... ») N'EST
+PAS un remplacement total, même si elle emploie un verbe de la liste REPLACE ci-dessus. Si cette
+phrase d'annonce est suivie d'une liste d'articles ou de sections nommés portant chacun leur
+propre modification, NE génère AUCUNE opération pour la phrase d'annonce elle-même : génère UNE
+opération par article/section réellement modifié, avec son numéro exact en target_article (voir
+"PHRASE D'ANNONCE SUIVIE DE CIBLES NOMMÉES" plus bas pour des exemples génériques).
 
 AJOUT :
 {{
@@ -120,6 +130,38 @@ Texte source (article 1) : « L'échéance de réalisation du zonage des dangers
   "confidence_score": 85
 }}
 
+PHRASE D'ANNONCE SUIVIE DE CIBLES NOMMÉES :
+Une phrase qui ANNONCE une modification à venir d'un arrêté antérieur, sans elle-même porter de
+contenu normatif, N'EST PAS une opération : c'est un simple chapeau. Reconnais ce motif quel que
+soit son libellé exact (ne pas t'en tenir aux formulations ci-dessous, elles sont données à titre
+d'exemple) : une phrase du type « les dispositions de [tel arrêté] sont modifiées/remplacées comme
+suit », « les prescriptions ci-dessous se substituent aux prescriptions des articles nommés de
+[tel arrêté] », ou « les dispositions de l'article [X] de [tel arrêté] sont remplacées par les
+dispositions suivantes », lorsqu'elle est suivie d'un ou plusieurs articles/sections nommés portant
+chacun leur propre modification.
+Dans ce cas :
+* NE génère AUCUNE opération pour la phrase d'annonce elle-même.
+* Génère UNE opération par article/section réellement modifié qui suit, avec son numéro exact en
+  target_article — jamais "ALL", même si la phrase d'annonce contient un verbe de la liste REPLACE
+  ("modifier", "remplacer", "substituer") ou le mot "substituer".
+
+Exemple (formulation générique, à généraliser à des libellés proches) :
+Texte source (article 2) : « Les dispositions de l'arrêté préfectoral du 1er janvier 2010
+réglementant [établissement] sont modifiées comme suit : »
+Texte source (article 3) : « Le tableau de l'article 1.2 – Liste des installations est supprimé.
+Il est remplacé par : [nouveau tableau] »
+→ Aucune opération pour l'article 2 (chapeau). Une seule opération pour l'article 3 :
+{{
+  "operation_type": "REPLACE",
+  "source_article": "3",
+  "target_arrete": "2010-01-01",
+  "target_article": "1.2",
+  "sub_target": "le tableau",
+  "new_content_start_marker": "...",
+  "new_content_end_marker": "...",
+  "confidence_score": 90
+}}
+
 Notes CRITIQUES :
 - confidence_score : entier entre 0 et 100 indiquant ta certitude sur la détection de l'opération (0 = très incertain, 100 = totalement certain)
 - source_article : prendre EXACTEMENT le "data-number" de la section ou tu trouves l'opération
@@ -130,8 +172,8 @@ Notes CRITIQUES :
   * Article existant à compléter : "x.x.x" (ex: "9.2.1")
   * Nouvel article à créer : "NEW_ARTICLE:x.x.x"
   * Ajout en fin d'arrêté : "END"
-  * "ALL" UNIQUEMENT pour : abrogation totale (REMOVE) OU refonte complète (REPLACE) quand le texte dit explicitement que l'arrêté antérieur est "abrogé et remplacé" ou "se substitue intégralement à".
-  * NE PAS utiliser "ALL" quand l'arrêté modifie des dispositions ponctuelles (ex. "les dispositions... sont modifiées de la façon suivante" suivi d'une liste d'articles). Dans ce cas, créer UNE opération par article cible avec son numéro exact.
+  * "ALL" UNIQUEMENT pour : abrogation totale (REMOVE) OU refonte complète (REPLACE) quand le texte dit explicitement, SANS RÉSERVE ni liste d'articles, que l'arrêté antérieur est "abrogé et remplacé" ou "se substitue intégralement à".
+  * NE PAS utiliser "ALL" quand l'arrêté modifie des dispositions ponctuelles (ex. "les dispositions... sont modifiées de la façon suivante" suivi d'une liste d'articles, ou "se substituent aux prescriptions des articles nommés"). Dans ce cas, créer UNE opération par article cible avec son numéro exact — le seul emploi d'un verbe comme "remplacer" ou "substituer" ne suffit PAS à justifier "ALL" (voir "PHRASE D'ANNONCE SUIVIE DE CIBLES NOMMÉES" ci-dessus).
 - sub_target :
   * "ALL" : remplacer TOUT l'article cible
   * "END" : ajouter à la FIN de l'article cible

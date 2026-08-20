@@ -196,9 +196,9 @@ def run_detection_for_aiot(aiot: str, model_key: str) -> tuple[list[Operation], 
     for arrete_file in arrete_files:
         if arrete_file.id <= start_date:
             continue
-        detected_ops = step_detection(arrete_file)
-        detected_ops.extend(detected_ops)
-        _LOGGER.info(f"  {arrete_file.id}: {len(detected_ops)} operations detected")
+        arrete_ops = step_detection(arrete_file)
+        detected_ops.extend(arrete_ops)
+        _LOGGER.info(f"  {arrete_file.id}: {len(arrete_ops)} operations detected")
 
     _LOGGER.info(f"Running build_graph on {len(detected_ops)} operations to assign context errors…")
     _, _, _, updated_ops = build_graph(detected_ops, arrete_files)

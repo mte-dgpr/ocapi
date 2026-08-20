@@ -19,6 +19,7 @@
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -205,6 +206,49 @@ class TestValidatedOperationKeys:
         assert build_graph_mock.call_args.args == (detected_ops, arrete_files)
         assert validated_ops == [valid_op]
         assert validated_keys == [("2023-02-01", "3", "2022-02-01", "4", "REPLACE")]
+
+
+class TestRunDetectionForAiot:
+    def test_accumulates_operations_across_all_arretes(self) -> None:
+        """Regression test: detected operations must be accumulated across every
+        arrêté processed, not just the last one.
+
+        A prior bug reassigned ``detected_ops`` inside the loop instead of
+        extending it, so only the last arrêté's operations (self-duplicated)
+        ever reached scoring — every earlier arrêté's detections were silently
+        dropped before ``build_graph`` even ran.
+        """
+        arrete_files = [
+            SimpleNamespace(id="2021-01-01"),
+            SimpleNamespace(id="2022-01-01"),
+            SimpleNamespace(id="2023-01-01"),
+        ]
+
+        ops_by_arrete = {
+            "2022-01-01": ["op-a", "op-b"],
+            "2023-01-01": ["op-c"],
+        }
+
+        with (
+            patch.object(mod, "load_arrete_files", return_value=arrete_files),
+            patch.object(mod, "config_model_llm"),
+            patch.object(
+                mod,
+                "step_detection",
+                side_effect=lambda af: list(ops_by_arrete[af.id]),
+            ) as step_detection_mock,
+            patch.object(
+                mod, "build_graph", return_value=(None, None, None, [])
+            ) as build_graph_mock,
+            patch.object(mod, "is_low_severity_op", return_value=False),
+        ):
+            detected_ops, _validated_ops = mod.run_detection_for_aiot("some_aiot", "some_model")
+
+        # The first arrêté (== start_date) is skipped; the other two are detected on
+        # and their operations accumulate — not overwrite each other.
+        assert step_detection_mock.call_count == 2
+        assert detected_ops == ["op-a", "op-b", "op-c"]
+        assert build_graph_mock.call_args.args[0] == ["op-a", "op-b", "op-c"]
 
 
 class TestRunScoreMode:

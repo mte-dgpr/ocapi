@@ -178,9 +178,6 @@ table est dans
 sous `_COST_PER_1M_TOKENS`. **À tenir à jour à la main** quand les tarifs
 évoluent ou qu'un nouveau modèle est ajouté.
 
-Modèles présents par défaut : `mistral-medium-latest`, `mistral-large-latest`,
-`gpt-4o`, `gpt-5*`, `claude-*`, `gemini-*`.
-
 ## Ground-truth
 
 Stocké sous `snapshots/ground-truth/<aiot>/operations.json` au même format que

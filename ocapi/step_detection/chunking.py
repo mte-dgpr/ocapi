@@ -27,6 +27,7 @@ from typing import Iterator, Tuple
 from bs4 import BeautifulSoup, Tag
 from langchain_core.documents import Document
 
+from ocapi.llm_utils import prompt_detection
 from ocapi.types import ArreteFile, ImageMap
 from ocapi.utils.arretify_utils import (
     ARRETIFY_SECTION_SELECTOR,
@@ -39,6 +40,49 @@ from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.utils import minify_html_fragment
 
 _LOGGER = get_logger(__name__)
+
+# Soft quality target, independent from the hard context-window limit below:
+# empirically measured (scripts/evaluate_detection.py, Mistral Medium 3.5,
+# all 4 ground-truth AIOT) to give better detection precision/recall than
+# larger single-block chunks. Removing it (relying on the ~128k-derived hard
+# limit alone) was tried and measured: overall F1 dropped because arrêtés that used to be
+# split into multiple ~70k blocks were instead sent to the LLM as one much
+# larger block. Re-run the evaluation before changing this value again.
+_SOFT_TARGET_CHARS = 70_000
+
+# Conservative global context window (tokens) applied to every model, rather
+# than a per-model value: 128k is the smallest window among the models
+# actually used in production (Mistral Medium 3.1/3.5). Revisit per-model once
+# larger-context models are deliberately relied upon for bigger arrêtés.
+_GLOBAL_CONTEXT_WINDOW_TOKENS = 128_000
+
+# Deliberately low estimate of characters-per-token: this HTML is markup-dense
+# (attributes, tags), which tokenizes less efficiently than plain prose, and a
+# low ratio means *more* estimated tokens for a given text, i.e. smaller,
+# safer chunks. Erring low never risks overflowing the real context window;
+# erring high would.
+_CHARS_PER_TOKEN_CONSERVATIVE = 3.0
+
+# Reserved for the LLM's JSON response (the list of detected operations) for a
+# single chunk, plus a fixed safety margin. Tunable if responses are observed
+# to be larger/smaller in practice.
+_OUTPUT_RESERVE_TOKENS = 8_000
+_SAFETY_MARGIN_TOKENS = 2_000
+
+_MIN_CHUNK_CHARS = 1_000
+
+
+def _max_chunk_chars(context_window_tokens: int, prompt_overhead_chars: int) -> int:
+    """Largest chunk size (chars) that safely fits within a context window.
+
+    Accounts for the fixed prompt text sent alongside every chunk
+    (:func:`prompt_detection`'s wrapper) and reserves tokens for the LLM's
+    response, so the *whole* request (prompt + chunk) stays within
+    ``context_window_tokens``.
+    """
+    available_tokens = context_window_tokens - _OUTPUT_RESERVE_TOKENS - _SAFETY_MARGIN_TOKENS
+    available_chars = max(available_tokens, 0) * _CHARS_PER_TOKEN_CONSERVATIVE
+    return max(int(available_chars) - prompt_overhead_chars, _MIN_CHUNK_CHARS)
 
 
 def split_blocks(
@@ -99,7 +143,12 @@ def chunk_arrete(arrete_file: ArreteFile) -> Tuple[list[Document], ImageMap]:
     """Split an HTML arrêté into blocks ready for LLM detection.
 
     Minifies the HTML, extracts images (replaced by tokens), then splits
-    Arrêtify sections into blocks of at most ~70 000 characters.
+    Arrêtify sections into blocks sized to fit within a conservative global
+    context window (:data:`_GLOBAL_CONTEXT_WINDOW_TOKENS`, accounting for the
+    fixed prompt text and a reserve for the LLM's response), while preferring
+    the ``~70 000``-character soft target (:data:`_SOFT_TARGET_CHARS`) when
+    that window is large enough to allow it -- empirically better for
+    detection quality than a single larger block per arrêté.
 
     Parameters
     ----------
@@ -117,8 +166,12 @@ def chunk_arrete(arrete_file: ArreteFile) -> Tuple[list[Document], ImageMap]:
     minified, img_map = extract_and_strip_images(minified)
     soup_without_images = BeautifulSoup(minified, "html.parser")
 
-    number_of_blocks = min(math.ceil(len(soup_without_images) / 70000), 5)
-    target_per_block = math.ceil(len(soup_without_images) / number_of_blocks)
+    prompt_overhead_chars = len(prompt_detection(""))
+    hard_limit_chars = _max_chunk_chars(_GLOBAL_CONTEXT_WINDOW_TOKENS, prompt_overhead_chars)
+    target_per_block = min(_SOFT_TARGET_CHARS, hard_limit_chars)
+
+    number_of_blocks = max(1, math.ceil(len(minified) / target_per_block))
+    target_per_block = math.ceil(len(minified) / number_of_blocks)
 
     blocks = list(
         split_blocks(

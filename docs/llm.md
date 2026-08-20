@@ -52,7 +52,7 @@ résout :
   `mte-api-piag-mistral-medium-latest`, `deepseek_4-pro`).
 
 Si le fichier est absent ou invalide, des défauts inline pris en charge dans
-`_DEFAULT_LLM_MODELS_CONFIG` s'appliquent (primaire = `piag_mistral_medium`).
+`_DEFAULT_LLM_MODELS_CONFIG` s'appliquent (primaire = `mistral_medium-3-5`).
 
 ## Prompts
 
