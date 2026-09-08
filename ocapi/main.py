@@ -63,6 +63,7 @@ def main(
     start_date: str | None = None,
     enable_rendering: bool = True,
     enable_tagging: bool = True,
+    enable_tagging_ops: bool = False,
     operations_from: Path | None = None,
     principal_id: str | None = None,
     tagged_output_dir: Path | None = None,
@@ -78,8 +79,10 @@ def main(
         include_ids: List of arrêté IDs to include (defaults to all).
         start_date: Detection start date (YYYY-MM-DD).
         enable_rendering: If True, generate the consolidated permit.
-        enable_tagging: If False, skip ``step_tagging`` and the tagged HTML output.
-            Pre-existing Arrêtify tags in the input HTML are used as-is.
+        enable_tagging: If True, run ``step_tagging`` and write tagged HTML output.
+            Enabled by default.
+        enable_tagging_ops: If True, also extract regex-tagged operations and merge
+            them with candidate operations before resolution. Disabled by default.
         operations_from: If set, loads ``operations.json`` from that directory; skips detection.
         principal_id: Date (YYYY-MM-DD) of the arrêté to flag as principal.
             Returns an error when no loaded arrêté matches that date.
@@ -164,6 +167,7 @@ def main(
             enable_detection=enable_detection,
             enable_rendering=enable_rendering,
             enable_tagging=enable_tagging,
+            enable_tagging_ops=enable_tagging_ops,
             operations=preloaded_ops,
             document_contexts=document_contexts,
         )
@@ -182,7 +186,7 @@ def main(
 
         # Save history
         history_path = consolidation_dir / "history.json"
-        write_json_output(article_history_to_json_dict(history), history_path)
+        write_json_output(article_history_to_json_dict(history), history_path, sort_keys=True)
         _LOGGER.info(f"History saved → {history_path}")
 
         # Save permit if generated
@@ -291,16 +295,15 @@ Examples:
     parser.add_argument(
         "--no-tagging",
         action="store_true",
-        help=(
-            "Skip step_tagging and the tagged HTML output. Pre-existing "
-            "Arrêtify tags in the input HTML are still read as-is."
-        ),
+        help="Disable step_tagging and tagged HTML output (enabled by default)",
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
+        "--tagging-ops",
         action="store_true",
-        help="Enable verbose mode (DEBUG level)",
+        help=(
+            "Also extract regex-tagged operations and merge them with candidate ops "
+            "(disabled by default)"
+        ),
     )
     parser.add_argument(
         "-q",
@@ -339,9 +342,9 @@ Examples:
         start_date=args.start_date,
         enable_rendering=not args.no_rendering,
         enable_tagging=not args.no_tagging,
+        enable_tagging_ops=args.tagging_ops,
         operations_from=operations_from,
         principal_id=args.principal_id,
         tagged_output_dir=tagged_output,
     )
-
     sys.exit(exit_code)

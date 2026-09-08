@@ -223,6 +223,7 @@ class TestRunDetectionForAiot:
             SimpleNamespace(id="2022-01-01"),
             SimpleNamespace(id="2023-01-01"),
         ]
+        document_contexts = [SimpleNamespace() for _ in arrete_files]
 
         ops_by_arrete = {
             "2022-01-01": ["op-a", "op-b"],
@@ -230,7 +231,11 @@ class TestRunDetectionForAiot:
         }
 
         with (
-            patch.object(mod, "load_arrete_files", return_value=arrete_files),
+            patch.object(
+                mod,
+                "load_document_contexts",
+                return_value=list(zip(arrete_files, document_contexts)),
+            ),
             patch.object(mod, "config_model_llm"),
             patch.object(
                 mod,
@@ -242,7 +247,9 @@ class TestRunDetectionForAiot:
             ) as build_graph_mock,
             patch.object(mod, "is_low_severity_op", return_value=False),
         ):
-            detected_ops, _validated_ops = mod.run_detection_for_aiot("some_aiot", "some_model")
+            detected_ops, _validated_ops = mod.run_detection_for_aiot(
+                "some_aiot", "some_model", enable_tagging=False
+            )
 
         # The first arrêté (== start_date) is skipped; the other two are detected on
         # and their operations accumulate — not overwrite each other.

@@ -26,14 +26,19 @@ from .types import (
     ErrorCode,
     FileType,
     NodeId,
+    Operation,
+    OperationOrigin,
     OperationType,
     PermitMotifEntry,
     PermitSourceSpec,
     PermitTitleSpec,
+    RawOperation,
+    RawOperationType,
     SectionVersionSpec,
     _BaseModelWithConfig,
     article_display_number,
     article_id_sort_tuple,
+    canonicalize_article_id_candidate,
     is_low_severity_op,
     parse_arrete_id,
     parse_article_id,
@@ -145,6 +150,52 @@ def test_article_id_sort_tuple_unknown_falls_back_to_sentinel() -> None:
 def test_article_id_sort_tuple_appendix_orders_by_numeric_suffix() -> None:
     assert article_id_sort_tuple("APPENDIX:2.1") < article_id_sort_tuple("APPENDIX:2.2")
     assert article_id_sort_tuple("APPENDIX:2.1") < article_id_sort_tuple("APPENDIX:10")
+
+
+def test_canonicalize_article_id_candidate_compacts_structured_identifier() -> None:
+    assert canonicalize_article_id_candidate("8 .1 .2") == "8.1.2"
+
+
+def test_canonicalize_article_id_candidate_handles_prefixes() -> None:
+    assert canonicalize_article_id_candidate("APPENDIX: 2 .1") == "APPENDIX:2.1"
+    assert canonicalize_article_id_candidate("NEW_ARTICLE: 4 .2") == "NEW_ARTICLE:4.2"
+
+
+def test_canonicalize_article_id_candidate_rejects_invalid_values() -> None:
+    assert canonicalize_article_id_candidate("article 8.1.2") is None
+    assert canonicalize_article_id_candidate("article abc") is None
+    assert canonicalize_article_id_candidate("") is None
+
+
+def test_raw_operation_accepts_origin_enum_value() -> None:
+    raw_op = RawOperation(
+        operation_type=RawOperationType.REMOVE,
+        origin="LLM",
+        source_arrete="2022-01-01",
+        source_article="1",
+        target_arrete="2021-01-01",
+        target_article="2",
+    )
+    assert raw_op.origin == OperationOrigin.LLM
+
+
+def test_operation_from_raw_detection_propagates_origin() -> None:
+    raw_op = RawOperation(
+        operation_type=RawOperationType.REPLACE,
+        origin=OperationOrigin.REGEX,
+        source_arrete="2022-01-01",
+        source_article="3",
+        target_arrete="2021-01-01",
+        target_article="4",
+    )
+
+    op = Operation.from_raw_detection(
+        raw_operation=raw_op,
+        operation_id="op-1",
+        operand="<p>contenu</p>",
+        sub_target=None,
+    )
+    assert op.origin == OperationOrigin.REGEX
 
 
 class TestParseArreteId:

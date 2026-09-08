@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Optional, TypedDict
 
-from arretify.parsing_utils.numbering import ROMAN_NUMERALS_PATTERN_S, str_to_levels
+from arretify.parsing_utils.numbering import NUMBERING_PATTERN_S, str_to_levels
 from bs4 import BeautifulSoup, Tag
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator, model_validator
 from typing_extensions import NotRequired
@@ -43,8 +43,57 @@ ImageMap = Dict[str, str]  # mapping token -> original src
 
 # Article ids can mix roman numerals (I, IV, XII…), single letters (A, b…) and
 # numbers at each level, separated by "." or "-" (e.g. "1.2", "I.1", "A-3", "4-1").
-_ARTICLE_LEVEL_PATTERN_S = rf"({ROMAN_NUMERALS_PATTERN_S}|[A-Za-z]|\d+)"
-_ARTICLE_ID_PATTERN = re.compile(rf"^{_ARTICLE_LEVEL_PATTERN_S}([.\-]{_ARTICLE_LEVEL_PATTERN_S})*$")
+# NUMBERING_PATTERN_S comes from Arrêtify and already covers roman/letter/numeric levels.
+_ARTICLE_ID_PATTERN = re.compile(rf"^{NUMBERING_PATTERN_S}([.\-]{NUMBERING_PATTERN_S})*$")
+
+
+def _compact_article_tokens(value: str) -> str:
+    compacted = re.sub(r"\s*([.-])\s*", r"\1", value)
+    return re.sub(r"\s+", "", compacted).strip(" .-")
+
+
+def canonicalize_article_id_candidate(article_text: str | None) -> str | None:
+    """Normalize a candidate article identifier into a valid ``article_id``.
+
+    Accepts already-structured values (possibly with extra spaces around separators)
+    and returns ``None`` for non-canonical free text.
+    """
+    if article_text is None:
+        return None
+
+    raw = " ".join(article_text.strip().split())
+    if raw == "":
+        return None
+
+    upper = raw.upper()
+    if upper in {"ALL", "END", "APPENDIX"}:
+        return upper
+
+    if upper.startswith("APPENDIX:"):
+        suffix = _compact_article_tokens(raw[len("APPENDIX:") :])
+        if not suffix:
+            return None
+        candidate = f"APPENDIX:{suffix}"
+        try:
+            return parse_article_id(candidate)
+        except InvalidArticleIdError:
+            return None
+
+    if upper.startswith("NEW_ARTICLE:"):
+        suffix = _compact_article_tokens(raw[len("NEW_ARTICLE:") :])
+        if not suffix:
+            return None
+        candidate = f"NEW_ARTICLE:{suffix}"
+        try:
+            return parse_article_id(candidate)
+        except InvalidArticleIdError:
+            return None
+
+    candidate = _compact_article_tokens(raw)
+    try:
+        return parse_article_id(candidate)
+    except InvalidArticleIdError:
+        return None
 
 
 def parse_article_id(article_id: str) -> str:
@@ -259,6 +308,11 @@ class OperationType(Enum):
     REPLACE = "REPLACE"
 
 
+class OperationOrigin(Enum):
+    REGEX = "Regex"
+    LLM = "LLM"
+
+
 ERROR_CODE_MESSAGES: dict[ErrorCode, str] = {
     ErrorCode.ERROR_EXTRACTING_OPERAND: (
         "Le contenu de l'opération n'a pas pu être extrait de l'arrêté modificatif"
@@ -448,6 +502,7 @@ class PermitComplements(_BaseModelWithConfig):
 
 class RawOperation(_BaseModelWithConfig):
     operation_type: RawOperationType
+    origin: OperationOrigin | None = None
     source_arrete: ArreteId
     source_article: str | None = None
     target_arrete: str
@@ -491,6 +546,7 @@ class SubTarget(_BaseModelWithConfig):
 
 class Operation(_BaseModelWithConfig):
     id: OperationId
+    origin: OperationOrigin | None = None
     source_id: NodeId
     target_id: NodeId
     operation_type: OperationType
@@ -578,6 +634,7 @@ class Operation(_BaseModelWithConfig):
 
         return cls(
             id=operation_id,
+            origin=raw_operation.origin,
             source_id=NodeId(
                 arrete_id=raw_operation.source_arrete,
                 article_id=raw_operation.source_article,
