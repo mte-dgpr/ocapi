@@ -16,14 +16,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from arretify.types import DocumentContext
+from arretify.types import DocumentContext, protect_soup
 
 from ocapi.step_detection.step_detection import _OPERATION_ID_COUNTER, step_detection
 from ocapi.step_rendering.step_rendering import step_rendering
 from ocapi.step_resolution.step_resolution import step_resolution
 from ocapi.step_tagging import step_tagging
+from ocapi.step_tagging.operations_filtering import filter_redundant_operations
 from ocapi.types import ArreteFile, ArticleHistory, Operation, Permis
 from ocapi.utils.logging_utils import get_logger
+from ocapi.utils.tagging_io import extract_operations_from_tagged_soup
+from ocapi.utils.utils import make_id
 
 _LOGGER = get_logger(__name__)
 
@@ -37,6 +40,7 @@ def run_pipeline(
     operations: list[Operation] | None = None,
     document_contexts: list[DocumentContext] | None = None,
     enable_tagging: bool = True,
+    enable_tagging_ops: bool = False,
 ) -> tuple[list[Operation], ArticleHistory, list[ArreteFile], Permis | None]:
     """Run the full OCAPI pipeline.
 
@@ -62,6 +66,9 @@ def run_pipeline(
     enable_tagging : bool
         If True, run :func:`ocapi.step_tagging.step_tagging` on each document
         context before detection. No-op when ``document_contexts`` is None.
+    enable_tagging_ops : bool
+        If True, extract regex-tagged operations from the tagged HTML and merge
+        them with detected operations before resolution.
 
     Returns
     -------
@@ -76,7 +83,8 @@ def run_pipeline(
     if start_date:
         _LOGGER.info(f"Detection start date: {start_date}")
 
-    ops: list[Operation] = operations if operations is not None else []
+    tagged_ops: list[Operation] = []
+    candidate_ops: list[Operation] = []
 
     if enable_tagging and document_contexts is not None:
         if len(document_contexts) != len(arrete_files):
@@ -91,6 +99,24 @@ def run_pipeline(
             _LOGGER.info(f"Tagging operations in {arrete_file.id}...")
             step_tagging(document_context)
             arrete_file.soup = document_context.soup
+
+    if enable_tagging_ops:
+        _LOGGER.info("=" * 60)
+        _LOGGER.info("STEP 1B: TAGGING EXTRACTION")
+        _LOGGER.info("=" * 60)
+        for arrete_file in arrete_files:
+            extracted_for_arrete = extract_operations_from_tagged_soup(
+                protect_soup(arrete_file.soup),
+                arrete_file.id,
+                next_operation_id=lambda: make_id(_OPERATION_ID_COUNTER),
+            )
+            if extracted_for_arrete:
+                _LOGGER.info(
+                    f"  → {len(extracted_for_arrete)} operation(s) extracted from regex tagging "
+                    f"for arrêté {arrete_file.id}"
+                )
+            tagged_ops.extend(extracted_for_arrete)
+        _LOGGER.info(f"Tagging extraction total: {len(tagged_ops)} operation(s)")
 
     if enable_detection:
         # ========================================
@@ -109,10 +135,29 @@ def run_pipeline(
                 continue
             _LOGGER.info(f"Processing arrêté {arrete_file.id}...")
             detected_ops = step_detection(arrete_file)
-            ops.extend(detected_ops)
-            _LOGGER.info(f"  → {len(detected_ops)} operations detected")
+            candidate_ops.extend(detected_ops)
+            _LOGGER.info(f"  → {len(detected_ops)} LLM operation(s) detected")
     else:
-        _LOGGER.info(f"Using {len(ops)} pre-loaded operation(s) (snapshot mode, no LLM)")
+        candidate_ops = operations if operations is not None else []
+        _LOGGER.info(
+            f"Using {len(candidate_ops)} pre-loaded operation(s) as candidates "
+            "(snapshot mode, no LLM)"
+        )
+
+    if enable_tagging_ops:
+        # Merge regex-tagged operations with candidate operations in a single pass.
+        # Design choice: if two operations point to the same source/target but one
+        # sub-target is more precise than the other, keep the more precise one.
+        # We assume the less precise variant often comes from detection limits,
+        # while the precise variant carries stronger semantic targeting.
+        ops = filter_redundant_operations(
+            reference_ops=tagged_ops,
+            candidate_ops=candidate_ops,
+            context_id="pipeline",
+            next_operation_id=lambda: make_id(_OPERATION_ID_COUNTER),
+        )
+    else:
+        ops = candidate_ops
 
     _LOGGER.info(f"Total: {len(ops)} operation(s) detected")
 

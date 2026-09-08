@@ -16,11 +16,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import cast
 from unittest.mock import MagicMock, patch
+
+from arretify.types import DocumentContext
 
 from ocapi.pipeline import run_pipeline
 from ocapi.step_detection.step_detection import _OPERATION_ID_COUNTER
-from ocapi.types import NodeId, Operation, OperationType
+from ocapi.types import NodeId, Operation, OperationType, SubTarget, SubTargetType
 from ocapi.utils.testing import make_testing_arrete
 
 
@@ -122,6 +125,126 @@ def test_run_pipeline_with_preloaded_operations(
     mock_resolution.assert_called_once_with(preloaded, arretes, enable_llm=True)
 
 
+@patch("ocapi.pipeline.step_resolution", return_value=({}, [], []))
+@patch("ocapi.pipeline.extract_operations_from_tagged_soup")
+def test_pipeline_renumbers_conflicting_preloaded_operation_ids(
+    mock_extract_tagged: MagicMock,
+    mock_resolution: MagicMock,
+) -> None:
+    arrete = make_testing_arrete("2024-01-10")
+    tagged_op = Operation(
+        id="1",
+        source_id=NodeId(arrete_id="2024-01-10", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
+        operation_type=OperationType.REPLACE,
+        operand="<q>Contenu regex</q>",
+    )
+    preloaded_duplicate = Operation(
+        id="1",
+        source_id=NodeId(arrete_id="2024-01-10", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="3"),
+        operation_type=OperationType.REPLACE,
+        operand="<q>Contenu préchargé</q>",
+    )
+
+    mock_extract_tagged.return_value = [tagged_op]
+
+    run_pipeline(
+        [arrete],
+        enable_detection=False,
+        enable_tagging=True,
+        enable_tagging_ops=True,
+        enable_rendering=False,
+        operations=[preloaded_duplicate],
+    )
+
+    resolved_ops = mock_resolution.call_args[0][0]
+    assert [op.id for op in resolved_ops] == ["1", "2"]
+
+
+@patch("ocapi.pipeline.step_resolution", return_value=({}, [], []))
+@patch("ocapi.pipeline.extract_operations_from_tagged_soup")
+def test_pipeline_prefers_precise_candidate_over_full_tagged_operation(
+    mock_extract_tagged: MagicMock,
+    mock_resolution: MagicMock,
+) -> None:
+    arrete = make_testing_arrete("2024-01-10")
+    tagged_full = Operation(
+        id="1",
+        source_id=NodeId(arrete_id="2024-01-10", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
+        operation_type=OperationType.REPLACE,
+        operand="<q>Contenu regex</q>",
+    )
+    precise_candidate = Operation(
+        id="2",
+        source_id=NodeId(arrete_id="2024-01-10", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
+        operation_type=OperationType.REPLACE,
+        operand="<q>Contenu LLM</q>",
+        sub_target=SubTarget(
+            type=SubTargetType.PARAGRAPHE,
+            position=1,
+            description="paragraphe 1",
+        ),
+    )
+
+    mock_extract_tagged.return_value = [tagged_full]
+
+    run_pipeline(
+        [arrete],
+        enable_detection=False,
+        enable_tagging=True,
+        enable_tagging_ops=True,
+        enable_rendering=False,
+        operations=[precise_candidate],
+    )
+
+    resolved_ops = mock_resolution.call_args[0][0]
+    assert resolved_ops == [precise_candidate]
+
+
+@patch("ocapi.pipeline.step_resolution", return_value=({}, [], []))
+@patch("ocapi.pipeline.extract_operations_from_tagged_soup")
+@patch("ocapi.pipeline.step_detection")
+def test_pipeline_filters_preloaded_ops_with_tagging_when_detection_disabled(
+    mock_detection: MagicMock,
+    mock_extract_tagged: MagicMock,
+    mock_resolution: MagicMock,
+) -> None:
+    arrete = make_testing_arrete("2024-01-10")
+    tagged_op = Operation(
+        id="1",
+        source_id=NodeId(arrete_id="2024-01-10", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
+        operation_type=OperationType.REPLACE,
+        operand="<q>Contenu regex</q>",
+    )
+    preloaded_duplicate = Operation(
+        id="2",
+        source_id=NodeId(arrete_id="2024-01-10", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
+        operation_type=OperationType.REPLACE,
+        operand="<q>Contenu préchargé</q>",
+    )
+
+    mock_extract_tagged.return_value = [tagged_op]
+    mock_detection.return_value = [preloaded_duplicate]
+
+    run_pipeline(
+        [arrete],
+        enable_detection=False,
+        enable_tagging=True,
+        enable_tagging_ops=True,
+        enable_rendering=False,
+        operations=[preloaded_duplicate],
+    )
+
+    mock_extract_tagged.assert_called_once()
+    mock_detection.assert_not_called()
+    mock_resolution.assert_called_once_with([tagged_op], [arrete], enable_llm=True)
+
+
 @patch("ocapi.pipeline.step_detection", return_value=[])
 def test_start_date_equal_to_first_arrete_skips_it(mock_detection: MagicMock) -> None:
     """Boundary: start_date == earliest arrêté excludes that arrêté from detection (<=)."""
@@ -156,11 +279,30 @@ def test_step_tagging_runs_when_enabled(
     mock_tagging: MagicMock,
 ) -> None:
     arretes = [make_testing_arrete("2009-12-08"), make_testing_arrete("2014-01-09")]
-    dcs = [MagicMock(soup=a.soup) for a in arretes]
+    dcs = cast(list[DocumentContext], [MagicMock(soup=a.soup) for a in arretes])
 
-    run_pipeline(arretes, enable_rendering=False, document_contexts=dcs)  # type: ignore[arg-type]
+    run_pipeline(
+        arretes,
+        enable_rendering=False,
+        enable_tagging=True,
+        document_contexts=dcs,
+    )
 
     assert mock_tagging.call_count == 2
+
+
+@patch("ocapi.pipeline.step_tagging")
+@patch("ocapi.pipeline.step_detection", return_value=[])
+def test_step_tagging_enabled_by_default(
+    mock_detection: MagicMock,
+    mock_tagging: MagicMock,
+) -> None:
+    arretes = [make_testing_arrete("2009-12-08")]
+    dcs = cast(list[DocumentContext], [MagicMock(soup=arretes[0].soup)])
+
+    run_pipeline(arretes, enable_rendering=False, document_contexts=dcs)
+
+    mock_tagging.assert_called_once()
 
 
 @patch("ocapi.pipeline.step_tagging")
@@ -180,3 +322,81 @@ def test_step_tagging_skipped_when_disabled(
     )
 
     mock_tagging.assert_not_called()
+
+
+@patch("ocapi.pipeline.step_resolution", return_value=({}, [], []))
+@patch("ocapi.pipeline.extract_operations_from_tagged_soup")
+@patch("ocapi.pipeline.step_detection")
+def test_pipeline_filters_llm_ops_with_tagging_when_enabled(
+    mock_detection: MagicMock,
+    mock_extract_tagged: MagicMock,
+    mock_resolution: MagicMock,
+) -> None:
+    arrete = make_testing_arrete("2024-01-10")
+    tagged_op = Operation(
+        id="1",
+        source_id=NodeId(arrete_id="2024-01-10", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
+        operation_type=OperationType.REPLACE,
+        operand="<q>Contenu regex</q>",
+    )
+    llm_duplicate = Operation(
+        id="2",
+        source_id=NodeId(arrete_id="2024-01-10", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
+        operation_type=OperationType.REPLACE,
+        operand="<q>Contenu LLM</q>",
+    )
+
+    mock_extract_tagged.return_value = [tagged_op]
+    mock_detection.return_value = [llm_duplicate]
+
+    run_pipeline(
+        [arrete],
+        start_date="2023-01-01",
+        enable_tagging=True,
+        enable_tagging_ops=True,
+        enable_rendering=False,
+    )
+
+    mock_extract_tagged.assert_called_once()
+    mock_resolution.assert_called_once_with([tagged_op], [arrete], enable_llm=True)
+
+
+@patch("ocapi.pipeline.step_resolution", return_value=({}, [], []))
+@patch("ocapi.pipeline.extract_operations_from_tagged_soup")
+@patch("ocapi.pipeline.step_detection")
+def test_pipeline_does_not_filter_with_tagging_disabled(
+    mock_detection: MagicMock,
+    mock_extract_tagged: MagicMock,
+    mock_resolution: MagicMock,
+) -> None:
+    arrete = make_testing_arrete("2024-01-10")
+    llm_op = Operation(
+        id="2",
+        source_id=NodeId(arrete_id="2024-01-10", article_id="1"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
+        operation_type=OperationType.REPLACE,
+        operand="<q>Contenu LLM</q>",
+    )
+
+    mock_extract_tagged.return_value = [
+        Operation(
+            id="1",
+            source_id=NodeId(arrete_id="2024-01-10", article_id="1"),
+            target_id=NodeId(arrete_id="2020-01-01", article_id="2"),
+            operation_type=OperationType.REPLACE,
+            operand="<q>Contenu regex</q>",
+        )
+    ]
+    mock_detection.return_value = [llm_op]
+
+    run_pipeline(
+        [arrete],
+        start_date="2023-01-01",
+        enable_tagging=False,
+        enable_rendering=False,
+    )
+
+    mock_extract_tagged.assert_not_called()
+    mock_resolution.assert_called_once_with([llm_op], [arrete], enable_llm=True)
