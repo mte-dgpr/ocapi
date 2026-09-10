@@ -51,13 +51,10 @@ def reset_operation_id_counter() -> None:
 
 
 @patch("ocapi.step_detection.step_detection.extract_operand_with_images")
-@patch("ocapi.step_detection.step_detection.parse_subtarget")
 def test_convert_raw_operation_to_operation(
-    mock_parse_subtarget: Mock,
     mock_extract_operand_with_images: Mock,
 ) -> None:
     mock_extract_operand_with_images.return_value = "<mocked>operand content</mocked>"
-    mock_parse_subtarget.return_value = SubTarget(type=SubTargetType.TABLEAU, position=1)
 
     html_block = Document(page_content="<section>Test content</section>", metadata={})
 
@@ -98,14 +95,13 @@ def test_convert_raw_operation_to_operation(
     assert op1.sub_target.type == SubTargetType.TABLEAU
     assert op1.error_codes == frozenset()
     mock_extract_operand_with_images.assert_called_once()
-    mock_parse_subtarget.assert_called_once_with("le tableau")
 
     op2 = operations[1]
     assert op2.source_id == NodeId(arrete_id="1980-01-01", article_id="2")
     assert op2.target_id == NodeId(arrete_id="1981-01-01", article_id="3")
     assert op2.operation_type == OperationType.REMOVE
     assert op2.origin == OperationOrigin.LLM
-    assert op2.sub_target is None
+    assert op2.sub_target == SubTarget(type=SubTargetType.FULL_SECTION, description="ALL")
     assert op2.operand is None
     assert op2.error_codes == frozenset()
     assert op2.id == "2"

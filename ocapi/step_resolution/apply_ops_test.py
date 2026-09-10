@@ -1220,6 +1220,67 @@ def test_apply_subgraph_operations_resolved_status_dict(
     }
 
 
+def test_apply_subgraph_operations_missing_subtarget_sets_error_code() -> None:
+    G = nx.MultiDiGraph()
+    src = NodeId(arrete_id="1981-01-01", article_id="2")
+    tgt = NodeId(arrete_id="1980-01-01", article_id="1")
+    add_node(G, src)
+    add_node(G, tgt)
+    add_edge(
+        G,
+        Operation(
+            id="op-missing-subtarget",
+            source_id=src,
+            target_id=tgt,
+            operation_type=OperationType.REPLACE,
+            operand="new content",
+            sub_target=None,
+        ),
+    )
+    history: ArticleHistory = {
+        tgt: [{"version": 0, "title": "", "content": "v0", "operation_id": None}],
+    }
+
+    out, skipped, resolved = apply_subgraph_operations(G, history)
+
+    assert [op_id for op_id, _ in skipped] == ["op-missing-subtarget"]
+    assert resolved == {"op-missing-subtarget": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET})}
+    assert len(out[tgt]) == 1
+
+
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
+def test_apply_subgraph_operations_unknown_exception_leaves_error_code_unset(
+    mock_replace_or_remove: mock.Mock,
+) -> None:
+    mock_replace_or_remove.side_effect = RuntimeError("boom")
+
+    G = nx.MultiDiGraph()
+    src = NodeId(arrete_id="1981-01-01", article_id="2")
+    tgt = NodeId(arrete_id="1980-01-01", article_id="1")
+    add_node(G, src)
+    add_node(G, tgt)
+    add_edge(
+        G,
+        Operation(
+            id="op-unknown-failure",
+            source_id=src,
+            target_id=tgt,
+            operation_type=OperationType.REPLACE,
+            operand="new content",
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION, description="ALL"),
+        ),
+    )
+    history: ArticleHistory = {
+        tgt: [{"version": 0, "title": "", "content": "v0", "operation_id": None}],
+    }
+
+    out, skipped, resolved = apply_subgraph_operations(G, history)
+
+    assert [op_id for op_id, _ in skipped] == ["op-unknown-failure"]
+    assert resolved == {}
+    assert len(out[tgt]) == 1
+
+
 # ---------------------------------------------------------------------------
 # ERROR_EXTRACTING_SOURCE short-circuits the LLM fallback in apply_*
 # ---------------------------------------------------------------------------

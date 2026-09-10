@@ -91,15 +91,19 @@ def _ensure_subtarget_type(value: SubTargetType | str | None) -> SubTargetType:
         return SubTargetType.COMPLEX
 
 
-def parse_subtarget(text: str) -> SubTarget:
+def parse_subtarget(text: str | None) -> SubTarget:
     """Convert a sub-target text detected by the LLM into a SubTarget object.
 
-    Handles simple cases via regex; returns COMPLEX otherwise.
+    Handles simple cases via regex; returns COMPLEX otherwise. When ``text``
+    is missing or blank, the operation is assumed to target the whole
+    section (``FULL_SECTION``) rather than a fragment of it — this is the
+    common case when the LLM (or the regex tagger) omits ``sub_target``
+    because the operand fully replaces/removes the target article.
 
     Parameters
     ----------
-    text : str
-        Raw sub-target description string from the LLM.
+    text : str | None
+        Raw sub-target description string from the LLM, or ``None``.
 
     Returns
     -------
@@ -107,7 +111,7 @@ def parse_subtarget(text: str) -> SubTarget:
         Parsed sub-target with type, optional position and original description.
     """
     if not text or text.strip() == "":
-        return SubTarget(type=SubTargetType.FULL_SECTION, description=text)
+        return SubTarget(type=SubTargetType.FULL_SECTION, description="ALL")
 
     text_lower = text.lower().strip()
 

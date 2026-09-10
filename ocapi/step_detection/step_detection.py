@@ -246,7 +246,7 @@ def _raw_operation_to_operation(
             operation_id=operation_id,
         )
 
-    sub_target = parse_subtarget(raw_operation.sub_target) if raw_operation.sub_target else None
+    sub_target = parse_subtarget(raw_operation.sub_target)
 
     return Operation.from_raw_detection(
         raw_operation=raw_operation,
