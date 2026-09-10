@@ -499,8 +499,8 @@ def _apply_single_edge(
         # Only tag the operation with an error code for the one failure mode we
         # can identify with certainty (missing sub_target); any other exception
         # is left untagged since its cause is unknown.
-        if op_id is not None and op is not None and op.sub_target is None:
-            resolved_status[op_id] = frozenset({ErrorCode.ERROR_FINDING_SUBTARGET})
+        if op is not None and op.sub_target is None:
+            resolved_status[op.id] = frozenset({ErrorCode.ERROR_FINDING_SUBTARGET})
 
 
 def apply_subgraph_operations(
