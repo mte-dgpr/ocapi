@@ -347,6 +347,7 @@ def _apply_single_edge(
 ) -> None:
     """Apply one edge and recursively propagate to downstream targets."""
     op_id = None
+    op: Operation | None = None
     try:
         op = _edge_to_operation(subG, src, tgt, key)
         op_id = op.id
@@ -495,6 +496,11 @@ def _apply_single_edge(
         error_msg = f"Operation {op_id or 'unknown'} skipped: {str(e)}"
         _LOGGER.warning(error_msg)
         skipped_ops.append((op_id or "unknown", str(e)))
+        # Only tag the operation with an error code for the one failure mode we
+        # can identify with certainty (missing sub_target); any other exception
+        # is left untagged since its cause is unknown.
+        if op is not None and op.sub_target is None:
+            resolved_status[op.id] = frozenset({ErrorCode.ERROR_FINDING_SUBTARGET})
 
 
 def apply_subgraph_operations(

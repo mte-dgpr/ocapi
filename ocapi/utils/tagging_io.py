@@ -40,8 +40,6 @@ from ocapi.types import (
     OperationType,
     RawOperation,
     RawOperationType,
-    SubTarget,
-    SubTargetType,
     canonicalize_article_id_candidate,
 )
 from ocapi.utils.arretify_utils import ARRETIFY_SECTION_DATA_SPEC
@@ -111,11 +109,7 @@ def extract_operations_from_tagged_soup(
             if normalized_raw is None:
                 continue
 
-            sub_target = (
-                parse_subtarget(normalized_raw.sub_target) if normalized_raw.sub_target else None
-            )
-            if sub_target is None and normalized_raw.target_article != "ALL":
-                sub_target = SubTarget(type=SubTargetType.FULL_SECTION, description="ALL")
+            sub_target = parse_subtarget(normalized_raw.sub_target)
 
             try:
                 operation = Operation.from_raw_detection(
