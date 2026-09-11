@@ -21,7 +21,6 @@ import logging
 
 from bs4 import BeautifulSoup, Tag
 
-from ocapi.config import FullSectionName
 from ocapi.exceptions import InvalidArticleIdError
 from ocapi.step_rendering.article_filter import filter_superfluous_sections
 from ocapi.step_rendering.operation_messages import (
@@ -43,6 +42,7 @@ from ocapi.types import (
     operation_type_label,
 )
 from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC, ARRETIFY_SECTION_DATA_SPEC
+from ocapi.utils.subtarget_utils import FULL_SECTION_NAMES_LOWER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -399,8 +399,6 @@ def _build_section_history_html(
     return "".join(history_parts)
 
 
-_FULL_REMOVAL_DESCRIPTIONS: frozenset[str] = frozenset(name.value for name in FullSectionName)
-
 _UNRESOLVED_ERROR_CODES = frozenset(
     {
         ErrorCode.ERROR_EXTRACTING_OPERAND,
@@ -449,4 +447,6 @@ def _is_abrogated(
         return True
     if sub_target.type != SubTargetType.FULL_SECTION:
         return False
-    return sub_target.description in _FULL_REMOVAL_DESCRIPTIONS
+    if sub_target.description is None:
+        return False
+    return sub_target.description.strip().lower() in FULL_SECTION_NAMES_LOWER

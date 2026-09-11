@@ -391,6 +391,73 @@ def test_build_graph_full_removal_with_narrower_ops_marks_less_important() -> No
     assert not narrower_updated.error_codes
 
 
+def test_build_graph_recticel_chapeau_full_removal_marked_less_important() -> None:
+    """Regression test for AIOT 0005800425 (RECTICEL).
+
+    The AP du 2012-09-03 contains a "chapeau" sentence ("les dispositions de l'AP du
+    2005-11-08 sont modifiées comme suit") that a mis-detecting LLM turns into a
+    REMOVE/ALL operation, immediately followed by explicitly named articles (e.g.
+    article 1.2 "Liste des installations") each carrying their own targeted
+    modification. Even if detection still emits the spurious full-removal op, the
+    graph-building safety net must demote it to LESS_IMPORTANT rather than apply it,
+    so the targeted operations remain the ones consolidated.
+    """
+    html_2005 = """
+    <section data-spec="section" data-number="1.2">Liste des installations</section>
+    """
+    html_2012 = """
+    <section data-spec="section" data-number="2">chapeau</section>
+    <section data-spec="section" data-number="3">Le tableau de l'article 1.2 est remplacé</section>
+    """
+    arrete_files = [
+        ArreteFile(
+            id="2005-11-08",
+            aiot="0005800425",
+            filename="2005-11-08.html",
+            soup=BeautifulSoup(html_2005, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+        ArreteFile(
+            id="2012-09-03",
+            aiot="0005800425",
+            filename="2012-09-03.html",
+            soup=BeautifulSoup(html_2012, "html.parser"),
+            file_type=FileType.AUTRE,
+        ),
+    ]
+    chapeau_full_removal = Operation(
+        id="op-chapeau",
+        source_id=NodeId(arrete_id="2012-09-03", article_id="2"),
+        target_id=NodeId(arrete_id="2005-11-08", article_id="ALL"),
+        operation_type=OperationType.REMOVE,
+    )
+    targeted_op = Operation(
+        id="op-article-1-2",
+        source_id=NodeId(arrete_id="2012-09-03", article_id="3"),
+        target_id=NodeId(arrete_id="2005-11-08", article_id="1.2"),
+        operation_type=OperationType.REPLACE,
+        operand="nouveau tableau",
+        sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
+    )
+
+    G, updated_arrete_files, skipped_ops, updated_ops = build_graph(
+        [chapeau_full_removal, targeted_op], arrete_files
+    )
+
+    # The chapeau is not classified as a full removal: it's demoted, not applied.
+    assert next(af for af in updated_arrete_files if af.id == "2005-11-08").status is True
+    chapeau_updated = next(o for o in updated_ops if o.id == "op-chapeau")
+    assert ErrorCode.LESS_IMPORTANT in chapeau_updated.error_codes
+    assert any(op.id == "op-chapeau" for op, _ in skipped_ops)
+
+    # The targeted operation stays correctly associated with its named article/arrêté.
+    targeted_updated = next(o for o in updated_ops if o.id == "op-article-1-2")
+    assert not targeted_updated.error_codes
+    assert targeted_updated.target_id == NodeId(arrete_id="2005-11-08", article_id="1.2")
+    assert targeted_updated.source_id == NodeId(arrete_id="2012-09-03", article_id="3")
+    assert G.has_edge(targeted_updated.source_id, targeted_updated.target_id)
+
+
 def test_build_graph_full_removal_ignores_other_full_removals_for_pair() -> None:
     """Two full removals from the same source on the same target don't make each other
     LESS_IMPORTANT — the new check only triggers on truly narrower ops."""

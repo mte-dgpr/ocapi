@@ -134,6 +134,21 @@ Les libellés français correspondants (utilisés dans le permis) sont dans
 
 ## Cas limites connus
 
+- **Propagation en chaîne (C → B → A) et opérations `ADD`/`REMOVE`** : quand
+  un article B est intégralement remplacé (`REPLACE`/`FULL_SECTION`) par un
+  arrêté C postérieur, et que ce même article B est par ailleurs la source
+  d'une opération vers un article A plus ancien, `_apply_single_edge`
+  réapplique cette opération B→A avec le contenu à jour de B. Pour une chaîne
+  `REPLACE`/`FULL_SECTION` → `REPLACE`/`FULL_SECTION`, la version finale de A
+  ne reflète bien que le dernier remplacement (comportement voulu et testé,
+  cf. `test_chain_branch_size_2_propagates_updated_operand`). Pour un `ADD`
+  (ou un `REPLACE`/`REMOVE` sur une sous-cible précise, pas `FULL_SECTION`)
+  en aval, l'opération est rejouée en plus de la première application : la
+  version finale de A peut donc accumuler l'ancien **et** le nouveau contenu
+  au lieu de ne refléter que le dernier état de B. Cas rare en pratique (il
+  faut qu'un même article source soit à la fois totalement remplacé par un
+  arrêté ultérieur *et* source d'un `ADD`/`REMOVE` partiel vers un article
+  antérieur) ; non corrigé à ce jour.
 - Cycles dans le graphe (rare en pratique car les opérations vont d'un
   arrêté plus récent vers un plus ancien) : les arêtes restent en place
   mais leur application dépend de l'ordre d'itération.

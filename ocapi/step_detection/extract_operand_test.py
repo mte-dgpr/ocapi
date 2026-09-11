@@ -124,6 +124,38 @@ class TestExtractOperand(unittest.TestCase):
             ),
         )
 
+    def test_extract_operand_end_marker_also_appears_before_start(self) -> None:
+        """Regression: end_marker's text repeats earlier in the section (before
+        start_marker), which used to make find_marker return that earlier
+        occurrence, producing a reversed/empty slice and silently discarding
+        the operand instead of extracting the correct, later occurrence."""
+        html = """
+        <section data-spec="section" data-number="3">
+            <p>Conformement a larticle 2, la societe agit.</p>
+            <p>DEBUT DU TEXTE. Nouveau contenu a inserer.
+            Conformement a larticle 2, la societe poursuit. FIN.</p>
+        </section>
+        """
+        minified_html = minify_html_fragment(html)
+
+        start_marker = "DEBUT DU TEXTE"
+        end_marker = "Conformement a larticle 2"
+
+        operand = extract_operand_with_images(
+            html_block=minified_html,
+            source_article="3",
+            start_marker=start_marker,
+            end_marker=end_marker,
+            img_map={},
+        )
+        assert operand is not None
+        assert operand  # not silently emptied
+        assert operand.startswith("DEBUT DU TEXTE")
+        # Must capture up to the SECOND (later) occurrence of end_marker, not the
+        # earlier one that precedes start_marker (which would yield an empty operand).
+        assert "Nouveau contenu a inserer" in operand
+        assert operand.endswith(end_marker)
+
     def test_extract_operand_start_marker_not_found_logs_warning(self) -> None:
         html = '<section data-spec="section" data-number="1"><p>Contenu</p></section>'
 
