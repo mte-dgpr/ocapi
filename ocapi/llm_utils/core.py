@@ -72,7 +72,11 @@ def _extract_content(model: ResolvedLLMModel, data: Any) -> str:
     """
     try:
         if model.provider == "anthropic":
-            return str(data["content"][0]["text"])
+            for block in data["content"]:
+                text = block.get("text")
+                if block.get("type") == "text" and isinstance(text, str):
+                    return text
+            raise KeyError("text")
         if model.provider == "mistral":
             content = data["choices"][0]["message"]["content"]
             if isinstance(content, str):
@@ -118,7 +122,7 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
     if model.provider in ["mte-piag", "mistral", "openai", "google", "deepseek"]:
         payload["n"] = 1
     if model.provider == "anthropic":
-        payload["max_tokens"] = 4096
+        payload["max_tokens"] = 32000 if model.reasoning_model else 16000
 
     # Reasoning effort (Anthropic and DeepSeek enable reasoning at high level by default)
     if model.provider == "mistral" and model.reasoning_model:

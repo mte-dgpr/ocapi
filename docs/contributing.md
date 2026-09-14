@@ -92,6 +92,80 @@ La PR doit être verte avant merge.
 5. Documente dans `docs/pipeline-steps/<nom>.md` et mets à jour `mkdocs.yml`.
 6. Mets à jour [Architecture](architecture.md) (au moins le diagramme et la table des étapes).
 
+## Ajouter un LLM
+
+Vue d'ensemble de l'architecture LLM : [LLM](llm.md).
+
+### Ajouter un modèle à un provider déjà supporté
+
+Cas le plus courant (nouvelle version d'un modèle OpenAI, Mistral, Anthropic...).
+
+1. Ajoute une entrée dans [`config/llm_models.json`](https://github.com/mte-dgpr/ocapi/blob/main/config/llm_models.json) :
+   ```json
+   "mon_alias_model_key": {
+     "provider": "openai",
+     "model_id": "gpt-5.5",
+     "reasoning_model": true
+   }
+   ```
+   `provider` doit être l'un des `SUPPORTED_LLM_PROVIDERS` déjà déclarés
+   (`ocapi/llm_utils/config.py`). `reasoning_model` et `temperature` restent
+   optionnels.
+2. Si le modèle doit pouvoir servir de secours en environnement de dev/test
+   quand `config/llm_models.json` est absent, ajoute-le aussi à
+   `_DEFAULT_LLM_MODELS_CONFIG` dans `ocapi/llm_utils/config.py`.
+3. Ajoute une ligne de tarif dans `_COST_PER_1M_TOKENS`
+   (`scripts/evaluate_detection.py`), clé = `model_id` (pas la `model_key`),
+   valeur = `(coût input $/1M tokens, coût output $/1M tokens)`. **À ne pas
+   oublier** : un `model_id` absent de cette table est silencieusement compté
+   à coût nul dans `evaluate_detection.py`, ce qui fausse les comparatifs.
+4. Si le modèle doit devenir primaire/secondaire par défaut, mets à jour
+   `primary_model_key` / `secondary_model_key` dans `config/llm_models.json`.
+5. Mets à jour la table des modèles/exemples dans [docs/llm.md](llm.md) si le
+   modèle est significatif (nouveau modèle de référence, changement de
+   primaire...).
+
+### Ajouter un nouveau provider
+
+Cas où le provider n'existe pas encore (nouvel endpoint API, nouveau format
+de réponse).
+
+1. **Configuration des accès** — dans `LLMConfig` (`ocapi/config.py`), ajoute
+   `<provider>_api_key: str | None` et `<provider>_api_url: str` (avec une
+   URL par défaut), inclus `<provider>_api_key` dans le
+   `field_validator("...api_key")` existant et `<provider>_api_url` dans le
+   `field_validator("...api_url")`. Ajoute aussi le masquage de la clé dans
+   `to_safe_dict` (les lignes `data["llm"]["<provider>_api_key"] = "***MASKED***"`).
+2. **Déclaration du provider** — ajoute le nom du provider à
+   `SUPPORTED_LLM_PROVIDERS` et une branche dans `_provider_api_config`
+   (`ocapi/llm_utils/config.py`) qui renvoie `(settings.llm.<provider>_api_key,
+   str(settings.llm.<provider>_api_url))`.
+3. **Payload et réponse** — dans `ocapi/llm_utils/core.py` :
+   - `_build_payload` : ajoute le provider aux branches concernées (`n`,
+     `temperature`/`reasoning_effort`, tout paramètre spécifique) — par
+     défaut le payload est OpenAI-compatible (`messages`, `model`), ne
+     surcharge que ce qui diffère ;
+   - `_extract_content` : ajoute une branche si le format de réponse n'est
+     pas `data["choices"][0]["message"]["content"]` (cas Anthropic
+     `data["content"][0]["text"]`) ;
+   - `_accumulate_usage` : idem si les clés d'usage token diffèrent de
+     `prompt_tokens` / `completion_tokens` (cas Anthropic `input_tokens` /
+     `output_tokens`) ;
+   - `_make_headers` : ajoute une branche si l'authentification n'est pas
+     `Authorization: Bearer <clé>` (cas Anthropic `x-api-key` +
+     `anthropic-version`).
+4. **Modèle(s)** — déclare au moins un modèle du nouveau provider dans
+   `config/llm_models.json` (voir section précédente), avec son tarif dans
+   `_COST_PER_1M_TOKENS` (`scripts/evaluate_detection.py`).
+5. **Variable d'environnement** — documente `LLM__<PROVIDER>_API_URL` (et la
+   clé associée) dans la configuration de déploiement si nécessaire (cf.
+   [Configuration](configuration.md)).
+6. **Documentation** — ajoute une ligne dans la table "Modèles supportés" de
+   [docs/llm.md](llm.md) (`docs/llm.md`).
+7. **Tests** — ajoute le nouveau provider aux tests paramétrés existants dans
+   `ocapi/llm_utils/config_test.py` et `ocapi/llm_utils/core_test.py`
+   (payload, extraction de contenu, headers, comptage de tokens).
+
 ## Ajouter ou modifier la documentation
 
 - Les sources sont dans `docs/`. La nav est définie dans `mkdocs.yml`.
