@@ -47,7 +47,7 @@ def _make_anthropic_success_response(
     response = Mock()
     response.raise_for_status.return_value = None
     response.json.return_value = {
-        "content": [{"text": content}],
+        "content": [{"type": "text", "text": content}],
         "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
     }
     return response
@@ -426,6 +426,33 @@ def test_token_usage_anthropic_provider() -> None:
     usage = get_accumulated_usage()
     assert usage.prompt_tokens == 80
     assert usage.completion_tokens == 20
+
+
+def test_call_llm_api_anthropic_skips_leading_thinking_block() -> None:
+    anthropic_cfg = ResolvedLLMModel(
+        model_key="anthropic_claude",
+        provider="anthropic",
+        model_name="claude-sonnet-5",
+        api_key="ant-key",
+        api_url="https://api.anthropic.com/v1/messages",
+    )
+    response = Mock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = {
+        "content": [
+            {"type": "thinking", "thinking": "reasoning...", "signature": "sig"},
+            {"type": "text", "text": "ok"},
+        ],
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    }
+
+    with patch(
+        "ocapi.llm_utils.core._load_llm_resilience_config", return_value=_make_base_resilience()
+    ):
+        with patch("ocapi.llm_utils.core.requests.post", return_value=response):
+            result = call_llm_api(anthropic_cfg, "prompt")
+
+    assert result == "ok"
 
 
 def test_token_usage_missing_usage_field_does_not_raise() -> None:

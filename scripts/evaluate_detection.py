@@ -74,6 +74,7 @@ _VALID_OP_TYPES = {"ADD", "REPLACE", "REMOVE"}
 
 # Cost per 1M tokens (USD): {model_id: (input_cost, output_cost)}
 _COST_PER_1M_TOKENS: dict[str, tuple[float, float]] = {
+    "gpt-5.6-terra": (2.00, 12.00),
     "gpt-5.4": (2.50, 15.00),
     "gpt-5.4-mini": (0.75, 4.50),
     "gpt-5.4-nano": (0.20, 1.25),
@@ -87,9 +88,12 @@ _COST_PER_1M_TOKENS: dict[str, tuple[float, float]] = {
     "mistral-medium-2508": (0.40, 2.00),
     "mistral-small-2603": (0.15, 0.6),
     "claude-opus-4-8": (5.00, 25.00),
+    "claude-sonnet-5": (2.00, 10.00),
     "claude-sonnet-4-6": (3.00, 15.00),
     "claude-haiku-4-5": (1.00, 5.00),
+    "gemini-3.6-flash": (1.50, 7.50),
     "gemini-3.5-flash": (1.50, 9.00),
+    "gemini-3.5-flash-lite": (0.30, 2.50),
     "gemini-3.1-pro-preview": (4.00, 18.00),
     "gemini-3.1-flash-lite": (0.25, 1.50),
     "gemini-2.5-pro": (2.50, 10.00),
