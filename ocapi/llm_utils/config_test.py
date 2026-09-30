@@ -20,6 +20,7 @@ from unittest.mock import patch
 
 import pytest
 
+from ocapi.config import settings
 from ocapi.llm_utils import config_model_llm
 
 
@@ -135,3 +136,33 @@ def test_unknown_env_model_key_is_ignored_with_warning(
 
     assert primary.model_key == "openai_primary"
     assert any("does_not_exist" in msg for msg in caplog.messages)
+
+
+@pytest.mark.parametrize(
+    "model_key, model_id",
+    [
+        ("albert_mistral-medium-2508", "mistral-medium-2508"),
+        ("albert_gemma-4-31b", "gemma-4-31b-it"),
+        ("albert_deepseek-v4-flash", "deepseek-v4-flash"),
+    ],
+)
+def test_config_model_llm_resolves_albert_models(
+    monkeypatch: pytest.MonkeyPatch, model_key: str, model_id: str
+) -> None:
+    """Albert models from llm_models.json use the Albert API key and endpoint."""
+    monkeypatch.setattr(settings.llm, "albert_api_key", "albert-key")
+
+    resolved = config_model_llm(model_key)
+
+    assert resolved.provider == "albert"
+    assert resolved.model_name == model_id
+    assert resolved.api_key == "albert-key"
+    assert resolved.api_url == "https://albert.api.etalab.gouv.fr/v1/chat/completions"
+
+
+def test_config_model_llm_resolves_legacy_piag_key() -> None:
+    """The former ``piag_mistral_medium`` key still resolves to the renamed PIAG model."""
+    resolved = config_model_llm("piag_mistral_medium")
+
+    assert resolved.model_key == "piag_mistral_medium-2508"
+    assert resolved.provider == "mte-piag"

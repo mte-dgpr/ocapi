@@ -38,6 +38,7 @@ Chaque entrée a au minimum `provider` + `model_id` ; `reasoning_model` et
 | `anthropic` | `LLM__ANTHROPIC_API_URL` | API Messages, `max_tokens: 4096`, header `anthropic-version: 2023-06-01`. |
 | `google` | `LLM__GOOGLE_API_URL` | Endpoint Gemini compatible OpenAI. |
 | `deepseek` | `LLM__DEEPSEEK_API_URL` | OpenAI-compatible, `temperature: 0`. |
+| `albert` | `LLM__ALBERT_API_URL` | [Albert API](https://guides.ia.numerique.gouv.fr/albert-api) (DINUM), OpenAI-compatible, `temperature: 0`. Si `reasoning_model: true` → `chat_template_kwargs: {enable_thinking: true}` au lieu de `temperature` (Gemma 4). Modèles : `mistral-medium-2508` (partenaire, accès restreint), `gemma-4-31b-it` et `deepseek-v4-flash` (expérimentaux). |
 
 ### Sélection du modèle
 
@@ -49,7 +50,7 @@ résout :
 - une `model_key` du JSON ;
 - un `model_id` (résolution inverse parmi les modèles déclarés) ;
 - quelques alias historiques (`GPT5`, `GPT5mini`,
-  `mte-api-piag-mistral-medium-latest`, `deepseek_4-pro`).
+  `mte-api-piag-mistral-medium-latest`, `piag_mistral_medium`, `deepseek_4-pro`).
 
 Si le fichier est absent ou invalide, des défauts inline pris en charge dans
 `_DEFAULT_LLM_MODELS_CONFIG` s'appliquent (primaire = `mistral_medium-3-5`).

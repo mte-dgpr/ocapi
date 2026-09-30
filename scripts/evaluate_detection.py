@@ -72,39 +72,42 @@ _ARRETES_HTML_DIR = _PROJECT_ROOT / "snapshots" / "arretes_html"
 
 _VALID_OP_TYPES = {"ADD", "REPLACE", "REMOVE"}
 
-# Cost per 1M tokens (USD): {model_id: (input_cost, output_cost)}
+# Cost per 1M tokens (USD): {model_key: (input_cost, output_cost)}
+# Models with unknown cost are considered free.
 _COST_PER_1M_TOKENS: dict[str, tuple[float, float]] = {
-    "gpt-5.6-terra": (2.00, 12.00),
-    "gpt-5.4": (2.50, 15.00),
-    "gpt-5.4-mini": (0.75, 4.50),
-    "gpt-5.4-nano": (0.20, 1.25),
-    "gpt-5": (1.25, 10.00),
-    "gpt-5-mini": (0.25, 2.00),
-    "gpt-5-nano": (0.05, 0.40),
-    "gpt-4o": (2.50, 10.00),
-    "mte-api-piag-mistral-medium-latest": (2.00, 6.00),
-    "mistral-large-2512": (0.50, 1.50),
-    "mistral-medium-3-5": (1.50, 7.50),
-    "mistral-medium-2508": (0.40, 2.00),
-    "mistral-small-2603": (0.15, 0.6),
-    "claude-opus-4-8": (5.00, 25.00),
-    "claude-sonnet-5": (2.00, 10.00),
-    "claude-sonnet-4-6": (3.00, 15.00),
-    "claude-haiku-4-5": (1.00, 5.00),
-    "gemini-3.6-flash": (1.50, 7.50),
-    "gemini-3.5-flash": (1.50, 9.00),
-    "gemini-3.5-flash-lite": (0.30, 2.50),
-    "gemini-3.1-pro-preview": (4.00, 18.00),
-    "gemini-3.1-flash-lite": (0.25, 1.50),
-    "gemini-2.5-pro": (2.50, 10.00),
-    "deepseek-v4-pro": (0.44, 0.87),
-    "deepseek-v4-flash": (0.14, 0.28),
+    "openai_gpt5-6-terra": (2.00, 12.00),
+    "openai_gpt5-4": (2.50, 15.00),
+    "openai_gpt5-4-mini": (0.75, 4.50),
+    "openai_gpt5-4-nano": (0.20, 1.25),
+    "openai_gpt5": (1.25, 10.00),
+    "openai_gpt5-mini": (0.25, 2.00),
+    "openai_gpt5-nano": (0.05, 0.40),
+    "openai_gpt4o": (2.50, 10.00),
+    "mistral_medium-3-1": (0.40, 2.00),
+    "mistral_medium-3-5": (1.50, 7.50),
+    "mistral_small-4": (0.15, 0.6),
+    "piag_mistral_medium-2508": (2.00, 6.00),
+    "anthropic_opus-4-8": (5.00, 25.00),
+    "anthropic_sonnet_5": (2.00, 10.00),
+    "anthropic_sonnet-4-6": (3.00, 15.00),
+    "anthropic_haiku-4-5": (1.00, 5.00),
+    "gemini_3-6-flash": (1.50, 7.50),
+    "gemini_3-5-flash": (1.50, 9.00),
+    "gemini_3-5-flash-lite": (0.30, 2.50),
+    "gemini_3-1-pro": (4.00, 18.00),
+    "gemini_3-1-flash-lite": (0.25, 1.50),
+    "gemini_2-5-pro": (2.50, 10.00),
+    "deepseek_4-pro": (0.44, 0.87),
+    "deepseek_4-flash-lite": (0.14, 0.28),
+    "albert_mistral-medium-2508": (0.0, 0.0),
+    "albert_gemma-4-31b": (0.0, 0.0),
+    "albert_deepseek-v4-flash": (0.0, 0.0),
 }
 
 
-def _compute_cost(model_id: str, usage: TokenUsage) -> float:
+def _compute_cost(model_key: str, usage: TokenUsage) -> float:
     """Compute cost in USD from token usage."""
-    rates = _COST_PER_1M_TOKENS.get(model_id, (0.0, 0.0))
+    rates = _COST_PER_1M_TOKENS.get(model_key, (0.0, 0.0))
     return (usage.prompt_tokens * rates[0] + usage.completion_tokens * rates[1]) / 1_000_000
 
 
@@ -591,7 +594,6 @@ def main(argv: list[str] | None = None) -> int:
     results: list[AiotResult] = []
 
     model_cfg = config_model_llm(model_key)
-    model_id = model_cfg.model_name
 
     for aiot in aiots:
         _LOGGER.info(f"\n{'=' * 50}")
@@ -611,7 +613,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         elapsed = time.monotonic() - t0
         usage = get_accumulated_usage()
-        cost = _compute_cost(model_id, usage)
+        cost = _compute_cost(model_cfg.model_key, usage)
 
         if args.save_ops and eval_subdir is not None:
             out_dir = eval_subdir / aiot

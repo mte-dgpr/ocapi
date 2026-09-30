@@ -29,7 +29,15 @@ from ocapi.utils.utils import to_bool_or_default, to_int_or_default
 
 _LOGGER = get_logger(__name__)
 
-SUPPORTED_LLM_PROVIDERS = ["mte-piag", "mistral", "openai", "anthropic", "google", "deepseek"]
+SUPPORTED_LLM_PROVIDERS = [
+    "mte-piag",
+    "mistral",
+    "openai",
+    "anthropic",
+    "google",
+    "deepseek",
+    "albert",
+]
 
 _MODELS_CONFIG_PATH = settings.paths.project_root / "config" / "llm_models.json"
 _RESILIENCE_CONFIG_PATH = settings.paths.project_root / "config" / "llm_resilience.json"
@@ -44,7 +52,7 @@ _DEFAULT_LLM_MODELS_CONFIG: dict[str, Any] = {
             "model_id": "mistral-medium-3-5",
             "reasoning_model": True,
         },
-        "piag_mistral_medium": {
+        "piag_mistral_medium-2508": {
             "provider": "mte-piag",
             "model_id": "mte-api-piag-mistral-medium-latest",
         },
@@ -193,7 +201,8 @@ def _resolve_model_key(model: str | None, models_cfg: dict[str, Any]) -> str:
     legacy_aliases = {
         "GPT5": "openai_gpt5",
         "GPT5mini": "openai_gpt5-mini",
-        "mte-api-piag-mistral-medium-latest": "piag_mistral_medium",
+        "mte-api-piag-mistral-medium-latest": "piag_mistral_medium-2508",
+        "piag_mistral_medium": "piag_mistral_medium-2508",
         "mistral-medium-latest": "mistral_medium-3-5",
         "mistral_medium": "mistral_medium-3-5",
         "anthropic_sonnet": "anthropic_sonnet-4-6",
@@ -228,6 +237,8 @@ def _provider_api_config(provider: str) -> tuple[str | None, str]:
         return settings.llm.google_api_key, str(settings.llm.google_api_url)
     if provider == "deepseek":
         return settings.llm.deepseek_api_key, str(settings.llm.deepseek_api_url)
+    if provider == "albert":
+        return settings.llm.albert_api_key, str(settings.llm.albert_api_url)
     raise LLMConfigError(f"Unsupported LLM provider: {provider}")
 
 

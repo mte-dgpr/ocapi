@@ -170,6 +170,16 @@ class LLMConfig(BaseSettings):
         description="Deepseek endpoint URL",
     )
 
+    # Albert API (optional)
+    albert_api_key: str | None = Field(
+        default=None,
+        description="API key for Albert (DINUM)",
+    )
+    albert_api_url: str = Field(
+        default="https://albert.api.etalab.gouv.fr/v1/chat/completions",
+        description="Albert endpoint URL (OpenAI-compatible)",
+    )
+
     @field_validator(
         "piag_api_key",
         "mistral_api_key",
@@ -177,6 +187,7 @@ class LLMConfig(BaseSettings):
         "anthropic_api_key",
         "google_api_key",
         "deepseek_api_key",
+        "albert_api_key",
     )
     @classmethod
     def validate_api_key(cls, v: str | None) -> str | None:
@@ -186,7 +197,12 @@ class LLMConfig(BaseSettings):
         return v
 
     @field_validator(
-        "piag_api_url", "mistral_api_url", "openai_api_url", "anthropic_api_url", "google_api_url"
+        "piag_api_url",
+        "mistral_api_url",
+        "openai_api_url",
+        "anthropic_api_url",
+        "google_api_url",
+        "albert_api_url",
     )
     @classmethod
     def validate_api_url(cls, v: str) -> str:
@@ -389,6 +405,8 @@ class AppConfig(BaseSettings):
             data["llm"]["google_api_key"] = "***MASKED***"
         if data.get("llm", {}).get("deepseek_api_key"):
             data["llm"]["deepseek_api_key"] = "***MASKED***"
+        if data.get("llm", {}).get("albert_api_key"):
+            data["llm"]["albert_api_key"] = "***MASKED***"
         return data
 
 
