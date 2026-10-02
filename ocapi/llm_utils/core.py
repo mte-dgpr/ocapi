@@ -77,7 +77,7 @@ def _extract_content(model: ResolvedLLMModel, data: Any) -> str:
                 if block.get("type") == "text" and isinstance(text, str):
                     return text
             raise KeyError("text")
-        if model.provider == "mistral":
+        if model.provider in ["mistral", "albert"]:
             content = data["choices"][0]["message"]["content"]
             if isinstance(content, str):
                 return content
@@ -119,7 +119,7 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
     }
 
     # Length settings
-    if model.provider in ["mte-piag", "mistral", "openai", "google", "deepseek"]:
+    if model.provider in ["mte-piag", "mistral", "openai", "google", "deepseek", "albert"]:
         payload["n"] = 1
     if model.provider == "anthropic":
         payload["max_tokens"] = 32000 if model.reasoning_model else 16000
@@ -132,6 +132,8 @@ def _build_payload(model: ResolvedLLMModel, prompt: str) -> dict[str, Any]:
         payload["verbosity"] = "low"
     if model.provider == "google" and model.reasoning_model:
         payload["reasoning_effort"] = "medium"
+    if model.provider == "albert" and model.reasoning_model:
+        payload["chat_template_kwargs"] = {"enable_thinking": True}
 
     # Temperature (for non-reasoning models)
     if not model.reasoning_model:

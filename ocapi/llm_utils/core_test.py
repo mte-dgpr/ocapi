@@ -55,7 +55,7 @@ def _make_anthropic_success_response(
 
 def test_call_llm_api_retries_until_success() -> None:
     cfg = ResolvedLLMModel(
-        model_key="piag_mistral_medium",
+        model_key="piag_mistral_medium-2508",
         provider="mte-piag",
         model_name="mte-api-piag-mistral-medium-latest",
         api_key="piag-key",
@@ -87,7 +87,7 @@ def test_call_llm_api_retries_until_success() -> None:
 
 def test_call_llm_api_no_retry_for_non_retryable_http_error() -> None:
     cfg = ResolvedLLMModel(
-        model_key="piag_mistral_medium",
+        model_key="piag_mistral_medium-2508",
         provider="mte-piag",
         model_name="mte-api-piag-mistral-medium-latest",
         api_key="piag-key",
@@ -116,7 +116,7 @@ def test_call_llm_api_no_retry_for_non_retryable_http_error() -> None:
 
 def test_call_llm_api_fallback_uses_secondary_strategy() -> None:
     primary_cfg = ResolvedLLMModel(
-        model_key="piag_mistral_medium",
+        model_key="piag_mistral_medium-2508",
         provider="mte-piag",
         model_name="mte-api-piag-mistral-medium-latest",
         api_key="piag-key",
@@ -138,10 +138,10 @@ def test_call_llm_api_fallback_uses_secondary_strategy() -> None:
         },
     }
     models_cfg = {
-        "primary_model_key": "piag_mistral_medium",
+        "primary_model_key": "piag_mistral_medium-2508",
         "secondary_model_key": "openai_gpt5",
         "models": {
-            "piag_mistral_medium": {
+            "piag_mistral_medium-2508": {
                 "provider": "mte-piag",
                 "model_id": "mte-api-piag-mistral-medium-latest",
             },
@@ -172,7 +172,7 @@ def test_call_llm_api_fallback_uses_secondary_strategy() -> None:
 
 def test_call_llm_api_uses_configured_timeout() -> None:
     cfg = ResolvedLLMModel(
-        model_key="piag_mistral_medium",
+        model_key="piag_mistral_medium-2508",
         provider="mte-piag",
         model_name="mte-api-piag-mistral-medium-latest",
         api_key="piag-key",
@@ -198,7 +198,7 @@ def test_call_llm_api_uses_configured_timeout() -> None:
 
 def test_call_llm_api_invalid_timeout_falls_back_to_default() -> None:
     cfg = ResolvedLLMModel(
-        model_key="piag_mistral_medium",
+        model_key="piag_mistral_medium-2508",
         provider="mte-piag",
         model_name="mte-api-piag-mistral-medium-latest",
         api_key="piag-key",
@@ -224,7 +224,7 @@ def test_call_llm_api_invalid_timeout_falls_back_to_default() -> None:
 
 def test_call_llm_api_raises_on_invalid_response_shape() -> None:
     cfg = ResolvedLLMModel(
-        model_key="piag_mistral_medium",
+        model_key="piag_mistral_medium-2508",
         provider="mte-piag",
         model_name="mte-api-piag-mistral-medium-latest",
         api_key="piag-key",
@@ -247,7 +247,7 @@ def test_call_llm_api_raises_on_invalid_response_shape() -> None:
 
 def test_call_llm_api_rate_limit_applies_min_interval() -> None:
     cfg = ResolvedLLMModel(
-        model_key="piag_mistral_medium",
+        model_key="piag_mistral_medium-2508",
         provider="mte-piag",
         model_name="mte-api-piag-mistral-medium-latest",
         api_key="piag-key",
@@ -287,7 +287,7 @@ def test_call_llm_api_rate_limit_applies_min_interval() -> None:
 
 def test_call_llm_api_rate_limit_disabled_does_not_sleep() -> None:
     cfg = ResolvedLLMModel(
-        model_key="piag_mistral_medium",
+        model_key="piag_mistral_medium-2508",
         provider="mte-piag",
         model_name="mte-api-piag-mistral-medium-latest",
         api_key="piag-key",
@@ -473,3 +473,42 @@ def test_token_usage_missing_usage_field_does_not_raise() -> None:
     usage = get_accumulated_usage()
     assert usage.prompt_tokens == 0
     assert usage.completion_tokens == 0
+
+
+def test_build_payload_albert_is_openai_compatible() -> None:
+    model = ResolvedLLMModel(
+        model_key="albert_gemma-4-31b",
+        provider="albert",
+        model_name="gemma-4-31b-it",
+        api_key="albert-key",
+        api_url="https://albert.example",
+    )
+
+    payload = llm_utils_module._build_payload(model, "prompt")
+
+    assert payload == {
+        "model": "gemma-4-31b-it",
+        "messages": [{"role": "user", "content": "prompt"}],
+        "n": 1,
+        "temperature": 0,
+    }
+    assert llm_utils_module._make_headers("albert-key", "albert") == {
+        "Authorization": "Bearer albert-key",
+        "Content-Type": "application/json",
+    }
+
+
+def test_build_payload_albert_reasoning_enables_thinking() -> None:
+    model = ResolvedLLMModel(
+        model_key="albert_gemma-4-31b",
+        provider="albert",
+        model_name="gemma-4-31b-it",
+        api_key="albert-key",
+        api_url="https://albert.example",
+        reasoning_model=True,
+    )
+
+    payload = llm_utils_module._build_payload(model, "prompt")
+
+    assert payload["chat_template_kwargs"] == {"enable_thinking": True}
+    assert "temperature" not in payload
