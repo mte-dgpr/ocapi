@@ -27,6 +27,7 @@ from ocapi.step_rendering.main_content import (
     make_permit_content,
     make_section_version,
 )
+from ocapi.step_rendering.step_rendering import permis_to_html
 from ocapi.types import (
     ERROR_CODE_MESSAGES,
     ArreteFile,
@@ -36,6 +37,7 @@ from ocapi.types import (
     NodeId,
     Operation,
     OperationType,
+    Permis,
     SubTarget,
     SubTargetType,
     error_codes_reason,
@@ -385,8 +387,17 @@ def test_make_permit_content_renders_all_versions_for_complementary_arrete() -> 
     soup = BeautifulSoup(html, "html.parser")
     history_block = soup.select_one('[data-spec="section_version_history"]')
     assert isinstance(history_block, Tag)
+    assert history_block["data-operation-id"] == "15"
+    assert history_block["data-operation-status"] == "success"
     details = history_block.find_all("details")
     assert len(details) == 2
+    final_html = BeautifulSoup(
+        permis_to_html(Permis(header="", contenu=html, other="")), "html.parser"
+    )
+    final_history = final_html.select_one('[data-spec="section_version_history"]')
+    assert isinstance(final_history, Tag)
+    assert final_history["data-operation-id"] == "15"
+    assert final_history["data-operation-status"] == "success"
 
 
 def test_make_permit_content_inserts_new_article_after_predecessor() -> None:
@@ -536,9 +547,92 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
     )
 
     rendered = str(section)
-    assert "Opération non résolue modification de l'article 2 de l'arrêté 2021-01-01" in rendered
-    assert "(raison :" in rendered
-    assert "n'a pas pu être extrait de l'arrêté modificatif" in rendered
+    history_block = section.select_one('[data-spec="section_version_history"]')
+    assert isinstance(history_block, Tag)
+    assert history_block["data-operation-id"] == "op-1"
+    assert history_block["data-operation-status"] == "failure"
+    assert (
+        "La prise en compte de la modification prévue par les dispositions de l'article 2 "
+        "de l'arrêté 2021-01-01 n'a pas été jusqu'au bout de l'opération."
+    ) in rendered
+    assert (
+        "copier-coller les dispositions de l'article 2 de l'arrêté 2021-01-01 ci-après."
+    ) in rendered
+
+
+@pytest.mark.parametrize(
+    ("operation_type", "sub_target", "expected"),
+    [
+        (
+            OperationType.REPLACE,
+            None,
+            "Les dispositions de cet article ont été remplacées par celles prévues à l'article "
+            "2 de l'arrêté 2021-01-01",
+        ),
+        (
+            OperationType.ADD,
+            None,
+            "Cet article ajouté provient de l'article 2 de l'arrêté 2021-01-01",
+        ),
+        (
+            OperationType.REMOVE,
+            SubTarget(type=SubTargetType.FULL_SECTION, description="ALL"),
+            "Cet article comporte des prescriptions qui ont été supprimées par l'article 2 "
+            "de l'arrêté 2021-01-01",
+        ),
+        (
+            OperationType.REMOVE,
+            SubTarget(type=SubTargetType.ALINEA, description="premier alinéa"),
+            "Version actuelle après abrogation par l'article 2 de l'arrêté 2021-01-01",
+        ),
+    ],
+)
+def test_make_section_version_uses_only_specified_resolved_wording(
+    operation_type: OperationType,
+    sub_target: SubTarget | None,
+    expected: str,
+) -> None:
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Article 1 initial</p></section>',
+        "html.parser",
+    ).find("section")
+    assert isinstance(section, Tag)
+    operation = Operation(
+        id="op-1",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=operation_type,
+        sub_target=sub_target,
+    )
+    history = {
+        NodeId(arrete_id="2020-01-01", article_id="1"): [
+            cast(
+                ArticleVersion,
+                {"version": 0, "content": "<p>Article 1 initial</p>", "operation_id": None},
+            ),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 1,
+                    "content": "" if operation_type == OperationType.REMOVE else "<p>new</p>",
+                    "operation_id": "op-1",
+                    "error_codes": frozenset(),
+                },
+            ),
+        ]
+    }
+
+    make_section_version(
+        section=section,
+        article_id="1",
+        history=history,
+        arrete_id="2020-01-01",
+        operation_by_id={"op-1": operation},
+    )
+
+    history_text = section.select_one('[data-spec="section_version_history"]')
+    assert isinstance(history_text, Tag)
+    assert expected in history_text.get_text(" ", strip=True)
 
 
 def test_make_section_version_skips_dropdown_for_unresolved_previous_version() -> None:
@@ -596,12 +690,23 @@ def test_make_section_version_skips_dropdown_for_unresolved_previous_version() -
     details = rendered_soup.find_all("details")
     # Only the v0 (initial) version keeps a dropdown; v1 (unresolved) doesn't.
     assert len(details) == 1
+    history_block = rendered_soup.select_one('[data-spec="section_version_history"]')
+    assert isinstance(history_block, Tag)
+    assert history_block["data-operation-id"] == "op-ok"
+    assert history_block["data-operation-status"] == "success"
     assert "v0" in details[0].get_text(" ", strip=True)
     history_section = rendered_soup.select_one('[data-spec="section_version_history"]')
     assert history_section is not None
-    assert "Opération non résolue" in history_section.get_text(" ", strip=True)
+    assert (
+        "La prise en compte de la modification prévue par les dispositions de l'article 2 "
+        "de l'arrêté 2021-01-01 n'a pas été jusqu'au bout de l'opération."
+    ) in history_section.get_text(" ", strip=True)
     unresolved_p = next(
-        (p for p in history_section.find_all("p") if "Opération non résolue" in p.get_text()),
+        (
+            p
+            for p in history_section.find_all("p")
+            if "La prise en compte de la modification" in p.get_text()
+        ),
         None,
     )
     assert isinstance(unresolved_p, Tag)
@@ -700,7 +805,10 @@ def test_make_section_version_displays_unresolved_message_for_subtarget_errors(
     )
 
     rendered = str(section)
-    assert "Opération non résolue modification de l'article 2 de l'arrêté 2021-01-01" in rendered
+    assert (
+        "La prise en compte de la modification prévue par les dispositions de l'article 2 "
+        "de l'arrêté 2021-01-01 n'a pas été jusqu'au bout de l'opération."
+    ) in rendered
 
 
 def test_make_section_version_displays_error_extracting_target_reason() -> None:
@@ -742,9 +850,11 @@ def test_make_section_version_displays_error_extracting_target_reason() -> None:
         operation_by_id={"op-target": operation},
     )
     rendered = str(section)
-    assert "Opération non résolue" in rendered
-    assert "(raison :" in rendered
-    assert "article cible" in rendered
+    assert (
+        "La prise en compte de la modification prévue par les dispositions de l'article 3 "
+        "de l'arrêté 2021-01-01 n'a pas été jusqu'au bout de l'opération."
+    ) in rendered
+    assert "(raison :" not in rendered
 
 
 class TestIsAbrogated:
@@ -935,11 +1045,130 @@ def test_make_permit_content_marks_main_ap_source_articles() -> None:
     msg_1 = section_1.find("div", attrs={"data-spec": "operation_result"})
     msg_2 = section_2.find("div", attrs={"data-spec": "operation_result"})
     assert isinstance(msg_1, Tag)
+    assert msg_1["data-operation-id"] == "op-1"
+    assert msg_1["data-operation-status"] == "success"
     assert "Opération de consolidation résolue" in msg_1.get_text()
     assert "l'article 3 de l'arrêté 2020-01-01" in msg_1.get_text()
     assert isinstance(msg_2, Tag)
+    assert msg_2["data-operation-id"] == "op-2"
+    assert msg_2["data-operation-status"] == "failure"
     assert "Opération de consolidation non résolue" in msg_2.get_text()
     assert "sous-cible" in msg_2.get_text()
+    final_html = BeautifulSoup(
+        permis_to_html(Permis(header="", contenu=result, other="")), "html.parser"
+    )
+    assert [
+        (msg["data-operation-id"], msg["data-operation-status"])
+        for msg in final_html.select('[data-spec="operation_result"]')
+    ] == [("op-1", "success"), ("op-2", "failure")]
+
+
+def test_make_section_version_initial_history_omits_operation_attrs() -> None:
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Initial</p></section>', "html.parser"
+    ).find("section")
+    assert isinstance(section, Tag)
+    make_section_version(
+        section,
+        "1",
+        {
+            NodeId(arrete_id="2020-01-01", article_id="1"): [
+                cast(
+                    ArticleVersion,
+                    {"version": 0, "content": "<p>Initial</p>", "operation_id": None},
+                )
+            ]
+        },
+        "2020-01-01",
+        {},
+    )
+    block = section.select_one('[data-spec="section_version_history"]')
+    assert isinstance(block, Tag)
+    assert "data-operation-id" not in block.attrs
+    assert "data-operation-status" not in block.attrs
+
+
+def test_make_section_version_uses_operation_errors_when_version_has_no_status() -> None:
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Initial</p></section>', "html.parser"
+    ).find("section")
+    assert isinstance(section, Tag)
+    operation = Operation(
+        id='op-"&',
+        source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=OperationType.REPLACE,
+        error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+    )
+    make_section_version(
+        section,
+        "1",
+        {
+            operation.target_id: [
+                cast(
+                    ArticleVersion,
+                    {"version": 1, "content": "<p>Initial</p>", "operation_id": operation.id},
+                )
+            ]
+        },
+        "2020-01-01",
+        {operation.id: operation},
+    )
+    block = BeautifulSoup(str(section), "html.parser").select_one(
+        '[data-spec="section_version_history"]'
+    )
+    assert isinstance(block, Tag)
+    assert block["data-operation-id"] == operation.id
+    assert block["data-operation-status"] == "failure"
+
+
+def test_make_permit_content_annotates_each_source_operation() -> None:
+    arrete = make_testing_arrete(
+        "2021-01-01",
+        '<html><body><main><section data-spec="section" data-number="1">'
+        "<h3>Art 1</h3></section></main></body></html>",
+    )
+    target = NodeId(arrete_id="2020-01-01", article_id="2")
+    operations = [
+        Operation(
+            id=op_id,
+            source_id=NodeId(arrete_id="2021-01-01", article_id="1"),
+            target_id=target,
+            operation_type=OperationType.REPLACE,
+        )
+        for op_id in ("op-ok", "op-fail")
+    ]
+    history: ArticleHistory = {
+        target: [
+            cast(ArticleVersion, {"version": 0, "content": "old", "operation_id": None}),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 1,
+                    "content": "new",
+                    "operation_id": "op-ok",
+                    "error_codes": frozenset(),
+                },
+            ),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 2,
+                    "content": "new",
+                    "operation_id": "op-fail",
+                    "error_codes": frozenset({ErrorCode.ERROR_FINDING_SUBTARGET}),
+                },
+            ),
+        ]
+    }
+    soup = BeautifulSoup(make_permit_content(history, arrete, operations), "html.parser")
+    results = soup.select('[data-spec="operation_result"]')
+    assert [
+        (result["data-operation-id"], result["data-operation-status"]) for result in results
+    ] == [
+        ("op-ok", "success"),
+        ("op-fail", "failure"),
+    ]
 
 
 def test_make_permit_content_skips_history_for_duplicate_article_ids(

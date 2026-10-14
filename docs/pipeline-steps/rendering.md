@@ -74,6 +74,16 @@ Sur l'arrêté retenu, `make_permit_content` :
    injecte des messages d'erreur ou d'information dans le corps pour les
    opérations émanant de cet arrêté.
 
+Les blocs `<div data-spec="section_version_history">` portent
+`data-operation-id` et `data-operation-status="success"` ou `"failure"` pour
+l'opération de la **dernière version** de l'article (pas pour chaque version
+affichée dans l'historique). Si cette version est initiale, sans opération,
+les deux attributs sont absents. Chaque
+`<div data-spec="operation_result">` porte les mêmes attributs pour
+**sa propre opération**, y compris lorsque plusieurs opérations proviennent
+du même article source. Le statut indique si l'opération a été résolue ;
+les codes d'erreur ne sont pas exposés dans ces attributs.
+
 ### Tag `section_version`
 
 Chaque `<section data-spec="article">` retenue est transformée en place par
