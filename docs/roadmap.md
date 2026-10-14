@@ -69,7 +69,7 @@ des décisions.
 
 ### Tooling
 
-- **Snapshot tests étendus** — actuellement 4 AIOTs. Ajouter 2-3 cas
+- **Snapshot tests étendus** — actuellement 5 AIOTs. Ajouter 2-3 cas
   pathologiques (refonte, abrogation totale, beaucoup de COMPLEX) pour
   durcir la couverture.
 - **Pre-commit `mkdocs build --strict`** — désactivé tant que la doc est en

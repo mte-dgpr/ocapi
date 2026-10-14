@@ -12,7 +12,7 @@ Pour le « pourquoi », voir
 Trois usages au quotidien :
 
 - **Garde-fou de non-régression** : à chaque PR la CI rejoue le pipeline
-  complet (sans LLM) sur 4 AIOT réels et compare les sorties bit-à-bit. Un
+  complet (sans LLM) sur 5 AIOT réels et compare les sorties bit-à-bit. Un
   refactor qui casserait silencieusement le rendering ou la résolution est
   attrapé immédiatement.
 - **Référentiel reproductible** : les `operations.json` figés font office de
@@ -41,6 +41,7 @@ SNAPSHOT_CASES: list[tuple[Path, Path]] = [
     (snapshots/arretes_html/0005302394, snapshots/arretes_consolidation/0005302394),
     (snapshots/arretes_html/0005800425, snapshots/arretes_consolidation/0005800425),
     (snapshots/arretes_html/0005804239, snapshots/arretes_consolidation/0005804239),
+    (snapshots/arretes_html/0006506765, snapshots/arretes_consolidation/0006506765),
 ]
 ```
 

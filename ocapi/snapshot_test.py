@@ -40,6 +40,9 @@ from ocapi.utils.utils import strip_none_values
 # Set UPDATE_SNAPSHOTS=1 to regenerate expected snapshots
 UPDATE_SNAPSHOTS = os.environ.get("UPDATE_SNAPSHOTS", "").strip() in ("1", "true", "yes")
 
+# Use the AIOT as test id so a single case can be selected with ``-k <aiot>``
+SNAPSHOT_CASE_IDS = [arretes_dir.name for arretes_dir, _ in SNAPSHOT_CASES]
+
 
 def _run_snapshot_pipeline(
     arretes_dir: Path, consolidation_dir: Path
@@ -71,7 +74,7 @@ def _run_snapshot_pipeline(
 
 
 @pytest.mark.snapshot
-@pytest.mark.parametrize("arretes_dir,consolidation_dir", SNAPSHOT_CASES)
+@pytest.mark.parametrize("arretes_dir,consolidation_dir", SNAPSHOT_CASES, ids=SNAPSHOT_CASE_IDS)
 def test_snapshot_pipeline_output(
     arretes_dir: Path, consolidation_dir: Path, tmp_path: Path
 ) -> None:
@@ -138,7 +141,7 @@ def test_snapshot_pipeline_output(
 
 
 @pytest.mark.snapshot
-@pytest.mark.parametrize("arretes_dir,consolidation_dir", SNAPSHOT_CASES)
+@pytest.mark.parametrize("arretes_dir,consolidation_dir", SNAPSHOT_CASES, ids=SNAPSHOT_CASE_IDS)
 def test_snapshot_pipeline_is_deterministic(arretes_dir: Path, consolidation_dir: Path) -> None:
     """Run the pipeline twice and verify that outputs are identical."""
     if not arretes_dir.exists() or not consolidation_dir.exists():

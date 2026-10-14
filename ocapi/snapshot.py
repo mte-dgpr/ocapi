@@ -44,4 +44,8 @@ SNAPSHOT_CASES: list[tuple[Path, Path]] = [
         _PROJECT_ROOT / "snapshots" / "arretes_html" / "0005804239",
         _PROJECT_ROOT / "snapshots" / "arretes_consolidation" / "0005804239",
     ),
+    (
+        _PROJECT_ROOT / "snapshots" / "arretes_html" / "0006506765",
+        _PROJECT_ROOT / "snapshots" / "arretes_consolidation" / "0006506765",
+    ),
 ]
