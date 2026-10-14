@@ -42,12 +42,8 @@ OPERATION_TYPES_GROUP_NAMES = [
 ]
 
 
-# OCR produces both the straight and the typographic apostrophe.
 APOSTROPHE = r"['’]"
 
-# Determiners that precede a section reference. Full words must be followed by
-# whitespace, while elided forms (l', d') are usually glued to the next word
-# ("l'article"), hence ``\s*``.
 SECTION_AFTER_OPERATION_L = rf"(?:le\s+|la\s+|les\s+|l{APOSTROPHE}\s*)"
 SECTION_AFTER_OPERATION_D = rf"(?:de\s+|du\s+|des\s+|d{APOSTROPHE}\s*)"
 SECTION_AFTER_OPERATION_A = rf"(?:à\s+l{APOSTROPHE}\s*|à\s+|au\s+|aux\s+)"

@@ -59,8 +59,6 @@ class TestReplaceOperations(BaseTestCaseHtml):
         )
 
     def test_replaced_by_elided_determiner(self) -> None:
-        # Regression (#178): the elided determiner "l'" is glued to the next word,
-        # so it must match without a following space.
         cases = [
             ("remplacé", " par l'article suivant :"),
             ("remplacé", " par l’article suivant :"),
