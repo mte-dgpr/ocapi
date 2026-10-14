@@ -21,8 +21,17 @@ import logging
 import pytest
 from bs4 import BeautifulSoup, Tag
 
+from ocapi.step_rendering.operation_messages import build_source_operation_messages
 from ocapi.step_rendering.other import has_no_ops, make_permit_other
-from ocapi.types import ArticleHistory, ErrorCode, NodeId, Operation, OperationType
+from ocapi.types import (
+    ArticleHistory,
+    ErrorCode,
+    NodeId,
+    Operation,
+    OperationType,
+    SubTarget,
+    SubTargetType,
+)
 from ocapi.utils.testing import make_testing_arrete
 
 _EMPTY_AP = '<html><body data-arretify_version="0.2.0"><main data-spec="main"></main></body></html>'
@@ -112,7 +121,10 @@ def test_make_permit_other_includes_modifying_with_resolved_ops_only() -> None:
     assert 'data-spec="permit_modifying"' in html
     assert "ID MOD RESOLVED" in html
     assert "TITLE MOD RESOLVED" in html
-    assert "Opération de consolidation résolue" in html
+    assert (
+        "Les dispositions de cet article ont bien été intégrées au permis consolidé en "
+        "remplacement de celles prévues à l'article 3 de l'arrêté 2020-01-01."
+    ) in html
 
 
 def test_make_permit_other_includes_modifying_arretes_with_operation_messages() -> None:
@@ -154,8 +166,10 @@ def test_make_permit_other_includes_modifying_arretes_with_operation_messages() 
     assert 'data-spec="permit_modifying"' in html
     assert "ID MOD" in html
     assert "TITLE MOD" in html
-    assert "Opération de consolidation non résolue" in html
-    assert "l'article 3 de l'arrêté 2020-01-01" in html
+    assert (
+        "La prise en compte de la modification prévue dans ce présent article pour l'article "
+        "3 de l'arrêté 2020-01-01 n'a pas été jusqu'au bout de l'opération."
+    ) in html
     # Message should appear after the title, not at the end
     soup = BeautifulSoup(html, "html.parser")
     section = soup.find("section", attrs={"data-spec": "section_version"})
@@ -202,6 +216,7 @@ def test_make_permit_other_shows_unresolved_message_for_failed_operation() -> No
     html = make_permit_other([principal_arrete, modifying], [op], history=history)
 
     assert "Opération de consolidation non résolue" in html
+    assert "Opération de consolidation non résolue (abrogation)" in html
     assert "l'article 5 de l'arrêté 2020-01-01" in html
     assert "sous-cible" in html
 
@@ -230,6 +245,87 @@ def test_make_permit_other_skips_abrogated_modifying_arrete() -> None:
     html = make_permit_other([principal_arrete, abrogated], [op], history={})
 
     assert html == ""
+
+
+@pytest.mark.parametrize(
+    ("operation_type", "error_codes", "sub_target", "expected"),
+    [
+        (
+            OperationType.REPLACE,
+            frozenset(),
+            None,
+            "Les dispositions de cet article ont bien été intégrées au permis consolidé en "
+            "remplacement de celles prévues à l'article 8.1.1 de l'arrêté 2012-02-21. "
+            "Vous pouvez l'effacer après vérification.",
+        ),
+        (
+            OperationType.REPLACE,
+            frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+            None,
+            "La prise en compte de la modification prévue dans ce présent article pour "
+            "l'article 8.1.1 de l'arrêté 2012-02-21 n'a pas été jusqu'au bout de l'opération. "
+            "Après vérification, vous pouvez copier-coller les dispositions de cet article "
+            "vers l'article 2 de l'arrêté 2022-01-01 et effacer le présent article.",
+        ),
+        (
+            OperationType.ADD,
+            frozenset(),
+            None,
+            "L'article suivant a été ajouté dans l'article 8.1.1 de l'arrêté 2012-02-21. "
+            "Vous pouvez l'effacer après vérification.",
+        ),
+        (
+            OperationType.ADD,
+            frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+            None,
+            "L'ajout de cet article dans l'article 8.1.1 de l'arrêté 2012-02-21 n'a pas "
+            "fonctionné. Vous pouvez vérifier si l'article 8.1.1 de l'arrêté 2012-02-21 est "
+            "intégré dans la sélection des arrêtés intégrés au permis consolidé. Vous pouvez "
+            "l'effacer après vérification ou regénérer un nouveau permis avec tous les arrêtés "
+            "nécessaires ( <!> risque de perte d'information sur le permis actuel )",
+        ),
+        (
+            OperationType.REMOVE,
+            frozenset(),
+            SubTarget(type=SubTargetType.FULL_SECTION, description="ALL"),
+            "La suppression prévue dans l'article 8.1.1 de l'arrêté 2012-02-21 a fonctionné. "
+            "Vous pouvez supprimer le présent article après vérification.",
+        ),
+        (
+            OperationType.REMOVE,
+            frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+            None,
+            "Opération de consolidation non résolue (abrogation) dans l'article 8.1.1 de "
+            "l'arrêté 2012-02-21 (raison\u00a0: Le contenu de l'opération n'a pas pu être extrait "
+            "de l'arrêté modificatif)",
+        ),
+        (
+            OperationType.REMOVE,
+            frozenset(),
+            SubTarget(type=SubTargetType.ALINEA, description="premier alinéa"),
+            "Opération de consolidation résolue (abrogation) dans l'article 8.1.1 de "
+            "l'arrêté 2012-02-21",
+        ),
+    ],
+)
+def test_build_source_operation_messages_uses_only_specified_wording(
+    operation_type: OperationType,
+    error_codes: frozenset[ErrorCode],
+    sub_target: SubTarget | None,
+    expected: str,
+) -> None:
+    operation = Operation(
+        id="op-1",
+        source_id=NodeId(arrete_id="2022-01-01", article_id="2"),
+        target_id=NodeId(arrete_id="2012-02-21", article_id="8.1.1"),
+        operation_type=operation_type,
+        error_codes=error_codes,
+        sub_target=sub_target,
+    )
+
+    assert build_source_operation_messages(
+        "2022-01-01", [operation], {}, modifying_arrete=True
+    ) == {"2": [expected]}
 
 
 def test_target_all_shows_arrete_only() -> None:
@@ -319,7 +415,10 @@ def test_make_permit_other_includes_appendix_with_operation_messages() -> None:
     assert isinstance(appendix_section, Tag)
     msg = appendix_section.find("div", attrs={"data-spec": "operation_result"})
     assert isinstance(msg, Tag)
-    assert "Opération de consolidation non résolue" in msg.get_text()
+    assert (
+        "La prise en compte de la modification prévue dans ce présent article pour l'article "
+        "3 de l'arrêté 2020-01-01 n'a pas été jusqu'au bout de l'opération."
+    ) in msg.get_text()
     assert "l'article 3 de l'arrêté 2020-01-01" in msg.get_text()
 
 
@@ -446,7 +545,7 @@ def test_injects_message_only_in_first_duplicate_section(
 
     html = make_permit_other([principal_arrete, modifying], [op], history=history)
 
-    assert html.count("Opération de consolidation non résolue") == 1
+    assert html.count("La prise en compte de la modification prévue") == 1
     assert any(
         "Duplicate article_id encountered in arrete while injecting operation messages"
         in rec.message

@@ -26,6 +26,7 @@ from ocapi.step_rendering.article_filter import filter_superfluous_sections
 from ocapi.step_rendering.operation_messages import (
     build_source_operation_messages,
     inject_messages_into_body,
+    is_full_section_removal,
 )
 from ocapi.types import (
     ArreteFile,
@@ -35,14 +36,12 @@ from ocapi.types import (
     NodeId,
     Operation,
     OperationType,
-    SubTargetType,
     article_display_number,
     article_id_sort_tuple,
     error_codes_reason,
     operation_type_label,
 )
 from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC, ARRETIFY_SECTION_DATA_SPEC
-from ocapi.utils.subtarget_utils import FULL_SECTION_NAMES_LOWER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,14 +50,17 @@ def make_permit_content(
     history: ArticleHistory,
     arrete: ArreteFile,
     operations: list[Operation],
+    modifying_arrete: bool = False,
 ) -> str:
     """Consolidate one arrêté: apply article history versions to its body.
 
     Walks the ``<main>`` and the appendix ``<footer>`` of *arrete*, replacing
     each article section with its consolidated ``section_version`` (latest
     content plus collapsed history). Messages for operations sourced from this
-    arrêté are then injected into the body. Returns the resulting HTML
-    fragment (main + appendix) without the document header.
+    arrêté are then injected into the body. Set ``modifying_arrete`` to use
+    the guidance wording intended for modifying-arrêté source articles.
+    Returns the resulting HTML fragment (main + appendix) without the document
+    header.
     """
     arrete_id = arrete.id
     consolidated_soup = BeautifulSoup(str(arrete.soup), "html.parser")
@@ -143,7 +145,9 @@ def make_permit_content(
         body_parts.append(str(appendix))
     body_html = "".join(body_parts)
 
-    messages = build_source_operation_messages(arrete_id, operations, history)
+    messages = build_source_operation_messages(
+        arrete_id, operations, history, modifying_arrete=modifying_arrete
+    )
     return inject_messages_into_body(body_html, messages)
 
 
@@ -334,19 +338,46 @@ def _build_section_history_html(
     last_operation = operation_by_id.get(str(last_operation_id)) if last_operation_id else None
     last_reason = error_codes_reason(last_error_codes)
     if last_operation and last_reason is not None:
-        last_text = (
-            f"Opération non résolue {operation_type_label(last_operation.operation_type)} "
-            f"de l'article {last_operation.source_id.article_id} de l'arrêté "
-            f"{last_operation.source_id.arrete_id}"
-            f" (raison : {last_reason})"
-        )
+        if last_operation.operation_type == OperationType.REPLACE:
+            source_article = article_display_number(last_operation.source_id.article_id)
+            last_text = (
+                "La prise en compte de la modification prévue par les dispositions de "
+                f"l'article {source_article} de l'arrêté {last_operation.source_id.arrete_id} "
+                "n'a pas été jusqu'au bout de l'opération. Après vérification, vous pouvez "
+                "copier-coller les dispositions de l'article "
+                f"{source_article} de l'arrêté {last_operation.source_id.arrete_id} ci-après."
+            )
+        else:
+            last_text = (
+                f"Opération non résolue {operation_type_label(last_operation.operation_type)} "
+                f"de l'article {last_operation.source_id.article_id} de l'arrêté "
+                f"{last_operation.source_id.arrete_id}"
+                f" (raison : {last_reason})"
+            )
     elif last_operation:
-        last_text = (
-            "Version actuelle après "
-            f"{operation_type_label(last_operation.operation_type)} "
-            f"par l'article {last_operation.source_id.article_id} "
-            f"de l'arrêté {last_operation.source_id.arrete_id}"
-        )
+        source_article = article_display_number(last_operation.source_id.article_id)
+        if last_operation.operation_type == OperationType.REPLACE:
+            last_text = (
+                "Les dispositions de cet article ont été remplacées par celles prévues à "
+                f"l'article {source_article} de l'arrêté {last_operation.source_id.arrete_id}"
+            )
+        elif last_operation.operation_type == OperationType.ADD:
+            last_text = (
+                f"Cet article ajouté provient de l'article {source_article} de l'arrêté "
+                f"{last_operation.source_id.arrete_id}"
+            )
+        elif is_full_section_removal(last_operation):
+            last_text = (
+                "Cet article comporte des prescriptions qui ont été supprimées par "
+                f"l'article {source_article} de l'arrêté {last_operation.source_id.arrete_id}"
+            )
+        else:
+            last_text = (
+                "Version actuelle après "
+                f"{operation_type_label(last_operation.operation_type)} "
+                f"par l'article {last_operation.source_id.article_id} "
+                f"de l'arrêté {last_operation.source_id.arrete_id}"
+            )
     else:
         last_text = "Version actuelle de l'arrêté initial"
 
@@ -360,13 +391,25 @@ def _build_section_history_html(
         if operation and reason is not None:
             # Unresolved op: previous content was just recopied, so the dropdown
             # would only duplicate the surrounding version. Keep the message only.
+            if operation.operation_type == OperationType.REPLACE:
+                source_article = article_display_number(operation.source_id.article_id)
+                text = (
+                    "La prise en compte de la modification prévue par les dispositions de "
+                    f"l'article {source_article} de l'arrêté {operation.source_id.arrete_id} "
+                    "n'a pas été jusqu'au bout de l'opération. Après vérification, vous pouvez "
+                    "copier-coller les dispositions de l'article "
+                    f"{source_article} de l'arrêté {operation.source_id.arrete_id} ci-après."
+                )
+            else:
+                text = (
+                    f"Opération non résolue "
+                    f"{operation_type_label(operation.operation_type)} de l'article "
+                    f"{operation.source_id.article_id} de l'arrêté "
+                    f"{operation.source_id.arrete_id} (raison : {reason})"
+                )
             history_parts.append(
                 f'<p style="margin-left: 1rem; margin-top: 0.5rem; font-weight: bold;">'
-                f"Opération non résolue "
-                f"{operation_type_label(operation.operation_type)} de l'article "
-                f"{operation.source_id.article_id} de l'arrêté "
-                f"{operation.source_id.arrete_id}"
-                f" (raison : {reason})</p>"
+                f"{text}</p>"
             )
             continue
 
@@ -442,11 +485,4 @@ def _is_abrogated(
         return False
     if latest_operation.operation_type != OperationType.REMOVE:
         return False
-    sub_target = latest_operation.sub_target
-    if sub_target is None:
-        return True
-    if sub_target.type != SubTargetType.FULL_SECTION:
-        return False
-    if sub_target.description is None:
-        return False
-    return sub_target.description.strip().lower() in FULL_SECTION_NAMES_LOWER
+    return is_full_section_removal(latest_operation)

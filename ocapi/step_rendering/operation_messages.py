@@ -32,11 +32,14 @@ from ocapi.types import (
     ArticleHistory,
     ErrorCode,
     Operation,
+    OperationType,
+    SubTargetType,
     article_display_number,
     error_codes_reason,
     operation_type_label,
 )
 from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC
+from ocapi.utils.subtarget_utils import FULL_SECTION_NAMES_LOWER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -52,6 +55,18 @@ def format_target_reference(op: Operation) -> str:
     return f"l'article {display} de l'arrêté {op.target_id.arrete_id}"
 
 
+def is_full_section_removal(op: Operation) -> bool:
+    """Return whether *op* removes an entire article."""
+    if op.operation_type != OperationType.REMOVE:
+        return False
+    sub_target = op.sub_target
+    if sub_target is None:
+        return True
+    if sub_target.type != SubTargetType.FULL_SECTION or sub_target.description is None:
+        return False
+    return sub_target.description.strip().lower() in FULL_SECTION_NAMES_LOWER
+
+
 def resolve_operation_error_codes(op: Operation, history: ArticleHistory) -> frozenset[ErrorCode]:
     """Return the error codes of the ArticleVersion produced by *op* (empty if resolved)."""
     target_versions = history.get(op.target_id, [])
@@ -65,6 +80,7 @@ def build_source_operation_messages(
     arrete_id: str,
     operations: list[Operation],
     history: ArticleHistory,
+    modifying_arrete: bool = False,
 ) -> dict[str, list[str]]:
     """Build per-article_id list of HTML messages for source articles of *arrete_id*."""
     ops_by_source_article: dict[str, list[Operation]] = defaultdict(list)
@@ -79,14 +95,51 @@ def build_source_operation_messages(
             error_codes = resolve_operation_error_codes(op, history)
             label = operation_type_label(op.operation_type)
             target = format_target_reference(op)
-            if not error_codes:
-                msg = f"Opération de consolidation résolue ({label}) dans {target}"
-            else:
+            if not error_codes and modifying_arrete:
+                if op.operation_type == OperationType.REPLACE:
+                    msg = (
+                        "Les dispositions de cet article ont bien été intégrées au permis "
+                        f"consolidé en remplacement de celles prévues à {target}. "
+                        "Vous pouvez l'effacer après vérification."
+                    )
+                elif op.operation_type == OperationType.ADD:
+                    msg = (
+                        f"L'article suivant a été ajouté dans {target}. "
+                        "Vous pouvez l'effacer après vérification."
+                    )
+                elif is_full_section_removal(op):
+                    msg = (
+                        f"La suppression prévue dans {target} a fonctionné. "
+                        "Vous pouvez supprimer le présent article après vérification."
+                    )
+                else:
+                    msg = f"Opération de consolidation résolue ({label}) dans {target}"
+            elif error_codes and modifying_arrete and op.operation_type == OperationType.REPLACE:
+                source_article = article_display_number(op.source_id.article_id)
+                msg = (
+                    "La prise en compte de la modification prévue dans ce présent article "
+                    f"pour {target} n'a pas été jusqu'au bout de l'opération. "
+                    "Après vérification, vous pouvez copier-coller les dispositions de cet "
+                    f"article vers l'article {source_article} de l'arrêté "
+                    f"{op.source_id.arrete_id} et effacer le présent article."
+                )
+            elif error_codes and modifying_arrete and op.operation_type == OperationType.ADD:
+                msg = (
+                    f"L'ajout de cet article dans {target} n'a pas fonctionné. "
+                    f"Vous pouvez vérifier si {target} est intégré dans la sélection des "
+                    "arrêtés intégrés au permis consolidé. "
+                    "Vous pouvez l'effacer après vérification ou regénérer un nouveau permis "
+                    "avec tous les arrêtés nécessaires ( <!> risque de perte d'information "
+                    "sur le permis actuel )"
+                )
+            elif error_codes:
                 reason = error_codes_reason(error_codes) or "opération non résolue"
                 msg = (
                     f"Opération de consolidation non résolue ({label}) "
                     f"dans {target} (raison\u00a0: {reason})"
                 )
+            else:
+                msg = f"Opération de consolidation résolue ({label}) dans {target}"
             article_msgs.append(msg)
         if article_msgs:
             messages[article_id] = article_msgs

@@ -536,9 +536,88 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
     )
 
     rendered = str(section)
-    assert "Opération non résolue modification de l'article 2 de l'arrêté 2021-01-01" in rendered
-    assert "(raison :" in rendered
-    assert "n'a pas pu être extrait de l'arrêté modificatif" in rendered
+    assert (
+        "La prise en compte de la modification prévue par les dispositions de l'article 2 "
+        "de l'arrêté 2021-01-01 n'a pas été jusqu'au bout de l'opération."
+    ) in rendered
+    assert (
+        "copier-coller les dispositions de l'article 2 de l'arrêté 2021-01-01 ci-après."
+    ) in rendered
+
+
+@pytest.mark.parametrize(
+    ("operation_type", "sub_target", "expected"),
+    [
+        (
+            OperationType.REPLACE,
+            None,
+            "Les dispositions de cet article ont été remplacées par celles prévues à l'article "
+            "2 de l'arrêté 2021-01-01",
+        ),
+        (
+            OperationType.ADD,
+            None,
+            "Cet article ajouté provient de l'article 2 de l'arrêté 2021-01-01",
+        ),
+        (
+            OperationType.REMOVE,
+            SubTarget(type=SubTargetType.FULL_SECTION, description="ALL"),
+            "Cet article comporte des prescriptions qui ont été supprimées par l'article 2 "
+            "de l'arrêté 2021-01-01",
+        ),
+        (
+            OperationType.REMOVE,
+            SubTarget(type=SubTargetType.ALINEA, description="premier alinéa"),
+            "Version actuelle après abrogation par l'article 2 de l'arrêté 2021-01-01",
+        ),
+    ],
+)
+def test_make_section_version_uses_only_specified_resolved_wording(
+    operation_type: OperationType,
+    sub_target: SubTarget | None,
+    expected: str,
+) -> None:
+    section = BeautifulSoup(
+        '<section data-spec="section" data-number="1"><p>Article 1 initial</p></section>',
+        "html.parser",
+    ).find("section")
+    assert isinstance(section, Tag)
+    operation = Operation(
+        id="op-1",
+        source_id=NodeId(arrete_id="2021-01-01", article_id="2"),
+        target_id=NodeId(arrete_id="2020-01-01", article_id="1"),
+        operation_type=operation_type,
+        sub_target=sub_target,
+    )
+    history = {
+        NodeId(arrete_id="2020-01-01", article_id="1"): [
+            cast(
+                ArticleVersion,
+                {"version": 0, "content": "<p>Article 1 initial</p>", "operation_id": None},
+            ),
+            cast(
+                ArticleVersion,
+                {
+                    "version": 1,
+                    "content": "" if operation_type == OperationType.REMOVE else "<p>new</p>",
+                    "operation_id": "op-1",
+                    "error_codes": frozenset(),
+                },
+            ),
+        ]
+    }
+
+    make_section_version(
+        section=section,
+        article_id="1",
+        history=history,
+        arrete_id="2020-01-01",
+        operation_by_id={"op-1": operation},
+    )
+
+    history_text = section.select_one('[data-spec="section_version_history"]')
+    assert isinstance(history_text, Tag)
+    assert expected in history_text.get_text(" ", strip=True)
 
 
 def test_make_section_version_skips_dropdown_for_unresolved_previous_version() -> None:
@@ -599,9 +678,16 @@ def test_make_section_version_skips_dropdown_for_unresolved_previous_version() -
     assert "v0" in details[0].get_text(" ", strip=True)
     history_section = rendered_soup.select_one('[data-spec="section_version_history"]')
     assert history_section is not None
-    assert "Opération non résolue" in history_section.get_text(" ", strip=True)
+    assert (
+        "La prise en compte de la modification prévue par les dispositions de l'article 2 "
+        "de l'arrêté 2021-01-01 n'a pas été jusqu'au bout de l'opération."
+    ) in history_section.get_text(" ", strip=True)
     unresolved_p = next(
-        (p for p in history_section.find_all("p") if "Opération non résolue" in p.get_text()),
+        (
+            p
+            for p in history_section.find_all("p")
+            if "La prise en compte de la modification" in p.get_text()
+        ),
         None,
     )
     assert isinstance(unresolved_p, Tag)
@@ -700,7 +786,10 @@ def test_make_section_version_displays_unresolved_message_for_subtarget_errors(
     )
 
     rendered = str(section)
-    assert "Opération non résolue modification de l'article 2 de l'arrêté 2021-01-01" in rendered
+    assert (
+        "La prise en compte de la modification prévue par les dispositions de l'article 2 "
+        "de l'arrêté 2021-01-01 n'a pas été jusqu'au bout de l'opération."
+    ) in rendered
 
 
 def test_make_section_version_displays_error_extracting_target_reason() -> None:
@@ -742,9 +831,11 @@ def test_make_section_version_displays_error_extracting_target_reason() -> None:
         operation_by_id={"op-target": operation},
     )
     rendered = str(section)
-    assert "Opération non résolue" in rendered
-    assert "(raison :" in rendered
-    assert "article cible" in rendered
+    assert (
+        "La prise en compte de la modification prévue par les dispositions de l'article 3 "
+        "de l'arrêté 2021-01-01 n'a pas été jusqu'au bout de l'opération."
+    ) in rendered
+    assert "(raison :" not in rendered
 
 
 class TestIsAbrogated:
