@@ -58,6 +58,38 @@ class TestReplaceOperations(BaseTestCaseHtml):
             ],
         )
 
+    def test_replaced_by_elided_determiner(self) -> None:
+        cases = [
+            ("remplacé", " par l'article suivant :"),
+            ("remplacé", " par l’article suivant :"),
+            ("remplacé", " par l'alinéa suivant :"),
+            ("remplacé", " par l'expression suivante :"),
+            ("remplacé", " par l' article suivant :"),
+            ("modifié", " par celles de l'article 4 :"),
+        ]
+        prefix = "L'article 1.2.1 de l'arrêté préfectoral du 21 février 2012 est "
+        for keyword, suffix in cases:
+            with self.subTest(suffix=suffix):
+                # Act
+                actual = parse_operations(self.context, [f"{prefix}{keyword}{suffix}"])
+
+                # Assert
+                assert_element_lists_equal(
+                    actual,
+                    [
+                        self.make_semantic_tag(
+                            OperationSpec,
+                            contents=[prefix, self.make_tag("b", contents=[keyword]), suffix],
+                            data=OperationData(
+                                operation_type="REPLACE",
+                                has_operand="true",
+                                keyword=keyword,
+                                direction="rtl",
+                            ),
+                        ),
+                    ],
+                )
+
     def test_has_operand(self) -> None:
         # Arrange
         elements = ["sont remplacées comme suit :"]
