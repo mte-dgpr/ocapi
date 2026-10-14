@@ -33,9 +33,7 @@ utilisés tels quels.
 
 [`chunk_arrete`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/step_detection/chunking.py) :
 
-1. Retire les séparateurs de page (`page_separator`), qui coupent les phrases
-   et n'ont pas de sens pour le LLM, puis minifie l'HTML. Les opérandes
-   extraits de ces blocs n'en contiennent donc pas.
+1. Minifie l'HTML.
 2. Extrait les images et les remplace par des tokens (`ImageMap`) — évite
    d'envoyer du base64 au LLM.
 3. Sélectionne les sections **feuilles** (sans sous-section) au sens

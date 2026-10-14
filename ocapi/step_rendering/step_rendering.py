@@ -23,7 +23,6 @@ from ocapi.step_rendering.header import make_permit_header
 from ocapi.step_rendering.main_content import make_permit_content
 from ocapi.step_rendering.other import make_permit_other
 from ocapi.types import ArreteFile, ArticleHistory, FileType, Operation, Permis
-from ocapi.utils.arretify_utils import strip_page_separators
 from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
@@ -90,13 +89,7 @@ def step_rendering(
         principal_arrete_id=principal_arrete.id,
     )
     _LOGGER.debug("Rendering: permit generated successfully")
-    # Unmodified articles and complements come straight from the source arrêtés:
-    # drop their page separators, which are meaningless in the consolidated permit.
-    return Permis(
-        header=strip_page_separators(header_permis),
-        contenu=strip_page_separators(contenu_permis),
-        other=strip_page_separators(other_permis),
-    )
+    return Permis(header=header_permis, contenu=contenu_permis, other=other_permis)
 
 
 def permis_to_html(permis: Permis) -> str:

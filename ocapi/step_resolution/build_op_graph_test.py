@@ -28,51 +28,8 @@ from ocapi.types import (
     SubTarget,
     SubTargetType,
 )
-from ocapi.utils.testing import assert_html_equal, make_testing_arrete
 
-from .build_op_graph import (
-    _is_full_removal_op,
-    add_node,
-    build_graph,
-    get_node_content,
-    update_node,
-)
-
-
-def test_get_node_content_strips_page_separators_and_keeps_text() -> None:
-    arrete = make_testing_arrete(
-        "2008-12-10",
-        """
-        <main data-spec="main">
-         <section data-spec="section" data-number="1.2.1">
-          <h4 data-spec="section_title">ARTICLE 1.2.1. LISTE DES INSTALLATIONS</h4>
-          <div data-spec="alinea"><table>
-           <tr><th>Rubrique</th><th>Régime</th></tr>
-           <a data-page_index="3" data-spec="page_separator"></a>
-           <tr><td>2716</td><td>A</td></tr>
-           <a data-page_index="4" data-spec="page_separator"></a>
-          </table></div>
-          <div data-spec="alinea">A : autorisation</div>
-         </section>
-        </main>
-        """,
-    )
-
-    title, content = get_node_content(
-        NodeId(arrete_id="2008-12-10", article_id="1.2.1"), arrete.soup
-    )
-
-    assert_html_equal(
-        title, '<h4 data-spec="section_title">ARTICLE 1.2.1. LISTE DES INSTALLATIONS</h4>'
-    )
-    assert_html_equal(
-        content,
-        '<div data-spec="alinea"><table>'
-        "<tr><th>Rubrique</th><th>Régime</th></tr>"
-        "<tr><td>2716</td><td>A</td></tr>"
-        "</table></div>"
-        '<div data-spec="alinea">A : autorisation</div>',
-    )
+from .build_op_graph import _is_full_removal_op, add_node, build_graph, update_node
 
 
 def test_update_node_sets_content_and_title() -> None:

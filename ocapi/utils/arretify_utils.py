@@ -92,13 +92,7 @@ def extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
 
 
 def strip_page_separators(html: str) -> str:
-    """Remove Arrêtify page separators from an HTML fragment.
-
-    Page separators mark page breaks of the source PDF. Once articles from
-    several arrêtés are mixed by the consolidation they no longer match any
-    real page, so they are dropped from operands, article versions and the
-    rendered permit.
-    """
+    """Remove Arrêtify page separators from an HTML fragment."""
     return _PAGE_SEPARATOR_RE.sub("", html)
 
 

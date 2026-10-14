@@ -26,6 +26,23 @@ flowchart LR
 Le point d'entrée principal est [`run_pipeline`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/pipeline.py)
 dans [`ocapi/pipeline.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/pipeline.py).
 
+### Séparateurs de page retirés à la lecture
+
+Les HTML Arrêtify contiennent des séparateurs de page
+(`<a data-spec="page_separator" data-page_index="N">`) qui renvoient aux pages
+du PDF d'origine. Dans un permis consolidé, les articles de plusieurs arrêtés
+sont mélangés et ces numéros de page ne correspondent plus à rien. Ils sont
+donc retirés **dès la lecture** des arrêtés, dans
+[`ocapi/utils/io_utils.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/utils/io_utils.py)
+(`load_arrete_files` comme `load_document_contexts`). Les opérandes des
+`operations.json` préchargés (mode snapshot, `--operations-from`) sont nettoyés
+de la même façon par `load_operations`, pour les fichiers produits avant ce
+changement.
+
+Aucune étape du pipeline (tagging, détection, résolution, rendu) ne voit donc
+de séparateur de page. Les en-têtes et pieds de page (`page_header`,
+`page_footer`) sont conservés et masqués en CSS par le template du permis.
+
 ## Étapes
 
 | Étape | Module | Entrée | Sortie | LLM |
@@ -72,7 +89,8 @@ Pour un AIOT donné, le pipeline écrit (par défaut sous
 - `permis.html` — permis consolidé final.
 
 En parallèle, si `step_tagging` est actif, les HTMLs taggués sont écrits sous
-`arretes_tagged/<aiot>/`.
+`arretes_tagged/<aiot>/`. Ils ne contiennent plus les séparateurs de page des
+HTML d'entrée (voir ci-dessus).
 
 ## Dépendances externes
 
