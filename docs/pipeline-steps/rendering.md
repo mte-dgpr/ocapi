@@ -140,6 +140,15 @@ Liste actuelle (extraits) :
 Pour ajouter un titre : éditer cette frozenset (les variantes accentuées /
 ponctuées sont normalisées, donc inutile de toutes les lister).
 
+## Séparateurs de page
+
+Les articles non modifiés et les compléments sont repris tels quels des
+arrêtés sources, avec leurs séparateurs de page (`<a data-spec="page_separator">`).
+Ces séparateurs sont retirés des trois fragments du `Permis` (header, contenu,
+autres), car leur numérotation ne correspond à aucune page du permis consolidé.
+Les `page_header` / `page_footer` restent présents mais masqués en CSS par le
+template.
+
 ## Template
 
 `templates/permis_consolide.html` est un fichier statique chargé via

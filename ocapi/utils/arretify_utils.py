@@ -16,20 +16,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import re
 from typing import Tuple, cast
 
-from arretify.semantic_tag_specs import AppendixSpec, SectionSpec
+from arretify.semantic_tag_specs import AppendixSpec, PageSeparatorSpec, SectionSpec
 from bs4 import BeautifulSoup, Tag
 
 from ocapi.types import ImageMap
 
 ARRETIFY_SECTION_DATA_SPEC = SectionSpec.spec_name
 ARRETIFY_APPENDIX_DATA_SPEC = AppendixSpec.spec_name
+ARRETIFY_PAGE_SEPARATOR_DATA_SPEC = PageSeparatorSpec.spec_name
 # AppendixSpec.tag_name is typed as a union including a builder callable in
 # arretify, but appendix is a static tag name in practice.
 ARRETIFY_APPENDIX_DATA_TAG = cast(str, AppendixSpec.tag_name)
 
 ARRETIFY_SECTION_SELECTOR = f'*[data-spec="{ARRETIFY_SECTION_DATA_SPEC}"]'
+
+# Empty ``<a ... data-spec="page_separator"></a>``, whatever its attribute order.
+_PAGE_SEPARATOR_RE = re.compile(
+    rf"<a\b[^>]*\bdata-spec=([\"']){ARRETIFY_PAGE_SEPARATOR_DATA_SPEC}\1[^>]*>\s*</a>"
+)
 
 
 def list_top_sections(soup: BeautifulSoup | Tag) -> list[Tag]:
@@ -82,6 +89,17 @@ def extract_first_spec_text(soup: BeautifulSoup, spec: str) -> str:
     if not tags:
         return ""
     return str(tags[0].get_text(" ", strip=True))
+
+
+def strip_page_separators(html: str) -> str:
+    """Remove Arrêtify page separators from an HTML fragment.
+
+    Page separators mark page breaks of the source PDF. Once articles from
+    several arrêtés are mixed by the consolidation they no longer match any
+    real page, so they are dropped from operands, article versions and the
+    rendered permit.
+    """
+    return _PAGE_SEPARATOR_RE.sub("", html)
 
 
 def extract_and_strip_images(html: str) -> Tuple[str, ImageMap]:

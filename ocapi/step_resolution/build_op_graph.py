@@ -38,7 +38,11 @@ from ocapi.types import (
     OperationType,
     SubTargetType,
 )
-from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC, ARRETIFY_SECTION_DATA_SPEC
+from ocapi.utils.arretify_utils import (
+    ARRETIFY_APPENDIX_DATA_SPEC,
+    ARRETIFY_SECTION_DATA_SPEC,
+    strip_page_separators,
+)
 from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
@@ -156,14 +160,14 @@ def get_node_content(node: NodeId, soup: BeautifulSoup) -> Tuple[str, str]:
                 raise SectionNotFoundError(
                     f"Section {article_id} not found in Appendix of arrete {arrete_id}"
                 )
-            return split_section_title(str(section_tag))
+            return split_section_title(strip_page_separators(str(section_tag)))
 
     section_tag = soup.select_one(
         f'section[data-spec="{ARRETIFY_SECTION_DATA_SPEC}"][data-number="{article_id}"]'
     )
     if section_tag is None:
         raise SectionNotFoundError(f"Section {article_id} not found in arrete {arrete_id}")
-    return split_section_title(str(section_tag))
+    return split_section_title(strip_page_separators(str(section_tag)))
 
 
 def build_graph(

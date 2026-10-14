@@ -19,9 +19,20 @@
 from ocapi.step_resolution.apply_ops import apply_all_ops
 from ocapi.step_resolution.build_op_graph import build_graph
 from ocapi.types import ArreteFile, ArticleHistory, Operation
+from ocapi.utils.arretify_utils import strip_page_separators
 from ocapi.utils.logging_utils import get_logger
 
 _LOGGER = get_logger(__name__)
+
+
+def _strip_operand_page_separators(op: Operation) -> Operation:
+    """Drop source-PDF page separators from the operand before it is applied."""
+    if op.operand is None:
+        return op
+    operand = strip_page_separators(op.operand)
+    if operand == op.operand:
+        return op
+    return op.model_copy(update={"operand": operand})
 
 
 def step_resolution(
@@ -57,6 +68,8 @@ def step_resolution(
         Operations with their resolved ``error_codes``.
     """
     _LOGGER.info(f"Resolution: {len(operations)} operation(s) to process")
+    # The following line is there to remove page separators in legacy operands
+    operations = [_strip_operand_page_separators(op) for op in operations]
     operations_graph, arrete_files, skipped_ops_graph, graph_ops = build_graph(
         operations, arrete_files
     )

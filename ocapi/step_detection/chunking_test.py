@@ -130,6 +130,29 @@ def test_chunk_arrete_does_not_split_one_section_per_block() -> None:
         assert f"Article {i} content." in blocks[0].page_content
 
 
+def test_chunk_arrete_strips_page_separators() -> None:
+    html_content = (
+        '<section data-spec="section" data-number="1">'
+        '<div data-spec="alinea">Le texte est remplacé\n   '
+        '<a data-page_index="3" data-spec="page_separator">\n   </a>\n   par le suivant.</div>'
+        "</section>"
+    )
+    arrete_file = ArreteFile(
+        id="arrete_5",
+        aiot="aiot_5",
+        filename="test.html",
+        soup=BeautifulSoup(html_content, "html.parser"),
+        file_type=FileType.AUTRE,
+    )
+
+    blocks, _ = chunk_arrete(arrete_file)
+
+    assert len(blocks) == 1
+    assert "page_separator" not in blocks[0].page_content
+    assert "Le texte est remplacé par le suivant." in blocks[0].page_content
+    assert len(arrete_file.soup.select('[data-spec="page_separator"]')) == 1
+
+
 def test_max_chunk_chars_scales_with_context_window() -> None:
     small = _max_chunk_chars(context_window_tokens=8_000, prompt_overhead_chars=1_000)
     large = _max_chunk_chars(context_window_tokens=128_000, prompt_overhead_chars=1_000)

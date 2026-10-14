@@ -59,6 +59,12 @@ parcourt les opérations dans l'ordre fourni (chronologique par `arrete_id`) :
 `build_graph` retourne `(graph, arrete_files, skipped_ops, updated_ops)` :
 les `updated_ops` portent les `error_codes` propagés à ce stade.
 
+Les séparateurs de page Arrêtify (`<a data-spec="page_separator">`) renvoient
+aux pages du PDF d'origine et n'ont plus de sens une fois les arrêtés
+consolidés. Ils sont retirés des opérandes à l'entrée de `step_resolution` et
+du contenu des articles extrait par `get_node_content` : ni `history.json` ni
+`operations.json` n'en contiennent.
+
 ## Application des opérations
 
 [`apply_all_ops`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/step_resolution/apply_ops.py)

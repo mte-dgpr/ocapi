@@ -34,6 +34,7 @@ from ocapi.utils.arretify_utils import (
     extract_and_strip_images,
     is_arretify_section,
     is_arretify_section_title,
+    strip_page_separators,
 )
 from ocapi.utils.documents import ContentType, make_document_factory
 from ocapi.utils.logging_utils import get_logger
@@ -162,7 +163,9 @@ def chunk_arrete(arrete_file: ArreteFile) -> Tuple[list[Document], ImageMap]:
     ImageMap
         ``{token: original_url}`` mapping for rehydrating images.
     """
-    minified = minify_html_fragment(str(arrete_file.soup))
+    # Page separators interrupt sentences and are meaningless to the LLM; dropping
+    # them here also keeps operands extracted from these blocks free of them.
+    minified = minify_html_fragment(strip_page_separators(str(arrete_file.soup)))
     minified, img_map = extract_and_strip_images(minified)
     soup_without_images = BeautifulSoup(minified, "html.parser")
 

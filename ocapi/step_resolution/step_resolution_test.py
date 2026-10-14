@@ -30,6 +30,8 @@ from ocapi.types import (
     NodeId,
     Operation,
     OperationType,
+    SubTarget,
+    SubTargetType,
 )
 
 
@@ -168,3 +170,45 @@ def test_step_resolution_preserves_status_for_unprocessed_operations(
     _history, _arretes, updated_ops = step_resolution([op_skipped], cast(list[ArreteFile], []))
 
     assert updated_ops[0].error_codes == frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})
+
+
+def test_step_resolution_strips_page_separators() -> None:
+    separator = '<a data-page_index="{}" data-spec="page_separator"></a>'
+    html_2020 = (
+        '<section data-spec="section" data-number="1.1"><h4>Article 1.1</h4>'
+        f'<div data-spec="alinea">Texte initial {separator.format(3)}suite.</div></section>'
+    )
+    html_2021 = (
+        '<section data-spec="section" data-number="2"><h4>Article 2</h4>'
+        f"<p>L'article 1.1 est complété.</p>{separator.format(2)}</section>"
+    )
+    arrete_files = [
+        ArreteFile(
+            id=arrete_id,
+            aiot="aiot1",
+            filename=f"{arrete_id}.html",
+            soup=BeautifulSoup(html, "html.parser"),
+            file_type=FileType.AUTRE,
+        )
+        for arrete_id, html in (("2020-04-20", html_2020), ("2021-09-24", html_2021))
+    ]
+    operations = [
+        Operation(
+            id="1",
+            source_id=NodeId(arrete_id="2021-09-24", article_id="2"),
+            target_id=NodeId(arrete_id="2020-04-20", article_id="1.1"),
+            operation_type=OperationType.ADD,
+            operand=f'<div data-spec="alinea">Ajout {separator.format(4)}complet.</div>',
+            sub_target=SubTarget(type=SubTargetType.FULL_SECTION),
+        ),
+    ]
+
+    history, _arretes, updated_ops = step_resolution(operations, arrete_files, enable_llm=False)
+
+    versions = history[NodeId(arrete_id="2020-04-20", article_id="1.1")]
+    assert [v["error_codes"] for v in versions[1:]] == [frozenset()]
+    assert all("page_separator" not in v["content"] for v in versions)
+    assert "Texte initial suite." in versions[-1]["content"]
+    assert "Ajout complet." in versions[-1]["content"]
+    assert updated_ops[0].operand is not None
+    assert "page_separator" not in updated_ops[0].operand
