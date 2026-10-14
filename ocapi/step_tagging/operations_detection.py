@@ -42,9 +42,15 @@ OPERATION_TYPES_GROUP_NAMES = [
 ]
 
 
-SECTION_AFTER_OPERATION_L = r"(le|la|les|l')\s+"
-SECTION_AFTER_OPERATION_D = r"(de|du|des|d')\s+"
-SECTION_AFTER_OPERATION_A = r"(à|au|à l'|aux)\s+"
+# OCR produces both the straight and the typographic apostrophe.
+APOSTROPHE = r"['’]"
+
+# Determiners that precede a section reference. Full words must be followed by
+# whitespace, while elided forms (l', d') are usually glued to the next word
+# ("l'article"), hence ``\s*``.
+SECTION_AFTER_OPERATION_L = rf"(?:le\s+|la\s+|les\s+|l{APOSTROPHE}\s*)"
+SECTION_AFTER_OPERATION_D = rf"(?:de\s+|du\s+|des\s+|d{APOSTROPHE}\s*)"
+SECTION_AFTER_OPERATION_A = rf"(?:à\s+l{APOSTROPHE}\s*|à\s+|au\s+|aux\s+)"
 SECTION_POSITION_EXPR = r"(au\s+début|à\s+la\s+fin|à\s+la\s+suite|au\s+niveau)"
 
 TERMS_VARIANTS_LIST = [
@@ -233,7 +239,7 @@ RTL_OPERATION_NODE = regex_tree.Group(
                                     ),
                                     EXPR_CONTINUATION,
                                     rf"par\s+{TERMS_VARIANTS}",
-                                    rf"par\s+{SECTION_AFTER_OPERATION_L}?",
+                                    rf"par\s+{SECTION_AFTER_OPERATION_L}",
                                 ]
                             ),
                         ]
@@ -255,8 +261,8 @@ RTL_OPERATION_NODE = regex_tree.Group(
                                     rf"pour\s+{SECTION_AFTER_OPERATION_L}",
                                     r"pour\s+(ce\s+)?qui\s+concerne",
                                     (
-                                        rf"par\s+:?celles?\s+{SECTION_AFTER_OPERATION_D}?"
-                                        rf"{SECTION_AFTER_OPERATION_L}?"
+                                        rf"par\s+:?celles?\s+{SECTION_AFTER_OPERATION_D}"
+                                        rf"{SECTION_AFTER_OPERATION_L}"
                                     ),
                                     rf"conformément\s+{SECTION_AFTER_OPERATION_A}",
                                     rf"au\s+niveau\s+{SECTION_AFTER_OPERATION_D}",
