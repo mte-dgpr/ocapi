@@ -581,8 +581,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     model_key = args.model
-    _LOGGER.info(f"Model: {model_key}")
-    _LOGGER.info(f"AIOTs: {', '.join(aiots)}")
+    model_cfg = config_model_llm(model_key)
 
     # Create eval subfolder once if any save option is requested
     eval_subdir: Path | None = None
@@ -593,7 +592,9 @@ def main(argv: list[str] | None = None) -> int:
     total_tp, total_fp, total_fn = 0, 0, 0
     results: list[AiotResult] = []
 
-    model_cfg = config_model_llm(model_key)
+    _LOGGER.info(f"Model: {model_key} / {model_cfg.model_name}")
+    _LOGGER.info(f"Reasoning: {model_cfg.reasoning_model}")
+    _LOGGER.info(f"AIOTs: {', '.join(aiots)}")
 
     for aiot in aiots:
         _LOGGER.info(f"\n{'=' * 50}")
