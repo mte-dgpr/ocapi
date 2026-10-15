@@ -18,6 +18,7 @@
 #
 
 import logging
+from html import escape
 
 from bs4 import BeautifulSoup, Tag
 
@@ -27,6 +28,7 @@ from ocapi.step_rendering.operation_messages import (
     build_source_operation_messages,
     inject_messages_into_body,
     is_full_section_removal,
+    operation_status,
 )
 from ocapi.types import (
     ArreteFile,
@@ -325,17 +327,27 @@ def _build_section_history_html(
     str
         HTML of the history block to insert into the ``section_version``.
     """
-    history_parts = [
-        '<div data-spec="section_version_history" style="color: #1b4d89; margin-bottom: 1rem;">'
-    ]
     if not versions:
-        history_parts.append("</div>")
-        return "".join(history_parts)
+        return (
+            '<div data-spec="section_version_history" '
+            'style="color: #1b4d89; margin-bottom: 1rem;"></div>'
+        )
 
     last_version = versions[-1]
-    last_error_codes = last_version.get("error_codes")
     last_operation_id = last_version.get("operation_id")
     last_operation = operation_by_id.get(str(last_operation_id)) if last_operation_id else None
+    if last_operation_id and last_operation is None and "error_codes" not in last_version:
+        raise ValueError(f"Cannot determine status for unknown operation {last_operation_id!r}")
+    last_error_codes = last_version.get(
+        "error_codes", last_operation.error_codes if last_operation else frozenset()
+    )
+    attrs = 'data-spec="section_version_history"'
+    if last_operation_id:
+        attrs += (
+            f' data-operation-id="{escape(last_operation_id, quote=True)}"'
+            f' data-operation-status="{operation_status(last_error_codes)}"'
+        )
+    history_parts = [f'<div {attrs} style="color: #1b4d89; margin-bottom: 1rem;">']
     last_reason = error_codes_reason(last_error_codes)
     if last_operation and last_reason is not None:
         if last_operation.operation_type == OperationType.REPLACE:

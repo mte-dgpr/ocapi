@@ -21,7 +21,10 @@ import logging
 import pytest
 from bs4 import BeautifulSoup, Tag
 
-from ocapi.step_rendering.operation_messages import build_source_operation_messages
+from ocapi.step_rendering.operation_messages import (
+    OperationMessage,
+    build_source_operation_messages,
+)
 from ocapi.step_rendering.other import has_no_ops, make_permit_other
 from ocapi.types import (
     ArticleHistory,
@@ -325,7 +328,31 @@ def test_build_source_operation_messages_uses_only_specified_wording(
 
     assert build_source_operation_messages(
         "2022-01-01", [operation], {}, modifying_arrete=True
-    ) == {"2": [expected]}
+    ) == {"2": [OperationMessage("op-1", "failure" if error_codes else "success", expected)]}
+
+
+def test_operation_result_status_uses_resolved_version_over_detection_errors() -> None:
+    op = Operation(
+        id="op-resolved",
+        source_id=NodeId(arrete_id="2022-01-01", article_id="2"),
+        target_id=NodeId(arrete_id="2012-02-21", article_id="8.1.1"),
+        operation_type=OperationType.REPLACE,
+        error_codes=frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+    )
+    history: ArticleHistory = {
+        op.target_id: [
+            {
+                "version": 1,
+                "title": "",
+                "content": "resolved",
+                "operation_id": op.id,
+                "error_codes": frozenset(),
+            }
+        ]
+    }
+    messages = build_source_operation_messages("2022-01-01", [op], history)
+    assert messages["2"][0].operation_id == "op-resolved"
+    assert messages["2"][0].status == "success"
 
 
 def test_target_all_shows_arrete_only() -> None:

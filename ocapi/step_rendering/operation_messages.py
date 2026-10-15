@@ -25,6 +25,7 @@ source arrêté is rendered.
 
 import logging
 from collections import defaultdict
+from typing import Literal, NamedTuple
 
 from bs4 import BeautifulSoup, Tag
 
@@ -44,6 +45,16 @@ from ocapi.utils.subtarget_utils import FULL_SECTION_NAMES_LOWER
 _LOGGER = logging.getLogger(__name__)
 
 _WHOLE_ARRETE_ARTICLE_IDS = frozenset({"ALL", "END", "APPENDIX"})
+
+
+def operation_status(error_codes: frozenset[ErrorCode] | None) -> Literal["success", "failure"]:
+    return "failure" if error_codes else "success"
+
+
+class OperationMessage(NamedTuple):
+    operation_id: str
+    status: Literal["success", "failure"]
+    text: str
 
 
 def format_target_reference(op: Operation) -> str:
@@ -72,7 +83,7 @@ def resolve_operation_error_codes(op: Operation, history: ArticleHistory) -> fro
     target_versions = history.get(op.target_id, [])
     for version in target_versions:
         if version.get("operation_id") == op.id:
-            return version.get("error_codes") or frozenset()
+            return version.get("error_codes", op.error_codes)
     return op.error_codes
 
 
@@ -81,16 +92,16 @@ def build_source_operation_messages(
     operations: list[Operation],
     history: ArticleHistory,
     modifying_arrete: bool = False,
-) -> dict[str, list[str]]:
+) -> dict[str, list[OperationMessage]]:
     """Build per-article_id list of HTML messages for source articles of *arrete_id*."""
     ops_by_source_article: dict[str, list[Operation]] = defaultdict(list)
     for op in operations:
         if op.source_id.arrete_id == arrete_id:
             ops_by_source_article[op.source_id.article_id].append(op)
 
-    messages: dict[str, list[str]] = {}
+    messages: dict[str, list[OperationMessage]] = {}
     for article_id, ops in ops_by_source_article.items():
-        article_msgs: list[str] = []
+        article_msgs: list[OperationMessage] = []
         for op in ops:
             error_codes = resolve_operation_error_codes(op, history)
             label = operation_type_label(op.operation_type)
@@ -140,7 +151,7 @@ def build_source_operation_messages(
                 )
             else:
                 msg = f"Opération de consolidation résolue ({label}) dans {target}"
-            article_msgs.append(msg)
+            article_msgs.append(OperationMessage(op.id, operation_status(error_codes), msg))
         if article_msgs:
             messages[article_id] = article_msgs
     return messages
@@ -156,7 +167,7 @@ def _section_logical_id(section: Tag) -> str | None:
     return data_number
 
 
-def inject_messages_into_body(body_html: str, messages: dict[str, list[str]]) -> str:
+def inject_messages_into_body(body_html: str, messages: dict[str, list[OperationMessage]]) -> str:
     """Inject operation result messages into a body HTML fragment.
 
     The fragment may contain the ``<main>`` element and/or an appendix
@@ -191,10 +202,12 @@ def inject_messages_into_body(body_html: str, messages: dict[str, list[str]]) ->
                 "div",
                 attrs={
                     "data-spec": "operation_result",
+                    "data-operation-id": msg.operation_id,
+                    "data-operation-status": msg.status,
                     "style": "color: #1b4d89; font-style: italic; margin: 0.5rem 0;",
                 },
             )
-            div.string = msg
+            div.string = msg.text
             if title_el is not None:
                 title_el.insert_after(div)
             else:
