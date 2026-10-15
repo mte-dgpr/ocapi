@@ -98,6 +98,13 @@ juste après. La CLI écrit ensuite l'HTML annoté dans
 `arretes_tagged/<aiot>/<filename>.html` via
 [`save_tagged_html_file`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/utils/io_utils.py).
 
+> L'AP taggué en sortie **ne comporte plus les séparateurs de page**
+> (`<a data-spec="page_separator">`) du HTML d'origine : ils sont retirés dès la
+> lecture des arrêtés, avant le tagging (voir
+> [Architecture](../architecture.md#separateurs-de-page-retires-a-la-lecture)).
+> Le reste du HTML Arrêtify, y compris les `page_header` / `page_footer`, est
+> conservé.
+
 ## Fusion avec les opérations candidates
 
 Après extraction des opérations `Regex`, le pipeline les fusionne avec les

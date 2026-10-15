@@ -18,7 +18,11 @@
 #
 from bs4 import BeautifulSoup
 
-from ocapi.utils.arretify_utils import extract_and_strip_images, extract_specs
+from ocapi.utils.arretify_utils import (
+    extract_and_strip_images,
+    extract_specs,
+    strip_page_separators,
+)
 from ocapi.utils.testing import assert_html_equal
 from ocapi.utils.utils import minify_html_fragment
 
@@ -66,3 +70,44 @@ def test_extract_and_strip_images() -> None:
 
     assert_html_equal(modified_html, minify_html_fragment(expected_modified_html))
     assert img_map == expected_img_map
+
+
+def test_strip_page_separators_removes_every_separator() -> None:
+    html = (
+        '<div data-spec="alinea">Début <a data-page_index="3" data-spec="page_separator"></a>'
+        'suite</div><a data-page_index="4" data-spec="page_separator"></a><p>fin</p>'
+    )
+
+    actual = strip_page_separators(html)
+
+    assert "page_separator" not in actual
+    assert_html_equal(actual, '<div data-spec="alinea">Début suite</div><p>fin</p>')
+
+
+def test_strip_page_separators_keeps_page_headers_and_footers() -> None:
+    html = '<div data-spec="page_footer"><div>4/11</div></div><p>texte</p>'
+
+    assert strip_page_separators(html) == html
+
+
+def test_strip_page_separators_returns_input_unchanged_without_separator() -> None:
+    html = "<p>a &amp; b<br>c</p>"
+
+    assert strip_page_separators(html) == html
+
+
+def test_strip_page_separators_leaves_surrounding_html_byte_identical() -> None:
+    # No re-serialisation: attribute order and formatting of other tags are kept.
+    html = (
+        '<li data-spec="permit_source" data-date="2020-04-20">\n'
+        '   <a data-page_index="3" data-spec="page_separator">\n   </a>\n'
+        "   AP du 20 avril 2020<br>\n</li>"
+    )
+
+    actual = strip_page_separators(html)
+
+    assert actual == (
+        '<li data-spec="permit_source" data-date="2020-04-20">\n'
+        "   \n"
+        "   AP du 20 avril 2020<br>\n</li>"
+    )

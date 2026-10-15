@@ -39,7 +39,11 @@ from ocapi.types import (
     parse_filename,
     validate_arretify_version,
 )
-from ocapi.utils.arretify_utils import ARRETIFY_APPENDIX_DATA_SPEC, ARRETIFY_APPENDIX_DATA_TAG
+from ocapi.utils.arretify_utils import (
+    ARRETIFY_APPENDIX_DATA_SPEC,
+    ARRETIFY_APPENDIX_DATA_TAG,
+    strip_page_separators,
+)
 from ocapi.utils.logging_utils import get_logger
 from ocapi.utils.utils import html_checksum
 
@@ -297,13 +301,23 @@ def _initialize_arrete_file(html_path: Path, soup: BeautifulSoup, aiot: str) -> 
     return arrete
 
 
+def _read_arrete_html(html_path: Path) -> str:
+    """Read an Arrêtify HTML file, without its page separators.
+
+    Page separators mark page breaks of the source PDF. Once articles from
+    several arrêtés are mixed by the consolidation they no longer match any
+    real page, so they are dropped.
+    """
+    with open(html_path, encoding="utf-8") as f:
+        return strip_page_separators(f.read())
+
+
 def initialize_arrete_files(html_files: list[Path], aiot: str) -> list["ArreteFile"]:
     """Initialise ArreteFile objects from a list of HTML files."""
     arrete_files: list[ArreteFile] = []
 
     for html_path in html_files:
-        with open(html_path, encoding="utf-8") as f:
-            html_content = f.read()
+        html_content = _read_arrete_html(html_path)
         soup = BeautifulSoup(html_content, "html.parser")
         arrete = _initialize_arrete_file(html_path, soup, aiot)
         if arrete is not None:
@@ -348,8 +362,7 @@ def _make_session_context() -> SessionContext:
 def _load_document_context(session_context: SessionContext, input_path: Path) -> DocumentContext:
     # Equivalent to ``arretify.pipeline.load_html_file``, inlined to avoid pulling
     # ``arretify.step_segmentation`` (and its spaCy model) at import time.
-    with open(input_path, encoding="utf-8") as f:
-        html_content = f.read()
+    html_content = _read_arrete_html(input_path)
     soup = BeautifulSoup(html_content, features="html.parser")
     return DocumentContext.from_session_context(
         session_context,
@@ -501,6 +514,9 @@ def load_operations(input_dir: Path) -> list[Operation]:
                 # operations.json files).
                 item.pop("error_codes", None)
                 item.pop("status_code", None)
+                # Drop transient/legacy page separators from older operations.json files.
+                if isinstance(item.get("operand"), str):
+                    item["operand"] = strip_page_separators(item["operand"])
             operations.append(Operation.model_validate(item))
         return operations
     except (json.JSONDecodeError, ValueError) as e:

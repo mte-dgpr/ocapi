@@ -148,6 +148,54 @@ class TestInitializeArreteFiles(unittest.TestCase):
         assert result == []
 
 
+class TestPageSeparatorsDroppedOnRead:
+    """No page separator of the source PDF may enter the pipeline."""
+
+    def test_initialize_arrete_files(self, tmp_path: Path) -> None:
+        _write(
+            tmp_path / "2021-06-15.html",
+            '<html><body data-arretify_version="0.2.0">\n'
+            "<p>Début de l'article\n"
+            '  <a data-page_index="1" data-spec="page_separator">\n  </a>\n'
+            "  suite de l'article</p>\n"
+            "</body></html>",
+        )
+
+        (arrete_file,) = initialize_arrete_files([tmp_path / "2021-06-15.html"], aiot="0001")
+
+        assert arrete_file.soup.select('[data-spec="page_separator"]') == []
+        assert arrete_file.soup.p is not None
+        assert arrete_file.soup.p.get_text().split() == (
+            "Début de l'article suite de l'article".split()
+        )
+
+    def test_load_document_contexts(self, tmp_path: Path) -> None:
+        _write(
+            tmp_path / "2021-06-15.html",
+            '<html><body data-arretify_version="0.2.0">'
+            '<p>Texte <a data-page_index="1" data-spec="page_separator"></a>suite</p>'
+            "</body></html>",
+        )
+
+        ((arrete_file, document_context),) = load_document_contexts(tmp_path, aiot="0001")
+
+        assert document_context.soup.select('[data-spec="page_separator"]') == []
+        assert arrete_file.soup is document_context.soup
+
+    def test_load_operations_strips_legacy_operands(self, tmp_path: Path) -> None:
+        op = make_testing_op(OperationType.REPLACE, operation_id="op1").model_copy(
+            update={
+                "operand": '<p>Texte <a data-page_index="4" data-spec="page_separator"></a>'
+                "suite</p>"
+            }
+        )
+        save_operations([op], tmp_path)
+
+        (loaded,) = load_operations(tmp_path)
+
+        assert loaded.operand == "<p>Texte suite</p>"
+
+
 class TestLoadDocumentContexts:
     def test_loads_pairs_with_shared_soup(self, tmp_path: Path) -> None:
         _write(tmp_path / "2021-06-15_ap prescriptions complémentaires_foo.html", _VALID_HTML)
