@@ -32,8 +32,6 @@ def test_find_marker_span_verbatim() -> None:
 
 def test_find_marker_span_ignores_whitespace() -> None:
     haystack = "<p>Débit   de\n 10 m³/h</p>"
-
-    # The span ends where the match ends, not at ``len(marker)``.
     assert _found(haystack, "Débit de 10 m³/h", text_only=False) == "Débit   de\n 10 m³/h"
 
 
@@ -54,13 +52,11 @@ def test_find_marker_span_not_found_returns_none() -> None:
 
 def test_find_marker_span_text_only_ignores_missing_tags() -> None:
     haystack = '<div><a data-spec="section_reference"> Article 3 </a> Organisation </div>'
-
     assert _found(haystack, "Article 3 Organisation") == haystack
 
 
 def test_find_marker_span_text_only_ignores_invented_tags() -> None:
     haystack = "<div> Fin du texte </div>"
-
     assert _found(haystack, '</table></div><div data-number="13"> Fin du texte </div>') == (
         haystack
     )
@@ -68,7 +64,6 @@ def test_find_marker_span_text_only_ignores_invented_tags() -> None:
 
 def test_find_marker_span_text_only_can_be_disabled() -> None:
     haystack = '<div><a data-spec="section_reference"> Article 3 </a> Organisation </div>'
-
     assert find_marker_span(haystack, "Article 3 Organisation", text_only=False) is None
 
 
@@ -85,15 +80,12 @@ def test_find_marker_span_text_only_matches_any_escaping_level(haystack: str) ->
 
 def test_find_marker_span_text_only_does_not_match_tag_delimiters() -> None:
     haystack = '<div data-number="1"> a </div><div data-number="2"> &amp;gt;&amp;gt; </div>'
-
     assert _found(haystack, "<b>&gt;&gt;</b>") == '<div data-number="2"> &amp;gt;&amp;gt; </div>'
 
 
 def test_find_marker_span_text_only_skips_matches_inside_tags() -> None:
     haystack = '<a title="article 3"> Voir l\'article 3 </a>'
-
     span = find_marker_span(haystack, "<b>article</b> 3")
-
     assert span is not None
     assert haystack[span[0] : span[1]] == "article 3"
     assert span[0] > haystack.index(">")
@@ -101,28 +93,23 @@ def test_find_marker_span_text_only_skips_matches_inside_tags() -> None:
 
 def test_find_marker_span_text_only_matches_escaped_ampersand_and_lower_than() -> None:
     haystack = "<p> R &amp;amp; D &amp;lt; 5 </p>"
-
     assert _found(haystack, "<i>R</i> &amp; D &lt; 5") == haystack
 
 
 def test_find_marker_span_text_only_respects_start() -> None:
     haystack = "<p>Article 2</p><p>Texte</p><p>Article 2</p>"
-
     span = find_marker_span(haystack, "<b>Article</b> 2", start=10)
-
     assert span is not None
     assert haystack[span[0] :] == "<p>Article 2</p>"
 
 
 def test_find_marker_span_text_only_does_not_close_outer_elements() -> None:
     haystack = '<section><div data-number="1"> Texte </div></section>'
-
     assert _found(haystack, "<i>Texte</i>") == '<div data-number="1"> Texte </div>'
 
 
 def test_find_marker_span_text_only_skips_void_tags_when_closing() -> None:
     haystack = "<section><p> A <br/> B </p></section>"
-
     assert _found(haystack, "<i>A</i> B") == "<p> A <br/> B </p>"
 
 
@@ -139,7 +126,6 @@ def test_find_marker_span_text_only_is_case_insensitive() -> None:
 )
 def test_find_marker_span_text_only_tolerates_spaces_around_punctuation(haystack: str) -> None:
     span = find_marker_span(haystack, "<b>de</b> l’arrêté du 10 décembre 2008, est reportée")
-
     assert span is not None
     assert haystack[span[0] : span[1]] == haystack
 
