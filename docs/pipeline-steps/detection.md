@@ -95,6 +95,26 @@ marqueurs et réinjecte les vraies URLs d'images via l'`ImageMap`. Les cas
 spéciaux `APPENDIX`, `APPENDIX:x.y` et l'absence d'un marqueur sont gérés
 explicitement.
 
+Les marqueurs renvoyés par le LLM ne sont pas toujours des copies exactes du
+HTML : des balises sont omises ou inventées (références, enveloppes
+d'alinéas), et l'échappement des caractères peut différer (`&gt;` contre
+`&amp;gt;` issu de l'OCR). `find_marker_span`
+([`ocapi/utils/utils.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/utils/utils.py))
+cherche donc chaque marqueur tel quel, puis sans tenir compte des espaces,
+puis sur son seul texte en ignorant les balises. Dans ce dernier cas :
+
+- la ponctuation peut être séparée ou non par des espaces (`l'arrêté` trouve
+  `l' arrêté`, `2008,` trouve `2008 ,`), mais deux mots du marqueur doivent
+  être séparés par un espace ou une balise ;
+- une correspondance ne peut pas commencer dans une balise (valeur
+  d'attribut) ;
+- l'extrait est élargi aux balises ouvrantes qui le précèdent immédiatement
+  (sauf les balises de structure comme `<section>`) et aux balises fermantes
+  des éléments ouverts dans l'extrait.
+
+La recherche exacte est tentée dans la section source puis dans tout le bloc
+avant de recourir à la recherche sur le texte.
+
 Si l'extraction échoue (marqueurs introuvables, section absente),
 l'`Operation` sort avec `ErrorCode.ERROR_EXTRACTING_OPERAND` ou
 `ERROR_EXTRACTING_SOURCE` ; elle restera visible dans `operations.json` mais
