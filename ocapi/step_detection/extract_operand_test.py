@@ -207,3 +207,69 @@ class TestExtractOperand(unittest.TestCase):
             img_map={},
         )
         assert operand is None
+
+    def test_extract_operand_markers_missing_tags(self) -> None:
+        html = (
+            '<section data-spec="section" data-number="2">'
+            '<div data-number="1" data-spec="alinea">L\'article 1.2.1 est remplacé :</div>'
+            '<div data-number="2" data-spec="alinea"><a data-spec="section_reference" '
+            'data-start_num="1.2.1" data-type="article"> Article 1.2.1 </a> Liste </div>'
+            '<div data-number="3" data-spec="alinea"><table><tr><td> TOTAL : 1600 m³ </td>'
+            "</tr></table></div>"
+            "</section>"
+        )
+
+        operand = extract_operand_with_images(
+            html_block=html,
+            source_article="2",
+            start_marker="Article 1.2.1 Liste <table>",
+            end_marker="TOTAL : 1600 m³ </td></tr></table></div></div>",
+            img_map={},
+        )
+
+        assert operand == (
+            '<div data-number="2" data-spec="alinea"><a data-spec="section_reference" '
+            'data-start_num="1.2.1" data-type="article"> Article 1.2.1 </a> Liste </div>'
+            '<div data-number="3" data-spec="alinea"><table><tr><td> TOTAL : 1600 m³ </td>'
+            "</tr></table></div>"
+        )
+
+    def test_extract_operand_end_marker_with_other_escaping(self) -> None:
+        html = (
+            '<section data-spec="section" data-number="10">'
+            '<div data-number="1" data-spec="alinea"> Cuivre 0,5 mg/l </div>'
+            '<div data-number="2" data-spec="alinea"> &amp;gt;&amp;gt; </div>'
+            "</section>"
+        )
+
+        operand = extract_operand_with_images(
+            html_block=html,
+            source_article="10",
+            start_marker="Cuivre 0,5 mg/l",
+            end_marker='</table></div><div data-number="6" data-spec="alinea"> &gt;&gt; </div>',
+            img_map={},
+        )
+
+        assert operand == (
+            'Cuivre 0,5 mg/l </div><div data-number="2" data-spec="alinea"> &amp;gt;&amp;gt; </div>'
+        )
+
+    def test_extract_operand_prefers_exact_match_in_block_over_text_match_in_section(
+        self,
+    ) -> None:
+        html = (
+            '<section data-spec="section" data-number="1">'
+            "<p><b>Nouveau</b> texte cité dans l'article 1.</p></section>"
+            '<section data-spec="section" data-number="2">'
+            "<p>Nouveau texte de l'article 2.</p></section>"
+        )
+
+        operand = extract_operand_with_images(
+            html_block=html,
+            source_article="1",
+            start_marker="<p>Nouveau texte",
+            end_marker="article 2.</p>",
+            img_map={},
+        )
+
+        assert operand == "<p>Nouveau texte de l'article 2.</p>"

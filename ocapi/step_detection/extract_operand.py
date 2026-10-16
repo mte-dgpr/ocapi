@@ -29,7 +29,7 @@ from ocapi.utils.arretify_utils import (
     rehydrate_images,
 )
 from ocapi.utils.logging_utils import get_logger
-from ocapi.utils.utils import find_marker
+from ocapi.utils.utils import find_marker_span
 
 _LOGGER = get_logger(__name__)
 ImageMap = dict[str, str]  # mapping from placeholder src to real src
@@ -129,24 +129,26 @@ def extract_operand_with_images(
     section = pick_arretify_section(html_block, source_article, operation_id)
     op_info = f" for operation {operation_id}" if operation_id else ""
 
-    # Try the section first; fall back to the full HTML block if the marker isn't found there
-    working_html: str = html_block
-    start_idx = -1
-    if section is not None:
-        start_idx = find_marker(section, start_marker)
-        if start_idx != -1:
-            working_html = section
+    # Try the section first, then the full HTML block; an exact match anywhere is
+    # preferred over a text-only match, which is only tried as a last resort.
+    candidates = [html for html in (section, html_block) if html is not None]
+    located = next(
+        (
+            (html, span[0])
+            for text_only in (False, True)
+            for html in candidates
+            if (span := find_marker_span(html, start_marker, text_only=text_only)) is not None
+        ),
+        None,
+    )
+    if located is None:
+        _LOGGER.warning("Start marker not found%s", op_info)
+        return None
+    working_html, start_idx = located
 
-    if start_idx == -1:
-        start_idx = find_marker(html_block, start_marker)
-        working_html = html_block
-        if start_idx == -1:
-            _LOGGER.warning("Start marker not found%s", op_info)
-            return None
-
-    end_idx = find_marker(working_html, end_marker, start=start_idx)
-    if end_idx != -1:
-        html_fragment = working_html[start_idx : end_idx + len(end_marker)]
+    end_span = find_marker_span(working_html, end_marker, start=start_idx)
+    if end_span is not None:
+        html_fragment = working_html[start_idx : end_span[1]]
         return rehydrate_images(html_fragment, img_map)
     _LOGGER.warning("End marker not found%s", op_info)
     return None
