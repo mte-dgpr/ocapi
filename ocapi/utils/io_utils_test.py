@@ -196,6 +196,53 @@ class TestPageSeparatorsDroppedOnRead:
         assert loaded.operand == "<p>Texte suite</p>"
 
 
+class TestBlockquotesDroppedOnRead:
+    """Blockquote tags are unwrapped when loading arrêtés and operations."""
+
+    def test_initialize_arrete_files(self, tmp_path: Path) -> None:
+        _write(
+            tmp_path / "2021-06-15.html",
+            '<html><body data-arretify_version="0.2.0">'
+            '<section data-spec="section">'
+            '<div data-number="1" data-spec="alinea"><blockquote data-tag_id="16">'
+            "<p>Article cité</p><p>Suite</p></div>"
+            "</section>"
+            "</body></html>",
+        )
+
+        (arrete_file,) = initialize_arrete_files([tmp_path / "2021-06-15.html"], aiot="0001")
+
+        assert arrete_file.soup.select("blockquote") == []
+        assert arrete_file.soup.select("p") == []
+        assert [
+            (alinea["data-number"], alinea.get_text())
+            for alinea in arrete_file.soup.select('[data-spec="alinea"]')
+        ] == [("1", "Article cité"), ("2", "Suite")]
+
+    def test_load_document_contexts(self, tmp_path: Path) -> None:
+        _write(
+            tmp_path / "2021-06-15.html",
+            '<html><body data-arretify_version="0.2.0">'
+            '<div data-spec="alinea"><blockquote><p>Article cité</p></blockquote></div>'
+            "</body></html>",
+        )
+
+        ((_arrete_file, document_context),) = load_document_contexts(tmp_path, aiot="0001")
+
+        assert document_context.soup.select("blockquote") == []
+        assert document_context.soup.select("p") == []
+
+    def test_load_operations_strips_legacy_operands(self, tmp_path: Path) -> None:
+        op = make_testing_op(OperationType.REPLACE, operation_id="op1").model_copy(
+            update={"operand": '<blockquote data-tag_id="16"><p>Texte</p></blockquote>'}
+        )
+        save_operations([op], tmp_path)
+
+        (loaded,) = load_operations(tmp_path)
+
+        assert loaded.operand == "<p>Texte</p>"
+
+
 class TestLoadDocumentContexts:
     def test_loads_pairs_with_shared_soup(self, tmp_path: Path) -> None:
         _write(tmp_path / "2021-06-15_ap prescriptions complémentaires_foo.html", _VALID_HTML)

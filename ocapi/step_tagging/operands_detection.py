@@ -95,7 +95,6 @@ def _find_right_operand(
         if is_tag(
             element,
             tag_name_in=[
-                "blockquote",
                 "q",
                 "table",
             ],
@@ -162,7 +161,6 @@ def _find_operand_in_same_alinea(anchor_tag: ProtectedTag) -> ProtectedTag | Non
             if is_tag(
                 protected_element,
                 tag_name_in=[
-                    "blockquote",
                     "q",
                     "table",
                 ],
@@ -186,7 +184,6 @@ def _find_operand_in_next_alinea(start_tag: ProtectedTag) -> ProtectedTag | None
             if is_tag(
                 protected_element,
                 tag_name_in=[
-                    "blockquote",
                     "table",
                 ],
             ):
