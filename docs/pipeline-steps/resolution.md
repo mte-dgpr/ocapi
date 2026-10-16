@@ -98,10 +98,10 @@ Une opération qui échoue n'empêche pas les suivantes d'être appliquées sur
 le **même article** : la nouvelle tentative repart de la dernière version
 valide. En revanche, la version produite porte
 `ErrorCode.PROPAGATED_ERROR` quand elle dépend d'une version précédente
-elle-même en erreur. Exception : les opérations « sans ambiguïté » qui
-remplacent ou suppriment intégralement l'article
-(`_is_unambiguous_all_operation`) écrasent la version courante quoi qu'il
-arrive.
+elle-même en erreur.
+Exceptions :
+- Les opérations sans ambiguïté qui remplacent ou suppriment intégralement l'article (`_is_unambiguous_all_operation`) écrasent la version courante quoi qu'il arrive.
+- L'erreur n'est pas propagée lorsque toutes les versions en erreur en fin d'historique proviennent d'opérations d'arrêtés abrogés (`status=False`, fixé par `build_graph`) : l'opération est appliquée sur le dernier contenu.
 
 ## ErrorCodes possibles
 

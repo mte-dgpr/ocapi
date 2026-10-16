@@ -114,10 +114,14 @@ consolidation LLM est correcte ; si oui, le ticket est juste informatif.
 **Posé par :** `apply_all_ops` quand on tente d'appliquer une opération sur un
 article dont la dernière version porte déjà des `error_codes`.
 
-**Effet :** la nouvelle version sort marquée `propagated_error` (sauf cas
-particulier des opérations non ambiguës `_is_unambiguous_all_operation` :
+**Effet :** la nouvelle version sort marquée `propagated_error`. Sauf cas
+particuliers :
+- Des opérations non ambiguës `_is_unambiguous_all_operation` :
 abrogation totale, remplacement total — ces opérations écrasent l'état même
 en présence d'erreur précédente).
+- Lorsque toutes les versions en erreur en fin d'historique proviennent
+d'arrêtés abrogés (`status=False`) : l'opération est alors appliquée sur le
+dernier contenu.
 
 **Pistes :** corriger l'opération initiale en erreur permettra
 mécaniquement de débloquer la chaîne suivante.
