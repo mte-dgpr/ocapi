@@ -83,6 +83,20 @@ def _is_unambiguous_all_operation(op: Operation) -> bool:
     return op.sub_target is not None and op.sub_target.type == SubTargetType.FULL_SECTION
 
 
+def _previous_errors_come_from_abrogated(
+    versions: list[ArticleVersion], abrogated_op_ids: frozenset[OperationId]
+) -> bool:
+    """Return True when the trailing errored versions all come from abrogated arrêtés."""
+    all_abrog_errors = False
+    for version in reversed(versions):
+        if not version.get("error_codes"):
+            break
+        if version["operation_id"] not in abrogated_op_ids:
+            return False
+        all_abrog_errors = True
+    return all_abrog_errors
+
+
 def _edge_to_operation(
     operations_graph: nx.MultiDiGraph, src: NodeId, tgt: NodeId, key: int
 ) -> Operation:
@@ -344,6 +358,7 @@ def _apply_single_edge(
     *,
     chain_depth: int = 0,
     enable_llm: bool = True,
+    abrogated_op_ids: frozenset[OperationId] = frozenset(),
 ) -> None:
     """Apply one edge and recursively propagate to downstream targets."""
     op_id = None
@@ -384,9 +399,10 @@ def _apply_single_edge(
         raw_src = subG.nodes[src].get("content", "") or ""
         source_html = raw_src if isinstance(raw_src, str) else str(raw_src)
 
-        # Propagate an earlier error unless the operation is unambiguous
-        # (i.e. it replaces/removes the full article and does not rely on
-        # the current — potentially corrupted — content).
+        # Propagate an earlier error unless:
+        # - the operation is unambiguous (i.e. it replaces/removes the full article
+        #   and does not rely on the current — potentially corrupted — content);
+        # - the earlier errors only come from abrogated arrêtés.
         previous_status = (
             history[tgt][-1].get("error_codes") if tgt in history else None
         ) or frozenset()
@@ -394,7 +410,11 @@ def _apply_single_edge(
 
         article_error_codes: frozenset[ErrorCode]
         new_content = current_content
-        if previous_has_error and not _is_unambiguous_all_operation(op):
+        if (
+            previous_has_error
+            and not _is_unambiguous_all_operation(op)
+            and not _previous_errors_come_from_abrogated(history[tgt], abrogated_op_ids)
+        ):
             article_error_codes = frozenset({ErrorCode.PROPAGATED_ERROR})
             _LOGGER.warning(
                 f"Operation {op.id} skipped (propagated_error): "
@@ -490,6 +510,7 @@ def _apply_single_edge(
                 resolved_status,
                 chain_depth=chain_depth + 1,
                 enable_llm=enable_llm,
+                abrogated_op_ids=abrogated_op_ids,
             )
 
     except Exception as e:
@@ -504,7 +525,11 @@ def _apply_single_edge(
 
 
 def apply_subgraph_operations(
-    subG: nx.MultiDiGraph, history: ArticleHistory, *, enable_llm: bool = True
+    subG: nx.MultiDiGraph,
+    history: ArticleHistory,
+    *,
+    enable_llm: bool = True,
+    abrogated_op_ids: frozenset[OperationId] = frozenset(),
 ) -> tuple[ArticleHistory, list[tuple[OperationId, str]], dict[OperationId, frozenset[ErrorCode]]]:
     """Apply sub-graph operations and update the article history.
 
@@ -525,11 +550,16 @@ def apply_subgraph_operations(
     If the latest version of a target article carries any
     ``error_codes`` (e.g. ``ERROR_EXTRACTING_OPERAND`` or ``PROPAGATED_ERROR``),
     the new operation is *not* applied and the new version receives
-    ``error_codes = {PROPAGATED_ERROR}`` — unless the operation is *unambiguous*
+    ``error_codes = {PROPAGATED_ERROR}``, unless:
+    - The operation is *unambiguous*
     (see :func:`_is_unambiguous_all_operation`).  Unambiguous operations
     (REPLACE or REMOVE with ``sub_target.type == FULL_SECTION``) discard the
     existing content entirely, so the previous error is irrelevant and the
     operation is applied normally.
+    - Every errored version at the end
+    of the history comes from an operation listed in ``abrogated_op_ids``
+    (operations defined by an abrogated arrêté): the operation is then applied
+    on the latest content.
 
     Chain propagation
     -----------------
@@ -559,6 +589,7 @@ def apply_subgraph_operations(
                 skipped_ops,
                 resolved_status,
                 enable_llm=enable_llm,
+                abrogated_op_ids=abrogated_op_ids,
             )
 
     return history, skipped_ops, resolved_status
@@ -579,11 +610,18 @@ def apply_all_ops(
     all_skipped_ops: list[tuple[OperationId, str]] = []
     all_resolved_status: dict[OperationId, frozenset[ErrorCode]] = {}
 
+    abrogated_arrete_ids = {arrete_file.id for arrete_file in arrete_list if not arrete_file.status}
+    abrogated_op_ids = frozenset(
+        data["id"]
+        for src, _tgt, data in operations_graph.edges(data=True)
+        if src.arrete_id in abrogated_arrete_ids
+    )
+
     for arrete_file in arrete_list:
         subG = build_next_subgraph(operations_graph, history, arrete_file.id)
         if subG.number_of_edges() > 0:
             history, skipped_ops, resolved_status = apply_subgraph_operations(
-                subG, history, enable_llm=enable_llm
+                subG, history, enable_llm=enable_llm, abrogated_op_ids=abrogated_op_ids
             )
             all_skipped_ops.extend(skipped_ops)
             all_resolved_status.update(resolved_status)
