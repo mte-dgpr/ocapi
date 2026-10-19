@@ -47,7 +47,7 @@ Les opérations en erreur sont conservées mais ne modifient pas l'historique. C
 
 - `ERROR_EXTRACTING_OPERAND` : pas de contenu de remplacement → la version reste inchangée et hérite de l'erreur.
 - `ERROR_FINDING_SUBTARGET` : la sous-cible (paragraphe, phrase) n'a pas été trouvée dans l'article cible.
-- `PROPAGATED_ERROR` : la version précédente était déjà en erreur ; les opérations suivantes héritent du statut sauf bypass `REPLACE`/`REMOVE` sur `FULL_SECTION`.
+- `PROPAGATED_ERROR` : la version précédente était déjà en erreur ; les opérations suivantes héritent du statut sauf bypass `REPLACE`/`REMOVE` sur `FULL_SECTION`, ou si les erreurs précédentes proviennent uniquement d'arrêtés abrogés.
 - `DISABLED_LLM_CALL` : opération `COMPLEX_SUBTARGET` rencontrée alors que `enable_llm=False` (mode snapshot).
 
 Voir [Pipeline / Resolution](pipeline-steps/resolution.md) pour la logique de propagation.

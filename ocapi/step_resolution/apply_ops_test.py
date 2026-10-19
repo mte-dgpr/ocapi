@@ -44,7 +44,7 @@ from ocapi.types import (
     SubTarget,
     SubTargetType,
 )
-from ocapi.utils.testing import make_testing_op
+from ocapi.utils.testing import make_testing_arrete, make_testing_op
 
 
 def test_build_subgraph() -> None:
@@ -791,6 +791,139 @@ def test_remove_all_bypasses_propagation(mock_replace_or_remove: mock.Mock) -> N
     last = output_history[target][-1]
     assert last["content"] == ""
     assert not last.get("error_codes")
+
+
+def _history_with_errored_versions(target: NodeId, errored_op_ids: list[str]) -> ArticleHistory:
+    history: ArticleHistory = {
+        target: [{"version": 0, "title": "", "content": "v0", "operation_id": None}]
+    }
+    for i, op_id in enumerate(errored_op_ids, start=1):
+        history[target].append(
+            {
+                "version": i,
+                "title": "",
+                "content": "v0",
+                "operation_id": op_id,
+                "error_codes": frozenset(
+                    {ErrorCode.ERROR_EXTRACTING_OPERAND if i == 1 else ErrorCode.PROPAGATED_ERROR}
+                ),
+            }
+        )
+    return history
+
+
+@pytest.mark.parametrize(
+    "op_type",
+    [OperationType.ADD, OperationType.REPLACE, OperationType.REMOVE],
+)
+@mock.patch("ocapi.step_resolution.apply_ops.apply_add")
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
+def test_previous_error_from_abrogated_arrete_is_not_propagated(
+    mock_replace_or_remove: mock.Mock, mock_add: mock.Mock, op_type: OperationType
+) -> None:
+    mock_replace_or_remove.return_value = (frozenset(), "applied")
+    mock_add.return_value = (frozenset(), "applied")
+    G = nx.MultiDiGraph()
+    op = make_testing_op(
+        op_type,
+        SubTarget(type=SubTargetType.PHRASE, position=1),
+        operation_id="op-next",
+        source_arrete="2020-12-22",
+        target_arrete="2008-12-10",
+    )
+    add_node(G, op.source_id)
+    add_node(G, op.target_id)
+    add_edge(G, op)
+    history = _history_with_errored_versions(op.target_id, ["op-2009", "op-2012"])
+
+    output_history, skipped, resolved = apply_subgraph_operations(
+        G, history, abrogated_op_ids=frozenset({"op-2009", "op-2012"})
+    )
+
+    assert skipped == []
+    assert mock_replace_or_remove.call_count + mock_add.call_count == 1
+    last = output_history[op.target_id][-1]
+    assert last["content"] == "applied"
+    assert not last.get("error_codes")
+    assert resolved["op-next"] == frozenset()
+
+
+@pytest.mark.parametrize(
+    "op_type",
+    [OperationType.ADD, OperationType.REPLACE, OperationType.REMOVE],
+)
+@mock.patch("ocapi.step_resolution.apply_ops.apply_add")
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
+def test_previous_error_partially_from_abrogated_arrete_is_propagated(
+    mock_replace_or_remove: mock.Mock, mock_add: mock.Mock, op_type: OperationType
+) -> None:
+    G = nx.MultiDiGraph()
+    op = make_testing_op(
+        op_type,
+        SubTarget(type=SubTargetType.PHRASE, position=1),
+        operation_id="op-next",
+        source_arrete="2020-12-22",
+        target_arrete="2008-12-10",
+    )
+    add_node(G, op.source_id)
+    add_node(G, op.target_id)
+    add_edge(G, op)
+    history = _history_with_errored_versions(op.target_id, ["op-2009", "op-2012"])
+
+    output_history, skipped, _resolved = apply_subgraph_operations(
+        G, history, abrogated_op_ids=frozenset({"op-2012"})
+    )
+
+    assert skipped == []
+    mock_replace_or_remove.assert_not_called()
+    mock_add.assert_not_called()
+    assert output_history[op.target_id][-1]["error_codes"] == frozenset(
+        {ErrorCode.PROPAGATED_ERROR}
+    )
+
+
+@mock.patch("ocapi.step_resolution.apply_ops.apply_replace_or_remove")
+def test_apply_all_ops_ignores_errors_from_abrogated_arretes(
+    mock_replace_or_remove: mock.Mock,
+) -> None:
+    mock_replace_or_remove.return_value = (frozenset(), "applied")
+    G = nx.MultiDiGraph()
+    ops = [
+        make_testing_op(
+            OperationType.REPLACE,
+            SubTarget(type=SubTargetType.PHRASE, position=1),
+            operation_id=f"op-{year}",
+            source_arrete=f"{year}-01-01",
+            target_arrete="2008-01-01",
+            error_codes=error_codes,
+        )
+        for year, error_codes in [
+            ("2009", frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND})),
+            ("2012", frozenset()),
+            ("2020", frozenset()),
+        ]
+    ]
+    for op in ops:
+        add_node(G, op.source_id)
+        add_node(G, op.target_id)
+        add_edge(G, op)
+    arrete_list = [
+        make_testing_arrete("2008-01-01"),
+        make_testing_arrete("2009-01-01", status=False),
+        make_testing_arrete("2012-01-01", status=False),
+        make_testing_arrete("2020-01-01"),
+    ]
+
+    history, skipped, resolved = apply_all_ops(G, arrete_list)
+
+    assert skipped == []
+    assert resolved == {
+        "op-2009": frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
+        "op-2012": frozenset(),
+        "op-2020": frozenset(),
+    }
+    assert mock_replace_or_remove.call_count == 2
+    assert history[NodeId(arrete_id="2008-01-01", article_id="1")][-1]["content"] == "applied"
 
 
 def test_apply_add_full_section_new_article_returns_inner_content() -> None:
