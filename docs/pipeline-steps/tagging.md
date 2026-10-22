@@ -65,7 +65,11 @@ flowchart LR
 3. Pour chaque `<span>` `OperationSpec` produit, appelle
    [`resolve_references_and_operands`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/step_tagging/operands_detection.py)
    qui rattache la cible (références d'arrêtés / d'articles) et l'operand
-   (texte de remplacement / d'insertion) à l'opération.
+   (texte de remplacement / d'insertion) à l'opération. Seuls une citation
+   en ligne (`<q>`) ou un tableau (`<table>`) peuvent servir d'operand : les
+   blockquotes n'existent plus à ce stade (voir
+   [Architecture](../architecture.md#blockquotes-convertis-en-alineas-a-la-lecture)),
+   les remplacements d'articles entiers sont donc laissés à la détection LLM.
 
 Le filtrage par présence de référence évite la majorité des faux positifs
 (« la modification du débit dépasse… » ne déclenche pas de tag).
@@ -102,6 +106,8 @@ juste après. La CLI écrit ensuite l'HTML annoté dans
 > (`<a data-spec="page_separator">`) du HTML d'origine : ils sont retirés dès la
 > lecture des arrêtés, avant le tagging (voir
 > [Architecture](../architecture.md#separateurs-de-page-retires-a-la-lecture)).
+> Les blockquotes sont eux aussi convertis en alinéas numérotés à la lecture
+> (voir [Architecture](../architecture.md#blockquotes-convertis-en-alineas-a-la-lecture)).
 > Le reste du HTML Arrêtify, y compris les `page_header` / `page_footer`, est
 > conservé.
 

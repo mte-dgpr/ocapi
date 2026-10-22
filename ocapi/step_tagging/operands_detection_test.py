@@ -886,7 +886,62 @@ class TestParseOperations(BaseTestCaseHtml):
                 self.make_semantic_tag(
                     AlineaSpec,
                     data=AlineaData(number=3),
-                    contents=[self.make_tag("blockquote", contents=["Trop loin."])],
+                    contents=[self.make_tag("table", contents=[self.make_tag("tr")])],
+                ),
+            ]
+        )
+        operation_tag = self.soup.select(css_selector(OperationSpec))[0]
+
+        resolve_references_and_operands(self.context, operation_tag)
+
+        data = operation_tag.attrs
+        assert data.get("data-references") == "1"
+        assert data.get("data-operand") is None
+
+    def test_rtl_does_not_pick_blockquote_as_operand(self) -> None:
+        self.soup_extend(
+            [
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=1),
+                    contents=[
+                        "L' ",
+                        self.make_semantic_tag(
+                            SectionReferenceSpec,
+                            data=SectionReferenceData(parent_reference="10"),
+                            contents=["article 1.2.1"],
+                        ),
+                        " de l' ",
+                        self.make_semantic_tag(
+                            DocumentReferenceSpec,
+                            data=DocumentReferenceData(
+                                type=DocumentType.arrete_prefectoral,
+                                date="2012-02-21",
+                            ),
+                            contents=["arrêté préfectoral du 21 février 2012"],
+                            reserved_data_attrs=dict(tag_id="10"),
+                        ),
+                        self.make_semantic_tag(
+                            OperationSpec,
+                            data=OperationData(
+                                direction="rtl",
+                                keyword="remplacé",
+                                operation_type="REPLACE",
+                                has_operand="true",
+                            ),
+                            contents=[
+                                "est ",
+                                self.make_tag("b", contents=["remplacé"]),
+                                " par l'article suivant :",
+                            ],
+                        ),
+                        self.make_tag("blockquote", contents=["Même alinéa."]),
+                    ],
+                ),
+                self.make_semantic_tag(
+                    AlineaSpec,
+                    data=AlineaData(number=2),
+                    contents=[self.make_tag("blockquote", contents=["Alinéa suivant."])],
                 ),
             ]
         )

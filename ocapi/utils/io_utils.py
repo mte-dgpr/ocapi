@@ -42,6 +42,8 @@ from ocapi.types import (
 from ocapi.utils.arretify_utils import (
     ARRETIFY_APPENDIX_DATA_SPEC,
     ARRETIFY_APPENDIX_DATA_TAG,
+    blockquotes_to_alineas,
+    strip_blockquotes,
     strip_page_separators,
 )
 from ocapi.utils.logging_utils import get_logger
@@ -301,15 +303,21 @@ def _initialize_arrete_file(html_path: Path, soup: BeautifulSoup, aiot: str) -> 
     return arrete
 
 
-def _read_arrete_html(html_path: Path) -> str:
-    """Read an Arrêtify HTML file, without its page separators.
+def _read_arrete_html(html_path: Path) -> BeautifulSoup:
+    """Read and parse an Arrêtify HTML file, without its page separators nor blockquotes.
 
     Page separators mark page breaks of the source PDF. Once articles from
     several arrêtés are mixed by the consolidation they no longer match any
     real page, so they are dropped.
+
+    Blockquotes are frequently left unclosed (quotes never closed by the
+    author, or misread by the OCR) and then swallow the rest of the article,
+    so their contents are turned back into numbered alineas.
     """
     with open(html_path, encoding="utf-8") as f:
-        return strip_page_separators(f.read())
+        soup = BeautifulSoup(strip_page_separators(f.read()), features="html.parser")
+    blockquotes_to_alineas(soup)
+    return soup
 
 
 def initialize_arrete_files(html_files: list[Path], aiot: str) -> list["ArreteFile"]:
@@ -317,8 +325,7 @@ def initialize_arrete_files(html_files: list[Path], aiot: str) -> list["ArreteFi
     arrete_files: list[ArreteFile] = []
 
     for html_path in html_files:
-        html_content = _read_arrete_html(html_path)
-        soup = BeautifulSoup(html_content, "html.parser")
+        soup = _read_arrete_html(html_path)
         arrete = _initialize_arrete_file(html_path, soup, aiot)
         if arrete is not None:
             arrete_files.append(arrete)
@@ -362,8 +369,7 @@ def _make_session_context() -> SessionContext:
 def _load_document_context(session_context: SessionContext, input_path: Path) -> DocumentContext:
     # Equivalent to ``arretify.pipeline.load_html_file``, inlined to avoid pulling
     # ``arretify.step_segmentation`` (and its spaCy model) at import time.
-    html_content = _read_arrete_html(input_path)
-    soup = BeautifulSoup(html_content, features="html.parser")
+    soup = _read_arrete_html(input_path)
     return DocumentContext.from_session_context(
         session_context,
         input_path=input_path,
@@ -514,9 +520,10 @@ def load_operations(input_dir: Path) -> list[Operation]:
                 # operations.json files).
                 item.pop("error_codes", None)
                 item.pop("status_code", None)
-                # Drop transient/legacy page separators from older operations.json files.
+                # Drop transient/legacy page separators and blockquotes from older
+                # operations.json files.
                 if isinstance(item.get("operand"), str):
-                    item["operand"] = strip_page_separators(item["operand"])
+                    item["operand"] = strip_blockquotes(strip_page_separators(item["operand"]))
             operations.append(Operation.model_validate(item))
         return operations
     except (json.JSONDecodeError, ValueError) as e:

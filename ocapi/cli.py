@@ -436,7 +436,7 @@ Examples:
 
     generate_fixtures_parser = subparsers.add_parser(
         "generate-snapshot-fixtures",
-        help="Generate operations.json for all 4 ICPEs (full pipeline with LLM)",
+        help="Generate operations.json for all snapshot ICPEs (full pipeline with LLM)",
         description="Run full pipeline on each ICPE to create operations.json.",
     )
     generate_fixtures_parser.set_defaults(func=cmd_generate_snapshot_fixtures)

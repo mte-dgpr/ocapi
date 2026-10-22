@@ -43,6 +43,35 @@ Aucune étape du pipeline (tagging, détection, résolution, rendu) ne voit donc
 de séparateur de page. Les en-têtes et pieds de page (`page_header`,
 `page_footer`) sont conservés et masqués en CSS par le template du permis.
 
+### Blockquotes convertis en alinéas à la lecture
+
+Arrêtify met les citations (« … ») dans un `<blockquote>` dont tout le contenu
+est en `<p>`, alors que le reste de l'arrêté est découpé en alinéas numérotés.
+Ces blockquotes ne sont pas fiables : une citation ouverte et jamais fermée
+(l'auteur considère qu'elle s'arrête à l'article suivant) ou des guillemets mal
+reconnus par l'OCR font qu'un blockquote englobe le reste de l'article, voire
+les articles suivants.
+
+À la lecture des arrêtés, juste après le retrait des séparateurs de page,
+`blockquotes_to_alineas`
+([`ocapi/utils/arretify_utils.py`](https://github.com/mte-dgpr/ocapi/blob/main/ocapi/utils/arretify_utils.py))
+retire donc les blockquotes :
+
+- chaque `<p>`, `<table>` ou `<ul>` du blockquote devient un alinéa, numéroté à
+  la suite de l'alinéa qui contenait le blockquote ; les alinéas suivants sont
+  renumérotés ;
+- un alinéa qui commence par une référence d'article (`section_reference` de
+  type `article`) poursuivant la numérotation de la section courante (par
+  exemple « Article 3 » dans l'article 2) ouvre une nouvelle section : c'est un
+  article englobé par une citation non fermée. Les références qui ne
+  poursuivent pas la numérotation (« Article 1.2.1 » cité dans l'article 2)
+  restent des alinéas ;
+- un blockquote hors alinéa (par exemple dans une cellule de tableau) est
+  simplement retiré.
+
+Les balises `<blockquote>` des opérandes des `operations.json` préchargés sont
+retirées par `load_operations`, comme les séparateurs de page.
+
 ## Étapes
 
 | Étape | Module | Entrée | Sortie | LLM |
