@@ -356,7 +356,7 @@ def _build_section_history_html(
                 "La prise en compte de la modification prévue par les dispositions de "
                 f"l'article {source_article} de l'arrêté {last_operation.source_id.arrete_id} "
                 "n'a pas été jusqu'au bout de l'opération. Après vérification, vous pouvez "
-                "copier-coller les dispositions de l'article "
+                "intégrer manuellement les dispositions de l'article "
                 f"{source_article} de l'arrêté {last_operation.source_id.arrete_id} ci-après."
             )
         else:
@@ -370,13 +370,18 @@ def _build_section_history_html(
         source_article = article_display_number(last_operation.source_id.article_id)
         if last_operation.operation_type == OperationType.REPLACE:
             last_text = (
-                "Les dispositions de cet article ont été remplacées par celles prévues à "
-                f"l'article {source_article} de l'arrêté {last_operation.source_id.arrete_id}"
+                "Les dispositions de cet article ont été automatiquement remplacées par "
+                f"celles prévues à l'article {source_article} de l'arrêté "
+                f"{last_operation.source_id.arrete_id}. "
+                "Vérifiez l'exactitude des dispositions modifiées avant d'effacer "
+                "l'article modificatif."
             )
         elif last_operation.operation_type == OperationType.ADD:
             last_text = (
-                f"Cet article ajouté provient de l'article {source_article} de l'arrêté "
-                f"{last_operation.source_id.arrete_id}"
+                f"Cet article a été automatiquement ajouté à partir de l'article "
+                f"{source_article} de l'arrêté {last_operation.source_id.arrete_id}. "
+                "Vérifiez l'exactitude des dispositions ajoutées avant d'effacer "
+                "l'article modificatif."
             )
         elif is_full_section_removal(last_operation):
             last_text = (
@@ -409,7 +414,7 @@ def _build_section_history_html(
                     "La prise en compte de la modification prévue par les dispositions de "
                     f"l'article {source_article} de l'arrêté {operation.source_id.arrete_id} "
                     "n'a pas été jusqu'au bout de l'opération. Après vérification, vous pouvez "
-                    "copier-coller les dispositions de l'article "
+                    "intégrer manuellement les dispositions de l'article "
                     f"{source_article} de l'arrêté {operation.source_id.arrete_id} ci-après."
                 )
             else:

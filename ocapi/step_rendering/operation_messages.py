@@ -109,14 +109,16 @@ def build_source_operation_messages(
             if not error_codes and modifying_arrete:
                 if op.operation_type == OperationType.REPLACE:
                     msg = (
-                        "Les dispositions de cet article ont bien été intégrées au permis "
-                        f"consolidé en remplacement de celles prévues à {target}. "
-                        "Vous pouvez l'effacer après vérification."
+                        "Les dispositions de cet article ont bien été automatiquement intégrées "
+                        f"au permis consolidé en remplacement de celles prévues à {target}. "
+                        "Vérifiez l'exactitude des dispositions modifiées avant d'effacer "
+                        "cet article."
                     )
                 elif op.operation_type == OperationType.ADD:
                     msg = (
-                        f"L'article suivant a été ajouté dans {target}. "
-                        "Vous pouvez l'effacer après vérification."
+                        f"L'article suivant a été automatiquement ajouté dans {target}. "
+                        "Vérifiez l'exactitude des dispositions ajoutées avant d'effacer "
+                        "l'article modificatif."
                     )
                 elif is_full_section_removal(op):
                     msg = (
@@ -130,18 +132,40 @@ def build_source_operation_messages(
                 msg = (
                     "La prise en compte de la modification prévue dans ce présent article "
                     f"pour {target} n'a pas été jusqu'au bout de l'opération. "
-                    "Après vérification, vous pouvez copier-coller les dispositions de cet "
+                    "Après vérification, vous pouvez intégrer manuellement les dispositions de cet "
                     f"article vers l'article {source_article} de l'arrêté "
                     f"{op.source_id.arrete_id} et effacer le présent article."
                 )
             elif error_codes and modifying_arrete and op.operation_type == OperationType.ADD:
+                target_arrete_id = op.target_id.arrete_id
                 msg = (
                     f"L'ajout de cet article dans {target} n'a pas fonctionné. "
-                    f"Vous pouvez vérifier si {target} est intégré dans la sélection des "
-                    "arrêtés intégrés au permis consolidé. "
-                    "Vous pouvez l'effacer après vérification ou regénérer un nouveau permis "
-                    "avec tous les arrêtés nécessaires ( <!> risque de perte d'information "
-                    "sur le permis actuel )"
+                    f"Vous pouvez vérifier si l'arrêté {target_arrete_id} est intégré dans la "
+                    "sélection des arrêtés intégrés au permis consolidé. "
+                    f"Si l'arrêté était présent, vous pouvez intégrer manuellement les "
+                    f"dispositions de cet article dans l'arrêté {target_arrete_id} et "
+                    "l'effacer après vérification. "
+                    "Si l'arrêté était manquant, vous pouvez (si nécessaire) regénérer un "
+                    "nouveau permis avec tous les arrêtés nécessaires (<!> risque de perte "
+                    "d'information sur le permis actuel)."
+                )
+            elif (
+                error_codes
+                and modifying_arrete
+                and op.operation_type == OperationType.REMOVE
+                and ErrorCode.MISSING_ARRETE in error_codes
+            ):
+                target_arrete_id = op.target_id.arrete_id
+                msg = (
+                    f"La suppression prévue par cet article dans {target} n'a pas fonctionné. "
+                    f"Vous pouvez vérifier si l'arrêté {target_arrete_id} est intégré dans la "
+                    "sélection des arrêtés intégrés au permis consolidé. "
+                    f"Si l'arrêté était présent, vous pouvez supprimer manuellement les "
+                    f"dispositions de cet article dans l'arrêté {target_arrete_id} et "
+                    "l'effacer après vérification. "
+                    "Si l'arrêté était manquant, vous pouvez (si nécessaire) regénérer un "
+                    "nouveau permis avec tous les arrêtés nécessaires (<!> risque de perte "
+                    "d'information sur le permis actuel)."
                 )
             elif error_codes:
                 reason = error_codes_reason(error_codes) or "opération non résolue"

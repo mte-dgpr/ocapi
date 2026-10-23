@@ -129,20 +129,26 @@ faite par `validate_arretify_version` à partir de l'attribut
 "2021-09-24#1.2.1": [
   {
     "version": 0,
-    "title": "<h4 data-level=\"2\" data-spec=\"section_title\">Article 1.2.1. ...</h4>",
     "content": "<div data-number=\"1\" data-spec=\"alinea\">Les installations exploitées ...</div>",
-    "operation_id": null
+    "operation_id": null,
+    "title": "<h4 data-level=\"2\" data-spec=\"section_title\">Article 1.2.1. ...</h4>"
   },
   {
     "version": 1,
-    "title": "<h4 data-level=\"2\" ...>Article 1.2.1. ...</h4>",
     "content": "<p>Les installations exploitées ... </p><table>...</table>",
-    "operation_id": "7"
+    "operation_id": "7",
+    "title": "<h4 data-level=\"2\" ...>Article 1.2.1. ...</h4>"
   }
 ]
 ```
 
 ### Champs
+
+Les propriétés de chaque version sont écrites dans un ordre fixe :
+`version`, `content`, `operation_id`, `title`, puis `error_codes` si présent.
+Les champs absents sont omis sans modifier l'ordre des autres propriétés.
+Les writers conservent cet ordre sans tri alphabétique global ; le classement
+existant des articles reste géré séparément par le sérialiseur.
 
 | Champ | Type | Description |
 |---|---|---|
@@ -193,7 +199,8 @@ Structure logique :
 
 Les snapshots tests comparent :
 
-- `operations.json` et `history.json` après normalisation : tri des clés,
+- `operations.json` et `history.json` après normalisation : comparaison des objets
+  JSON indépendamment de l'ordre des clés,
   `strip_none_values` (suppression des `null` non-significatifs), `error_codes`
   vide retiré.
 - `permis.html` après `normalize_html`

@@ -23,6 +23,40 @@ from ocapi.cli import main, run_main
 from ocapi.utils.testing import make_testing_arrete
 
 
+@patch("ocapi.cli.permis_to_html")
+@patch("ocapi.cli.run_pipeline")
+@patch("ocapi.cli.load_operations", return_value=[])
+@patch("ocapi.cli.load_document_contexts")
+def test_update_snapshots_normalizes_html(
+    mock_load: MagicMock,
+    mock_operations: MagicMock,
+    mock_pipeline: MagicMock,
+    mock_permis_html: MagicMock,
+    tmp_path: Path,
+) -> None:
+    arretes_dir = tmp_path / "arretes_html" / "0001"
+    consolidation_dir = tmp_path / "arretes_consolidation" / "0001"
+    arretes_dir.mkdir(parents=True)
+    consolidation_dir.mkdir(parents=True)
+    arrete = make_testing_arrete("2020-01-01")
+    document_context = MagicMock()
+    raw_html = "\n<html>  \n <p>Content</p> \t\n   \n</html>\n\n"
+    document_context.soup.prettify.return_value = raw_html
+    mock_load.return_value = [(arrete, document_context)]
+    mock_pipeline.return_value = ([], {}, [arrete], MagicMock())
+    mock_permis_html.return_value = raw_html
+
+    with patch("ocapi.cli.SNAPSHOT_CASES", [(arretes_dir, consolidation_dir)]):
+        assert main(["update-snapshots"]) == 0
+
+    expected = "<html>\n <p>Content</p>\n\n</html>\n"
+    for path in (
+        consolidation_dir / "permis.html",
+        tmp_path / "arretes_tagged" / "0001" / arrete.filename,
+    ):
+        assert path.read_bytes() == expected.encode("utf-8")
+
+
 @patch("ocapi.cli.initialize_root_logger")
 @patch("ocapi.cli.run_main", return_value=0)
 def test_cli_operations_from_is_forwarded(

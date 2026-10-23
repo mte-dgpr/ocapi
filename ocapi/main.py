@@ -189,7 +189,7 @@ def main(
 
         # Save history
         history_path = consolidation_dir / "history.json"
-        write_json_output(article_history_to_json_dict(history), history_path, sort_keys=True)
+        write_json_output(article_history_to_json_dict(history), history_path)
         _LOGGER.info(f"History saved → {history_path}")
 
         # Save permit if generated

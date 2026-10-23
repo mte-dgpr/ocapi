@@ -125,7 +125,8 @@ def test_make_permit_other_includes_modifying_with_resolved_ops_only() -> None:
     assert "ID MOD RESOLVED" in html
     assert "TITLE MOD RESOLVED" in html
     assert (
-        "Les dispositions de cet article ont bien été intégrées au permis consolidé en "
+        "Les dispositions de cet article ont bien été automatiquement intégrées au permis "
+        "consolidé en "
         "remplacement de celles prévues à l'article 3 de l'arrêté 2020-01-01."
     ) in html
 
@@ -257,9 +258,10 @@ def test_make_permit_other_skips_abrogated_modifying_arrete() -> None:
             OperationType.REPLACE,
             frozenset(),
             None,
-            "Les dispositions de cet article ont bien été intégrées au permis consolidé en "
-            "remplacement de celles prévues à l'article 8.1.1 de l'arrêté 2012-02-21. "
-            "Vous pouvez l'effacer après vérification.",
+            "Les dispositions de cet article ont bien été automatiquement intégrées au permis "
+            "consolidé en remplacement de celles prévues à l'article 8.1.1 de l'arrêté "
+            "2012-02-21. "
+            "Vérifiez l'exactitude des dispositions modifiées avant d'effacer cet article.",
         ),
         (
             OperationType.REPLACE,
@@ -267,25 +269,29 @@ def test_make_permit_other_skips_abrogated_modifying_arrete() -> None:
             None,
             "La prise en compte de la modification prévue dans ce présent article pour "
             "l'article 8.1.1 de l'arrêté 2012-02-21 n'a pas été jusqu'au bout de l'opération. "
-            "Après vérification, vous pouvez copier-coller les dispositions de cet article "
+            "Après vérification, vous pouvez intégrer manuellement les dispositions de cet "
+            "article "
             "vers l'article 2 de l'arrêté 2022-01-01 et effacer le présent article.",
         ),
         (
             OperationType.ADD,
             frozenset(),
             None,
-            "L'article suivant a été ajouté dans l'article 8.1.1 de l'arrêté 2012-02-21. "
-            "Vous pouvez l'effacer après vérification.",
+            "L'article suivant a été automatiquement ajouté dans l'article 8.1.1 de l'arrêté "
+            "2012-02-21. Vérifiez l'exactitude des dispositions ajoutées avant d'effacer "
+            "l'article modificatif.",
         ),
         (
             OperationType.ADD,
             frozenset({ErrorCode.ERROR_EXTRACTING_OPERAND}),
             None,
             "L'ajout de cet article dans l'article 8.1.1 de l'arrêté 2012-02-21 n'a pas "
-            "fonctionné. Vous pouvez vérifier si l'article 8.1.1 de l'arrêté 2012-02-21 est "
-            "intégré dans la sélection des arrêtés intégrés au permis consolidé. Vous pouvez "
-            "l'effacer après vérification ou regénérer un nouveau permis avec tous les arrêtés "
-            "nécessaires ( <!> risque de perte d'information sur le permis actuel )",
+            "fonctionné. Vous pouvez vérifier si l'arrêté 2012-02-21 est intégré dans la "
+            "sélection des arrêtés intégrés au permis consolidé. Si l'arrêté était présent, "
+            "vous pouvez intégrer manuellement les dispositions de cet article dans l'arrêté "
+            "2012-02-21 et l'effacer après vérification. Si l'arrêté était manquant, vous "
+            "pouvez (si nécessaire) regénérer un nouveau permis avec tous les arrêtés "
+            "nécessaires (<!> risque de perte d'information sur le permis actuel).",
         ),
         (
             OperationType.REMOVE,
@@ -301,6 +307,18 @@ def test_make_permit_other_skips_abrogated_modifying_arrete() -> None:
             "Opération de consolidation non résolue (abrogation) dans l'article 8.1.1 de "
             "l'arrêté 2012-02-21 (raison\u00a0: Le contenu de l'opération n'a pas pu être extrait "
             "de l'arrêté modificatif)",
+        ),
+        (
+            OperationType.REMOVE,
+            frozenset({ErrorCode.MISSING_ARRETE}),
+            None,
+            "La suppression prévue par cet article dans l'article 8.1.1 de l'arrêté "
+            "2012-02-21 n'a pas fonctionné. Vous pouvez vérifier si l'arrêté 2012-02-21 est "
+            "intégré dans la sélection des arrêtés intégrés au permis consolidé. Si l'arrêté "
+            "était présent, vous pouvez supprimer manuellement les dispositions de cet article "
+            "dans l'arrêté 2012-02-21 et l'effacer après vérification. Si l'arrêté était "
+            "manquant, vous pouvez (si nécessaire) regénérer un nouveau permis avec tous les "
+            "arrêtés nécessaires (<!> risque de perte d'information sur le permis actuel).",
         ),
         (
             OperationType.REMOVE,

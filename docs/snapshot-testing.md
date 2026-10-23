@@ -135,10 +135,13 @@ UPDATE_SNAPSHOTS=1 pytest -m snapshot -v
 Effets :
 
 - chaque fichier attendu (`operations.json`, `history.json`, `permis.html`)
-  est réécrit avec la sortie courante (JSON sérialisé `indent=2 sort_keys=True`,
-  HTML normalisé) ;
+  est réécrit avec la sortie courante (JSON sérialisé avec `indent=2`,
+  clés triées pour `operations.json`, ordre fixe des propriétés pour `history.json`) ;
 - chaque HTML de `snapshots/arretes_tagged/<AIOT>/` est aussi réécrit avec
    la sortie courante de `step_tagging` ;
+- les HTML consolidés et taggés sont normalisés de la même façon par les deux
+  méthodes : suppression des espaces en fin de ligne et un seul saut de ligne
+  final, pour éviter les modifications par les hooks de formatage pre-commit ;
 - le test est marqué `skipped` (« Snapshots updated. Run without
   `UPDATE_SNAPSHOTS=1` to verify. ») — relancer sans la variable pour
   confirmer.

@@ -556,7 +556,7 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
         "de l'arrêté 2021-01-01 n'a pas été jusqu'au bout de l'opération."
     ) in rendered
     assert (
-        "copier-coller les dispositions de l'article 2 de l'arrêté 2021-01-01 ci-après."
+        "intégrer manuellement les dispositions de l'article 2 de l'arrêté " "2021-01-01 ci-après."
     ) in rendered
 
 
@@ -566,13 +566,16 @@ def test_make_section_version_displays_unresolved_operation_message() -> None:
         (
             OperationType.REPLACE,
             None,
-            "Les dispositions de cet article ont été remplacées par celles prévues à l'article "
-            "2 de l'arrêté 2021-01-01",
+            "Les dispositions de cet article ont été automatiquement remplacées par celles "
+            "prévues à l'article 2 de l'arrêté 2021-01-01. Vérifiez l'exactitude des "
+            "dispositions modifiées avant d'effacer l'article modificatif.",
         ),
         (
             OperationType.ADD,
             None,
-            "Cet article ajouté provient de l'article 2 de l'arrêté 2021-01-01",
+            "Cet article a été automatiquement ajouté à partir de l'article 2 de l'arrêté "
+            "2021-01-01. Vérifiez l'exactitude des dispositions ajoutées avant d'effacer "
+            "l'article modificatif.",
         ),
         (
             OperationType.REMOVE,

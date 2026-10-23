@@ -66,6 +66,16 @@ pre-commit run --all-files
 
 Une fois `pre-commit install` exécuté (cf. [Installation](installation.md)), chaque commit déclenche : `check-merge-conflict`, `end-of-file-fixer`, `trailing-whitespace`, `check-yaml --unsafe`, `check-json`, `licenseheaders`, `black`, `isort`, `autoflake`, `flake8`, `mypy`, `pytest`.
 
+Pour exécuter les mêmes hooks sur les fichiers indexés, sans créer de commit :
+
+```bash
+make pre-commit
+```
+
+Le virtualenv doit être activé, ou son interpréteur indiqué avec
+`make pre-commit PYTHON=venv/bin/python`.
+Pour vérifier tous les fichiers, utiliser `pre-commit run --all-files`.
+
 `mypy` et `pytest` allongent le commit (~30–60 s). Ne pas désactiver les hooks (`--no-verify`) sans raison explicite.
 
 ## CI
