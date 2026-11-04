@@ -23,7 +23,7 @@ Usage (from repo root):
   python scripts/evaluate_detection.py --model openai_gpt5mini
   python scripts/evaluate_detection.py --model mistral_medium --aiot 0003013459
   python scripts/evaluate_detection.py --model mistral_medium --save-ops --save-score
-  python scripts/evaluate_detection.py --score-only eval/2026-06-05_10-00_eval_mistral_medium
+  python scripts/evaluate_detection.py --score-only eval/2026-06-05_10-00_UTC_eval_mistral_medium
 """
 from __future__ import annotations
 
@@ -86,6 +86,7 @@ _COST_PER_1M_TOKENS: dict[str, tuple[float, float]] = {
     "mistral_medium-3-1": (0.40, 2.00),
     "mistral_medium-3-5": (1.50, 7.50),
     "mistral_small-4": (0.15, 0.6),
+    "mistral_large-4": (0.70, 2.10),
     "piag_mistral_medium-2508": (2.00, 6.00),
     "anthropic_opus-4-8": (5.00, 25.00),
     "anthropic_sonnet_5": (2.00, 10.00),
@@ -412,8 +413,8 @@ def _log_and_accumulate(
 
 
 def _make_eval_subdir(model_key: str, ts: datetime) -> Path:
-    """Return (and create) eval/<yyyy-mm-dd_hh-mm>_eval_<model> under the project root."""
-    ts_str = ts.strftime("%Y-%m-%d_%H-%M")
+    """Return (and create) eval/<yyyy-mm-dd_hh-mm>_UTC_eval_<model> under the project root."""
+    ts_str = ts.strftime("%Y-%m-%d_%H-%M_UTC")
     safe_model = model_key.replace("/", "-").replace(":", "-")
     folder_name = f"{ts_str}_eval_{safe_model}"
     eval_subdir = _PROJECT_ROOT / "eval" / folder_name
@@ -529,7 +530,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--save-ops",
         action="store_true",
-        help=("Save detected operations as JSON in eval/<date>_eval_<model>/ after each LLM run."),
+        help=(
+            "Save detected operations as JSON in eval/<date>_UTC_eval_<model>/ after each LLM run."
+        ),
     )
     parser.add_argument(
         "--score-only",
@@ -544,7 +547,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--save-score",
         action="store_true",
-        help="Export results to XLSX in eval/<date>_eval_<model>/scores.xlsx.",
+        help="Export results to XLSX in eval/<date>_UTC_eval_<model>/scores.xlsx.",
     )
     parser.add_argument(
         "--no-tagging",

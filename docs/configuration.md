@@ -122,6 +122,9 @@ s'applique. L'état effectif est affiché au démarrage : `LLM model: <id> (reas
 
 - `fallback_enabled` — bascule sur `secondary_model_key` après épuisement des
   retries du primaire.
+- `timeout_seconds` — surchargeable sans toucher au JSON via la variable
+  d'environnement `LLM_TIMEOUT_SECONDS` (entier ≥ 1 ; une valeur invalide est
+  ignorée avec un warning).
 - `retry.*` — exponential backoff borné par `max_delay_ms`, jitter optionnel.
 - `confidence_score.action_below_threshold` — `"pass"` (skip immédiat) ou
   `"retry"` (un nouvel appel LLM pour le bloc, puis skip si toujours bas).

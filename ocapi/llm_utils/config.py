@@ -139,7 +139,24 @@ def _load_llm_models_config() -> dict[str, Any]:
 
 
 def _load_llm_resilience_config() -> dict[str, Any]:
-    return _read_json_config(_RESILIENCE_CONFIG_PATH, _DEFAULT_LLM_RESILIENCE_CONFIG)
+    cfg = dict(_read_json_config(_RESILIENCE_CONFIG_PATH, _DEFAULT_LLM_RESILIENCE_CONFIG))
+
+    env_timeout = os.environ.get("LLM_TIMEOUT_SECONDS", "").strip()
+    if env_timeout:
+        try:
+            timeout = int(env_timeout)
+        except ValueError:
+            timeout = 0
+        if timeout >= 1:
+            cfg["timeout_seconds"] = timeout
+        else:
+            _LOGGER.warning(
+                "LLM_TIMEOUT_SECONDS=%r is not a positive integer; keeping %r.",
+                env_timeout,
+                cfg.get("timeout_seconds"),
+            )
+
+    return cfg
 
 
 def _load_llm_rate_limit_config() -> dict[str, Any]:

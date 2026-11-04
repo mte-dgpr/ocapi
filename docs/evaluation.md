@@ -30,13 +30,13 @@ flowchart LR
   models[config/llm_models.json] --> det[step_detection]
   html[snapshots/arretes_html/AIOT] --> det
   det --> dops[Detected ops]
-  det --> opsfile["eval/&lt;date&gt;_eval_&lt;model&gt;/AIOT/operations.json\n(--save-ops)"]
+  det --> opsfile["eval/&lt;date&gt;_UTC_eval_&lt;model&gt;/AIOT/operations.json\n(--save-ops)"]
   gt[snapshots/ground-truth/AIOT/operations.json] --> cmp[compare_operations]
   dops --> cmp
   cmp --> tp[(TP/FP/FN)]
   tp --> scores[precision / recall / F1]
   scores --> stdout[Console]
-  scores --> xlsx["eval/&lt;date&gt;_eval_&lt;model&gt;/scores.xlsx\n(--save-score)"]
+  scores --> xlsx["eval/&lt;date&gt;_UTC_eval_&lt;model&gt;/scores.xlsx\n(--save-score)"]
 ```
 
 ## Utilisation
@@ -58,10 +58,10 @@ python scripts/evaluate_detection.py --model openai_gpt5nano \
 # Mode verbose (DEBUG)
 python scripts/evaluate_detection.py --model mistral_medium -v
 
-# Détection + sauvegarde des opérations détectées (JSON) dans eval/<date>_eval_<model>/
+# Détection + sauvegarde des opérations détectées (JSON) dans eval/<date>_UTC_eval_<model>/
 python scripts/evaluate_detection.py --model openai_gpt5mini --save-ops
 
-# Détection + export XLSX dans eval/<date>_eval_<model>/scores.xlsx
+# Détection + export XLSX dans eval/<date>_UTC_eval_<model>/scores.xlsx
 python scripts/evaluate_detection.py --model openai_gpt5 --save-score
 
 # Détection + tout sauvegarder
@@ -69,7 +69,7 @@ python scripts/evaluate_detection.py --model openai_gpt5mini --save-ops --save-s
 
 # Recalculer les métriques sans LLM à partir d'ops existantes
 python scripts/evaluate_detection.py --model openai_gpt5mini \
-    --score-only eval/2026-06-05_10-00_eval_openai_gpt5mini/
+    --score-only eval/2026-06-05_10-00_UTC_eval_openai_gpt5mini/
 ```
 
 `--model` accepte n'importe quelle `model_key` déclarée dans
@@ -78,7 +78,7 @@ python scripts/evaluate_detection.py --model openai_gpt5mini \
 ## Sauvegarde des opérations détectées (`--save-ops`)
 
 En passant `--save-ops`, le script crée automatiquement un sous-dossier
-`eval/<yyyy-mm-dd_hh-mm>_eval_<model>/` à la racine du projet et y sauvegarde
+`eval/<yyyy-mm-dd_hh-mm>_UTC_eval_<model>/` à la racine du projet et y sauvegarde
 après chaque AIOT les opérations détectées dans `<subdir>/<aiot>/operations.json`.
 
 Le format est identique au ground-truth (`snapshots/ground-truth/<aiot>/operations.json`) :
@@ -98,7 +98,7 @@ Les clés JSON sont triées alphabétiquement (`sort_keys=True`) pour produire
 des diffs stables sous git.
 
 > **Convention de nommage** : le sous-dossier est nommé automatiquement
-> `eval/<yyyy-mm-dd_hh-mm>_eval_<model>/`. Le script ne stocke pas ces
+> `eval/<yyyy-mm-dd_hh-mm>_UTC_eval_<model>/` (horodatage en UTC). Le script ne stocke pas ces
 > métadonnées dans les fichiers JSON eux-mêmes.
 
 ## Mode score-only (`--score-only`)
@@ -108,7 +108,7 @@ Relit un dossier d'`operations.json` existants et recalcule les métriques
 
 ```bash
 python scripts/evaluate_detection.py --model openai_gpt5mini \
-    --score-only eval/2026-06-05_10-00_eval_openai_gpt5mini/
+    --score-only eval/2026-06-05_10-00_UTC_eval_openai_gpt5mini/
 ```
 
 - `--model` reste obligatoire (utilisé pour l'affichage et `--save-score`).
@@ -168,7 +168,7 @@ OVERALL (openai_gpt5mini)
 ## Sortie XLSX
 
 Avec `--save-score`, le script génère un classeur `scores.xlsx` dans le
-sous-dossier `eval/<date>_eval_<model>/` :
+sous-dossier `eval/<date>_UTC_eval_<model>/` :
 
 | Colonne | Sens |
 |---|---|

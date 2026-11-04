@@ -134,7 +134,8 @@ dans des fichiers JSON sous `config/` :
 - `config/llm_models.json` (`primary_model_key`, `secondary_model_key`, `models`) ;
   surchargeable sans toucher au JSON via `LLM_PRIMARY_MODEL_KEY` et
   `LLM_SECONDARY_MODEL_KEY` dans le `.env`
-- `config/llm_resilience.json` (`timeout_seconds`, stratégie de retry/fallback)
+- `config/llm_resilience.json` (`timeout_seconds`, stratégie de retry/fallback) ;
+  `timeout_seconds` surchargeable via `LLM_TIMEOUT_SECONDS`
 - `config/llm_rate_limit.json` (throttling optionnel)
 
 ## 🚀 Usage
