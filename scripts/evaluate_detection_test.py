@@ -18,6 +18,7 @@
 #
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -31,6 +32,16 @@ import evaluate_detection as mod  # noqa: E402
 from evaluate_detection import compare_operations, compute_scores, load_ground_truth  # noqa: E402
 
 from ocapi.llm_utils import TokenUsage  # noqa: E402
+
+
+def test_eval_subdir_labels_utc_timestamp(tmp_path):
+    with patch.object(mod, "_PROJECT_ROOT", tmp_path):
+        result = mod._make_eval_subdir(
+            "mistral_large-4", datetime(2026, 11, 2, 8, 0, tzinfo=timezone.utc)
+        )
+
+    assert result == tmp_path / "eval" / "2026-11-02_08-00_UTC_eval_mistral_large-4"
+    assert result.is_dir()
 
 
 class TestCompareOperations:

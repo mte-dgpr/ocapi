@@ -46,6 +46,7 @@ from ocapi.utils.io_utils import (
     write_permis_output,
 )
 from ocapi.utils.logging_utils import get_logger, initialize_root_logger
+from ocapi.utils.testing import normalize_html
 from ocapi.utils.utils import strip_none_values
 
 _LOGGER = get_logger(__name__)
@@ -179,7 +180,7 @@ def run_main(
         _LOGGER.info(f"Operations saved → {operations_path}")
 
         history_path = consolidation_dir / "history.json"
-        write_json_output(article_history_to_json_dict(history), history_path, sort_keys=True)
+        write_json_output(article_history_to_json_dict(history), history_path)
         _LOGGER.info(f"History saved → {history_path}")
 
         if permis:
@@ -258,10 +259,14 @@ def cmd_update_snapshots(args: argparse.Namespace) -> int:
         write_json_output(ops_dict, consolidation_dir / "operations.json", sort_keys=True)
         write_json_output(history_dict, consolidation_dir / "history.json")
         if permis:
-            write_permis_output(permis_to_html(permis), consolidation_dir / "permis.html")
+            write_permis_output(
+                normalize_html(permis_to_html(permis)), consolidation_dir / "permis.html"
+            )
         tagged_dir = arretes_dir.parent.parent / "arretes_tagged" / aiot
         for arrete_file, document_context in zip(arrete_files, document_contexts):
-            save_tagged_html_file(document_context, tagged_dir / arrete_file.filename)
+            write_permis_output(
+                normalize_html(document_context.soup.prettify()), tagged_dir / arrete_file.filename
+            )
         _LOGGER.info(f"Updated snapshots → {consolidation_dir}")
     return 0
 

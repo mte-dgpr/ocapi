@@ -558,6 +558,8 @@ def article_history_to_json_dict(history: ArticleHistory) -> dict[str, list[dict
     """Serialize :class:`ArticleHistory` to nested dicts suitable for ``json.dump``.
 
     ``NodeId`` keys become ``"{arrete_id}#{article_id}"`` strings.
+    Version fields use a fixed order: version, content, operation_id, title, error_codes.
+    Writers must preserve insertion order (``sort_keys=False``).
     ``error_codes`` is written as a sorted list of error code string values.
     """
     return {
@@ -590,7 +592,7 @@ def save_history(history: ArticleHistory, output_dir: Path) -> None:
     try:
         serialized = article_history_to_json_dict(history)
         with output_path.open("w", encoding="utf-8", newline="\n") as f:
-            json.dump(serialized, f, ensure_ascii=False, indent=2, sort_keys=True)
+            json.dump(serialized, f, ensure_ascii=False, indent=2)
     except OSError as e:
         raise InputOutputError(f"Cannot write history file: {e}") from e
 

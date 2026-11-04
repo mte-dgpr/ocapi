@@ -77,7 +77,9 @@ def make_permit_other(
 
         identification = extract_first_spec_html(arrete_file.soup, "identification")
         arrete_title = extract_first_spec_html(arrete_file.soup, "arrete_title")
-        body_content = make_permit_content(history_for_consolidation, arrete_file, operations)
+        body_content = make_permit_content(
+            history_for_consolidation, arrete_file, operations, modifying_arrete=True
+        )
 
         if has_no_ops(arrete_file, operations):
             complement_sections.append(

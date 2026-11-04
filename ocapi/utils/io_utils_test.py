@@ -49,6 +49,7 @@ from ocapi.utils.io_utils import (
     save_history,
     save_operations,
     save_tagged_html_file,
+    write_json_output,
 )
 from ocapi.utils.testing import make_testing_arrete, make_testing_op
 
@@ -398,6 +399,32 @@ class TestLoadOperations:
 
 
 class TestSaveHistory:
+    def test_preserves_canonical_order_in_serialized_text(self, tmp_path: Path) -> None:
+        history: ArticleHistory = {
+            NodeId(arrete_id="2020-01-01", article_id=article_id): [
+                ArticleVersion(version=1, title="Title", content="Content", operation_id="op1")
+            ]
+            for article_id in ("1.10", "1.2")
+        }
+        save_history(history, tmp_path)
+        output_path = tmp_path / "history.json"
+        expected = {
+            f"2020-01-01#{article_id}": [
+                {
+                    "version": 1,
+                    "content": "Content",
+                    "operation_id": "op1",
+                    "title": "Title",
+                }
+            ]
+            for article_id in ("1.2", "1.10")
+        }
+        expected_text = json.dumps(expected, ensure_ascii=False, indent=2)
+        assert output_path.read_text(encoding="utf-8") == expected_text
+
+        write_json_output(article_history_to_json_dict(history), output_path)
+        assert output_path.read_text(encoding="utf-8") == expected_text + "\n"
+
     def test_creates_history_json(self, tmp_path: Path) -> None:
         save_history({}, tmp_path)
         assert (tmp_path / "history.json").exists()
@@ -477,6 +504,22 @@ class TestSaveHistory:
 
 
 class TestArticleHistoryToJsonDict:
+    @pytest.mark.parametrize("with_errors", [False, True])
+    def test_version_properties_have_fixed_order(self, with_errors: bool) -> None:
+        node_id = NodeId(arrete_id="2020-01-01", article_id="1")
+        version = ArticleVersion(version=1, title="Title", content="Content", operation_id="op1")
+        reordered = ArticleVersion(operation_id="op1", content="Content", title="Title", version=1)
+        if with_errors:
+            version["error_codes"] = frozenset({ErrorCode.PROPAGATED_ERROR})
+            reordered["error_codes"] = version["error_codes"]
+        expected_keys = ["version", "content", "operation_id", "title"]
+        if with_errors:
+            expected_keys.append("error_codes")
+
+        for item in (version, reordered):
+            data = article_history_to_json_dict({node_id: [item]})
+            assert list(data[str(node_id)][0]) == expected_keys
+
     def test_sorts_keys_by_arrete_then_business_article_order(self) -> None:
         history: ArticleHistory = {
             NodeId(arrete_id="2021-01-01", article_id="APPENDIX"): [

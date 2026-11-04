@@ -16,12 +16,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from ocapi.config import settings
 from ocapi.llm_utils import config_model_llm
+from ocapi.llm_utils.config import _DEFAULT_LLM_RESILIENCE_CONFIG, _load_llm_resilience_config
 
 
 def test_config_model_llm_uses_primary_and_secondary_keys() -> None:
@@ -295,3 +297,55 @@ def test_disable_reasoning_no_effect_on_non_reasoning_model_env_false(
             model = config_model_llm()
 
     assert model.reasoning_model is None
+
+
+def test_env_timeout_overrides_resilience_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LLM_TIMEOUT_SECONDS replaces timeout_seconds from llm_resilience.json."""
+    monkeypatch.setenv("LLM_TIMEOUT_SECONDS", "600")
+    with patch(
+        "ocapi.llm_utils.config._read_json_config",
+        return_value={"timeout_seconds": 300, "fallback_enabled": False},
+    ):
+        cfg = _load_llm_resilience_config()
+
+    assert cfg["timeout_seconds"] == 600
+    assert cfg["fallback_enabled"] is False
+
+
+def test_resilience_timeout_from_json_without_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without LLM_TIMEOUT_SECONDS, timeout_seconds comes from the JSON."""
+    monkeypatch.delenv("LLM_TIMEOUT_SECONDS", raising=False)
+    with patch(
+        "ocapi.llm_utils.config._read_json_config",
+        return_value={"timeout_seconds": 300},
+    ):
+        cfg = _load_llm_resilience_config()
+
+    assert cfg["timeout_seconds"] == 300
+
+
+@pytest.mark.parametrize("bad_value", ["abc", "0", "-5", "1.5"])
+def test_invalid_env_timeout_is_ignored_with_warning(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, bad_value: str
+) -> None:
+    """An invalid LLM_TIMEOUT_SECONDS keeps the JSON value and logs a warning."""
+    monkeypatch.setenv("LLM_TIMEOUT_SECONDS", bad_value)
+    with patch(
+        "ocapi.llm_utils.config._read_json_config",
+        return_value={"timeout_seconds": 300},
+    ):
+        with caplog.at_level("WARNING"):
+            cfg = _load_llm_resilience_config()
+
+    assert cfg["timeout_seconds"] == 300
+    assert any("LLM_TIMEOUT_SECONDS" in msg for msg in caplog.messages)
+
+
+def test_env_timeout_does_not_mutate_default_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Overriding the timeout must not leak into the module-level default dict."""
+    monkeypatch.setenv("LLM_TIMEOUT_SECONDS", "999")
+    with patch("ocapi.llm_utils.config._RESILIENCE_CONFIG_PATH", Path("/nonexistent.json")):
+        cfg = _load_llm_resilience_config()
+
+    assert cfg["timeout_seconds"] == 999
+    assert _DEFAULT_LLM_RESILIENCE_CONFIG["timeout_seconds"] == 45
